@@ -98,6 +98,56 @@
     font-weight: 500; }
   .outline:active { background: var(--text); color: var(--bg); }
   .backup { display: flex; gap: 20px; margin-top: 18px; }
+  .ver { color: var(--muted); font-size: .8rem; margin-top: 22px; display: flex; gap: 16px; align-items: center; }
+  .upd { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; margin: 0 0 20px;
+    border: 1.5px solid var(--text); border-radius: 12px; font-size: .9rem; }
+  .upd .primary { padding: 7px 14px; }
+  /* Modo, días y horas en el formulario */
+  .seg { display: flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+  .seg label { flex: 1; margin: 0; text-align: center; padding: 8px 4px; font-size: .88rem; color: var(--muted); cursor: pointer; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label:has(input:checked) { background: var(--text); color: var(--bg); }
+  .days { display: flex; gap: 6px; margin-top: 6px; }
+  .days label { flex: 1; margin: 0; text-align: center; padding: 8px 0; border-radius: 10px; border: 1.5px solid var(--line);
+    font-size: .85rem; color: var(--muted); cursor: pointer; }
+  .days input { position: absolute; opacity: 0; pointer-events: none; }
+  .days label:has(input:checked) { border-color: var(--c); color: var(--c); font-weight: 600; }
+  .hours { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .hour-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 12px; border-radius: 999px;
+    border: 1.5px solid var(--line); font-size: .88rem; }
+  .hour-chip button { color: var(--muted); font-size: 1rem; line-height: 1; padding: 0 4px; }
+  .add-hour { margin-left: 10px; color: var(--muted); font-size: .88rem; white-space: nowrap; }
+  /* Progreso en el círculo (veces / cronómetro) */
+  .check .pv { font-size: .72rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .check.prog::after { content: ""; position: absolute; inset: -1.5px; border-radius: 50%;
+    background: conic-gradient(var(--c) var(--p, 0%), transparent 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); }
+  .check.run { border-style: dashed; }
+  .habit.off { opacity: .45; }
+  .habit.off .check { border-style: dotted; }
+  .group-title { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; margin: 26px 0 4px; }
+  /* Tareas, al estilo Google Tasks */
+  .tlists { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 20px; scrollbar-width: none; padding-bottom: 2px; }
+  .tadd { display: flex; align-items: center; gap: 12px; padding: 10px 0 18px; }
+  .tadd .plus { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--muted); color: var(--muted); display: grid; place-items: center; flex: none; font-size: 1.2rem; line-height: 1; }
+  .tadd input { border: 0; padding: 6px 0; }
+  .task { display: flex; align-items: flex-start; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .task:last-child { border-bottom: 1px solid var(--line); }
+  .task .tcheck { flex: none; width: 24px; height: 24px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--text); display: grid; place-items: center; color: var(--bg); }
+  .task .tcheck svg { width: 13px; height: 13px; opacity: 0; }
+  .task.done .tcheck { background: var(--text); } .task.done .tcheck svg { opacity: 1; }
+  .task .tbody { flex: 1; min-width: 0; text-align: left; }
+  .task .ttitle { font-weight: 500; }
+  .task.done .ttitle { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+  .task .tdetail { color: var(--muted); font-size: .88rem; white-space: pre-wrap; }
+  .task .tdate { display: inline-block; margin-top: 4px; font-size: .78rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+  .task .tdate.late { color: var(--red); border-color: var(--red); }
+  .tdone-toggle { margin-top: 22px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .task .tcheck { transition: background .15s; }
+    .task.just-done .tcheck { animation: pop-spring .9s var(--spring-pop); }
+    .check .pv { transition: transform .2s; }
+  }
 
   dialog { border: 0; padding: 28px 24px; width: min(480px, calc(100vw - 32px));
     background: var(--bg); color: var(--text); border-radius: 14px; }
@@ -253,6 +303,7 @@
   .day.just { background: #9a9a9a; color: #fff; font-weight: 600; }
   .day.today { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--text); color: var(--text); }
   .day.future, .day.before { opacity: .45; }
+  .day.off { opacity: .22; }
   .legend { display: flex; gap: 16px; justify-content: center; font-size: .8rem; color: var(--muted); margin: 20px 0 28px; }
   .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
   .summary { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 18px; }
@@ -271,6 +322,7 @@
 </head>
 <body>
 <main>
+  <div class="upd" id="upd" hidden><span>Hay una versión nueva lista.</span><button class="primary" id="upd-go">Actualizar</button></div>
   <header class="top">
     <div>
       <h1>Hoy</h1>
@@ -291,8 +343,10 @@
       <button class="link" id="backup-in">Restaurar copia</button>
       <input type="file" id="backup-file" accept="application/json,.json" hidden>
     </div>
+    <div class="ver"><span id="ver"></span><button class="link" id="check-upd">Buscar actualización</button></div>
   </div>
   <div id="view-cal" hidden></div>
+  <div id="view-tareas" hidden></div>
 </main>
 
 <nav class="tabs">
@@ -301,6 +355,9 @@
   </button>
   <button class="tab" data-view="cal">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendario
+  </button>
+  <button class="tab" data-view="tareas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h10M4 17h7"/><path d="M15.5 16.5l2 2L21.5 14"/></svg>Tareas
   </button>
 </nav>
 
@@ -322,12 +379,27 @@
     <input name="identidad" placeholder="Soy una persona que lee cada día" required>
     <label>Versión de 2 minutos</label>
     <input name="minima" placeholder="Leer una página" required>
-    <label>Hora</label>
+    <label>Modo</label>
+    <div class="seg">
+      <label><input type="radio" name="modo" value="check" checked>Marcar</label>
+      <label><input type="radio" name="modo" value="veces">Veces</label>
+      <label><input type="radio" name="modo" value="tiempo">Cronómetro</label>
+    </div>
+    <div id="meta-row" hidden>
+      <label id="meta-label">Veces al día</label>
+      <input name="meta" type="number" inputmode="numeric" min="1" max="999" value="3">
+    </div>
+    <label>Días</label>
+    <div class="days" id="days">
+      <label><input type="checkbox" name="dias" value="0" checked>L</label><label><input type="checkbox" name="dias" value="1" checked>M</label><label><input type="checkbox" name="dias" value="2" checked>X</label><label><input type="checkbox" name="dias" value="3" checked>J</label><label><input type="checkbox" name="dias" value="4" checked>V</label><label><input type="checkbox" name="dias" value="5" checked>S</label><label><input type="checkbox" name="dias" value="6" checked>D</label>
+    </div>
+    <label>Horas <small>· opcional, puedes poner varias</small></label>
+    <div class="hours" id="hours-list"></div>
     <div class="time">
       <select id="h-hour" aria-label="Hora"><option value="">--</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select>:<select id="h-min" aria-label="Minutos"><option value="00">00</option><option value="05">05</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="35">35</option><option value="40">40</option><option value="45">45</option><option value="50">50</option><option value="55">55</option></select>
       <div class="ampm"><label><input type="radio" name="ampm" value="AM" checked>AM</label><label><input type="radio" name="ampm" value="PM">PM</label></div>
+      <button type="button" class="add-hour" id="add-hour">+ Añadir</button>
     </div>
-    <input type="hidden" name="hora">
     <label>Lugar</label>
     <input name="lugar" placeholder="En el sofá">
     <label>Después de…</label>
@@ -355,6 +427,8 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
+const APP_VERSION = '2.0.0';
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Símbolos de línea fina, todos en una rejilla de 24×24.
@@ -405,10 +479,14 @@ function globalStats() {
   // Racha general: días seguidos en los que hiciste al menos un hábito.
   const any = day => hs.some(h => isDone(h, day));
   const excused = day => hs.some(h => isJust(h, day));
+  const anySched = day => hs.some(h => h.creado <= day && isSched(h, day));
   let streak = 0, d = new Date();
   if (!any(dayKey(d))) d = addDays(d, -1);
-  while (hs.length && (any(dayKey(d)) || excused(dayKey(d)))) {
-    if (any(dayKey(d))) streak++;
+  for (let i = 0; i < 3660 && hs.length; i++) {
+    const k = dayKey(d);
+    if (any(k)) streak++;
+    else if (!(excused(k) || !anySched(k))) break;
+    if (!hs.some(h => h.creado <= k)) break;
     d = addDays(d, -1);
   }
   // Acierto de los últimos 7 días; lo de hoy solo cuenta cuando ya lo marcaste.
@@ -416,7 +494,7 @@ function globalStats() {
   for (let i = 0; i < 7; i++) {
     const day = dayKey(addDays(new Date(), -i));
     for (const h of hs) {
-      if (h.creado > day || (i === 0 && !mark(h, day)) || isJust(h, day)) continue;
+      if (h.creado > day || !isSched(h, day) || (i === 0 && !mark(h, day)) || isJust(h, day)) continue;
       possible++;
       if (isDone(h, day)) ok++;
     }
@@ -435,8 +513,26 @@ function load() {
 function normalize(s) {
   s ||= {};
   s.habits ||= []; s.log ||= {}; s.razones ||= {}; s.notion ||= {};
+  s.progreso ||= {}; s.timers ||= {};
+  s.tareas ||= { listas: [{ id: 'inbox', nombre: 'Mis tareas' }], items: [] };
+  if (!s.tareas.listas.length) s.tareas.listas.push({ id: 'inbox', nombre: 'Mis tareas' });
+  for (const h of s.habits) {
+    if (h.rutina) continue;
+    if (!Array.isArray(h.dias) || !h.dias.length) h.dias = [...ALL_DAYS];
+    if (!Array.isArray(h.horas)) h.horas = h.hora ? [h.hora] : [];
+    delete h.hora;
+    if (!['check', 'veces', 'tiempo'].includes(h.modo)) h.modo = 'check';
+    h.meta = Math.max(1, +h.meta || 1);
+  }
   return s;
 }
+// Días de la semana: 0 = lunes … 6 = domingo. Un hábito solo cuenta los días que elegiste.
+const wd = day => (new Date(day + 'T12:00').getDay() + 6) % 7;
+const isSched = (h, day) => (h.dias || ALL_DAYS).includes(wd(day));
+const progressOf = (h, day) => state.progreso[h.id]?.[day] || 0;
+// Cronómetro: segundos acumulados más lo que corre desde `start`.
+const elapsedOf = h => { const t = state.timers[h.id]; return t ? t.acum + (t.start ? (Date.now() - t.start) / 1000 : 0) : 0; };
+const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
   pushCloud();
@@ -499,17 +595,26 @@ function stats(h) {
   const age = daysBetween(h.creado, t);
   const days = Object.keys(state.log[h.id] || {});
   const done = days.filter(d => isDone(h, d)).length;
-  // Días pasados (sin contar hoy) en los que no se hizo.
-  const missed = Math.max(0, age - days.filter(d => d < t && (isDone(h, d) || isJust(h, d))).length);
-  // Racha: cuenta hacia atrás desde hoy; si hoy aún no está, desde ayer.
+  // Días pasados (sin contar hoy) que tocaban y no se hicieron ni se justificaron.
+  let missed = 0;
+  for (let d = new Date(h.creado + 'T12:00'); dayKey(d) < t; d = addDays(d, 1)) {
+    const k = dayKey(d);
+    if (isSched(h, k) && !isDone(h, k) && !isJust(h, k)) missed++;
+  }
+  // Racha: cuenta hacia atrás desde hoy; si hoy aún no está, desde ayer. Los días que no tocan no la rompen.
   let streak = 0, d = new Date();
   if (!isDone(h, dayKey(d))) d = addDays(d, -1);
-  while (dayKey(d) >= h.creado && (isDone(h, dayKey(d)) || isJust(h, dayKey(d)))) {
-    if (isDone(h, dayKey(d))) streak++;
+  while (dayKey(d) >= h.creado) {
+    const k = dayKey(d);
+    if (isDone(h, k)) streak++;
+    else if (!(isJust(h, k) || !isSched(h, k))) break;
     d = addDays(d, -1);
   }
-  const yesterday = dayKey(addDays(new Date(), -1));
-  const missedYesterday = h.creado <= yesterday && !isDone(h, yesterday) && !isJust(h, yesterday);
+  // Ayer: el último día que tocaba antes de hoy.
+  let yd = addDays(new Date(), -1);
+  while (dayKey(yd) >= h.creado && !isSched(h, dayKey(yd))) yd = addDays(yd, -1);
+  const yesterday = dayKey(yd);
+  const missedYesterday = h.creado <= yesterday && isSched(h, yesterday) && !isDone(h, yesterday) && !isJust(h, yesterday);
   const compound = Math.pow(1.01, done) * Math.pow(0.99, missed);
   return { age, done, streak, missedYesterday, compound };
 }
@@ -536,13 +641,16 @@ function render() {
     $('#list').innerHTML = `<p class="empty">Empieza por un solo hábito, tan pequeño que no puedas decir que no.</p>`;
     return;
   }
-
-  $('#list').innerHTML = top.map(h => h.rutina ? routineHTML(h) : habitHTML(h)).join('');
+  const t = today();
+  const hoy = top.filter(h => h.rutina || isSched(h, t)), otros = top.filter(h => !h.rutina && !isSched(h, t));
+  $('#list').innerHTML = (hoy.length ? hoy.map(h => h.rutina ? routineHTML(h) : habitHTML(h)).join('') : `<p class="empty">Hoy no toca ningún hábito.</p>`)
+    + (otros.length ? `<p class="group-title">Otros días</p>` + otros.map(h => habitHTML(h)).join('') : '');
+  tickTimers();
 }
 
 // Una rutina agrupa hábitos: se abre con un toque y muestra los suyos dentro.
 function routineHTML(r) {
-  const kids = state.habits.filter(h => h.padre === r.id);
+  const kids = state.habits.filter(h => h.padre === r.id && isSched(h, today()));
   const done = kids.filter(h => isDone(h, today())).length;
   const checkClass = kids.length && done === kids.length ? 'done' : done ? 'half' : '';
   const inside = open.has(r.id) ? `<div class="children">
@@ -566,9 +674,21 @@ function routineHTML(r) {
 }
 
 function habitHTML(h) {
-  const s = stats(h), t = today(), m = mark(h, t);
-  const checkClass = m === 'full' ? 'done' : m === 'min' ? 'half' : m ? 'skip' : '';
-  const warn = s.missedYesterday && !m;
+  const s = stats(h), t = today(), m = mark(h, t), sched = isSched(h, t);
+  let checkClass = m === 'full' ? 'done' : m === 'min' ? 'half' : m ? 'skip' : '';
+  const warn = sched && s.missedYesterday && !m;
+  // Qué hace el círculo según el modo.
+  let act = m ? 'undo' : 'full', inner = icon(h.icono), style = '';
+  if (!m && sched && h.modo === 'veces') {
+    const p = progressOf(h, t);
+    act = 'plus'; checkClass += ' prog'; style = `--p:${Math.min(100, p / h.meta * 100)}%`;
+    if (p) inner = `<span class="pv">${p}/${h.meta}</span>`;
+  } else if (!m && sched && h.modo === 'tiempo') {
+    const e = elapsedOf(h), run = !!state.timers[h.id]?.start;
+    act = 'timer'; checkClass += ' prog' + (run ? ' run' : ''); style = `--p:${Math.min(100, e / (h.meta * 60) * 100)}%`;
+    if (e > 0 || run) inner = `<span class="pv">${fmtSec(Math.max(0, h.meta * 60 - e))}</span>`;
+  }
+  if (!sched) act = 'toggle';
 
   let detail = '';
   if (open.has(h.id)) {
@@ -579,24 +699,28 @@ function habitHTML(h) {
     const intent = [
       h.despuesDe && `Después de <b>${esc(h.despuesDe)}</b>,`,
       `haré <b>${esc(h.nombre)}</b>`,
-      h.hora && `a las <b>${esc(fmtHora(h.hora))}</b>`,
+      h.horas.length && `a las <b>${h.horas.map(fmtHora).map(esc).join(' y ')}</b>`,
       h.lugar && `en <b>${esc(h.lugar)}</b>`,
+      h.dias.length < 7 && `(${h.dias.map(d => DAY_L[d]).join(' ')})`,
     ].filter(Boolean).join(' ').replace(/^h/, 'H') + '.';
+    const modeLine = h.modo === 'veces' ? `${h.meta} ${h.meta === 1 ? 'vez' : 'veces'} al día` : h.modo === 'tiempo' ? `${h.meta} min al día` : '';
 
     let tip = '';
     if (s.done >= 66) tip = 'Consolidado. Ya forma parte de quien eres.';
     else if (s.streak >= 14) tip = '14 días seguidos. ¿Subes un poco la dificultad?';
     else if (s.age >= 10 && s.age <= 40) tip = 'Los resultados llegan tarde. Cada día es un voto.';
 
-    const actions = m
+    const actions = !sched ? '' : m
       ? `<button class="link" data-act="undo" data-id="${h.id}">Deshacer</button>`
-      : `<button class="link" data-act="min" data-id="${h.id}">Versión 2 min</button>
+      : `${h.modo === 'veces' && progressOf(h, t) ? `<button class="link" data-act="minus" data-id="${h.id}">−1</button>` : ''}
+         ${h.modo === 'tiempo' && elapsedOf(h) > 0 ? `<button class="link" data-act="treset" data-id="${h.id}">Reiniciar</button>` : ''}
+         <button class="link" data-act="min" data-id="${h.id}">Versión 2 min</button>
          <button class="link" data-act="skip" data-id="${h.id}">Hoy no</button>`;
 
     detail = `<div class="detail">
       <div class="chain" aria-label="Últimos 14 días">${chain}</div>
       <p class="intent">${intent}</p>
-      <p class="meta">${s.done} votos · ×${s.compound.toFixed(2)}${tip ? ' · ' + tip : ''}</p>
+      <p class="meta">${modeLine ? modeLine + ' · ' : ''}${s.done} votos · ×${s.compound.toFixed(2)}${tip ? ' · ' + tip : ''}</p>
       ${benefitsHTML(h)}${consHTML(h)}
       <div class="actions">
         ${actions}
@@ -606,10 +730,10 @@ function habitHTML(h) {
     </div>`;
   }
 
-  return `<section class="habit${justDone === h.id ? ' pop' : ''}" data-id="${h.id}" style="${colorVar(h)}">
+  return `<section class="habit${justDone === h.id ? ' pop' : ''}${sched ? '' : ' off'}" data-id="${h.id}" style="${colorVar(h)}">
     <div class="row">
-      <button class="check ${checkClass}" data-act="${m ? 'undo' : 'full'}" data-id="${h.id}"
-        aria-label="${m ? 'Deshacer' : 'Marcar hecho'}">${icon(h.icono)}</button>
+      <button class="check ${checkClass}" data-act="${act}" data-id="${h.id}" style="${style}"
+        aria-label="${m ? 'Deshacer' : 'Marcar hecho'}">${inner}</button>
       <button class="title" data-act="toggle" data-id="${h.id}">
         <div class="name">${esc(h.nombre)}${h.clave ? ' ·' : ''}</div>
         <div class="identity">${esc(h.identidad)}</div>
@@ -625,9 +749,44 @@ function setMark(h, value) {
   state.log[h.id] ??= {};
   if (value) state.log[h.id][today()] = value; else delete state.log[h.id][today()];
   if (value !== 'just') delete state.razones[h.id]?.[today()];
+  if (!value) { delete state.progreso[h.id]?.[today()]; delete state.timers[h.id]; }
   save(); render();
   notionSync(h.id, today());
 }
+
+// Modo veces: cada toque suma uno; al llegar a la meta, se completa.
+function plusOne(h, delta = 1) {
+  const t = today();
+  state.progreso[h.id] ??= {};
+  const p = Math.max(0, progressOf(h, t) + delta);
+  state.progreso[h.id][t] = p;
+  if (p >= h.meta) { complete(h, 'full'); return; }
+  navigator.vibrate?.(10);
+  save(); render();
+  const el = document.querySelector(`.habit[data-id="${h.id}"] .check .pv`);
+  if (el) { el.style.transform = 'scale(1.3)'; setTimeout(() => el.style.transform = '', 200); }
+}
+
+// Modo cronómetro: toque para arrancar o pausar; al cumplir los minutos, se completa.
+function toggleTimer(h) {
+  const tm = state.timers[h.id] || { acum: 0, start: 0 };
+  if (tm.start) { tm.acum += (Date.now() - tm.start) / 1000; tm.start = 0; }
+  else tm.start = Date.now();
+  state.timers[h.id] = tm;
+  navigator.vibrate?.(10);
+  save(); render();
+}
+function tickTimers() {
+  for (const h of state.habits) {
+    const tm = state.timers[h.id];
+    if (!tm?.start || mark(h, today())) continue;
+    const e = elapsedOf(h), goal = h.meta * 60;
+    if (e >= goal) { delete state.timers[h.id]; state.progreso[h.id] = { ...(state.progreso[h.id] || {}), [today()]: goal }; complete(h, 'full'); continue; }
+    const btn = document.querySelector(`.habit[data-id="${h.id}"] .check`);
+    if (btn) { btn.style.setProperty('--p', `${Math.min(100, e / goal * 100)}%`); const pv = btn.querySelector('.pv'); if (pv) pv.textContent = fmtSec(goal - e); }
+  }
+}
+setInterval(tickTimers, 1000);
 
 function showMsg(html) {
   $('#msg').innerHTML = html;
@@ -756,6 +915,10 @@ $('#list').addEventListener('click', e => {
         </div>`);
       break;
     case 'undo': setMark(h, null); break;
+    case 'plus': plusOne(h, 1); break;
+    case 'minus': plusOne(h, -1); break;
+    case 'timer': toggleTimer(h); break;
+    case 'treset': delete state.timers[h.id]; save(); render(); break;
     case 'toggle': open.has(h.id) ? open.delete(h.id) : open.add(h.id); render(); break;
     case 'clave': h.clave = !h.clave; save(); render(); break;
     case 'edit': openForm(h); break;
@@ -832,6 +995,7 @@ function dayStatus(h, day) {
   if (day > t) return 'future';
   if (day < h.creado) return 'before';
   const m = mark(h, day);
+  if (!m && !isSched(h, day)) return 'off';
   if (m === 'full') return 'done';
   if (m === 'min') return 'half';
   if (m === 'just') return 'just';
@@ -902,7 +1066,91 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'cal') renderCal(); }
+function renderAll() { render(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); }
+
+// ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
+let tareasShowDone = false, justDoneTask = null;
+function renderTareas() {
+  const T = state.tareas;
+  if (!T.listas.some(l => l.id === T.activa)) T.activa = T.listas[0].id;
+  const L = T.listas.find(l => l.id === T.activa);
+  const mine = T.items.filter(x => x.lista === L.id);
+  const pend = mine.filter(x => !x.hecha).sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : (a.fecha || '9') > (b.fecha || '9') ? 1 : b.creado - a.creado);
+  const done = mine.filter(x => x.hecha).sort((a, b) => (b.hechaEn || 0) - (a.hechaEn || 0));
+  const t = today();
+  const row = x => `<div class="task${x.hecha ? ' done' : ''}${justDoneTask === x.id ? ' just-done' : ''}" data-task="${x.id}">
+      <button class="tcheck" data-tact="toggle" aria-label="${x.hecha ? 'Marcar pendiente' : 'Completar'}">${CHECK}</button>
+      <button class="tbody" data-tact="edit">
+        <div class="ttitle">${esc(x.titulo)}</div>
+        ${x.detalle ? `<div class="tdetail">${esc(x.detalle)}</div>` : ''}
+        ${x.fecha ? `<span class="tdate${!x.hecha && x.fecha < t ? ' late' : ''}">${fmtFecha(x.fecha)}</span>` : ''}
+      </button>
+    </div>`;
+  $('#view-tareas').innerHTML = `
+    <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)}</button>`).join('')}
+      <button class="chip" data-tact="newlist">+ Lista</button></div>
+    <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea" autocomplete="off"></form>
+    ${pend.length ? pend.map(row).join('') : `<p class="empty">Nada pendiente en «${esc(L.nombre)}».</p>`}
+    ${done.length ? `<button class="link tdone-toggle" data-tact="showdone">${tareasShowDone ? '▾' : '▸'} Completadas (${done.length})</button>` : ''}
+    ${done.length && tareasShowDone ? `<div style="margin-top:10px">${done.map(row).join('')}</div>` : ''}
+    <div class="actions" style="margin-top:28px">
+      <button class="link" data-tact="renamelist">Renombrar lista</button>
+      ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}
+    </div>`;
+  justDoneTask = null;
+}
+const fmtFecha = d => { const x = new Date(d + 'T12:00'), t = today(); if (d === t) return 'Hoy'; if (d === dayKey(addDays(new Date(), 1))) return 'Mañana'; return x.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }); };
+
+function listForm(title, value, onSave) {
+  showMsg(`<h2>${title}</h2><input id="list-name" class="reason" placeholder="Nombre de la lista" maxlength="60" value="${esc(value)}">
+    <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="list-go">Guardar</button></div>`);
+  $('#list-name').focus();
+  $('#list-go').onclick = () => { const n = $('#list-name').value.trim(); if (!n) return; onSave(n); save(); renderTareas(); $('#msg-dialog').close(); };
+}
+
+function taskForm(x) {
+  const T = state.tareas;
+  showMsg(`<h2>Tarea</h2>
+    <input id="t-title" class="reason" placeholder="Título" value="${esc(x.titulo)}">
+    <textarea id="t-detail" placeholder="Detalles" style="margin-top:12px">${esc(x.detalle || '')}</textarea>
+    <label>Fecha</label><input id="t-date" type="date" value="${x.fecha || ''}">
+    <label>Lista</label><select id="t-list">${T.listas.map(l => `<option value="${l.id}"${l.id === x.lista ? ' selected' : ''}>${esc(l.nombre)}</option>`).join('')}</select>
+    <div class="dialog-actions"><button class="link danger" id="t-del" style="margin-right:auto">Borrar</button><button class="link" data-close>Cancelar</button><button class="primary" id="t-go">Guardar</button></div>`);
+  $('#t-go').onclick = () => {
+    const titulo = $('#t-title').value.trim(); if (!titulo) { $('#t-title').focus(); return; }
+    Object.assign(x, { titulo, detalle: $('#t-detail').value.trim(), fecha: $('#t-date').value, lista: $('#t-list').value });
+    save(); renderTareas(); $('#msg-dialog').close();
+  };
+  $('#t-del').onclick = () => { T.items = T.items.filter(y => y !== x); save(); renderTareas(); $('#msg-dialog').close(); };
+}
+
+$('#view-tareas').addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = $('#tadd-input'), titulo = inp.value.trim();
+  if (!titulo) return;
+  state.tareas.items.push({ id: crypto.randomUUID(), lista: state.tareas.activa, titulo, detalle: '', fecha: '', hecha: false, creado: Date.now() });
+  save(); renderTareas(); $('#tadd-input').focus();
+});
+$('#view-tareas').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const T = state.tareas;
+  if (b.dataset.list) { T.activa = b.dataset.list; save(); renderTareas(); return; }
+  const task = b.closest('[data-task]') && T.items.find(x => x.id === b.closest('[data-task]').dataset.task);
+  switch (b.dataset.tact) {
+    case 'toggle': task.hecha = !task.hecha; task.hechaEn = task.hecha ? Date.now() : 0; if (task.hecha) { justDoneTask = task.id; navigator.vibrate?.(10); } save(); renderTareas(); break;
+    case 'edit': taskForm(task); break;
+    case 'showdone': tareasShowDone = !tareasShowDone; renderTareas(); break;
+    case 'newlist': listForm('Nueva lista', '', n => { const id = crypto.randomUUID(); T.listas.push({ id, nombre: n }); T.activa = id; }); break;
+    case 'renamelist': { const L = T.listas.find(l => l.id === T.activa); listForm('Renombrar lista', L.nombre, n => L.nombre = n); break; }
+    case 'dellist': {
+      const L = T.listas.find(l => l.id === T.activa), n = T.items.filter(x => x.lista === L.id).length;
+      showMsg(`<h2>¿Borrar «${esc(L.nombre)}»?</h2><p class="meta" style="margin-top:12px">${n ? `Se borran también sus ${n} ${n === 1 ? 'tarea' : 'tareas'}.` : 'La lista está vacía.'}</p>
+        <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="dellist-go">Borrar</button></div>`);
+      $('#dellist-go').onclick = () => { T.items = T.items.filter(x => x.lista !== L.id); T.listas = T.listas.filter(l => l !== L); T.activa = T.listas[0].id; save(); renderTareas(); $('#msg-dialog').close(); };
+      break;
+    }
+  }
+});
 
 document.querySelector('.tabs').addEventListener('click', e => {
   const b = e.target.closest('.tab');
@@ -911,7 +1159,8 @@ document.querySelector('.tabs').addEventListener('click', e => {
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
   $('#view-hoy').hidden = view !== 'hoy';
   $('#view-cal').hidden = view !== 'cal';
-  $('h1').textContent = view === 'hoy' ? 'Hoy' : 'Calendario';
+  $('#view-tareas').hidden = view !== 'tareas';
+  $('h1').textContent = { hoy: 'Hoy', cal: 'Calendario', tareas: 'Tareas' }[view];
   renderAll();
   scrollTo(0, 0);
 });
@@ -919,7 +1168,20 @@ document.querySelector('.tabs').addEventListener('click', e => {
 let editing = null;
 const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean);
 const ROUTINE_FIELDS = ['nombre', 'icono', 'color'];
-const FIELDS = ['nombre', 'icono', 'color', 'padre', 'identidad', 'minima', 'hora', 'lugar', 'despuesDe', 'recompensa', 'celebracion'];
+const FIELDS = ['nombre', 'icono', 'color', 'padre', 'identidad', 'minima', 'modo', 'meta', 'lugar', 'despuesDe', 'recompensa', 'celebracion'];
+let formHoras = [];
+function renderHoras() {
+  $('#hours-list').innerHTML = formHoras.map(h => `<span class="hour-chip">${fmtHora(h)}<button type="button" data-rm-hora="${h}" aria-label="Quitar">×</button></span>`).join('');
+}
+$('#add-hour').onclick = () => {
+  const v = readTime();
+  if (!v) { $('#h-hour').focus(); return; }
+  if (!formHoras.includes(v)) formHoras.push(v);
+  formHoras.sort(); renderHoras(); setTime('');
+};
+$('#hours-list').addEventListener('click', e => { const b = e.target.closest('[data-rm-hora]'); if (!b) return; formHoras = formHoras.filter(h => h !== b.dataset.rmHora); renderHoras(); });
+const metaUI = () => { const m = $('#form').elements.modo.value; $('#meta-row').hidden = m === 'check'; $('#meta-label').textContent = m === 'tiempo' ? 'Minutos al día' : 'Veces al día'; };
+$('#form').addEventListener('change', e => { if (e.target.name === 'modo') metaUI(); });
 
 $('#icon-picker').innerHTML = Object.keys(ICONS).map((k, i) =>
   `<label><input type="radio" name="icono" value="${k}" ${i ? '' : 'checked'} aria-label="${k}"><span class="icon-pick">${icon(k)}</span></label>`).join('');
@@ -966,11 +1228,15 @@ function openForm(h = null, { rutina = false, padre = '' } = {}) {
   $('#form-title').textContent = (h ? 'Editar ' : formIsRoutine ? 'Nueva ' : 'Nuevo ') + kind;
   f.elements.nombre.placeholder = formIsRoutine ? 'Rutina matutina' : 'Leer 20 páginas';
   $('#delete').hidden = !h;
+  formHoras = [];
   if (h) {
-    (formIsRoutine ? ROUTINE_FIELDS : FIELDS).forEach(k => f.elements[k].value = h[k] || '');
+    (formIsRoutine ? ROUTINE_FIELDS : FIELDS).forEach(k => { if (f.elements[k]) f.elements[k].value = h[k] ?? ''; });
     if (!formIsRoutine) {
       f.elements.beneficios.value = h.beneficios.join('\n');
       f.elements.contras.value = h.contras.join('\n');
+      formHoras = [...(h.horas || [])];
+      [...f.elements.dias].forEach(c => c.checked = (h.dias || ALL_DAYS).includes(+c.value));
+      f.elements.meta.value = h.meta || 1;
     }
   } else {
     f.elements.padre.value = padre;
@@ -978,8 +1244,8 @@ function openForm(h = null, { rutina = false, padre = '' } = {}) {
     // Lo nuevo dentro de una rutina toma su color.
     if (padre) f.elements.color.value = state.habits.find(x => x.id === padre).color || '';
   }
-  setTime(h && !formIsRoutine ? h.hora : '');
-  tintForm();
+  setTime('');
+  renderHoras(); metaUI(); tintForm();
   $('#form-dialog').showModal();
 }
 
@@ -1002,12 +1268,18 @@ $('#delete').onclick = () => {
 
 $('#form').addEventListener('submit', e => {
   const f = e.target;
-  f.elements.hora.value = readTime();
-  const data = Object.fromEntries((formIsRoutine ? ROUTINE_FIELDS : FIELDS).map(k => [k, f.elements[k].value.trim()]));
+  const data = Object.fromEntries((formIsRoutine ? ROUTINE_FIELDS : FIELDS).map(k => [k, String(f.elements[k].value).trim()]));
   if (!formIsRoutine) {
     data.beneficios = lines(f.elements.beneficios.value);
     data.contras = lines(f.elements.contras.value);
     if (!data.beneficios.length || !data.contras.length) { e.preventDefault(); return; }
+    data.dias = [...f.elements.dias].filter(c => c.checked).map(c => +c.value);
+    if (!data.dias.length) { e.preventDefault(); dialogResult('Elige al menos un día', 'Un hábito necesita al menos un día de la semana.'); return; }
+    // Si dejaste una hora puesta sin pulsar «Añadir», también cuenta.
+    const pending = readTime(); if (pending && !formHoras.includes(pending)) formHoras.push(pending);
+    data.horas = [...formHoras].sort();
+    data.meta = Math.max(1, +data.meta || 1);
+    if (data.modo === 'check') data.meta = 1;
     if (data.padre) open.add(data.padre);
   }
   if (editing) Object.assign(editing, data);
@@ -1137,9 +1409,33 @@ $('#backup-file').onchange = async e => {
 };
 
 // Sin internet: el service worker guarda la app en el teléfono tras la primera apertura.
+// Actualizar nunca toca tus datos: viven aparte, en el almacenamiento del teléfono.
+$('#ver').textContent = 'v' + APP_VERSION;
+let swReg = null;
+const showUpdate = () => { $('#upd').hidden = false; };
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js').then(r => {
+    swReg = r;
+    if (r.waiting) showUpdate();
+    r.addEventListener('updatefound', () => {
+      const w = r.installing;
+      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(); });
+    });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
 }
+$('#upd-go').onclick = () => { swReg?.waiting?.postMessage('SKIP_WAITING'); setTimeout(() => location.reload(), 600); };
+$('#check-upd').onclick = async () => {
+  if (!navigator.onLine) { dialogResult('Sin internet', 'Para buscar una versión nueva hace falta conexión. Tus datos siguen aquí igual.'); return; }
+  if (!swReg) { location.reload(); return; }
+  $('#check-upd').textContent = 'Buscando…';
+  try { await swReg.update(); } catch {}
+  setTimeout(() => {
+    $('#check-upd').textContent = 'Buscar actualización';
+    if (swReg.waiting || swReg.installing) showUpdate();
+    else dialogResult('Al día', `Tienes la última versión (v${APP_VERSION}).`);
+  }, 1500);
+};
 
 render();
 setSync('local');
