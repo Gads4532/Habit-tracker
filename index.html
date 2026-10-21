@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hábitos en Racha</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    /* Tipografía: una sola variable. Pendiente: sustituir por la de Rial. */
+    --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --bg: #ffffff; --text: #111111; --muted: #8a8a8a; --line: #ededed; --empty: #e6e6e6;
+    --green: #1f9d55; --red: #d64545; --warn: #b7791f;
+    --fire: #ff9600; --fire-dark: #d97800;
+    /* Resortes reales (masa 1): bouncy k=180 c=10 · pop k=300 c=14 · soft k=120 c=14 */
+    --spring-bouncy: linear(0, 0.067, 0.237, 0.462, 0.699, 0.916, 1.089, 1.208, 1.27, 1.282, 1.255, 1.202, 1.137, 1.07, 1.011, 0.966, 0.936, 0.922, 0.921, 0.931, 0.947, 0.966, 0.984, 1, 1.012, 1.02, 1.023, 1.022, 1.019, 1.014, 1.008, 1.003, 0.999, 0.996, 0.994, 0.994, 0.994, 0.995, 0.996, 0.998, 0.999, 1.001, 1.001, 1.002, 1.002, 1.002, 1.001, 1.001, 1);
+    --spring-pop: linear(0, 0.057, 0.203, 0.399, 0.612, 0.813, 0.985, 1.115, 1.201, 1.243, 1.248, 1.224, 1.183, 1.131, 1.078, 1.03, 0.991, 0.962, 0.945, 0.938, 0.94, 0.947, 0.959, 0.972, 0.985, 0.996, 1.005, 1.011, 1.015, 1.016, 1.015, 1.012, 1.009, 1.006, 1.003, 1, 0.998, 0.997, 0.996, 0.996, 0.997, 0.997, 0.998, 0.999, 1, 1, 1.001, 1.001, 1);
+    --spring-soft: linear(0, 0.023, 0.083, 0.168, 0.269, 0.376, 0.484, 0.588, 0.684, 0.769, 0.844, 0.906, 0.957, 0.998, 1.028, 1.049, 1.063, 1.071, 1.074, 1.072, 1.068, 1.062, 1.055, 1.047, 1.039, 1.031, 1.024, 1.018, 1.012, 1.007, 1.004, 1.001, 0.998, 0.997, 0.995, 0.995, 0.995, 0.995, 0.995, 0.995, 0.996, 0.996, 0.997, 0.998, 0.998, 0.999, 0.999, 0.999, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e0e0e; --text: #f2f2f2; --muted: #7a7a7a; --line: #1f1f1f; --empty: #2a2a2a;
+      --green: #3fbf75; --red: #ef6a6a; --warn: #d9a441; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e0e0e; --text: #f2f2f2; --muted: #7a7a7a; --line: #1f1f1f; --empty: #2a2a2a;
+    --green: #3fbf75; --red: #ef6a6a; --warn: #d9a441; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 var(--font);
+    -webkit-font-smoothing: antialiased; }
+  main { max-width: 520px; margin: 0 auto; padding-block: 48px 110px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .global { text-align: right; }
+  .g-streak { display: inline-flex; align-items: center; gap: 4px; font-size: 1.6rem; font-weight: 600;
+    font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .g-streak svg { width: 26px; height: 26px; }
+  .g-rate { color: var(--muted); font-size: .8rem; }
+  .flame.off { filter: grayscale(1); opacity: .35; }
+  h1 { font-size: 2rem; font-weight: 600; letter-spacing: -.02em; margin: 0; }
+  .date { color: var(--muted); margin: 2px 0 32px; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  .link { color: var(--muted); font-size: .9rem; }
+  .link:hover { color: var(--text); }
+  .note { color: var(--muted); font-size: .9rem; margin: 0 0 24px; }
+
+  .habit { border-top: 1px solid var(--line); padding: 18px 0; }
+  #list > .habit:last-child { border-bottom: 1px solid var(--line); }
+  .children { margin: 10px 0 0 54px; }
+  .children .habit { padding: 12px 0; }
+  .children .actions { margin-top: 6px; }
+  .row { display: flex; align-items: center; gap: 14px; }
+  .habit, #form { --c: var(--text); }
+  .check { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--c);
+    color: var(--c); display: grid; place-items: center; transition: background .15s, color .15s; }
+  .check.done { background: var(--c); color: var(--bg); }
+  .check.half { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 25%, transparent) 50%, transparent 50%); }
+  .check.skip { border-color: var(--empty); color: var(--muted); }
+  .check svg, .icon-pick svg { width: 20px; height: 20px; }
+  .title { flex: 1; min-width: 0; text-align: left; }
+  .name { font-weight: 500; }
+  .identity { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .streak { color: var(--muted); font-variant-numeric: tabular-nums; font-size: .9rem;
+    display: inline-flex; align-items: center; gap: 3px; }
+  .streak svg { width: 16px; height: 16px; }
+  .streak.on { color: var(--text); font-weight: 600; }
+  .check { position: relative; }
+  .spark { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%;
+    background: var(--c); pointer-events: none; }
+  .warn { color: var(--warn); font-size: .85rem; margin: 8px 0 0 54px; }
+
+  .detail { margin: 16px 0 0 54px; }
+  .chain { display: flex; gap: 5px; margin-bottom: 14px; }
+  .chain span { width: 8px; height: 8px; border-radius: 50%; background: var(--empty); }
+  .chain .full { background: var(--c); }
+  .chain .min { background: color-mix(in srgb, var(--c) 45%, transparent); }
+  .intent, .meta { font-size: .9rem; color: var(--muted); margin: 0 0 4px; }
+  .intent b { color: var(--text); font-weight: 500; }
+  h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin: 18px 0 6px; }
+  h3.benefits { color: var(--green); }
+  h3.cons { color: var(--red); }
+  ul { margin: 0; padding-left: 18px; font-size: .95rem; }
+  li { margin: 2px 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; white-space: nowrap; }
+
+  .empty { color: var(--muted); padding: 24px 0; }
+  .adds { display: flex; gap: 24px; margin-top: 28px; }
+  .add { font-weight: 500; }
+  .outline { display: block; margin-top: 24px; padding: 11px 18px; border-radius: 999px; border: 1.5px solid var(--text);
+    font-weight: 500; }
+  .outline:active { background: var(--text); color: var(--bg); }
+  .backup { display: flex; gap: 20px; margin-top: 18px; }
+
+  dialog { border: 0; padding: 28px 24px; width: min(480px, calc(100vw - 32px));
+    background: var(--bg); color: var(--text); border-radius: 14px; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  dialog h2 { font-size: 1.3rem; font-weight: 600; margin: 0 0 8px; letter-spacing: -.01em; }
+  label { display: block; margin: 18px 0 2px; font-size: .8rem; color: var(--muted); }
+  label.benefits { color: var(--green); } label.cons { color: var(--red); }
+  fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  input, textarea, select { width: 100%; font: inherit; padding: 6px 0; border: 0; border-bottom: 1px solid var(--line);
+    background: none; color: var(--text); border-radius: 0; outline: none; }
+  input:focus, textarea:focus, select:focus { border-color: var(--text); }
+  textarea { min-height: 56px; resize: vertical; }
+  .two { display: flex; gap: 16px; } .two > div { flex: 1; min-width: 0; }
+  .time { display: flex; align-items: center; gap: 4px; }
+  .time select { width: 64px; flex: none; }
+  select { background: var(--bg); }
+  option { background: var(--bg); color: var(--text); }
+  option:checked { background: var(--text); color: var(--bg); }
+  .ampm { display: flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; flex: none; margin-left: 12px; }
+  .ampm label { margin: 0; padding: 5px 14px; font-size: .78rem; color: var(--muted); cursor: pointer; }
+  .ampm input { position: absolute; opacity: 0; pointer-events: none; }
+  .ampm label:has(input:checked) { background: var(--text); color: var(--bg); }
+  .ampm label:has(input:focus-visible) { outline: 2px solid var(--muted); outline-offset: -2px; }
+  .dialog-actions { display: flex; justify-content: flex-end; align-items: center; gap: 24px; margin-top: 28px; }
+  .dialog-actions .danger { color: var(--red); margin-right: auto; }
+  .primary { background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 500; }
+  .picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .picker label { display: block; margin: 0; }
+  .picker input { position: absolute; opacity: 0; pointer-events: none; }
+  .icon-pick { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+    color: var(--muted); border: 1.5px solid transparent; cursor: pointer; }
+  input:checked + .icon-pick { color: var(--c); border-color: var(--c); }
+  .swatch { display: block; width: 28px; height: 28px; border-radius: 50%; background: var(--sw); cursor: pointer;
+    border: 2px solid transparent; }
+  input:checked + .swatch { border: 2px solid var(--sw); box-shadow: inset 0 0 0 3px var(--bg); }
+  input:focus-visible + .icon-pick, input:focus-visible + .swatch { outline: 2px solid var(--muted); outline-offset: 2px; }
+  /* Celebración a pantalla completa, como la racha de Duolingo */
+  .cele { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex; justify-content: center;
+    align-items: center; overflow-y: auto; text-align: center;
+    padding-block: calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  .cele-inner { width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; margin: auto; }
+  .cele-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .cele-flame { position: relative; width: 128px; height: 128px; transform-origin: 50% 88%; }
+  .cele-flame > svg { position: relative; width: 100%; height: 100%; transform-origin: 50% 88%;
+    filter: grayscale(1) opacity(.3); transition: filter .25s ease; }
+  .cele.lit .cele-flame > svg { filter: none; }
+  /* Sunburst: rayos del mismo naranja, muy tenues, que giran detrás del fuego */
+  .sunburst { position: absolute; inset: -90%; border-radius: 50%; opacity: 0; pointer-events: none;
+    background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--fire) 14%, transparent) 0 6deg, transparent 6deg 20deg);
+    mask: radial-gradient(circle, #000 20%, transparent 68%); -webkit-mask: radial-gradient(circle, #000 20%, transparent 68%); }
+  .cele-glow { position: absolute; inset: 8%; border-radius: 50%; opacity: 0;
+    background: radial-gradient(circle, color-mix(in srgb, var(--fire) 45%, transparent), transparent 70%); }
+  .roll { height: 1em; overflow: hidden; font-size: 5.5rem; font-weight: 800; line-height: 1; color: var(--fire);
+    letter-spacing: -.04em; font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .roll-inner { display: flex; flex-direction: column; }
+  .roll-inner span { height: 1em; }
+  .roll.go .roll-inner { transform: translateY(-1em); }
+  .roll-inner span:last-child { transform-origin: 50% 60%; }
+  .wk i { position: relative; }
+  .wk i::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid var(--fire); opacity: 0; }
+  .cele-label { font-size: 1.15rem; font-weight: 700; color: var(--fire); margin: 6px 0 26px; }
+  .week { display: flex; gap: 10px; justify-content: center; margin-bottom: 26px; }
+  .wk { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); }
+  .wk i { width: 32px; height: 32px; border-radius: 50%; background: var(--empty); display: grid; place-items: center; color: #fff; }
+  .wk i svg { width: 15px; height: 15px; }
+  .wk.done i, .wk.today.fill i { background: var(--fire); }
+  .wk.today { color: var(--text); font-weight: 700; }
+  .wk.today:not(.fill) i svg { opacity: 0; }
+  .motivation { font-size: 1.15rem; font-weight: 600; margin: 0 0 4px; text-wrap: balance; }
+  .cele-benefits { align-self: stretch; text-align: left; margin-top: 10px; }
+  .cele-go { margin-top: 28px; width: 100%; padding: 15px; border-radius: 16px; background: var(--fire); color: #fff;
+    font-weight: 700; letter-spacing: .08em; text-transform: uppercase; box-shadow: 0 4px 0 var(--fire-dark); }
+  .cele-go:active { transform: translateY(4px); box-shadow: none; }
+  .cele-go:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+  .big { font-size: 1.6rem; font-weight: 600; letter-spacing: -.02em; margin: 0 0 4px; }
+  @media (prefers-reduced-motion: no-preference) {
+    dialog[open] { animation: rise .38s cubic-bezier(.2, .9, .3, 1.25); }
+    dialog[open]::backdrop { animation: fade .25s ease; }
+    .detail, .children { animation: slide .28s ease both; }
+    .check:active { transform: scale(.9); }
+    .check { transition: background .2s, color .2s, transform .15s; }
+    .pop .check { animation: pop-spring .9s var(--spring-pop); }
+    .pop .check::before { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--c);
+      animation: ring .7s ease-out forwards; pointer-events: none; }
+    .pop .streak { animation: bump-spring .9s var(--spring-pop) .1s; }
+    .spark { animation: spark .6s cubic-bezier(.1, .8, .3, 1) forwards; }
+    .g-streak .flame:not(.off) { animation: flicker 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+    .g-streak.bump { animation: bump-spring .9s var(--spring-pop); }
+    .cele { animation: fade .2s ease; }
+    .cele.out { animation: fade .2s ease reverse forwards; }
+    /* 1. Anticipación: el fuego gris entra pequeño y se posa */
+    .cele-flame { animation: settle .5s var(--spring-soft) .05s both; }
+    /* 2. Squash & stretch + resorte al encenderse; luego flicker */
+    .cele.lit .cele-flame { animation: squash-stretch .2s ease-in forwards, ignite-spring 1.4s var(--spring-bouncy) .2s both; }
+    .cele.lit .cele-flame > svg { animation: flicker 1.6s ease-in-out 1.4s infinite; }
+    .cele.lit .sunburst { animation: sunburst 1.3s ease-out .2s both; }
+    .cele.lit .cele-glow { animation: glow 1.2s ease-out .2s; }
+    .roll { animation: slide .35s ease .25s both; }
+    .roll-inner { transition: transform 1.4s var(--spring-bouncy); }
+    .roll.go .roll-inner span:last-child { animation: bump-spring .9s var(--spring-pop) .3s; }
+    .cele-label { animation: slide .35s ease .35s both; }
+    .week { animation: slide .35s ease .45s both; }
+    .wk.today.fill i { animation: pop-spring .9s var(--spring-pop); }
+    .wk.today.fill i::after { animation: ring .7s ease-out forwards; }
+    .wk i svg { transition: opacity .2s ease .1s; }
+    /* 3. Cascada: cada bloque entra con resorte suave, escalonado */
+    .motivation, .cele-inner > .meta, .cele-benefits, .cele-go { animation: rise-spring .9s var(--spring-soft) both; }
+    .motivation { animation-delay: 1.15s; } .cele-inner > .meta { animation-delay: 1.25s; }
+    .cele-benefits { animation-delay: 1.35s; } .cele-go { animation-delay: 1.5s; }
+    @keyframes settle { from { transform: translateY(20px) scale(.6); opacity: 0; } }
+    @keyframes squash-stretch { to { transform: scale(1.15, .82); } }
+    @keyframes ignite-spring { from { transform: scale(.75, 1.3); } to { transform: scale(1); } }
+    @keyframes sunburst { 0% { transform: rotate(0) scale(.4); opacity: 0; } 25% { opacity: 1; } 100% { transform: rotate(40deg) scale(1.15); opacity: 0; } }
+    @keyframes glow { 0% { transform: scale(.5); opacity: 0; } 35% { opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+    @keyframes pop-spring { from { transform: scale(.6); } to { transform: scale(1); } }
+    @keyframes bump-spring { from { transform: scale(1.45); } to { transform: scale(1); } }
+    @keyframes rise-spring { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes ring { from { transform: scale(1); opacity: .9; } to { transform: scale(2.1); opacity: 0; } }
+    @keyframes rise { from { opacity: 0; transform: translateY(24px) scale(.96); } }
+    @keyframes fade { from { opacity: 0; } }
+    @keyframes slide { from { opacity: 0; transform: translateY(6px); } }
+    @keyframes pop { 40% { transform: scale(1.22); } 70% { transform: scale(.95); } }
+    @keyframes bump { 40% { transform: scale(1.35); } }
+    @keyframes spark { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+    @keyframes flame-in { from { transform: scale(0) rotate(-12deg); opacity: 0; } }
+    @keyframes flicker { 0%, 100% { transform: scale(1, 1); } 30% { transform: scale(1.03, .96); } 60% { transform: scale(.97, 1.05); } }
+  }
+  /* Barra inferior: Hoy | Calendario */
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 56px;
+    padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--bg); border-top: 1px solid var(--line); z-index: 5; }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .72rem; color: var(--muted); }
+  .tab svg { width: 22px; height: 22px; }
+  .tab.on { color: var(--text); }
+  /* Calendario */
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 24px; scrollbar-width: none; }
+  .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: 999px;
+    border: 1.5px solid var(--line); color: var(--muted); font-size: .88rem; white-space: nowrap; }
+  .chip svg { width: 16px; height: 16px; }
+  .chip.on { border-color: var(--c); color: var(--text); }
+  .chip.on svg { color: var(--c); }
+  .month { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .month h2 { font-size: 1.15rem; font-weight: 600; margin: 0; }
+  .month button { width: 36px; height: 36px; border-radius: 50%; font-size: 1.3rem; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px 6px; text-align: center; }
+  .wd { font-size: .72rem; color: var(--muted); padding-bottom: 4px; }
+  .day { aspect-ratio: 1; width: 100%; max-width: 44px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center;
+    font-size: .88rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .day.done { background: var(--green); color: #fff; font-weight: 600; }
+  .day.half { background: color-mix(in srgb, var(--green) 55%, transparent); color: #fff; font-weight: 600; }
+  .day.miss { background: var(--red); color: #fff; font-weight: 600; }
+  .day.just { background: #9a9a9a; color: #fff; font-weight: 600; }
+  .day.today { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--text); color: var(--text); }
+  .day.future, .day.before { opacity: .45; }
+  .legend { display: flex; gap: 16px; justify-content: center; font-size: .8rem; color: var(--muted); margin: 20px 0 28px; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+  .summary { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 18px; }
+  .summary b { display: block; font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .summary span { color: var(--muted); font-size: .8rem; }
+  .reason { width: 100%; margin-top: 12px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .day { animation: day-in .35s cubic-bezier(.2, 1.4, .4, 1) both; animation-delay: calc(var(--i) * 12ms); }
+    .day.today { animation: day-in .35s cubic-bezier(.2, 1.4, .4, 1) both, ring 2s ease-in-out .6s infinite; }
+    .day:not([disabled]):active { transform: scale(.88); }
+    .summary b { animation: bump .5s cubic-bezier(.2, 1.6, .4, 1) .3s both; }
+    @keyframes day-in { from { transform: scale(.4); opacity: 0; } }
+    @keyframes ring { 50% { box-shadow: 0 0 0 2px var(--bg), 0 0 0 5px var(--text); } }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1>Hoy</h1>
+      <p class="date"><span id="today"></span> <span id="sync"></span> <span id="notion"></span></p>
+    </div>
+    <div class="global" id="global"></div>
+  </header>
+  <div id="view-hoy">
+    <p class="note" id="notice" hidden></p>
+    <div id="list"></div>
+    <div class="adds">
+      <button class="add" id="add">+ Nuevo hábito</button>
+      <button class="add" id="add-routine">+ Nueva rutina</button>
+    </div>
+    <button class="outline" id="export-notion">Exportar todo a Notion</button>
+    <div class="backup" id="backup">
+      <button class="link" id="backup-out">Guardar copia</button>
+      <button class="link" id="backup-in">Restaurar copia</button>
+      <input type="file" id="backup-file" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <div id="view-cal" hidden></div>
+</main>
+
+<nav class="tabs">
+  <button class="tab on" data-view="hoy">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.5L16 9.5"/></svg>Hoy
+  </button>
+  <button class="tab" data-view="cal">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendario
+  </button>
+</nav>
+
+<dialog id="form-dialog">
+  <form id="form" method="dialog">
+    <h2 id="form-title">Nuevo hábito</h2>
+    <label id="name-label">Nombre</label>
+    <input name="nombre" placeholder="Leer 20 páginas" required>
+    <label>Símbolo</label>
+    <div class="picker" id="icon-picker"></div>
+    <label>Color</label>
+    <div class="picker" id="color-picker"></div>
+    <fieldset id="habit-only">
+    <div id="padre-row">
+      <label>Dentro de la rutina</label>
+      <select name="padre"></select>
+    </div>
+    <label>Identidad</label>
+    <input name="identidad" placeholder="Soy una persona que lee cada día" required>
+    <label>Versión de 2 minutos</label>
+    <input name="minima" placeholder="Leer una página" required>
+    <label>Hora</label>
+    <div class="time">
+      <select id="h-hour" aria-label="Hora"><option value="">--</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select>:<select id="h-min" aria-label="Minutos"><option value="00">00</option><option value="05">05</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="35">35</option><option value="40">40</option><option value="45">45</option><option value="50">50</option><option value="55">55</option></select>
+      <div class="ampm"><label><input type="radio" name="ampm" value="AM" checked>AM</label><label><input type="radio" name="ampm" value="PM">PM</label></div>
+    </div>
+    <input type="hidden" name="hora">
+    <label>Lugar</label>
+    <input name="lugar" placeholder="En el sofá">
+    <label>Después de…</label>
+    <input name="despuesDe" placeholder="Cenar">
+    <label>Mi recompensa</label>
+    <input name="recompensa" placeholder="Un capítulo de mi serie">
+    <label>Mi celebración</label>
+    <input name="celebracion" placeholder="¡Así se hace!">
+    <label class="benefits">Beneficios · uno por línea</label>
+    <textarea name="beneficios" required></textarea>
+    <label class="cons">Contras de no hacerlo · uno por línea</label>
+    <textarea name="contras" required></textarea>
+    </fieldset>
+    <div class="dialog-actions">
+      <button type="button" class="link danger" id="delete" hidden>Borrar</button>
+      <button type="button" class="link" id="cancel">Cancelar</button>
+      <button class="primary" type="submit">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="cele" id="celebration" hidden role="dialog" aria-modal="true" aria-label="Racha"></div>
+
+<dialog id="msg-dialog"><div id="msg"></div></dialog>
+
+<script>
+const KEY = 'habit-tracker-v1';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Símbolos de línea fina, todos en una rejilla de 24×24.
+const ICONS = {
+  punto: '<circle cx="12" cy="12" r="3"/>',
+  libro: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6a2 2 0 0 0-2 2 2 2 0 0 0 2 2h14v-4"/>',
+  agua: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  luna: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  pesa: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
+  corazon: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/>',
+  hoja: '<path d="M5 19C5 10.5 10.5 5 19 5c0 8.5-5.5 14-14 14z"/><path d="M5 19l7.5-7.5"/>',
+  lapiz: '<path d="M4 20l1-4L16.5 4.5l3 3L8 19z"/><path d="M14 7l3 3"/>',
+  rayo: '<path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/>',
+  musica: '<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+  reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  movil: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M3 3l18 18"/>',
+  moneda: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9h-3.2a1.8 1.8 0 0 0 0 3.6h1.4a1.8 1.8 0 0 1 0 3.6H9.5M12 7v2M12 16.2v1.8"/>',
+  personas: '<circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.2a3 3 0 0 1 0 5.6M18 14.5a5.5 5.5 0 0 1 2.5 5.5"/>',
+  sonrisa: '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4 4 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/>',
+  estrella: '<path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 3 1.1-6.2L3 9.7l6.2-.9z"/>',
+};
+const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ICONS.punto}</svg>`;
+// '' = el color del texto (negro / blanco según el tema).
+const COLORS = ['', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#eab308', '#14b8a6', '#64748b'];
+const colorVar = h => h.color ? `--c:${h.color}` : '';
+let flameId = 0;
+const flame = (off = false) => {
+  const id = 'fl' + flameId++;
+  return `<svg class="flame${off ? ' off' : ''}" viewBox="0 0 24 24" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb400"/><stop offset="1" stop-color="#ff4b00"/></linearGradient></defs>
+    <path fill="url(#${id})" d="M12 1.8c.9 3.4 5.8 5.9 5.8 11.6a5.8 5.8 0 0 1-11.6 0c0-2.8 1.4-4.7 2.8-5.9.1 2.1 1 3.4 2.2 3.8-.6-3.6.1-6.8.8-9.5z"/>
+    <path fill="#ffd84a" d="M12 13c.7 1.5 2.5 2.4 2.5 4.4a2.5 2.5 0 0 1-5 0c0-1.3.8-2.2 1.6-2.8.1.6.4 1 .9 1.1-.3-.9-.2-1.9 0-2.7z"/>
+  </svg>`;
+};
+// Mensaje según la racha: cada día es un voto por quien quieres ser.
+function motivation(n) {
+  if (n >= 66) return 'Hábito consolidado. Esto ya es quien eres.';
+  if (n >= 30) return 'Un mes de votos seguidos. Imparable.';
+  if (n >= 14) return 'Dos semanas. Ya no lo piensas, lo haces.';
+  if (n >= 7) return '¡Una semana entera! La cadena es tuya.';
+  if (n >= 3) return '¡Vas encendido! No rompas la cadena.';
+  if (n === 2) return 'Dos días. Ya es una cadena.';
+  return 'Primer voto. Así empieza todo.';
+}
+function globalStats() {
+  const hs = state.habits.filter(h => !h.rutina);
+  // Racha general: días seguidos en los que hiciste al menos un hábito.
+  const any = day => hs.some(h => isDone(h, day));
+  const excused = day => hs.some(h => isJust(h, day));
+  let streak = 0, d = new Date();
+  if (!any(dayKey(d))) d = addDays(d, -1);
+  while (hs.length && (any(dayKey(d)) || excused(dayKey(d)))) {
+    if (any(dayKey(d))) streak++;
+    d = addDays(d, -1);
+  }
+  // Acierto de los últimos 7 días; lo de hoy solo cuenta cuando ya lo marcaste.
+  let possible = 0, ok = 0;
+  for (let i = 0; i < 7; i++) {
+    const day = dayKey(addDays(new Date(), -i));
+    for (const h of hs) {
+      if (h.creado > day || (i === 0 && !mark(h, day)) || isJust(h, day)) continue;
+      possible++;
+      if (isDone(h, day)) ok++;
+    }
+  }
+  return { streak, rate: possible ? Math.round(ok / possible * 100) : null };
+}
+let justDone = null;
+
+let state = load();
+const open = new Set();
+function load() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(KEY)); } catch {}
+  return normalize(s);
+}
+function normalize(s) {
+  s ||= {};
+  s.habits ||= []; s.log ||= {}; s.razones ||= {}; s.notion ||= {};
+  return s;
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  pushCloud();
+}
+
+// ---------- Nube: un documento privado por persona en el almacenamiento de la página.
+// Sin él (archivo abierto suelto), la app sigue funcionando solo en este dispositivo.
+let cloudRef = null, writing = false, dirty = false;
+const SYNC_TEXT = { ok: '· Guardado en la nube', local: '· Guardado en este teléfono', error: '· Sin conexión con la nube', wait: '· Conectando…' };
+const setSync = st => { $('#sync').textContent = SYNC_TEXT[st]; };
+
+async function pushCloud() {
+  if (!cloudRef) return;
+  if (writing) { dirty = true; return; }
+  writing = true;
+  try { await cloudRef.set(JSON.parse(JSON.stringify(state))); setSync('ok'); }
+  catch (e) { setSync(e?.code === 'quota_exceeded' ? 'error' : 'error'); }
+  writing = false;
+  if (dirty) { dirty = false; pushCloud(); }
+}
+
+async function connectCloud() {
+  if (!window.claude?.use) { setSync('local'); return; }
+  setSync('wait');
+  const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+  const uid = db && user ? await user.id() : null;
+  if (!uid) { setSync('local'); return; }
+  cloudRef = db.doc(`data/users/${uid}/estado`);
+  let first = true;
+  cloudRef.onSnapshot(snap => {
+    // Mientras haya cambios propios en camino, manda lo local.
+    if (snap.metadata.hasPendingWrites || writing || dirty) return;
+    if (snap.exists) {
+      state = normalize(structuredClone(snap.data()));
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      renderAll();
+      setSync('ok');
+    } else if (first && state.habits.length) {
+      pushCloud(); // Primera vez: sube lo que ya había en este dispositivo.
+    } else setSync('ok');
+    first = false;
+  }, () => setSync('error'));
+}
+
+// Fechas en hora local, como 'YYYY-MM-DD'.
+const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const today = () => dayKey(new Date());
+const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00') - new Date(a + 'T12:00')) / 864e5);
+
+const mark = (h, day) => state.log[h.id]?.[day];
+const isDone = (h, day) => ['full', 'min'].includes(mark(h, day));
+// Un día justificado no cuenta ni a favor ni en contra: no rompe la racha.
+const isJust = (h, day) => mark(h, day) === 'just';
+const JUST_PER_MONTH = 2;
+const justUsed = (h, month) => Object.keys(state.log[h.id] || {}).filter(d => d.startsWith(month) && isJust(h, d)).length;
+
+function stats(h) {
+  const t = today();
+  const age = daysBetween(h.creado, t);
+  const days = Object.keys(state.log[h.id] || {});
+  const done = days.filter(d => isDone(h, d)).length;
+  // Días pasados (sin contar hoy) en los que no se hizo.
+  const missed = Math.max(0, age - days.filter(d => d < t && (isDone(h, d) || isJust(h, d))).length);
+  // Racha: cuenta hacia atrás desde hoy; si hoy aún no está, desde ayer.
+  let streak = 0, d = new Date();
+  if (!isDone(h, dayKey(d))) d = addDays(d, -1);
+  while (dayKey(d) >= h.creado && (isDone(h, dayKey(d)) || isJust(h, dayKey(d)))) {
+    if (isDone(h, dayKey(d))) streak++;
+    d = addDays(d, -1);
+  }
+  const yesterday = dayKey(addDays(new Date(), -1));
+  const missedYesterday = h.creado <= yesterday && !isDone(h, yesterday) && !isJust(h, yesterday);
+  const compound = Math.pow(1.01, done) * Math.pow(0.99, missed);
+  return { age, done, streak, missedYesterday, compound };
+}
+
+const list = items => `<ul>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`;
+const benefitsHTML = h => `<h3 class="benefits">Beneficios</h3>${list(h.beneficios)}`;
+const consHTML = h => `<h3 class="cons">Contras de no hacerlo</h3>${list(h.contras)}`;
+
+function render() {
+  const fecha = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('#today').textContent = fecha[0].toUpperCase() + fecha.slice(1);
+  const g = globalStats();
+  const prevStreak = $('#global').dataset.streak;
+  $('#global').dataset.streak = g.streak;
+  $('#global').innerHTML = `<div class="g-streak${prevStreak !== undefined && +prevStreak !== g.streak ? ' bump' : ''}" title="Racha general">${flame(!g.streak)}${g.streak}</div>
+    <div class="g-rate">${g.rate === null ? 'Sin datos aún' : g.rate + '% esta semana'}</div>`;
+  const top = state.habits.filter(h => !h.padre).sort((a, b) => (b.clave ? 1 : 0) - (a.clave ? 1 : 0));
+
+  const building = state.habits.filter(h => !h.rutina && stats(h).done < 66).length;
+  $('#notice').hidden = building <= 3;
+  $('#notice').textContent = `${building} hábitos en construcción. Menos, pero mejor: consolida uno antes de añadir otro.`;
+
+  if (!top.length) {
+    $('#list').innerHTML = `<p class="empty">Empieza por un solo hábito, tan pequeño que no puedas decir que no.</p>`;
+    return;
+  }
+
+  $('#list').innerHTML = top.map(h => h.rutina ? routineHTML(h) : habitHTML(h)).join('');
+}
+
+// Una rutina agrupa hábitos: se abre con un toque y muestra los suyos dentro.
+function routineHTML(r) {
+  const kids = state.habits.filter(h => h.padre === r.id);
+  const done = kids.filter(h => isDone(h, today())).length;
+  const checkClass = kids.length && done === kids.length ? 'done' : done ? 'half' : '';
+  const inside = open.has(r.id) ? `<div class="children">
+      ${kids.map(habitHTML).join('')}
+      <div class="actions">
+        <button class="link" data-act="add-in" data-id="${r.id}">+ Añadir hábito</button>
+        <button class="link" data-act="edit" data-id="${r.id}">Editar rutina</button>
+      </div>
+    </div>` : '';
+  return `<section class="habit" style="${colorVar(r)}">
+    <div class="row">
+      <button class="check ${checkClass}" data-act="toggle" data-id="${r.id}" aria-label="Abrir rutina">${icon(r.icono)}</button>
+      <button class="title" data-act="toggle" data-id="${r.id}">
+        <div class="name">${esc(r.nombre)}</div>
+        <div class="identity">${kids.length === 1 ? '1 hábito' : kids.length + ' hábitos'}</div>
+      </button>
+      <span class="streak">${done}/${kids.length}</span>
+    </div>
+    ${inside}
+  </section>`;
+}
+
+function habitHTML(h) {
+  const s = stats(h), t = today(), m = mark(h, t);
+  const checkClass = m === 'full' ? 'done' : m === 'min' ? 'half' : m ? 'skip' : '';
+  const warn = s.missedYesterday && !m;
+
+  let detail = '';
+  if (open.has(h.id)) {
+    const chain = Array.from({ length: 14 }, (_, i) => {
+      const v = mark(h, dayKey(addDays(new Date(), i - 13)));
+      return `<span class="${v === 'full' || v === 'min' ? v : ''}"></span>`;
+    }).join('');
+    const intent = [
+      h.despuesDe && `Después de <b>${esc(h.despuesDe)}</b>,`,
+      `haré <b>${esc(h.nombre)}</b>`,
+      h.hora && `a las <b>${esc(fmtHora(h.hora))}</b>`,
+      h.lugar && `en <b>${esc(h.lugar)}</b>`,
+    ].filter(Boolean).join(' ').replace(/^h/, 'H') + '.';
+
+    let tip = '';
+    if (s.done >= 66) tip = 'Consolidado. Ya forma parte de quien eres.';
+    else if (s.streak >= 14) tip = '14 días seguidos. ¿Subes un poco la dificultad?';
+    else if (s.age >= 10 && s.age <= 40) tip = 'Los resultados llegan tarde. Cada día es un voto.';
+
+    const actions = m
+      ? `<button class="link" data-act="undo" data-id="${h.id}">Deshacer</button>`
+      : `<button class="link" data-act="min" data-id="${h.id}">Versión 2 min</button>
+         <button class="link" data-act="skip" data-id="${h.id}">Hoy no</button>`;
+
+    detail = `<div class="detail">
+      <div class="chain" aria-label="Últimos 14 días">${chain}</div>
+      <p class="intent">${intent}</p>
+      <p class="meta">${s.done} votos · ×${s.compound.toFixed(2)}${tip ? ' · ' + tip : ''}</p>
+      ${benefitsHTML(h)}${consHTML(h)}
+      <div class="actions">
+        ${actions}
+        <button class="link" data-act="clave" data-id="${h.id}">${h.clave ? 'Quitar clave' : 'Marcar clave'}</button>
+        <button class="link" data-act="edit" data-id="${h.id}">Editar</button>
+      </div>
+    </div>`;
+  }
+
+  return `<section class="habit${justDone === h.id ? ' pop' : ''}" data-id="${h.id}" style="${colorVar(h)}">
+    <div class="row">
+      <button class="check ${checkClass}" data-act="${m ? 'undo' : 'full'}" data-id="${h.id}"
+        aria-label="${m ? 'Deshacer' : 'Marcar hecho'}">${icon(h.icono)}</button>
+      <button class="title" data-act="toggle" data-id="${h.id}">
+        <div class="name">${esc(h.nombre)}${h.clave ? ' ·' : ''}</div>
+        <div class="identity">${esc(h.identidad)}</div>
+      </button>
+      <span class="streak${s.streak ? ' on' : ''}" title="Racha">${flame(!s.streak)}${s.streak}</span>
+    </div>
+    ${warn ? `<p class="warn">Ayer no. Que no pase dos veces: ${esc(h.minima)}.</p>` : ''}
+    ${detail}
+  </section>`;
+}
+
+function setMark(h, value) {
+  state.log[h.id] ??= {};
+  if (value) state.log[h.id][today()] = value; else delete state.log[h.id][today()];
+  if (value !== 'just') delete state.razones[h.id]?.[today()];
+  save(); render();
+  notionSync(h.id, today());
+}
+
+function showMsg(html) {
+  $('#msg').innerHTML = html;
+  $('#msg-dialog').showModal();
+}
+
+function sparks(h) {
+  const el = document.querySelector(`.habit[data-id="${h.id}"] .check`);
+  if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (let i = 0; i < 10; i++) {
+    const a = i / 10 * Math.PI * 2, r = 26 + Math.random() * 14;
+    const dot = document.createElement('span');
+    dot.className = 'spark';
+    dot.style.cssText = `--dx:${Math.cos(a) * r}px;--dy:${Math.sin(a) * r}px`;
+    el.appendChild(dot);
+    setTimeout(() => dot.remove(), 700);
+  }
+}
+
+function complete(h, value) {
+  justDone = h.id;
+  setMark(h, value);
+  justDone = null;
+  sparks(h);
+  setTimeout(() => celebrate(h), 350);
+}
+
+const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3L12.5 5"/></svg>';
+
+// Al cumplir, la recompensa: el fuego se enciende, la racha sube y se marca el día en la semana.
+function celebrate(h) {
+  const n = stats(h).streak;
+  const monday = addDays(new Date(), -((new Date().getDay() + 6) % 7));
+  const week = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => {
+    const day = dayKey(addDays(monday, i)), isToday = day === today();
+    return `<div class="wk${isToday ? ' today' : isDone(h, day) ? ' done' : ''}"><i>${isToday || isDone(h, day) ? CHECK : ''}</i>${l}</div>`;
+  }).join('');
+  const el = $('#celebration');
+  el.innerHTML = `<canvas class="cele-canvas"></canvas><div class="cele-inner">
+    <div class="cele-flame"><div class="sunburst"></div><div class="cele-glow"></div>${flame()}</div>
+    <div class="roll" aria-label="${n}"><div class="roll-inner"><span>${Math.max(0, n - 1)}</span><span>${n}</span></div></div>
+    <p class="cele-label">${n === 1 ? 'día de racha' : 'días de racha'}</p>
+    <div class="week">${week}</div>
+    <p class="motivation">${motivation(n)}</p>
+    <p class="meta">${esc(h.celebracion || '¡Así se hace!')} +1 voto · ${esc(h.identidad)}</p>
+    <div class="cele-benefits">${benefitsHTML(h)}
+      ${h.recompensa ? `<p class="meta" style="margin-top:12px">Te has ganado: <b>${esc(h.recompensa)}</b></p>` : ''}</div>
+    <button class="cele-go" id="cele-go">Continuar</button>
+  </div>`;
+  el.classList.remove('out', 'lit');
+  el.hidden = false;
+  $('#cele-go').focus({ preventScroll: true });
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Encendido: squash, resorte, sunburst, chispas y el número que rueda, todo a la vez.
+  const ignite = () => {
+    el.classList.add('lit');
+    el.querySelector('.roll')?.classList.add('go');
+    navigator.vibrate?.([12, 40, 24, 40, 8]);
+    if (!reduce) {
+      const f = el.querySelector('.cele-flame').getBoundingClientRect();
+      emberBurst(el.querySelector('.cele-canvas'), f.left + f.width / 2, f.top + f.height * .55);
+    }
+    setTimeout(() => el.querySelector('.wk.today')?.classList.add('fill'), reduce ? 0 : 450);
+  };
+  reduce ? ignite() : setTimeout(ignite, 700);
+}
+
+// Chispas de brasa en canvas: un solo color, con gravedad, arrastre y desvanecimiento.
+function emberBurst(canvas, cx, cy) {
+  const dpr = Math.min(devicePixelRatio || 1, 3);
+  canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const fire = getComputedStyle(document.documentElement).getPropertyValue('--fire').trim() || '#ff9600';
+  const parts = Array.from({ length: 42 }, (_, i) => {
+    const a = -Math.PI / 2 + (Math.random() - .5) * Math.PI * 1.6, v = 260 + Math.random() * 300;
+    return { x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 1.6 + Math.random() * 2.6, life: .7 + Math.random() * .6, t: 0 };
+  });
+  let last = performance.now();
+  const tick = now => {
+    const dt = Math.min((now - last) / 1000, .05); last = now;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    let alive = false;
+    for (const p of parts) {
+      p.t += dt;
+      if (p.t >= p.life) continue;
+      alive = true;
+      p.vy += 900 * dt; p.vx *= .985; p.vy *= .985;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const k = 1 - p.t / p.life;
+      ctx.globalAlpha = k * k;
+      ctx.fillStyle = fire;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.6 + 0.4 * k), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (alive) requestAnimationFrame(tick); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  };
+  requestAnimationFrame(tick);
+}
+
+function closeCelebration() {
+  const el = $('#celebration');
+  if (el.hidden) return;
+  el.classList.add('out');
+  setTimeout(() => { el.hidden = true; el.classList.remove('out'); }, 200);
+}
+$('#celebration').addEventListener('click', e => { if (e.target.id === 'cele-go') closeCelebration(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCelebration(); });
+
+$('#list').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const h = state.habits.find(x => x.id === btn.dataset.id);
+  switch (btn.dataset.act) {
+    case 'full': complete(h, 'full'); break;
+    case 'min': complete(h, 'min'); break;
+    case 'skip':
+      // Antes de saltarlo, la consecuencia, dicha en voz alta.
+      showMsg(`<h2>¿Hoy no?</h2>
+        ${consHTML(h)}
+        <p class="meta" style="margin-top:16px">La versión mínima cuenta: <b>${esc(h.minima)}</b></p>
+        <div class="dialog-actions">
+          <button class="link" data-confirm-skip="${h.id}">Aun así, hoy no</button>
+          ${JUST_PER_MONTH - justUsed(h, today().slice(0, 7)) > 0 ? `<button class="link" data-justify="${h.id}|${today()}">Justificar</button>` : ''}
+          <button class="primary" data-do-min="${h.id}">Hago 2 min</button>
+        </div>`);
+      break;
+    case 'undo': setMark(h, null); break;
+    case 'toggle': open.has(h.id) ? open.delete(h.id) : open.add(h.id); render(); break;
+    case 'clave': h.clave = !h.clave; save(); render(); break;
+    case 'edit': openForm(h); break;
+    case 'add-in': openForm(null, { padre: h.id }); break;
+  }
+});
+
+$('#msg-dialog').addEventListener('click', e => {
+  const t = e.target;
+  if (t === $('#msg-dialog') || t.hasAttribute('data-close')) $('#msg-dialog').close();
+  if (t.dataset.confirmSkip) {
+    setMark(state.habits.find(x => x.id === t.dataset.confirmSkip), 'skip');
+    $('#msg-dialog').close();
+  }
+  if (t.dataset.doMin) {
+    $('#msg-dialog').close();
+    complete(state.habits.find(x => x.id === t.dataset.doMin), 'min');
+  }
+  if (t.dataset.confirmDelete) {
+    const id = t.dataset.confirmDelete;
+    state.habits.forEach(x => { if (x.padre === id) x.padre = ''; });
+    state.habits = state.habits.filter(x => x.id !== id);
+    delete state.log[id];
+    delete state.razones[id];
+    save(); renderAll(); $('#msg-dialog').close();
+  }
+  if (t.dataset.justify) justifyForm(...t.dataset.justify.split('|'));
+  if (t.dataset.saveJust) {
+    const [id, day] = t.dataset.saveJust.split('|');
+    const reason = $('#reason').value.trim();
+    if (!reason) { $('#reason').focus(); return; }
+    state.log[id] ??= {}; state.razones[id] ??= {};
+    state.log[id][day] = 'just';
+    state.razones[id][day] = reason;
+    save(); renderAll(); $('#msg-dialog').close();
+    notionSync(id, day);
+  }
+  if (t.dataset.unjust) {
+    const [id, day] = t.dataset.unjust.split('|');
+    delete state.log[id][day];
+    delete state.razones[id]?.[day];
+    save(); renderAll(); $('#msg-dialog').close();
+    notionSync(id, day);
+  }
+});
+
+const longDate = day => new Date(day + 'T12:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+
+function justifyForm(id, day) {
+  const h = state.habits.find(x => x.id === id);
+  const left = JUST_PER_MONTH - justUsed(h, day.slice(0, 7));
+  if (left <= 0) {
+    showMsg(`<h2>Sin justificaciones</h2>
+      <p class="meta">Ya usaste las ${JUST_PER_MONTH} de este mes para «${esc(h.nombre)}». El mes que viene tendrás otras ${JUST_PER_MONTH}.</p>
+      <div class="dialog-actions"><button class="primary" data-close>Entendido</button></div>`);
+    return;
+  }
+  showMsg(`<h2>Justificar</h2>
+    <p class="meta">${esc(h.nombre)} · ${longDate(day)}</p>
+    <p class="meta">Te ${left === 1 ? 'queda 1 justificación' : `quedan ${left} justificaciones`} este mes. Un día justificado sale en gris y no rompe la racha.</p>
+    <input id="reason" class="reason" placeholder="¿Por qué no se pudo?" maxlength="140">
+    <div class="dialog-actions">
+      <button class="link" data-close>Cancelar</button>
+      <button class="primary" data-save-just="${id}|${day}">Justificar</button>
+    </div>`);
+  $('#reason').focus();
+}
+
+// ---------- Calendario
+let view = 'hoy', calHabit = null, calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+function dayStatus(h, day) {
+  const t = today();
+  if (day > t) return 'future';
+  if (day < h.creado) return 'before';
+  const m = mark(h, day);
+  if (m === 'full') return 'done';
+  if (m === 'min') return 'half';
+  if (m === 'just') return 'just';
+  if (day === t) return 'pending';
+  return 'miss';
+}
+
+function renderCal() {
+  const hs = state.habits.filter(h => !h.rutina);
+  if (!hs.length) {
+    $('#view-cal').innerHTML = '<p class="empty">Crea un hábito para ver su calendario.</p>';
+    return;
+  }
+  if (!hs.some(h => h.id === calHabit)) calHabit = hs[0].id;
+  const h = hs.find(x => x.id === calHabit);
+  const y = calMonth.getFullYear(), mo = calMonth.getMonth();
+  const monthKey = dayKey(calMonth).slice(0, 7);
+  const offset = (calMonth.getDay() + 6) % 7;
+  const total = new Date(y, mo + 1, 0).getDate();
+  const counts = { done: 0, half: 0, miss: 0, just: 0 };
+  let cells = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => `<div class="wd">${d}</div>`).join('');
+  cells += '<div></div>'.repeat(offset);
+  for (let n = 1; n <= total; n++) {
+    const day = dayKey(new Date(y, mo, n));
+    const st = dayStatus(h, day);
+    if (st in counts) counts[st]++;
+    const tappable = st === 'miss' || st === 'just' || (st === 'pending');
+    cells += `<button class="day ${st}${day === today() ? ' today' : ''}" data-day="${day}" style="--i:${n}"
+      ${tappable ? '' : 'disabled'} aria-label="${longDate(day)}">${n}</button>`;
+  }
+  const done = counts.done + counts.half;
+  const rate = done + counts.miss ? Math.round(done / (done + counts.miss) * 100) : null;
+  const title = calMonth.toLocaleDateString('es', { month: 'long', year: 'numeric' });
+  const isThisMonth = monthKey === today().slice(0, 7);
+
+  $('#view-cal').innerHTML = `
+    <div class="chips">${hs.map(x => `<button class="chip${x.id === h.id ? ' on' : ''}" data-habit="${x.id}" style="${colorVar(x)}">${icon(x.icono)}${esc(x.nombre)}</button>`).join('')}</div>
+    <div class="month">
+      <button data-month="-1" aria-label="Mes anterior">‹</button>
+      <h2>${title[0].toUpperCase() + title.slice(1)}</h2>
+      <button data-month="1" aria-label="Mes siguiente" ${isThisMonth ? 'disabled style="visibility:hidden"' : ''}>›</button>
+    </div>
+    <div class="grid">${cells}</div>
+    <div class="legend"><span><i style="background:var(--green)"></i>Hecho</span><span><i style="background:var(--red)"></i>No hecho</span><span><i style="background:#9a9a9a"></i>Justificado</span></div>
+    <div class="summary">
+      <div><b>${rate === null ? '–' : rate + '%'}</b><span>acierto del mes</span></div>
+      <div><b>${done}</b><span>días hechos</span></div>
+      <div><b>${JUST_PER_MONTH - counts.just}</b><span>justificaciones libres</span></div>
+    </div>`;
+}
+
+$('#view-cal').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  if (b.dataset.habit) { calHabit = b.dataset.habit; renderCal(); }
+  if (b.dataset.month) { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +b.dataset.month, 1); renderCal(); }
+  if (b.dataset.day) {
+    const h = state.habits.find(x => x.id === calHabit), day = b.dataset.day;
+    if (isJust(h, day)) {
+      showMsg(`<h2>Día justificado</h2>
+        <p class="meta">${esc(h.nombre)} · ${longDate(day)}</p>
+        <p>${esc(state.razones[h.id]?.[day] || 'Sin motivo')}</p>
+        <div class="dialog-actions">
+          <button class="link" data-unjust="${h.id}|${day}">Quitar justificación</button>
+          <button class="primary" data-close>Cerrar</button>
+        </div>`);
+    } else justifyForm(h.id, day);
+  }
+});
+
+function renderAll() { render(); if (view === 'cal') renderCal(); }
+
+document.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('.tab');
+  if (!b) return;
+  view = b.dataset.view;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+  $('#view-hoy').hidden = view !== 'hoy';
+  $('#view-cal').hidden = view !== 'cal';
+  $('h1').textContent = view === 'hoy' ? 'Hoy' : 'Calendario';
+  renderAll();
+  scrollTo(0, 0);
+});
+
+let editing = null;
+const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean);
+const ROUTINE_FIELDS = ['nombre', 'icono', 'color'];
+const FIELDS = ['nombre', 'icono', 'color', 'padre', 'identidad', 'minima', 'hora', 'lugar', 'despuesDe', 'recompensa', 'celebracion'];
+
+$('#icon-picker').innerHTML = Object.keys(ICONS).map((k, i) =>
+  `<label><input type="radio" name="icono" value="${k}" ${i ? '' : 'checked'} aria-label="${k}"><span class="icon-pick">${icon(k)}</span></label>`).join('');
+$('#color-picker').innerHTML = COLORS.map((c, i) =>
+  `<label><input type="radio" name="color" value="${c}" ${i ? '' : 'checked'} aria-label="${c || 'tinta'}"><span class="swatch" style="--sw:${c || 'var(--text)'}"></span></label>`).join('');
+// El selector de símbolos se pinta con el color elegido.
+const tintForm = () => $('#form').style.cssText = $('#form').elements.color.value ? `--c:${$('#form').elements.color.value}` : '';
+$('#color-picker').addEventListener('change', tintForm);
+
+let formIsRoutine = false;
+
+// La hora se guarda como 'HH:MM' (24 h) y se elige y muestra en 12 h con AM/PM.
+function fmtHora(hhmm) {
+  const [H, M] = hhmm.split(':').map(Number);
+  return `${H % 12 || 12}:${String(M).padStart(2, '0')} ${H < 12 ? 'AM' : 'PM'}`;
+}
+function setTime(hhmm) {
+  const f = $('#form');
+  if (!hhmm) { $('#h-hour').value = ''; $('#h-min').value = '00'; return; }
+  const [H, M] = hhmm.split(':').map(Number);
+  $('#h-hour').value = String(H % 12 || 12);
+  $('#h-min').value = String(M - M % 5).padStart(2, '0');
+  f.elements.ampm.value = H < 12 ? 'AM' : 'PM';
+}
+function readTime() {
+  const h = $('#h-hour').value;
+  if (!h) return '';
+  const H = (+h % 12) + ($('#form').elements.ampm.value === 'PM' ? 12 : 0);
+  return `${String(H).padStart(2, '0')}:${$('#h-min').value}`;
+}
+
+function openForm(h = null, { rutina = false, padre = '' } = {}) {
+  editing = h;
+  formIsRoutine = h ? !!h.rutina : rutina;
+  const f = $('#form');
+  f.reset();
+  const routines = state.habits.filter(x => x.rutina);
+  f.elements.padre.innerHTML = '<option value="">Ninguna</option>' +
+    routines.map(r => `<option value="${r.id}">${esc(r.nombre)}</option>`).join('');
+  $('#padre-row').hidden = !routines.length;
+  // Una rutina solo necesita nombre, símbolo y color.
+  $('#habit-only').disabled = $('#habit-only').hidden = formIsRoutine;
+  const kind = formIsRoutine ? 'rutina' : 'hábito';
+  $('#form-title').textContent = (h ? 'Editar ' : formIsRoutine ? 'Nueva ' : 'Nuevo ') + kind;
+  f.elements.nombre.placeholder = formIsRoutine ? 'Rutina matutina' : 'Leer 20 páginas';
+  $('#delete').hidden = !h;
+  if (h) {
+    (formIsRoutine ? ROUTINE_FIELDS : FIELDS).forEach(k => f.elements[k].value = h[k] || '');
+    if (!formIsRoutine) {
+      f.elements.beneficios.value = h.beneficios.join('\n');
+      f.elements.contras.value = h.contras.join('\n');
+    }
+  } else {
+    f.elements.padre.value = padre;
+    if (formIsRoutine) f.elements.icono.value = 'sol';
+    // Lo nuevo dentro de una rutina toma su color.
+    if (padre) f.elements.color.value = state.habits.find(x => x.id === padre).color || '';
+  }
+  setTime(h && !formIsRoutine ? h.hora : '');
+  tintForm();
+  $('#form-dialog').showModal();
+}
+
+$('#add').onclick = () => openForm();
+$('#add-routine').onclick = () => openForm(null, { rutina: true });
+$('#cancel').onclick = () => $('#form-dialog').close();
+$('#delete').onclick = () => {
+  const ask = editing.rutina
+    ? `¿Borrar la rutina «${editing.nombre}»? Sus hábitos se quedan, fuera de la rutina.`
+    : `¿Borrar «${editing.nombre}» y todo su historial?`;
+  const id = editing.id;
+  $('#form-dialog').close();
+  showMsg(`<h2>¿Borrar?</h2>
+    <p class="meta">${esc(ask)}</p>
+    <div class="dialog-actions">
+      <button class="link" data-close>Cancelar</button>
+      <button class="primary" data-confirm-delete="${id}">Borrar</button>
+    </div>`);
+};
+
+$('#form').addEventListener('submit', e => {
+  const f = e.target;
+  f.elements.hora.value = readTime();
+  const data = Object.fromEntries((formIsRoutine ? ROUTINE_FIELDS : FIELDS).map(k => [k, f.elements[k].value.trim()]));
+  if (!formIsRoutine) {
+    data.beneficios = lines(f.elements.beneficios.value);
+    data.contras = lines(f.elements.contras.value);
+    if (!data.beneficios.length || !data.contras.length) { e.preventDefault(); return; }
+    if (data.padre) open.add(data.padre);
+  }
+  if (editing) Object.assign(editing, data);
+  else state.habits.push({ id: crypto.randomUUID(), creado: today(), clave: false, rutina: formIsRoutine, ...data });
+  save(); render();
+});
+
+// ---------- Notion: cada cambio de un día actualiza su fila en «Registro de hábitos».
+// Llama al conector de Notion de quien usa la app; fuera de Claude no hace nada.
+const NOTION = 'Notion', NOTION_DS = '49c5d0ac-7053-4342-b095-4b9c1742d4ca';
+const ESTADO = { full: 'Hecho', min: '2 min', skip: 'No hecho', just: 'Justificado' };
+const NOTION_TEXT = {
+  ok: '· Notion al día',
+  off: '· Notion desactivado para esta app',
+  connect: '· Conecta Notion en Ajustes → Conectores',
+  error: '· Notion no respondió; se reintenta en el próximo cambio',
+};
+const notionQueue = [];
+let notionBusy = false, mcpReady = null;
+const setNotion = st => { $('#notion').textContent = NOTION_TEXT[st] || ''; };
+
+// Manual: manda a Notion todos los días registrados, uno tras otro.
+const NOTION_WHY = {
+  off: 'Esta app no tiene permiso para usar tu Notion. Al tocar el botón, Claude debería preguntártelo; si no lo hace, abre el menú de la página (⋯) → Permisos y activa Notion.',
+  connect: 'Tu cuenta de Claude no tiene Notion conectado, o hay que volver a conectarlo. Ve a claude.ai → Ajustes → Conectores → Notion.',
+  error: 'Notion no respondió. Suele ser pasajero: vuelve a intentarlo en un momento.',
+  nomcp: 'Esta vista de la app no puede usar conectores. Prueba a abrirla desde Chrome con tu sesión de Claude iniciada.',
+};
+const dialogResult = (title, body) => showMsg(`<h2>${title}</h2><p class="meta" style="margin-top:12px">${body}</p>
+  <div class="dialog-actions"><button class="primary" data-close>Entendido</button></div>`);
+
+async function exportAll() {
+  if (!window.claude?.use) { dialogResult('Solo dentro de Claude', 'Exportar a Notion funciona cuando abres la app desde su enlace de Claude, no desde el archivo descargado.'); return; }
+  if (notionBusy) { dialogResult('Un momento', 'Ya se está exportando. Mira la línea bajo la fecha.'); return; }
+  let n = 0;
+  for (const h of state.habits.filter(x => !x.rutina)) {
+    for (const day of Object.keys(state.log[h.id] || {}).sort()) { notionQueue.push([h.id, day]); n++; }
+  }
+  if (!n) { dialogResult('Nada que exportar', 'Todavía no has marcado ningún día. En cuanto marques un hábito, su fila aparece en Notion sola; este botón es para reenviar todo de golpe.'); return; }
+  showMsg(`<h2>Exportando a Notion…</h2><p class="meta" style="margin-top:12px">${n} ${n === 1 ? 'día' : 'días'}. Si Claude te pide permiso para usar Notion, acéptalo.</p>`);
+  const r = await drainNotion();
+  if (!r.mcp) dialogResult('Sin conexión con Notion', NOTION_WHY.nomcp);
+  else if (r.failed === 0) dialogResult('Listo', `${r.sent} ${r.sent === 1 ? 'fila exportada' : 'filas exportadas'} a «Registro de hábitos».`);
+  else dialogResult(r.sent ? 'Exportado a medias' : 'No se pudo exportar', `${r.sent} ${r.sent === 1 ? 'fila' : 'filas'} sí, ${r.failed} no. ${NOTION_WHY[r.why] || NOTION_WHY.error}<br><br><small>Detalle: ${esc(r.detail || '')}</small>`);
+}
+$('#export-notion').onclick = exportAll;
+
+function notionSync(id, day) {
+  if (!window.claude?.use) return;
+  notionQueue.push([id, day]);
+  drainNotion();
+}
+
+async function drainNotion() {
+  if (notionBusy) return { sent: 0, failed: 0, mcp: true };
+  notionBusy = true;
+  mcpReady ||= claude.use('mcp');
+  const mcp = await mcpReady;
+  let sent = 0, failed = 0, why = '', detail = '';
+  while (notionQueue.length) {
+    if (notionQueue.length > 1) $('#notion').textContent = `· Exportando a Notion… quedan ${notionQueue.length}`;
+    const [id, day] = notionQueue.shift();
+    const h = state.habits.find(x => x.id === id);
+    if (!h || !mcp) continue;
+    const key = `${id}|${day}`;
+    const props = {
+      'Registro': `${h.nombre} · ${day}`,
+      'Hábito': h.nombre,
+      'Rutina': state.habits.find(x => x.id === h.padre)?.nombre || '',
+      'date:Fecha:start': day,
+      'date:Fecha:is_datetime': 0,
+      'Estado': ESTADO[mark(h, day)] || 'Sin marcar',
+      'Motivo': state.razones[id]?.[day] || '',
+      'Racha': stats(h).streak,
+      'Identidad': h.identidad || '',
+      'Clave': key,
+    };
+    try {
+      const pageId = state.notion[key];
+      if (pageId) {
+        await mcp.callTool(NOTION, 'notion-update-page', { page_id: pageId, command: 'update_properties', properties: props });
+      } else {
+        const r = await mcp.callTool(NOTION, 'notion-create-pages',
+          { parent: { data_source_id: NOTION_DS }, pages: [{ properties: props }], allow_async: false });
+        const newId = r.payload?.pages?.[0]?.id;
+        if (newId) { state.notion[key] = newId; save(); }
+      }
+      sent++;
+      setNotion('ok');
+    } catch (e) {
+      failed++;
+      why = ['not_in_manifest', 'blocked_by_policy', 'approval_required', 'consent_required'].includes(e?.code) ? 'off'
+        : ['server_not_connected', 'needs_reauth', 'selection_required'].includes(e?.code) ? 'connect' : 'error';
+      detail = `${e?.code || ''} ${e?.message || ''}`.trim();
+      setNotion(why);
+      if (why !== 'error') { notionQueue.length = 0; break; } // Sin permiso o sin conexión: no insistir.
+    }
+  }
+  if (!mcp) setNotion('off');
+  else if (sent > 1 && $('#notion').textContent === NOTION_TEXT.ok) $('#notion').textContent = `· Notion al día · ${sent} filas exportadas`;
+  notionBusy = false;
+  return { sent, failed, why, detail, mcp: !!mcp };
+}
+
+// ---------- Copia de seguridad: un archivo .json con todo. Dentro de Claude no hay descargas, así que se oculta.
+if (window.claude?.use) $('#backup').hidden = true;
+$('#backup-out').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `habitos-${today()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('#backup-in').onclick = () => $('#backup-file').click();
+$('#backup-file').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  let data;
+  try { data = normalize(JSON.parse(await file.text())); } catch { dialogResult('Archivo no válido', 'Ese archivo no es una copia de esta app.'); return; }
+  if (!Array.isArray(data.habits)) { dialogResult('Archivo no válido', 'Ese archivo no es una copia de esta app.'); return; }
+  showMsg(`<h2>¿Restaurar?</h2>
+    <p class="meta" style="margin-top:12px">La copia tiene ${data.habits.length} ${data.habits.length === 1 ? 'hábito' : 'hábitos'}. Sustituirá lo que hay ahora en este teléfono.</p>
+    <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="restore-go">Restaurar</button></div>`);
+  $('#restore-go').onclick = () => { state = data; save(); renderAll(); $('#msg-dialog').close(); };
+};
+
+// Sin internet: el service worker guarda la app en el teléfono tras la primera apertura.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+render();
+setSync('local');
+connectCloud();
+</script>
+</body>
+</html>
