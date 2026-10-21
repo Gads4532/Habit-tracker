@@ -99,6 +99,9 @@
   .outline:active { background: var(--text); color: var(--bg); }
   .backup { display: flex; gap: 20px; margin-top: 18px; }
   .ver { color: var(--muted); font-size: .8rem; margin-top: 22px; display: flex; gap: 16px; align-items: center; }
+  .acct { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 24px; font-size: .9rem; color: var(--muted); }
+  .acct b { color: var(--text); font-weight: 500; word-break: break-all; }
+  .field { margin-top: 14px; }
   .upd { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; margin: 0 0 20px;
     border: 1.5px solid var(--text); border-radius: 12px; font-size: .9rem; }
   .upd .primary { padding: 7px 14px; }
@@ -337,6 +340,7 @@
       <button class="add" id="add">+ Nuevo hábito</button>
       <button class="add" id="add-routine">+ Nueva rutina</button>
     </div>
+    <div id="account"></div>
     <button class="outline" id="export-notion">Exportar todo a Notion</button>
     <div class="backup" id="backup">
       <button class="link" id="backup-out">Guardar copia</button>
@@ -427,7 +431,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -540,22 +544,160 @@ function save() {
 
 // ---------- Nube: un documento privado por persona en el almacenamiento de la página.
 // Sin él (archivo abierto suelto), la app sigue funcionando solo en este dispositivo.
-let cloudRef = null, writing = false, dirty = false;
-const SYNC_TEXT = { ok: '· Guardado en la nube', local: '· Guardado en este teléfono', error: '· Sin conexión con la nube', wait: '· Conectando…' };
+let cloudRef = null, writing = false, dirty = false, pending = false;
+const SYNC_TEXT = { ok: '· Guardado en la nube', local: '· Guardado en este teléfono', error: '· Sin conexión; se guarda aquí y se sube luego', wait: '· Conectando…', notable: '· Falta preparar la base de datos' };
 const setSync = st => { $('#sync').textContent = SYNC_TEXT[st]; };
 
 async function pushCloud() {
   if (!cloudRef) return;
   if (writing) { dirty = true; return; }
   writing = true;
-  try { await cloudRef.set(JSON.parse(JSON.stringify(state))); setSync('ok'); }
-  catch (e) { setSync(e?.code === 'quota_exceeded' ? 'error' : 'error'); }
+  try { await cloudRef.set(JSON.parse(JSON.stringify(state))); pending = false; setSync('ok'); }
+  catch (e) { pending = true; setSync(e?.code === 'notable' ? 'notable' : 'error'); }
   writing = false;
   if (dirty) { dirty = false; pushCloud(); }
 }
+// Lo que no pudo subirse (sin red) se reintenta al volver la conexión.
+addEventListener('online', () => { if (pending) pushCloud(); });
+
+// ---------- Cuenta: registro e inicio de sesión con Supabase (correo y contraseña).
+// La clave de abajo es la pública («anon»): solo permite lo que las reglas de la base de datos dejan.
+const SUPA_URL = 'https://vqxtxzmtrgsitgsxtvif.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxeHR4em10cmdzaXRnc3h0dmlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MjQzNTksImV4cCI6MjEwODIwMDM1OX0.9CrCH7vkgr_4-25m22ttDxI1WyTPKVxK-2uEUi801dQ';
+const AUTH_KEY = 'habit-auth';
+let auth = null;
+try { auth = JSON.parse(localStorage.getItem(AUTH_KEY)); } catch {}
+const saveAuth = a => { auth = a; try { a ? localStorage.setItem(AUTH_KEY, JSON.stringify(a)) : localStorage.removeItem(AUTH_KEY); } catch {} };
+
+async function supa(path, { method = 'GET', body, headers = {}, token } = {}) {
+  const res = await fetch(SUPA_URL + path, {
+    method, headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token ?? auth?.access_token ?? SUPA_KEY}`, 'Content-Type': 'application/json', ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    const msg = data?.msg || data?.message || data?.error_description || data?.error || res.statusText;
+    const err = new Error(msg); err.status = res.status; err.code = data?.code || data?.error_code || '';
+    throw err;
+  }
+  return data;
+}
+const sessionFrom = d => d?.access_token ? { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000, uid: d.user?.id, email: d.user?.email } : null;
+
+async function ensureToken() {
+  if (!auth) return false;
+  if (auth.expires_at - Date.now() > 60000) return true;
+  try {
+    const d = await supa('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: auth.refresh_token }, token: SUPA_KEY });
+    saveAuth(sessionFrom(d)); return true;
+  } catch (e) {
+    if (e.status === 400 || e.status === 401) { saveAuth(null); renderAccount(); setSync('local'); }
+    return false;
+  }
+}
+
+const AUTH_MSG = e => {
+  const m = String(e?.message || '').toLowerCase();
+  if (m.includes('invalid login') || m.includes('invalid_credentials')) return 'Correo o contraseña incorrectos.';
+  if (m.includes('already registered') || m.includes('already exists')) return 'Ese correo ya tiene cuenta. Entra con tu contraseña.';
+  if (m.includes('not confirmed')) return 'Confirma tu correo: busca el mensaje de Supabase en tu bandeja y toca el enlace.';
+  if (m.includes('password') && (m.includes('6') || m.includes('short') || m.includes('weak'))) return 'La contraseña necesita al menos 6 caracteres.';
+  if (m.includes('rate limit') || m.includes('too many')) return 'Demasiados intentos. Espera un minuto.';
+  if (m.includes('failed to fetch') || m.includes('network')) return 'Sin conexión. Inténtalo cuando tengas internet.';
+  return 'No se pudo: ' + (e?.message || 'error desconocido');
+};
+
+function renderAccount() {
+  if (window.claude?.use) { $('#account').hidden = true; return; }
+  $('#account').innerHTML = auth
+    ? `<div class="acct"><span>Cuenta: <b>${esc(auth.email || '')}</b></span><button class="link" id="acct-out">Cerrar sesión</button></div>`
+    : `<button class="outline" id="acct-in">Crear cuenta o iniciar sesión</button>
+       <p class="note" style="margin:10px 0 0">Con una cuenta, tu progreso se guarda en la nube y lo ves en cualquier teléfono.</p>`;
+  $('#acct-in')?.addEventListener('click', accountForm);
+  $('#acct-out')?.addEventListener('click', signOut);
+}
+
+function accountForm(mode = 'in') {
+  showMsg(`<h2>${mode === 'up' ? 'Crear cuenta' : 'Iniciar sesión'}</h2>
+    <div class="field"><label>Correo</label><input id="a-email" type="email" autocomplete="email" placeholder="tu@correo.com"></div>
+    <div class="field"><label>Contraseña</label><input id="a-pass" type="password" autocomplete="${mode === 'up' ? 'new-password' : 'current-password'}" placeholder="Mínimo 6 caracteres"></div>
+    <p class="meta" id="a-msg" style="margin-top:12px"></p>
+    <div class="dialog-actions">
+      ${mode === 'up' ? `<button class="link" id="a-switch">Ya tengo cuenta</button>` : `<button class="link" id="a-switch">Crear cuenta</button><button class="link" id="a-forgot">Olvidé la contraseña</button>`}
+      <button class="primary" id="a-go">${mode === 'up' ? 'Crear cuenta' : 'Entrar'}</button>
+    </div>`);
+  $('#a-email').focus();
+  $('#a-switch').onclick = () => accountForm(mode === 'up' ? 'in' : 'up');
+  $('#a-forgot')?.addEventListener('click', async () => {
+    const email = $('#a-email').value.trim(); if (!email) { $('#a-email').focus(); return; }
+    try { await supa('/auth/v1/recover', { method: 'POST', body: { email }, token: SUPA_KEY }); $('#a-msg').textContent = 'Te mandamos un correo para cambiar la contraseña.'; }
+    catch (e) { $('#a-msg').textContent = AUTH_MSG(e); }
+  });
+  $('#a-go').onclick = async () => {
+    const email = $('#a-email').value.trim(), password = $('#a-pass').value;
+    if (!email || password.length < 6) { $('#a-msg').textContent = 'Pon tu correo y una contraseña de al menos 6 caracteres.'; return; }
+    $('#a-go').disabled = true; $('#a-msg').textContent = 'Un momento…';
+    try {
+      const d = mode === 'up'
+        ? await supa('/auth/v1/signup', { method: 'POST', body: { email, password }, token: SUPA_KEY })
+        : await supa('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password }, token: SUPA_KEY });
+      const ses = sessionFrom(d);
+      if (!ses) { $('#a-msg').textContent = 'Cuenta creada. Confirma tu correo (mira la bandeja de entrada) y luego entra.'; $('#a-go').disabled = false; return; }
+      saveAuth(ses); $('#msg-dialog').close(); renderAccount(); connectCloud();
+    } catch (e) { $('#a-msg').textContent = AUTH_MSG(e); $('#a-go').disabled = false; }
+  };
+}
+
+async function signOut() {
+  try { await supa('/auth/v1/logout', { method: 'POST' }); } catch {}
+  saveAuth(null); cloudRef = null; clearInterval(pollTimer); pollTimer = 0;
+  renderAccount(); setSync('local');
+}
+
+// Un registro por persona en la tabla «estados»: {user_id, data, updated_at}.
+let pollTimer = 0, lastSeen = '';
+async function connectSupabase() {
+  setSync('wait');
+  if (!(await ensureToken())) { setSync(auth ? 'error' : 'local'); return; }
+  const uid = auth.uid;
+  cloudRef = { set: async data => {
+    if (!(await ensureToken())) throw new Error('sin sesión');
+    const rows = await supa('/rest/v1/estados', { method: 'POST', body: { user_id: uid, data, updated_at: new Date().toISOString() },
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' } }).catch(e => { if (e.code === '42P01' || e.status === 404) e.code = 'notable'; throw e; });
+    lastSeen = rows?.[0]?.updated_at || lastSeen;
+  } };
+  const pull = async (first = false) => {
+    if (!auth || writing || dirty || pending || !navigator.onLine) return;
+    if (!(await ensureToken())) return;
+    let rows;
+    try { rows = await supa(`/rest/v1/estados?select=data,updated_at&user_id=eq.${uid}`); }
+    catch (e) { setSync(e.code === '42P01' || e.status === 404 ? 'notable' : 'error'); return; }
+    const row = rows?.[0];
+    if (!row) { if (first && state.habits.length) pushCloud(); else setSync('ok'); return; }
+    if (row.updated_at === lastSeen) { setSync('ok'); return; }
+    const remote = normalize(row.data);
+    const localHas = state.habits.length || state.tareas.items.length;
+    if (first && localHas && JSON.stringify(remote) !== JSON.stringify(state)) {
+      // Hay datos en los dos sitios: que decida la persona, nunca pisar en silencio.
+      showMsg(`<h2>¿Qué datos conservar?</h2>
+        <p class="meta" style="margin-top:12px">Tu cuenta tiene ${remote.habits.length} ${remote.habits.length === 1 ? 'hábito guardado' : 'hábitos guardados'} y este teléfono tiene ${state.habits.length}.</p>
+        <div class="dialog-actions"><button class="link" id="keep-local">Subir los de este teléfono</button><button class="primary" id="keep-remote">Usar los de la cuenta</button></div>`);
+      $('#keep-remote').onclick = () => { adopt(remote, row.updated_at); $('#msg-dialog').close(); };
+      $('#keep-local').onclick = () => { $('#msg-dialog').close(); pushCloud(); };
+      return;
+    }
+    adopt(remote, row.updated_at);
+  };
+  const adopt = (remote, at) => { state = remote; lastSeen = at; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} renderAll(); setSync('ok'); };
+  await pull(true);
+  clearInterval(pollTimer);
+  pollTimer = setInterval(() => { if (document.visibilityState === 'visible') pull(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+}
 
 async function connectCloud() {
-  if (!window.claude?.use) { setSync('local'); return; }
+  if (!window.claude?.use) { renderAccount(); if (auth) connectSupabase(); else setSync('local'); return; }
   setSync('wait');
   const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
   const uid = db && user ? await user.id() : null;
@@ -1439,6 +1581,7 @@ $('#check-upd').onclick = async () => {
 
 render();
 setSync('local');
+renderAccount();
 connectCloud();
 </script>
 </body>
