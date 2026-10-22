@@ -432,7 +432,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -522,6 +522,7 @@ function normalize(s) {
   s.nombre = String(s.nombre || '').trim();
   s.tareas ||= { listas: [{ id: 'inbox', nombre: 'Mis tareas' }], items: [] };
   if (!s.tareas.listas.length) s.tareas.listas.push({ id: 'inbox', nombre: 'Mis tareas' });
+  for (const x of s.tareas.items) { x.repite ||= ''; if (!Array.isArray(x.dias)) x.dias = []; }
   for (const h of s.habits) {
     if (h.rutina) continue;
     if (!Array.isArray(h.dias) || !h.dias.length) h.dias = [...ALL_DAYS];
@@ -1245,7 +1246,7 @@ function renderTareas() {
       <button class="tbody" data-tact="edit">
         <div class="ttitle">${esc(x.titulo)}</div>
         ${x.detalle ? `<div class="tdetail">${esc(x.detalle)}</div>` : ''}
-        ${x.fecha ? `<span class="tdate${!x.hecha && x.fecha < t ? ' late' : ''}">${fmtFecha(x.fecha)}</span>` : ''}
+        ${x.fecha ? `<span class="tdate${!x.hecha && x.fecha < t ? ' late' : ''}">${fmtFecha(x.fecha)}${x.repite ? ' · ↻' : ''}</span>` : x.repite ? `<span class="tdate">↻ ${REPITE[x.repite] || ''}</span>` : ''}
       </button>
     </div>`;
   $('#view-tareas').innerHTML = `
@@ -1270,6 +1271,40 @@ function listForm(title, value, onSave) {
   $('#list-go').onclick = () => { const n = $('#list-name').value.trim(); if (!n) return; onSave(n); save(); renderTareas(); $('#msg-dialog').close(); };
 }
 
+// Repetición al estilo Google Tasks: al completar, nace la siguiente con la fecha que toca.
+const REPITE = { dia: 'Cada día', laborables: 'Días laborables', semana: 'Cada semana', quincena: 'Cada 2 semanas', mes: 'Cada mes', anio: 'Cada año', dias: 'Días concretos' };
+function nextDate(x) {
+  const t = today(); let d = new Date((x.fecha || t) + 'T12:00');
+  const step = () => {
+    switch (x.repite) {
+      case 'dia': d = addDays(d, 1); break;
+      case 'laborables': do d = addDays(d, 1); while (wd(dayKey(d)) > 4); break;
+      case 'semana': d = addDays(d, 7); break;
+      case 'quincena': d = addDays(d, 14); break;
+      case 'mes': { const day = new Date((x.fecha || t) + 'T12:00').getDate(); d = new Date(d.getFullYear(), d.getMonth() + 1, 1, 12); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); break; }
+      case 'anio': d = new Date(d.getFullYear() + 1, d.getMonth(), d.getDate(), 12); break;
+      case 'dias': { const ds = x.dias?.length ? x.dias : ALL_DAYS; do d = addDays(d, 1); while (!ds.includes(wd(dayKey(d)))); break; }
+      default: return false;
+    }
+    return true;
+  };
+  if (!step()) return '';
+  for (let i = 0; i < 400 && dayKey(d) < t; i++) step();   // nunca nace ya atrasada
+  return dayKey(d);
+}
+function completeTask(task) {
+  task.hecha = true; task.hechaEn = Date.now(); justDoneTask = task.id; navigator.vibrate?.(10);
+  if (!task.repite) return;
+  const T = state.tareas;
+  if (T.items.some(y => y.origen === task.id)) return;
+  T.items.push({ id: crypto.randomUUID(), lista: task.lista, titulo: task.titulo, detalle: task.detalle, fecha: nextDate(task), hecha: false, creado: Date.now(), repite: task.repite, dias: [...(task.dias || [])], origen: task.id });
+}
+function uncompleteTask(task) {
+  task.hecha = false; task.hechaEn = 0;
+  const T = state.tareas, hija = T.items.find(y => y.origen === task.id && !y.hecha);
+  if (hija) T.items = T.items.filter(y => y !== hija);   // la siguiente vuelve a ser esta
+}
+
 function taskForm(x) {
   const T = state.tareas;
   showMsg(`<h2>Tarea</h2>
@@ -1277,12 +1312,17 @@ function taskForm(x) {
     <textarea id="t-detail" placeholder="Detalles" style="margin-top:12px">${esc(x.detalle || '')}</textarea>
     <label>Fecha</label><input id="t-date" type="date" value="${x.fecha || ''}">
     <label>Lista</label><select id="t-list">${T.listas.map(l => `<option value="${l.id}"${l.id === x.lista ? ' selected' : ''}>${esc(l.nombre)}</option>`).join('')}</select>
+    <label>Repetir</label><select id="t-rep"><option value="">No se repite</option>${Object.entries(REPITE).map(([k, v]) => `<option value="${k}"${x.repite === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
+    <div class="days" id="t-days"${x.repite === 'dias' ? '' : ' hidden'} style="margin-top:10px">${DAY_L.map((l, i) => `<label><input type="checkbox" value="${i}"${(x.dias || []).includes(i) ? ' checked' : ''}>${l}</label>`).join('')}</div>
     <div class="dialog-actions"><button class="link danger" id="t-del" style="margin-right:auto">Borrar</button><button class="link" data-close>Cancelar</button><button class="primary" id="t-go">Guardar</button></div>`);
   $('#t-go').onclick = () => {
     const titulo = $('#t-title').value.trim(); if (!titulo) { $('#t-title').focus(); return; }
-    Object.assign(x, { titulo, detalle: $('#t-detail').value.trim(), fecha: $('#t-date').value, lista: $('#t-list').value });
+    const repite = $('#t-rep').value, dias = [...document.querySelectorAll('#t-days input:checked')].map(i => +i.value);
+    if (repite === 'dias' && !dias.length) { $('#t-days').querySelector('input').focus(); return; }
+    Object.assign(x, { titulo, detalle: $('#t-detail').value.trim(), fecha: $('#t-date').value || (repite ? today() : ''), lista: $('#t-list').value, repite, dias });
     save(); renderTareas(); $('#msg-dialog').close();
   };
+  $('#t-rep').onchange = () => { $('#t-days').hidden = $('#t-rep').value !== 'dias'; };
   $('#t-del').onclick = () => { T.items = T.items.filter(y => y !== x); save(); renderTareas(); $('#msg-dialog').close(); };
 }
 
@@ -1299,7 +1339,7 @@ $('#view-tareas').addEventListener('click', e => {
   if (b.dataset.list) { T.activa = b.dataset.list; save(); renderTareas(); return; }
   const task = b.closest('[data-task]') && T.items.find(x => x.id === b.closest('[data-task]').dataset.task);
   switch (b.dataset.tact) {
-    case 'toggle': task.hecha = !task.hecha; task.hechaEn = task.hecha ? Date.now() : 0; if (task.hecha) { justDoneTask = task.id; navigator.vibrate?.(10); } save(); renderTareas(); break;
+    case 'toggle': task.hecha ? uncompleteTask(task) : completeTask(task); save(); renderTareas(); break;
     case 'edit': taskForm(task); break;
     case 'showdone': tareasShowDone = !tareasShowDone; renderTareas(); break;
     case 'newlist': listForm('Nueva lista', '', n => { const id = crypto.randomUUID(); T.listas.push({ id, nombre: n }); T.activa = id; }); break;
