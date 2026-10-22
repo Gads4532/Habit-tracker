@@ -304,6 +304,8 @@
     @keyframes flame-in { from { transform: scale(0) rotate(-12deg); opacity: 0; } }
     @keyframes flicker { 0%, 100% { transform: scale(1, 1); } 30% { transform: scale(1.03, .96); } 60% { transform: scale(.97, 1.05); } }
   }
+  .note.bad, #sync.bad { color: var(--red); }
+  .note.bad .link { color: var(--red); text-decoration: underline; padding: 0; }
   /* Análisis */
   .ana-hero { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; border-top: 0; padding-top: 4px; margin-bottom: 8px; }
   .ana-hero b { font-size: 1.35rem; }
@@ -387,6 +389,7 @@
     <div class="global" id="global"></div>
   </header>
   <div id="view-hoy">
+    <p class="note bad" id="nocloud" hidden>Tus datos están solo en este teléfono. <button class="link" id="nocloud-go">Crea una cuenta</button> para guardarlos en línea.</p>
     <p class="note" id="notice" hidden></p>
     <div id="list"></div>
     <div class="adds">
@@ -488,7 +491,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.6.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -658,20 +661,31 @@ function mergeStates(a, b) {
 // ---------- Nube: un documento privado por persona en el almacenamiento de la página.
 // Sin él (archivo abierto suelto), la app sigue funcionando solo en este dispositivo.
 let cloudRef = null, writing = false, dirty = false, pending = false;
-const SYNC_TEXT = { ok: '· Guardado en la nube', local: '· Guardado en este teléfono', error: '· Sin conexión; se guarda aquí y se sube luego', wait: '· Conectando…', notable: '· Falta preparar la base de datos' };
-const setSync = st => { $('#sync').textContent = SYNC_TEXT[st]; };
+const SYNC_TEXT = { ok: '· Guardado en la nube', saving: '· Guardando en la nube…', local: '· Solo en este teléfono', error: '· Pendiente de subir; se reintenta solo', wait: '· Conectando…', notable: '· Falta preparar la base de datos' };
+const setSync = st => {
+  const hora = st === 'ok' && savedAt ? ' ' + new Date(savedAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '';
+  $('#sync').textContent = SYNC_TEXT[st] + hora;
+  $('#sync').classList.toggle('bad', st === 'error' || st === 'notable');
+  $('#nocloud').hidden = !!(window.claude?.use || auth);
+};
 
+let retryTimer = 0, savedAt = 0;
 async function pushCloud() {
   if (!cloudRef) return;
   if (writing) { dirty = true; return; }
-  writing = true;
-  try { await cloudRef.set(JSON.parse(JSON.stringify(state))); pending = false; setSync('ok'); }
-  catch (e) { pending = true; setSync(e?.code === 'notable' ? 'notable' : 'error'); }
+  writing = true; setSync('saving');
+  try { await cloudRef.set(JSON.parse(JSON.stringify(state))); pending = false; savedAt = Date.now(); setSync('ok'); }
+  catch (e) {
+    pending = true; setSync(e?.code === 'notable' ? 'notable' : 'error');
+    clearTimeout(retryTimer); retryTimer = setTimeout(() => { if (pending) pushCloud(); }, 15000);   // insiste hasta que suba
+  }
   writing = false;
   if (dirty) { dirty = false; pushCloud(); }
 }
-// Lo que no pudo subirse (sin red) se reintenta al volver la conexión.
+// Lo que no pudo subirse se reintenta al volver la conexión y al volver a la app.
 addEventListener('online', () => { if (pending) pushCloud(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && pending) pushCloud(); });
+addEventListener('beforeunload', e => { if (pending || writing) { e.preventDefault(); e.returnValue = ''; } });
 
 // ---------- Cuenta: registro e inicio de sesión con Supabase (correo y contraseña).
 // La clave de abajo es la pública («anon»): solo permite lo que las reglas de la base de datos dejan.
@@ -729,6 +743,7 @@ function renderAccount() {
     : `<button class="outline" id="acct-in">Crear cuenta o iniciar sesión</button>
        <p class="note" style="margin:10px 0 0">Con una cuenta, tu progreso se guarda en la nube y lo ves en cualquier teléfono.</p>`;
   $('#acct-in')?.addEventListener('click', accountForm);
+  $('#nocloud-go').onclick = () => accountForm('up');
   $('#acct-out')?.addEventListener('click', signOut);
 }
 
@@ -1848,6 +1863,11 @@ render();
 setSync('local');
 renderAccount();
 connectCloud();
+// Sin cuenta, la app lo recuerda al abrir (una vez al día) para que nada se quede solo en el teléfono.
+if (!window.claude?.use && !auth && (state.habits.length || state.tareas.items.length) && localStorage.getItem('habit-nag') !== today()) {
+  localStorage.setItem('habit-nag', today());
+  setTimeout(() => accountForm('up'), 600);
+}
 </script>
 </body>
 </html>
