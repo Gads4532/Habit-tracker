@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Habit Tracker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e0e0e" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
@@ -34,6 +35,7 @@
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  html { background: var(--bg); color-scheme: light dark; min-height: 100%; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 var(--font);
     -webkit-font-smoothing: antialiased; }
   main { max-width: 520px; margin: 0 auto; padding-block: 48px 110px;
@@ -98,8 +100,8 @@
   .outline { display: block; margin-top: 24px; padding: 11px 18px; border-radius: 999px; border: 1.5px solid var(--text);
     font-weight: 500; }
   .outline:active { background: var(--text); color: var(--bg); }
-  .backup { display: flex; gap: 20px; margin-top: 18px; }
-  .ver { color: var(--muted); font-size: .8rem; margin-top: 22px; display: flex; gap: 16px; align-items: center; }
+  .backup { display: flex; gap: 20px; margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
+  .ver { color: var(--muted); font-size: .8rem; margin-top: 16px; display: flex; gap: 16px; align-items: center; }
   .acct { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 24px; font-size: .9rem; color: var(--muted); }
   .acct b { color: var(--text); font-weight: 500; word-break: break-all; }
   .field { margin-top: 14px; }
@@ -342,7 +344,6 @@
       <button class="add" id="add-routine">+ Nueva rutina</button>
     </div>
     <div id="account"></div>
-    <button class="outline" id="export-notion">Exportar todo a Notion</button>
     <div class="backup" id="backup">
       <button class="link" id="backup-out">Guardar copia</button>
       <button class="link" id="backup-in">Restaurar copia</button>
@@ -432,7 +433,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.3.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1514,22 +1515,6 @@ const NOTION_WHY = {
 };
 const dialogResult = (title, body) => showMsg(`<h2>${title}</h2><p class="meta" style="margin-top:12px">${body}</p>
   <div class="dialog-actions"><button class="primary" data-close>Entendido</button></div>`);
-
-async function exportAll() {
-  if (!window.claude?.use) { dialogResult('Solo dentro de Claude', 'Exportar a Notion funciona cuando abres la app desde su enlace de Claude, no desde el archivo descargado.'); return; }
-  if (notionBusy) { dialogResult('Un momento', 'Ya se está exportando. Mira la línea bajo la fecha.'); return; }
-  let n = 0;
-  for (const h of state.habits.filter(x => !x.rutina)) {
-    for (const day of Object.keys(state.log[h.id] || {}).sort()) { notionQueue.push([h.id, day]); n++; }
-  }
-  if (!n) { dialogResult('Nada que exportar', 'Todavía no has marcado ningún día. En cuanto marques un hábito, su fila aparece en Notion sola; este botón es para reenviar todo de golpe.'); return; }
-  showMsg(`<h2>Exportando a Notion…</h2><p class="meta" style="margin-top:12px">${n} ${n === 1 ? 'día' : 'días'}. Si Claude te pide permiso para usar Notion, acéptalo.</p>`);
-  const r = await drainNotion();
-  if (!r.mcp) dialogResult('Sin conexión con Notion', NOTION_WHY.nomcp);
-  else if (r.failed === 0) dialogResult('Listo', `${r.sent} ${r.sent === 1 ? 'fila exportada' : 'filas exportadas'} a «Registro de hábitos».`);
-  else dialogResult(r.sent ? 'Exportado a medias' : 'No se pudo exportar', `${r.sent} ${r.sent === 1 ? 'fila' : 'filas'} sí, ${r.failed} no. ${NOTION_WHY[r.why] || NOTION_WHY.error}<br><br><small>Detalle: ${esc(r.detail || '')}</small>`);
-}
-$('#export-notion').onclick = exportAll;
 
 function notionSync(id, day) {
   if (!window.claude?.use) return;
