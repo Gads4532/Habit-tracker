@@ -304,6 +304,15 @@
     @keyframes flame-in { from { transform: scale(0) rotate(-12deg); opacity: 0; } }
     @keyframes flicker { 0%, 100% { transform: scale(1, 1); } 30% { transform: scale(1.03, .96); } 60% { transform: scale(.97, 1.05); } }
   }
+  /* Spotify */
+  .song { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 8px 0; }
+  .song .song-name { flex-basis: 100%; } .song .song-name small { color: var(--muted); margin-left: 6px; }
+  .song-list { margin-top: 14px; max-height: 50vh; overflow-y: auto; }
+  .song-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 8px 0; border-top: 1px solid var(--line); }
+  .song-item img, .song-item i { width: 40px; height: 40px; border-radius: 6px; flex: none; background: var(--line); }
+  .song-item span { display: flex; flex-direction: column; min-width: 0; } .song-item b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-item small { color: var(--muted); }
+  .cele-song { margin-top: 10px; } .cele-song a { color: var(--text); text-decoration: underline; }
   /* Análisis */
   .ana-hero { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; border-top: 0; padding-top: 4px; margin-bottom: 8px; }
   .ana-hero b { font-size: 1.35rem; }
@@ -468,6 +477,7 @@
     <input name="recompensa" placeholder="Un capítulo de mi serie">
     <label>Mi celebración</label>
     <input name="celebracion" placeholder="¡Así se hace!">
+    <div id="song-row"><label>Canción al completar <small>· suena en tu Spotify</small></label><div class="song" id="song"></div></div>
     <label class="benefits">Beneficios · uno por línea</label>
     <textarea name="beneficios" required></textarea>
     <label class="cons">Contras de no hacerlo · uno por línea</label>
@@ -487,7 +497,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.4.3';
+const APP_VERSION = '2.5.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -686,8 +696,13 @@ function renderAccount() {
     ? `<div class="acct"><span>Cuenta: <b>${esc(auth.email || '')}</b></span><button class="link" id="acct-out">Cerrar sesión</button></div>`
     : `<button class="outline" id="acct-in">Crear cuenta o iniciar sesión</button>
        <p class="note" style="margin:10px 0 0">Con una cuenta, tu progreso se guarda en la nube y lo ves en cualquier teléfono.</p>`;
+  $('#account').insertAdjacentHTML('beforeend', spot
+    ? `<div class="acct"><span>Spotify: <b>conectado</b></span><button class="link" id="spot-out">Desconectar</button></div>`
+    : `<div class="acct"><span>Spotify: sin conectar</span><button class="link" id="spot-in">Conectar</button></div>`);
   $('#acct-in')?.addEventListener('click', accountForm);
   $('#acct-out')?.addEventListener('click', signOut);
+  $('#spot-in')?.addEventListener('click', spotifyLogin);
+  $('#spot-out')?.addEventListener('click', spotifyLogout);
 }
 
 function accountForm(mode = 'in') {
@@ -1005,6 +1020,9 @@ function tickTimers() {
 }
 setInterval(tickTimers, 1000);
 
+// Aviso corto con título, texto y «Entendido».
+const dialogResult = (title, html) => showMsg(`<h2>${title}</h2><p class="meta" style="margin-top:12px">${html}</p>
+  <div class="dialog-actions"><button class="primary" data-close>Entendido</button></div>`);
 function showMsg(html) {
   $('#msg').innerHTML = html;
   $('#msg-dialog').showModal();
@@ -1029,6 +1047,13 @@ function complete(h, value) {
   justDone = null;
   sparks(h);
   setTimeout(() => celebrate(h), 350);
+  songResult = null;
+  if (h.cancion && spot) playSong(h.cancion).then(r => { songResult = r; celeSong(h); });
+}
+let songResult = null;
+function celeSong(h) {
+  const el = $('#cele-song'), r = songResult; if (!el || !r) return;
+  el.innerHTML = r.ok ? `♪ Sonando: ${esc(r.msg)}` : `<a href="${trackLink(h.cancion)}" target="_blank" rel="noopener">♪ Abrir «${esc(h.cancion.nombre)}» en Spotify</a> <small>· ${esc(r.msg)}</small>`;
 }
 
 const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3L12.5 5"/></svg>';
@@ -1051,10 +1076,12 @@ function celebrate(h) {
     <p class="meta">${esc(h.celebracion || '¡Así se hace!')} +1 voto · ${esc(h.identidad)}</p>
     <div class="cele-benefits">${benefitsHTML(h)}
       ${h.recompensa ? `<p class="meta" style="margin-top:12px">Te has ganado: <b>${esc(h.recompensa)}</b></p>` : ''}</div>
+    ${h.cancion ? `<p class="meta cele-song" id="cele-song">${spot ? '♪ Poniendo ' + esc(h.cancion.nombre) + '…' : `<a href="${trackLink(h.cancion)}" target="_blank" rel="noopener">♪ Abrir «${esc(h.cancion.nombre)}» en Spotify</a>`}</p>` : ''}
     <button class="cele-go" id="cele-go">Continuar</button>
   </div>`;
   el.classList.remove('out', 'lit');
   el.hidden = false;
+  celeSong(h);
   $('#cele-go').focus({ preventScroll: true });
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Encendido: squash, resorte, sunburst, chispas y el número que rueda, todo a la vez.
@@ -1536,7 +1563,9 @@ function openForm(h = null, { rutina = false, padre = '' } = {}) {
   $('#form-title').textContent = (h ? 'Editar ' : formIsRoutine ? 'Nueva ' : 'Nuevo ') + kind;
   f.elements.nombre.placeholder = formIsRoutine ? 'Rutina matutina' : 'Leer 20 páginas';
   $('#delete').hidden = !h;
-  formHoras = [];
+  formHoras = []; formCancion = h?.cancion || null;
+  $('#song-row').hidden = !!window.claude?.use;
+  renderSong();
   if (h) {
     (formIsRoutine ? ROUTINE_FIELDS : FIELDS).forEach(k => { if (f.elements[k]) f.elements[k].value = h[k] ?? ''; });
     if (!formIsRoutine) {
@@ -1589,6 +1618,7 @@ $('#form').addEventListener('submit', e => {
     data.meta = Math.max(1, +data.meta || 1);
     if (data.modo === 'check') data.meta = 1;
     if (data.padre) open.add(data.padre);
+    data.cancion = formCancion || null;
   }
   if (editing) Object.assign(editing, data);
   else state.habits.push({ id: crypto.randomUUID(), creado: today(), clave: false, rutina: formIsRoutine, ...data });
@@ -1738,6 +1768,124 @@ $('#view-analisis').addEventListener('click', e => {
   const h = e.target.closest('[data-ahabit]'); if (h) { anaHabit = h.dataset.ahabit; anaSel = null; renderAnalisis(); return; }
   const g = e.target.closest('[data-sel]'); if (g) { anaSel = anaSel === g.dataset.sel ? null : g.dataset.sel; renderAnalisis(); }
 });
+
+// ---------- Spotify: al completar un hábito suena su canción en tu Spotify (Spotify Connect).
+// Hace falta Premium y que la app de Spotify esté abierta o reciente en el teléfono.
+const SPOTIFY_CLIENT_ID = '';   // si está vacío, se pide una vez y se guarda en el teléfono
+const SPOT_KEY = 'habit-spotify', SPOT_SCOPES = 'user-modify-playback-state user-read-playback-state';
+const spotClient = () => SPOTIFY_CLIENT_ID || localStorage.getItem('spotify-client') || '';
+const spotRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
+let spot = null; try { spot = JSON.parse(localStorage.getItem(SPOT_KEY) || 'null'); } catch {}
+const saveSpot = s => { spot = s; try { s ? localStorage.setItem(SPOT_KEY, JSON.stringify(s)) : localStorage.removeItem(SPOT_KEY); } catch {} };
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function spotifyLogin() {
+  if (!spotClient()) { spotifyClientForm(); return; }
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  localStorage.setItem('spotify-verifier', verifier);
+  const q = new URLSearchParams({ client_id: spotClient(), response_type: 'code', redirect_uri: spotRedirect(), scope: SPOT_SCOPES, code_challenge_method: 'S256', code_challenge: challenge });
+  location.href = 'https://accounts.spotify.com/authorize?' + q;
+}
+async function spotifyTokenCall(body) {
+  const res = await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: spotClient(), ...body }) });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error_description || d.error || res.statusText);
+  return { access_token: d.access_token, refresh_token: d.refresh_token || spot?.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000 };
+}
+async function spotifyFinishLogin() {
+  const u = new URL(location.href), code = u.searchParams.get('code'), err = u.searchParams.get('error');
+  if (!code && !err) return;
+  history.replaceState(null, '', u.pathname);
+  if (err) { dialogResult('Spotify no conectado', 'No diste permiso en Spotify. Puedes intentarlo otra vez cuando quieras.'); return; }
+  try {
+    saveSpot(await spotifyTokenCall({ grant_type: 'authorization_code', code, redirect_uri: spotRedirect(), code_verifier: localStorage.getItem('spotify-verifier') || '' }));
+    renderAccount(); dialogResult('Spotify conectado', 'Ahora, al editar un hábito, puedes elegirle una canción. Sonará en tu Spotify al completarlo.');
+  } catch (e) { dialogResult('Spotify no conectado', 'Spotify rechazó la conexión: ' + esc(e.message) + '. Revisa que el Client ID y la Redirect URI sean exactos.'); }
+}
+async function spotifyToken() {
+  if (!spot) return null;
+  if (spot.expires_at - Date.now() > 60000) return spot.access_token;
+  try { saveSpot(await spotifyTokenCall({ grant_type: 'refresh_token', refresh_token: spot.refresh_token })); return spot.access_token; }
+  catch { saveSpot(null); renderAccount(); return null; }
+}
+async function spotifyApi(path, { method = 'GET', body } = {}) {
+  const token = await spotifyToken(); if (!token) { const e = new Error('Sin sesión de Spotify'); e.code = 'auth'; throw e; }
+  const res = await fetch('https://api.spotify.com/v1' + path, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (res.status === 204) return null;
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(d.error?.message || res.statusText); e.status = res.status; e.reason = d.error?.reason || ''; throw e; }
+  return d;
+}
+function spotifyClientForm() {
+  showMsg(`<h2>Conectar Spotify</h2>
+    <p class="meta">Spotify pide una «app» gratuita a tu nombre. Es una vez:</p>
+    <ol class="meta" style="padding-left:18px;margin:8px 0">
+      <li>Entra en <b>developer.spotify.com/dashboard</b> y crea una app.</li>
+      <li>En <b>Redirect URIs</b> pon exactamente: <code>${esc(spotRedirect())}</code></li>
+      <li>Marca «Web API», guarda y copia el <b>Client ID</b>.</li>
+    </ol>
+    <input id="spot-client" class="reason" placeholder="Client ID" autocomplete="off" value="${esc(localStorage.getItem('spotify-client') || '')}">
+    <p class="meta" style="margin-top:8px">Para que suene hace falta Spotify Premium.</p>
+    <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="spot-go">Conectar</button></div>`);
+  $('#spot-client').focus();
+  $('#spot-go').onclick = () => { const v = $('#spot-client').value.trim(); if (!v) { $('#spot-client').focus(); return; } localStorage.setItem('spotify-client', v); $('#msg-dialog').close(); spotifyLogin(); };
+}
+function spotifyLogout() { saveSpot(null); renderAccount(); }
+
+// Buscar una canción y asignarla al hábito que se está editando.
+let formCancion = null;
+function renderSong() {
+  const el = $('#song'); if (!el) return;
+  el.innerHTML = formCancion
+    ? `<span class="song-name">♪ ${esc(formCancion.nombre)} <small>${esc(formCancion.artista)}</small></span>
+       <button type="button" class="link" id="song-test">Probar</button><button type="button" class="link" id="song-change">Cambiar</button><button type="button" class="link" id="song-del">Quitar</button>`
+    : `<button type="button" class="link" id="song-pick">${spot ? 'Elegir canción' : 'Conectar Spotify para elegir una canción'}</button>`;
+  $('#song-pick')?.addEventListener('click', () => spot ? songSearch() : spotifyLogin());
+  $('#song-change')?.addEventListener('click', songSearch);
+  $('#song-del')?.addEventListener('click', () => { formCancion = null; renderSong(); });
+  $('#song-test')?.addEventListener('click', async () => { const r = await playSong(formCancion); dialogResult(r.ok ? 'Sonando' : 'No sonó', r.msg); });
+}
+function songSearch() {
+  showMsg(`<h2>Canción</h2>
+    <input id="song-q" class="reason" placeholder="Busca en Spotify" autocomplete="off">
+    <div class="song-list" id="song-list"><p class="meta">Escribe el nombre de la canción o del artista.</p></div>
+    <div class="dialog-actions"><button class="link" data-close>Cancelar</button></div>`);
+  const q = $('#song-q'); q.focus();
+  let t = 0;
+  q.oninput = () => { clearTimeout(t); t = setTimeout(async () => {
+    const v = q.value.trim(); if (v.length < 2) return;
+    try {
+      const d = await spotifyApi(`/search?type=track&limit=8&q=${encodeURIComponent(v)}`);
+      const items = d.tracks?.items || [];
+      $('#song-list').innerHTML = items.length ? items.map(x => `<button type="button" class="song-item" data-uri="${x.uri}" data-nombre="${esc(x.name)}" data-artista="${esc(x.artists.map(a => a.name).join(', '))}">
+        ${x.album?.images?.[2] ? `<img src="${x.album.images[2].url}" alt="">` : '<i></i>'}<span><b>${esc(x.name)}</b><small>${esc(x.artists.map(a => a.name).join(', '))}</small></span></button>`).join('') : '<p class="meta">Nada con ese nombre.</p>';
+    } catch (e) { $('#song-list').innerHTML = `<p class="meta">${e.code === 'auth' ? 'Conecta Spotify primero.' : 'Spotify no respondió: ' + esc(e.message)}</p>`; }
+  }, 350); };
+  $('#song-list').onclick = e => { const b = e.target.closest('.song-item'); if (!b) return;
+    formCancion = { uri: b.dataset.uri, nombre: b.dataset.nombre, artista: b.dataset.artista }; $('#msg-dialog').close(); renderSong(); };
+}
+// Reproducir en el dispositivo activo; si no hay ninguno, en el primero que Spotify vea (el teléfono).
+async function playSong(c) {
+  if (!c?.uri) return { ok: false, msg: 'Este hábito no tiene canción.' };
+  if (!spot) return { ok: false, msg: 'Spotify no está conectado.' };
+  const body = { uris: [c.uri] };
+  try { await spotifyApi('/me/player/play', { method: 'PUT', body }); return { ok: true, msg: `${c.nombre} · ${c.artista}` }; }
+  catch (e) {
+    if (e.status === 404 || e.reason === 'NO_ACTIVE_DEVICE') {
+      try {
+        const d = await spotifyApi('/me/player/devices'); const dev = (d.devices || []).find(x => x.type === 'Smartphone') || (d.devices || [])[0];
+        if (dev) { await spotifyApi(`/me/player/play?device_id=${dev.id}`, { method: 'PUT', body }); return { ok: true, msg: `${c.nombre} · ${c.artista}` }; }
+      } catch (e2) { e = e2; }
+      return { ok: false, msg: 'Spotify no tiene ningún dispositivo activo. Abre la app de Spotify un momento y vuelve a intentarlo.' };
+    }
+    if (e.status === 403 || e.reason === 'PREMIUM_REQUIRED') return { ok: false, msg: 'Spotify solo deja reproducir desde fuera con Premium.' };
+    if (e.code === 'auth' || e.status === 401) return { ok: false, msg: 'La sesión de Spotify caducó. Conéctalo otra vez.' };
+    return { ok: false, msg: 'Spotify no respondió: ' + e.message };
+  }
+}
+const trackLink = c => `https://open.spotify.com/track/${(c.uri || '').split(':').pop()}`;
+spotifyFinishLogin();
 
 // ---------- Copia de seguridad: un archivo .json con todo. Dentro de Claude no hay descargas, así que se oculta.
 $('#backup-out').onclick = () => {
