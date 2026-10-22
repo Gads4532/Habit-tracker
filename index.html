@@ -100,6 +100,8 @@
   .outline { display: block; margin-top: 24px; padding: 11px 18px; border-radius: 999px; border: 1.5px solid var(--text);
     font-weight: 500; }
   .outline:active { background: var(--text); color: var(--bg); }
+  #account { margin-top: 72px; }
+  #account .outline { margin-top: 0; }
   .backup { display: flex; gap: 20px; margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); }
   .ver { color: var(--muted); font-size: .8rem; margin-top: 16px; display: flex; gap: 16px; align-items: center; }
   .acct { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 24px; font-size: .9rem; color: var(--muted); }
@@ -149,9 +151,29 @@
   .task .tdate { display: inline-block; margin-top: 4px; font-size: .78rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
   .task .tdate.late { color: var(--red); border-color: var(--red); }
   .tdone-toggle { margin-top: 22px; }
+  .tclean { display: flex; align-items: center; gap: 10px; padding: 22px 0; color: var(--muted); }
+  .tclean svg { width: 26px; height: 26px; color: var(--green); }
   @media (prefers-reduced-motion: no-preference) {
-    .task .tcheck { transition: background .15s; }
+    .task .tcheck { transition: background .15s; position: relative; }
+    .task .ttitle { position: relative; display: inline; }
+    .task .ttitle::after { content: ''; position: absolute; left: 0; top: 56%; height: 1.5px; width: 0; background: var(--muted); }
+    .task.done .ttitle { text-decoration: none; } .task.done .ttitle::after { width: 100%; }
+    .task .tcheck svg path { stroke-dasharray: 20; }
     .task.just-done .tcheck { animation: pop-spring .9s var(--spring-pop); }
+    .task.completing .tcheck { background: var(--text); animation: pop-spring .9s var(--spring-pop); }
+    .task.completing .tcheck svg { opacity: 1; } .task.completing .tcheck svg path { stroke-dashoffset: 20; animation: draw .35s ease-out .12s forwards; }
+    .task.completing .tcheck::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 1.5px solid var(--text); animation: ring .6s ease-out .05s forwards; }
+    .task.completing .ttitle { animation: to-muted .4s ease .25s forwards; }
+    .task.completing .ttitle::after { animation: strike .55s var(--spring-soft) .18s forwards; }
+    .task.leaving { transition: height .45s var(--spring-soft), padding .45s var(--spring-soft), opacity .3s ease, transform .45s var(--spring-soft); height: 0 !important; padding-block: 0 !important; opacity: 0; transform: translateX(-16px); overflow: hidden; border-top-width: 0; }
+    .task.new-task { animation: slide-in .8s var(--spring-pop); }
+    .task.just-undone { animation: slide-in .8s var(--spring-pop); }
+    .tclean { animation: slide-in .9s var(--spring-pop); }
+    .tclean svg { animation: pop-spring .9s var(--spring-pop) .1s both; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes strike { to { width: 100%; } }
+    @keyframes to-muted { to { color: var(--muted); font-weight: 400; } }
+    @keyframes slide-in { from { opacity: 0; transform: translateY(-10px) scale(.97); } }
     .check .pv { transition: transform .2s; }
   }
 
@@ -282,8 +304,36 @@
     @keyframes flame-in { from { transform: scale(0) rotate(-12deg); opacity: 0; } }
     @keyframes flicker { 0%, 100% { transform: scale(1, 1); } 30% { transform: scale(1.03, .96); } 60% { transform: scale(.97, 1.05); } }
   }
+  /* Análisis */
+  .ana-hero { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; border-top: 0; padding-top: 4px; margin-bottom: 8px; }
+  .ana-hero b { font-size: 1.35rem; }
+  .ana { margin-top: 28px; }
+  .ana h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .chart { width: 100%; height: auto; display: block; overflow: visible; }
+  .chart .axis { stroke: var(--line); stroke-width: 1; }
+  .chart .grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+  .chart .fill { fill: var(--text); opacity: .85; transition: opacity .2s; }
+  .chart .bar.sel .fill { opacity: 1; }
+  .chart .bar:not(.sel) .fill { opacity: .55; }
+  .chart .nodata { fill: var(--line); }
+  .chart .line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .dot { fill: var(--text); stroke: var(--bg); stroke-width: 2; }
+  .chart .lbl { font-size: 10px; fill: var(--muted); text-anchor: middle; }
+  .chart .val { font-size: 11px; font-weight: 600; fill: var(--text); text-anchor: middle; font-variant-numeric: tabular-nums; }
+  .chart g[data-sel] { cursor: pointer; }
+  .hbar { display: grid; grid-template-columns: minmax(0, 42%) 1fr auto; gap: 10px; align-items: center; margin-top: 8px; font-size: .9rem; }
+  .hbar .hl { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hbar .hl svg { width: 16px; height: 16px; flex: none; color: var(--c, var(--muted)); }
+  .hbar .hl small { color: var(--muted); font-size: .75rem; }
+  .hbar .ht { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .hbar .ht i { display: block; height: 100%; border-radius: 4px; background: var(--text); }
+  .hbar .hv { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .hbar .hv svg { width: 14px; height: 14px; }
+  .recent { margin-top: 14px; border-top: 1px solid var(--line); }
+  .recent > div { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .recent p { margin: 2px 0 0; }
   /* Barra inferior: Hoy | Calendario */
-  .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 56px;
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 40px;
     padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--bg); border-top: 1px solid var(--line); z-index: 5; }
   .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .72rem; color: var(--muted); }
@@ -332,7 +382,7 @@
   <header class="top">
     <div>
       <h1 id="title"></h1>
-      <p class="date"><span id="today"></span> <span id="sync"></span> <span id="notion"></span></p>
+      <p class="date"><span id="today"></span> <span id="sync"></span></p>
     </div>
     <div class="global" id="global"></div>
   </header>
@@ -353,6 +403,7 @@
   </div>
   <div id="view-cal" hidden></div>
   <div id="view-tareas" hidden></div>
+  <div id="view-analisis" hidden></div>
 </main>
 
 <nav class="tabs">
@@ -364,6 +415,9 @@
   </button>
   <button class="tab" data-view="tareas">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h10M4 17h7"/><path d="M15.5 16.5l2 2L21.5 14"/></svg>Tareas
+  </button>
+  <button class="tab" data-view="analisis">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M6 15l4-5 3 3 5-7"/></svg>Análisis
   </button>
 </nav>
 
@@ -433,7 +487,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.4.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -518,7 +572,7 @@ function load() {
 }
 function normalize(s) {
   s ||= {};
-  s.habits ||= []; s.log ||= {}; s.razones ||= {}; s.notion ||= {};
+  s.habits ||= []; s.log ||= {}; s.razones ||= {}; s.motivos ||= {}; delete s.notion;
   s.progreso ||= {}; s.timers ||= {};
   s.nombre = String(s.nombre || '').trim();
   s.tareas ||= { listas: [{ id: 'inbox', nombre: 'Mis tareas' }], items: [] };
@@ -536,7 +590,7 @@ function normalize(s) {
 }
 // Saludo según la hora, con el nombre de la persona.
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
-const titulo = () => view === 'hoy' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { cal: 'Calendario', tareas: 'Tareas' }[view];
+const titulo = () => view === 'hoy' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy'); t.title = view === 'hoy' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -778,8 +832,7 @@ function stats(h) {
   while (dayKey(yd) >= h.creado && !isSched(h, dayKey(yd))) yd = addDays(yd, -1);
   const yesterday = dayKey(yd);
   const missedYesterday = h.creado <= yesterday && isSched(h, yesterday) && !isDone(h, yesterday) && !isJust(h, yesterday);
-  const compound = Math.pow(1.01, done) * Math.pow(0.99, missed);
-  return { age, done, streak, missedYesterday, compound };
+  return { age, done, streak, missedYesterday };
 }
 
 const list = items => `<ul>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`;
@@ -884,7 +937,7 @@ function habitHTML(h) {
     detail = `<div class="detail">
       <div class="chain" aria-label="Últimos 14 días">${chain}</div>
       <p class="intent">${intent}</p>
-      <p class="meta">${modeLine ? modeLine + ' · ' : ''}${s.done} votos · ×${s.compound.toFixed(2)}${tip ? ' · ' + tip : ''}</p>
+      <p class="meta">${modeLine ? modeLine + ' · ' : ''}${s.done} votos · ${esc(h.identidad)}${tip ? ' · ' + tip : ''}</p>
       ${benefitsHTML(h)}${consHTML(h)}
       <div class="actions">
         ${actions}
@@ -915,7 +968,6 @@ function setMark(h, value) {
   if (value !== 'just') delete state.razones[h.id]?.[today()];
   if (!value) { delete state.progreso[h.id]?.[today()]; delete state.timers[h.id]; }
   save(); render();
-  notionSync(h.id, today());
 }
 
 // Modo veces: cada toque suma uno; al llegar a la meta, se completa.
@@ -1072,6 +1124,7 @@ $('#list').addEventListener('click', e => {
       showMsg(`<h2>¿Hoy no?</h2>
         ${consHTML(h)}
         <p class="meta" style="margin-top:16px">La versión mínima cuenta: <b>${esc(h.minima)}</b></p>
+        <input id="motivo" class="reason" placeholder="¿Por qué no? (opcional, para tu análisis)" maxlength="140" value="${esc(state.motivos[h.id]?.[today()] || '')}">
         <div class="dialog-actions">
           <button class="link" data-confirm-skip="${h.id}">Aun así, hoy no</button>
           ${JUST_PER_MONTH - justUsed(h, today().slice(0, 7)) > 0 ? `<button class="link" data-justify="${h.id}|${today()}">Justificar</button>` : ''}
@@ -1094,6 +1147,7 @@ $('#msg-dialog').addEventListener('click', e => {
   const t = e.target;
   if (t === $('#msg-dialog') || t.hasAttribute('data-close')) $('#msg-dialog').close();
   if (t.dataset.confirmSkip) {
+    setMotivo(t.dataset.confirmSkip, today(), $('#motivo')?.value);
     setMark(state.habits.find(x => x.id === t.dataset.confirmSkip), 'skip');
     $('#msg-dialog').close();
   }
@@ -1106,10 +1160,15 @@ $('#msg-dialog').addEventListener('click', e => {
     state.habits.forEach(x => { if (x.padre === id) x.padre = ''; });
     state.habits = state.habits.filter(x => x.id !== id);
     delete state.log[id];
-    delete state.razones[id];
+    delete state.razones[id]; delete state.motivos[id];
     save(); renderAll(); $('#msg-dialog').close();
   }
   if (t.dataset.justify) justifyForm(...t.dataset.justify.split('|'));
+  if (t.dataset.saveMotivo) {
+    const [id, day] = t.dataset.saveMotivo.split('|');
+    setMotivo(id, day, $('#motivo').value);
+    save(); renderAll(); $('#msg-dialog').close();
+  }
   if (t.dataset.saveJust) {
     const [id, day] = t.dataset.saveJust.split('|');
     const reason = $('#reason').value.trim();
@@ -1118,18 +1177,37 @@ $('#msg-dialog').addEventListener('click', e => {
     state.log[id][day] = 'just';
     state.razones[id][day] = reason;
     save(); renderAll(); $('#msg-dialog').close();
-    notionSync(id, day);
   }
   if (t.dataset.unjust) {
     const [id, day] = t.dataset.unjust.split('|');
     delete state.log[id][day];
     delete state.razones[id]?.[day];
     save(); renderAll(); $('#msg-dialog').close();
-    notionSync(id, day);
   }
 });
 
 const longDate = day => new Date(day + 'T12:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+
+// Motivo de un día no hecho: el día sigue en rojo; solo sirve para entenderte en Análisis.
+function setMotivo(id, day, text) {
+  text = String(text || '').trim();
+  if (text) { (state.motivos[id] ??= {})[day] = text; }
+  else if (state.motivos[id]) { delete state.motivos[id][day]; if (!Object.keys(state.motivos[id]).length) delete state.motivos[id]; }
+}
+function missForm(id, day) {
+  const h = state.habits.find(x => x.id === id);
+  const left = JUST_PER_MONTH - justUsed(h, day.slice(0, 7));
+  showMsg(`<h2>Día no hecho</h2>
+    <p class="meta">${esc(h.nombre)} · ${longDate(day)}</p>
+    <p class="meta">Apunta por qué no se pudo. Sigue en rojo, pero en Análisis verás qué te frena.</p>
+    <input id="motivo" class="reason" placeholder="¿Qué pasó?" maxlength="140" value="${esc(state.motivos[h.id]?.[day] || '')}">
+    <div class="dialog-actions">
+      ${left > 0 ? `<button class="link" data-justify="${id}|${day}">Justificar</button>` : ''}
+      <button class="link" data-close>Cancelar</button>
+      <button class="primary" data-save-motivo="${id}|${day}">Guardar</button>
+    </div>`);
+  $('#motivo').focus();
+}
 
 function justifyForm(id, day) {
   const h = state.habits.find(x => x.id === id);
@@ -1226,14 +1304,15 @@ $('#view-cal').addEventListener('click', e => {
           <button class="link" data-unjust="${h.id}|${day}">Quitar justificación</button>
           <button class="primary" data-close>Cerrar</button>
         </div>`);
-    } else justifyForm(h.id, day);
+    } else if (day === today()) justifyForm(h.id, day);
+    else missForm(h.id, day);
   }
 });
 
-function renderAll() { render(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); }
+function renderAll() { render(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
-let tareasShowDone = false, justDoneTask = null;
+let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
 function renderTareas() {
   const T = state.tareas;
   if (!T.listas.some(l => l.id === T.activa)) T.activa = T.listas[0].id;
@@ -1242,7 +1321,7 @@ function renderTareas() {
   const pend = mine.filter(x => !x.hecha).sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : (a.fecha || '9') > (b.fecha || '9') ? 1 : b.creado - a.creado);
   const done = mine.filter(x => x.hecha).sort((a, b) => (b.hechaEn || 0) - (a.hechaEn || 0));
   const t = today();
-  const row = x => `<div class="task${x.hecha ? ' done' : ''}${justDoneTask === x.id ? ' just-done' : ''}" data-task="${x.id}">
+  const row = x => `<div class="task${x.hecha ? ' done' : ''}${justDoneTask === x.id ? ' just-done' : ''}${newTaskId === x.id ? ' new-task' : ''}${undoneTask === x.id ? ' just-undone' : ''}" data-task="${x.id}">
       <button class="tcheck" data-tact="toggle" aria-label="${x.hecha ? 'Marcar pendiente' : 'Completar'}">${CHECK}</button>
       <button class="tbody" data-tact="edit">
         <div class="ttitle">${esc(x.titulo)}</div>
@@ -1254,14 +1333,14 @@ function renderTareas() {
     <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)}</button>`).join('')}
       <button class="chip" data-tact="newlist">+ Lista</button></div>
     <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea" autocomplete="off"></form>
-    ${pend.length ? pend.map(row).join('') : `<p class="empty">Nada pendiente en «${esc(L.nombre)}».</p>`}
+    ${pend.length ? pend.map(row).join('') : cleanJust ? `<div class="tclean">${CHECK_BIG}<span>Todo hecho. Lista limpia.</span></div>` : `<p class="empty">Nada pendiente en «${esc(L.nombre)}».</p>`}
     ${done.length ? `<button class="link tdone-toggle" data-tact="showdone">${tareasShowDone ? '▾' : '▸'} Completadas (${done.length})</button>` : ''}
     ${done.length && tareasShowDone ? `<div style="margin-top:10px">${done.map(row).join('')}</div>` : ''}
     <div class="actions" style="margin-top:28px">
       <button class="link" data-tact="renamelist">Renombrar lista</button>
       ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}
     </div>`;
-  justDoneTask = null;
+  justDoneTask = null; newTaskId = null; undoneTask = null; cleanJust = false;
 }
 const fmtFecha = d => { const x = new Date(d + 'T12:00'), t = today(); if (d === t) return 'Hoy'; if (d === dayKey(addDays(new Date(), 1))) return 'Mañana'; return x.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }); };
 
@@ -1292,6 +1371,18 @@ function nextDate(x) {
   if (!step()) return '';
   for (let i = 0; i < 400 && dayKey(d) < t; i++) step();   // nunca nace ya atrasada
   return dayKey(d);
+}
+// Completar: el círculo rebota, el check se dibuja, la línea tacha el título y la fila se recoge hacia Completadas.
+const CHECK_BIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.5L16 9.5"/></svg>';
+const motionOK = () => !matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animateComplete(el, then) {
+  if (!motionOK()) { then(); return; }
+  el.classList.add('completing'); navigator.vibrate?.(10);
+  setTimeout(() => {
+    el.style.height = el.offsetHeight + 'px'; el.offsetHeight; // fija la altura para poder recogerla
+    el.classList.add('leaving');
+    setTimeout(then, 420);
+  }, 720);
 }
 function completeTask(task) {
   task.hecha = true; task.hechaEn = Date.now(); justDoneTask = task.id; navigator.vibrate?.(10);
@@ -1331,7 +1422,8 @@ $('#view-tareas').addEventListener('submit', e => {
   e.preventDefault();
   const inp = $('#tadd-input'), titulo = inp.value.trim();
   if (!titulo) return;
-  state.tareas.items.push({ id: crypto.randomUUID(), lista: state.tareas.activa, titulo, detalle: '', fecha: '', hecha: false, creado: Date.now() });
+  newTaskId = crypto.randomUUID();
+  state.tareas.items.push({ id: newTaskId, lista: state.tareas.activa, titulo, detalle: '', fecha: '', hecha: false, creado: Date.now() });
   save(); renderTareas(); $('#tadd-input').focus();
 });
 $('#view-tareas').addEventListener('click', e => {
@@ -1340,7 +1432,16 @@ $('#view-tareas').addEventListener('click', e => {
   if (b.dataset.list) { T.activa = b.dataset.list; save(); renderTareas(); return; }
   const task = b.closest('[data-task]') && T.items.find(x => x.id === b.closest('[data-task]').dataset.task);
   switch (b.dataset.tact) {
-    case 'toggle': task.hecha ? uncompleteTask(task) : completeTask(task); save(); renderTareas(); break;
+    case 'toggle':
+      if (task.hecha) { uncompleteTask(task); undoneTask = task.id; save(); renderTareas(); break; }
+      if (b.closest('.task').classList.contains('completing')) break;
+      animateComplete(b.closest('.task'), () => {
+        const pendBefore = T.items.filter(x => x.lista === task.lista && !x.hecha).length;
+        completeTask(task);
+        cleanJust = pendBefore === 1 && !T.items.some(x => x.lista === task.lista && !x.hecha);
+        save(); renderTareas();
+      });
+      break;
     case 'edit': taskForm(task); break;
     case 'showdone': tareasShowDone = !tareasShowDone; renderTareas(); break;
     case 'newlist': listForm('Nueva lista', '', n => { const id = crypto.randomUUID(); T.listas.push({ id, nombre: n }); T.activa = id; }); break;
@@ -1363,6 +1464,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   $('#view-hoy').hidden = view !== 'hoy';
   $('#view-cal').hidden = view !== 'cal';
   $('#view-tareas').hidden = view !== 'tareas';
+  $('#view-analisis').hidden = view !== 'analisis';
   renderTitle();
   renderAll();
   scrollTo(0, 0);
@@ -1492,86 +1594,149 @@ $('#form').addEventListener('submit', e => {
   save(); render();
 });
 
-// ---------- Notion: cada cambio de un día actualiza su fila en «Registro de hábitos».
-// Llama al conector de Notion de quien usa la app; fuera de Claude no hace nada.
-const NOTION = 'Notion', NOTION_DS = '49c5d0ac-7053-4342-b095-4b9c1742d4ca';
-const ESTADO = { full: 'Hecho', min: '2 min', skip: 'No hecho', just: 'Justificado' };
-const NOTION_TEXT = {
-  ok: '· Notion al día',
-  off: '· Notion desactivado para esta app',
-  connect: '· Conecta Notion en Ajustes → Conectores',
-  error: '· Notion no respondió; se reintenta en el próximo cambio',
-};
-const notionQueue = [];
-let notionBusy = false, mcpReady = null;
-const setNotion = st => { $('#notion').textContent = NOTION_TEXT[st] || ''; };
+// ---------- Análisis: gráficas de progreso y motivos. Todo en SVG propio, sin librerías.
+let anaRange = 30, anaHabit = '', anaSel = null;
+const RANGES = [[30, '30 días'], [90, '90 días'], [0, 'Todo']];
+const fmtShort = d => new Date(d + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'short' });
+const normText = t => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!]+$/, '');
 
-// Manual: manda a Notion todos los días registrados, uno tras otro.
-const NOTION_WHY = {
-  off: 'Esta app no tiene permiso para usar tu Notion. Al tocar el botón, Claude debería preguntártelo; si no lo hace, abre el menú de la página (⋯) → Permisos y activa Notion.',
-  connect: 'Tu cuenta de Claude no tiene Notion conectado, o hay que volver a conectarlo. Ve a claude.ai → Ajustes → Conectores → Notion.',
-  error: 'Notion no respondió. Suele ser pasajero: vuelve a intentarlo en un momento.',
-  nomcp: 'Esta vista de la app no puede usar conectores. Prueba a abrirla desde Chrome con tu sesión de Claude iniciada.',
-};
-const dialogResult = (title, body) => showMsg(`<h2>${title}</h2><p class="meta" style="margin-top:12px">${body}</p>
-  <div class="dialog-actions"><button class="primary" data-close>Entendido</button></div>`);
-
-function notionSync(id, day) {
-  if (!window.claude?.use) return;
-  notionQueue.push([id, day]);
-  drainNotion();
-}
-
-async function drainNotion() {
-  if (notionBusy) return { sent: 0, failed: 0, mcp: true };
-  notionBusy = true;
-  mcpReady ||= claude.use('mcp');
-  const mcp = await mcpReady;
-  let sent = 0, failed = 0, why = '', detail = '';
-  while (notionQueue.length) {
-    if (notionQueue.length > 1) $('#notion').textContent = `· Exportando a Notion… quedan ${notionQueue.length}`;
-    const [id, day] = notionQueue.shift();
-    const h = state.habits.find(x => x.id === id);
-    if (!h || !mcp) continue;
-    const key = `${id}|${day}`;
-    const props = {
-      'Registro': `${h.nombre} · ${day}`,
-      'Hábito': h.nombre,
-      'Rutina': state.habits.find(x => x.id === h.padre)?.nombre || '',
-      'date:Fecha:start': day,
-      'date:Fecha:is_datetime': 0,
-      'Estado': ESTADO[mark(h, day)] || 'Sin marcar',
-      'Motivo': state.razones[id]?.[day] || '',
-      'Racha': stats(h).streak,
-      'Identidad': h.identidad || '',
-      'Clave': key,
-    };
-    try {
-      const pageId = state.notion[key];
-      if (pageId) {
-        await mcp.callTool(NOTION, 'notion-update-page', { page_id: pageId, command: 'update_properties', properties: props });
-      } else {
-        const r = await mcp.callTool(NOTION, 'notion-create-pages',
-          { parent: { data_source_id: NOTION_DS }, pages: [{ properties: props }], allow_async: false });
-        const newId = r.payload?.pages?.[0]?.id;
-        if (newId) { state.notion[key] = newId; save(); }
-      }
-      sent++;
-      setNotion('ok');
-    } catch (e) {
-      failed++;
-      why = ['not_in_manifest', 'blocked_by_policy', 'approval_required', 'consent_required'].includes(e?.code) ? 'off'
-        : ['server_not_connected', 'needs_reauth', 'selection_required'].includes(e?.code) ? 'connect' : 'error';
-      detail = `${e?.code || ''} ${e?.message || ''}`.trim();
-      setNotion(why);
-      if (why !== 'error') { notionQueue.length = 0; break; } // Sin permiso o sin conexión: no insistir.
-    }
+// Días que contaban en el periodo para un hábito: solo los programados, sin hoy si aún no está marcado.
+function anaDays(h, from) {
+  const t = today(), out = [];
+  for (let d = new Date((h.creado > from ? h.creado : from) + 'T12:00'); dayKey(d) <= t; d = addDays(d, 1)) {
+    const k = dayKey(d);
+    if (!isSched(h, k) && !mark(h, k)) continue;
+    const m = mark(h, k);
+    if (k === t && !m) continue;
+    out.push({ day: k, st: isDone(h, k) ? 'done' : isJust(h, k) ? 'just' : 'miss' });
   }
-  if (!mcp) setNotion('off');
-  else if (sent > 1 && $('#notion').textContent === NOTION_TEXT.ok) $('#notion').textContent = `· Notion al día · ${sent} filas exportadas`;
-  notionBusy = false;
-  return { sent, failed, why, detail, mcp: !!mcp };
+  return out;
 }
+const rateOf = rows => { const done = rows.filter(r => r.st === 'done').length, miss = rows.filter(r => r.st === 'miss').length; return done + miss ? Math.round(done / (done + miss) * 100) : null; };
+function bestStreak(h) {
+  let best = 0, cur = 0;
+  for (let d = new Date(h.creado + 'T12:00'); dayKey(d) <= today(); d = addDays(d, 1)) {
+    const k = dayKey(d);
+    if (isDone(h, k)) { cur++; best = Math.max(best, cur); }
+    else if (isSched(h, k) && !isJust(h, k) && k !== today()) cur = 0;
+  }
+  return best;
+}
+const weekStart = day => { const d = new Date(day + 'T12:00'); return dayKey(addDays(d, -wd(day))); };
+
+// Barras verticales finas con extremo redondeado; la seleccionada enseña su valor.
+function barsSVG(items, key, { max = 100, unit = '%' } = {}) {
+  const W = 320, H = 120, padB = 22, padT = 16, gap = 2;
+  const n = items.length; if (!n) return '';
+  const bw = Math.min(28, (W - gap * (n - 1)) / n), step = (W - bw * n) / Math.max(1, n - 1);
+  const usable = H - padB - padT, y0 = H - padB;
+  const every = n > 14 ? Math.ceil(n / 7) : n > 7 ? 2 : 1;
+  let g = `<line x1="0" y1="${y0}" x2="${W}" y2="${y0}" class="axis"/>`;
+  items.forEach((it, i) => {
+    const x = i * (bw + step), v = it.value, hgt = v === null ? 0 : Math.max(3, v / max * usable);
+    const sel = anaSel === key + i, r = Math.min(4, bw / 2);
+    g += `<g class="bar${sel ? ' sel' : ''}" data-sel="${key}${i}">
+      <rect x="${x}" y="${padT}" width="${bw}" height="${usable}" fill="transparent"/>
+      ${v === null ? `<rect x="${x}" y="${y0 - 3}" width="${bw}" height="3" class="nodata"/>`
+        : `<path d="M${x} ${y0} v${-(hgt - r)} a${r} ${r} 0 0 1 ${r} ${-r} h${bw - 2 * r} a${r} ${r} 0 0 1 ${r} ${r} v${hgt - r} z" class="fill"/>`}
+      ${i % every === 0 || sel ? `<text x="${x + bw / 2}" y="${H - 6}" class="lbl">${it.label}</text>` : ''}
+      ${sel || (v !== null && (n <= 8 || i === n - 1)) ? `<text x="${x + bw / 2}" y="${y0 - hgt - 5}" class="val">${v === null ? 'sin datos' : v + unit}${sel && it.tip ? ' · ' + it.tip : ''}</text>` : ''}
+    </g>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+}
+// Línea de 2 px con un punto en el último valor; tocar un punto enseña su valor.
+function lineSVG(items, key, { unit = '' } = {}) {
+  const W = 320, H = 120, padB = 22, padT = 14, n = items.length; if (n < 2) return '';
+  const max = Math.max(1, ...items.map(i => i.value)), usable = H - padB - padT, y0 = H - padB;
+  const X = i => n === 1 ? W / 2 : i / (n - 1) * (W - 8) + 4, Y = v => y0 - v / max * usable;
+  const pts = items.map((it, i) => `${X(i).toFixed(1)},${Y(it.value).toFixed(1)}`).join(' ');
+  const every = n > 14 ? Math.ceil(n / 6) : n > 7 ? 2 : 1;
+  let g = `<line x1="0" y1="${y0}" x2="${W}" y2="${y0}" class="axis"/><line x1="0" y1="${Y(max)}" x2="${W}" y2="${Y(max)}" class="grid"/>
+    <polyline points="${pts}" class="line"/>`;
+  items.forEach((it, i) => {
+    const sel = anaSel === key + i, last = i === n - 1;
+    g += `<g class="pt${sel ? ' sel' : ''}" data-sel="${key}${i}"><rect x="${X(i) - (W / n) / 2}" y="${padT}" width="${W / n}" height="${usable}" fill="transparent"/>
+      ${sel || last ? `<circle cx="${X(i)}" cy="${Y(it.value)}" r="4" class="dot"/><text x="${X(i)}" y="${Y(it.value) - 8}" class="val" text-anchor="${i > n * .8 ? 'end' : i < n * .2 ? 'start' : 'middle'}">${it.value}${unit}${sel ? ' · ' + it.label : ''}</text>` : ''}
+      ${i % every === 0 ? `<text x="${X(i)}" y="${H - 6}" class="lbl" text-anchor="${i === 0 ? 'start' : last ? 'end' : 'middle'}">${it.label}</text>` : ''}
+    </g>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+}
+const hbar = (label, value, max, right, color) => `<div class="hbar"><span class="hl">${label}</span>
+  <span class="ht"><i style="width:${max ? Math.max(2, value / max * 100) : 0}%${color ? `;background:${color}` : ''}"></i></span><span class="hv">${right}</span></div>`;
+
+function renderAnalisis() {
+  const hs = state.habits.filter(h => !h.rutina);
+  const V = $('#view-analisis');
+  if (!hs.length) { V.innerHTML = '<p class="empty">Crea un hábito y marca unos días para ver tu análisis.</p>'; return; }
+  if (anaHabit && !hs.some(h => h.id === anaHabit)) anaHabit = '';
+  const sel = anaHabit ? hs.filter(h => h.id === anaHabit) : hs;
+  const from = anaRange ? dayKey(addDays(new Date(), -(anaRange - 1))) : '0000-00-00';
+  const rows = sel.flatMap(h => anaDays(h, from).map(r => ({ ...r, h })));
+  const rate = rateOf(rows), done = rows.filter(r => r.st === 'done').length;
+  const best = Math.max(0, ...sel.map(bestStreak));
+  const votes = sel.reduce((n, h) => n + stats(h).done, 0);
+
+  // Semana a semana (lunes a domingo).
+  const weeks = new Map();
+  for (const r of rows) { const k = weekStart(r.day); (weeks.get(k) || weeks.set(k, []).get(k)).push(r); }
+  const wk = [...weeks.keys()].sort().slice(-26).map(k => ({ label: fmtShort(k), value: rateOf(weeks.get(k)), tip: `${weeks.get(k).filter(r => r.st === 'done').length}/${weeks.get(k).filter(r => r.st !== 'just').length}` }));
+
+  // Acumulado de días hechos.
+  const byDay = new Map();
+  for (const r of rows) if (r.st === 'done') byDay.set(r.day, (byDay.get(r.day) || 0) + 1);
+  const days = [...new Set(rows.map(r => r.day))].sort();
+  let acc = 0; const cum = days.map(d => { acc += byDay.get(d) || 0; return { label: fmtShort(d), value: acc }; });
+  const cumS = cum.length > 60 ? cum.filter((_, i) => i % Math.ceil(cum.length / 60) === 0 || i === cum.length - 1) : cum;
+
+  // Por día de la semana.
+  const wdRows = ALL_DAYS.map(i => rows.filter(r => wd(r.day) === i));
+  const wdItems = ALL_DAYS.map(i => ({ label: DAY_L[i], value: rateOf(wdRows[i]), tip: `${wdRows[i].filter(r => r.st === 'done').length} hechos` }));
+
+  // Por hábito.
+  const perH = hs.map(h => { const rs = anaDays(h, from); return { h, rate: rateOf(rs), done: rs.filter(r => r.st === 'done').length, best: bestStreak(h) }; }).sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1));
+
+  // Motivos: los de días no hechos y los de días justificados, juntos y contados.
+  const motivos = [];
+  for (const h of sel) {
+    for (const [day, text] of Object.entries(state.motivos[h.id] || {})) if (day >= from && !isDone(h, day) && !isJust(h, day)) motivos.push({ day, h, text, tipo: 'No hecho' });
+    for (const [day, text] of Object.entries(state.razones[h.id] || {})) if (day >= from && isJust(h, day)) motivos.push({ day, h, text, tipo: 'Justificado' });
+  }
+  const groups = new Map();
+  for (const m of motivos) { const k = normText(m.text); const g = groups.get(k) || groups.set(k, { text: m.text, n: 0, habits: new Set() }).get(k); g.n++; g.habits.add(m.h.nombre); }
+  const top = [...groups.values()].sort((a, b) => b.n - a.n).slice(0, 8);
+  const missNoReason = rows.filter(r => r.st === 'miss' && !state.motivos[r.h.id]?.[r.day]).length;
+  const recent = motivos.sort((a, b) => b.day < a.day ? -1 : 1).slice(0, 6);
+
+  V.innerHTML = `
+    <div class="chips">${RANGES.map(([v, l]) => `<button class="chip${anaRange === v ? ' on' : ''}" data-range="${v}">${l}</button>`).join('')}</div>
+    <div class="chips">
+      <button class="chip${!anaHabit ? ' on' : ''}" data-ahabit="">Todos</button>
+      ${hs.map(x => `<button class="chip${x.id === anaHabit ? ' on' : ''}" data-ahabit="${x.id}" style="${colorVar(x)}">${icon(x.icono)}${esc(x.nombre)}</button>`).join('')}
+    </div>
+    <div class="summary ana-hero">
+      <div><b>${rate === null ? '–' : rate + '%'}</b><span>acierto</span></div>
+      <div><b>${done}</b><span>días hechos</span></div>
+      <div><b>${best}</b><span>mejor racha</span></div>
+      <div><b>${votes}</b><span>votos</span></div>
+    </div>
+    ${rows.length ? `
+    <section class="ana"><h3>Acierto por semana</h3>${wk.length ? barsSVG(wk, 'w') : '<p class="meta">Aún no hay semanas completas.</p>'}</section>
+    <section class="ana"><h3>Días hechos acumulados</h3>${cumS.length > 1 ? lineSVG(cumS, 'c') : '<p class="meta">Marca al menos dos días.</p>'}</section>
+    <section class="ana"><h3>Por día de la semana</h3>${barsSVG(wdItems, 'd')}</section>
+    ${!anaHabit && hs.length > 1 ? `<section class="ana"><h3>Por hábito</h3>${perH.map(p => hbar(`${icon(p.h.icono)}${esc(p.h.nombre)}`, p.rate ?? 0, 100, p.rate === null ? '–' : `${p.rate}% · ${flame(!p.best)}${p.best}`, p.h.color || 'var(--text)')).join('')}</section>` : ''}
+    <section class="ana"><h3>Por qué no</h3>
+      ${top.length ? top.map(g => hbar(esc(g.text) + (anaHabit || g.habits.size > 1 ? '' : ` <small>${esc([...g.habits][0])}</small>`), g.n, top[0].n, g.n)).join('') : '<p class="meta">Sin motivos apuntados todavía.</p>'}
+      ${missNoReason ? `<p class="meta" style="margin-top:10px">${missNoReason} ${missNoReason === 1 ? 'día no hecho sin motivo' : 'días no hechos sin motivo'}. Tócalos en el calendario para apuntar qué pasó.</p>` : ''}
+      ${recent.length ? `<div class="recent">${recent.map(m => `<div><span class="meta">${fmtShort(m.day)} · ${esc(m.h.nombre)} · ${m.tipo}</span><p>${esc(m.text)}</p></div>`).join('')}</div>` : ''}
+    </section>` : '<p class="empty">No hay días registrados en este periodo.</p>'}`;
+}
+$('#view-analisis').addEventListener('click', e => {
+  const r = e.target.closest('[data-range]'); if (r) { anaRange = +r.dataset.range; anaSel = null; renderAnalisis(); return; }
+  const h = e.target.closest('[data-ahabit]'); if (h) { anaHabit = h.dataset.ahabit; anaSel = null; renderAnalisis(); return; }
+  const g = e.target.closest('[data-sel]'); if (g) { anaSel = anaSel === g.dataset.sel ? null : g.dataset.sel; renderAnalisis(); }
+});
 
 // ---------- Copia de seguridad: un archivo .json con todo. Dentro de Claude no hay descargas, así que se oculta.
 if (window.claude?.use) $('#backup').hidden = true;
