@@ -343,9 +343,10 @@
   .tab.on { color: var(--text); }
   /* Calendario */
   .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 24px; scrollbar-width: none; }
-  .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: 999px;
+  .chip { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; line-height: 1.2; border-radius: 999px;
     border: 1.5px solid var(--line); color: var(--muted); font-size: .88rem; white-space: nowrap; }
   .chip svg { width: 16px; height: 16px; }
+  .chip:has(svg) { padding-left: 9px; }
   .chip.on { border-color: var(--c); color: var(--text); }
   .chip.on svg { color: var(--c); }
   .month { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -491,7 +492,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.6.2';
+const APP_VERSION = '2.6.3';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
