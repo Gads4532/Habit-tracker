@@ -491,7 +491,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.6.1';
+const APP_VERSION = '2.6.2';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1013,7 +1013,7 @@ function habitHTML(h) {
       </button>
       <span class="streak${s.streak ? ' on' : ''}" title="Racha">${flame(!s.streak)}${s.streak}</span>
     </div>
-    ${warn ? `<p class="warn">Ayer no. Que no pase dos veces: ${esc(h.minima)}.</p>` : ''}
+    ${warn ? `<p class="warn">Ayer no se realizó. Que no pase dos veces: ${esc(h.minima)}.</p>` : ''}
     ${detail}
   </section>`;
 }
