@@ -1,4 +1,4 @@
-# Hábitos en Racha
+# Habit Tracker
 
 Tracker de hábitos minimalista: rachas, rutinas, calendario con justificaciones y
 beneficios/contras por hábito. Un solo archivo, sin dependencias.
