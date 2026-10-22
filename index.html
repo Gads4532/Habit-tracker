@@ -394,6 +394,7 @@
       <button class="add" id="add-routine">+ Nueva rutina</button>
     </div>
     <div id="account"></div>
+    <div class="acct" id="prev" hidden><span></span><button class="link" id="prev-go">Recuperar</button></div>
     <div class="backup" id="backup">
       <button class="link" id="backup-out">Guardar copia</button>
       <button class="link" id="backup-in">Restaurar copia</button>
@@ -487,7 +488,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.6.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -575,6 +576,8 @@ function normalize(s) {
   s.habits ||= []; s.log ||= {}; s.razones ||= {}; s.motivos ||= {}; delete s.notion;
   s.progreso ||= {}; s.timers ||= {};
   s.nombre = String(s.nombre || '').trim();
+  s.cambiado = +s.cambiado || 0;
+  if (!Array.isArray(s.borrados)) s.borrados = [];
   s.tareas ||= { listas: [{ id: 'inbox', nombre: 'Mis tareas' }], items: [] };
   if (!s.tareas.listas.length) s.tareas.listas.push({ id: 'inbox', nombre: 'Mis tareas' });
   for (const x of s.tareas.items) { x.repite ||= ''; if (!Array.isArray(x.dias)) x.dias = []; }
@@ -610,8 +613,46 @@ const progressOf = (h, day) => state.progreso[h.id]?.[day] || 0;
 const elapsedOf = h => { const t = state.timers[h.id]; return t ? t.acum + (t.start ? (Date.now() - t.start) / 1000 : 0) : 0; };
 const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function save() {
+  state.cambiado = Date.now();
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
   pushCloud();
+}
+// Lo borrado se recuerda por id para que no vuelva al combinar con la nube.
+function forget(id) { state.borrados.push(id); if (state.borrados.length > 500) state.borrados = state.borrados.slice(-500); }
+
+// Antes de que la nube cambie lo que hay en el teléfono, se guarda una copia por si acaso.
+const PREV_KEY = 'habit-tracker-prev';
+function snapshotLocal() {
+  if (!state.habits.length && !state.tareas.items.length) return;
+  try { localStorage.setItem(PREV_KEY, JSON.stringify({ en: Date.now(), state })); } catch {}
+  renderPrev();
+}
+function renderPrev() {
+  let prev = null; try { prev = JSON.parse(localStorage.getItem(PREV_KEY) || 'null'); } catch {}
+  const el = $('#prev'); if (!el) return;
+  el.hidden = !prev;
+  if (prev) el.querySelector('span').textContent = `Copia previa del ${new Date(prev.en).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${prev.state.habits.length} hábitos`;
+}
+
+// Texto canónico (claves ordenadas) para comparar estados sin que importe el orden.
+const canon = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+// Combinar dos estados sin perder nada: unión de hábitos, días y tareas; en conflicto manda el más reciente.
+function mergeStates(a, b) {
+  a = normalize(a); b = normalize(b);
+  const newer = a.cambiado >= b.cambiado ? a : b, older = newer === a ? b : a;
+  const dead = new Set([...a.borrados, ...b.borrados]);
+  const byId = (x, y) => { const m = new Map(); for (const i of y) m.set(i.id, i); for (const i of x) m.set(i.id, i); return [...m.values()].filter(i => !dead.has(i.id)); };
+  const perId = (x, y) => { const o = {}; for (const k of new Set([...Object.keys(y), ...Object.keys(x)])) if (!dead.has(k)) o[k] = { ...y[k], ...x[k] }; return o; };
+  const out = normalize({ ...older, ...newer });
+  out.habits = byId(newer.habits, older.habits);
+  out.log = perId(newer.log, older.log); out.razones = perId(newer.razones, older.razones);
+  out.motivos = perId(newer.motivos, older.motivos); out.progreso = perId(newer.progreso, older.progreso);
+  out.timers = newer.timers;
+  out.tareas = { listas: byId(newer.tareas.listas, older.tareas.listas), items: byId(newer.tareas.items, older.tareas.items), activa: newer.tareas.activa };
+  out.nombre = newer.nombre || older.nombre;
+  out.borrados = [...dead];
+  out.cambiado = Math.max(a.cambiado, b.cambiado);
+  return normalize(out);
 }
 
 // ---------- Nube: un documento privado por persona en el almacenamiento de la página.
@@ -728,7 +769,7 @@ function accountForm(mode = 'in') {
 
 async function signOut() {
   try { await supa('/auth/v1/logout', { method: 'POST' }); } catch {}
-  saveAuth(null); cloudRef = null; clearInterval(pollTimer); pollTimer = 0;
+  saveAuth(null); cloudRef = null; clearInterval(pollTimer); pollTimer = 0; lastSeen = ''; localStorage.removeItem('habit-seen');
   renderAccount(); setSync('local');
 }
 
@@ -742,32 +783,30 @@ async function connectSupabase() {
     if (!(await ensureToken())) throw new Error('sin sesión');
     const rows = await supa('/rest/v1/estados', { method: 'POST', body: { user_id: uid, data, updated_at: new Date().toISOString() },
       headers: { Prefer: 'resolution=merge-duplicates,return=representation' } }).catch(e => { if (e.code === '42P01' || e.status === 404) e.code = 'notable'; throw e; });
-    lastSeen = rows?.[0]?.updated_at || lastSeen;
+    lastSeen = rows?.[0]?.updated_at || lastSeen; try { localStorage.setItem('habit-seen', lastSeen); } catch {}
   } };
-  const pull = async (first = false) => {
+  const SEEN_KEY = 'habit-seen';
+  lastSeen = localStorage.getItem(SEEN_KEY) || '';
+  const pull = async () => {
     if (!auth || writing || dirty || pending || !navigator.onLine) return;
     if (!(await ensureToken())) return;
     let rows;
     try { rows = await supa(`/rest/v1/estados?select=data,updated_at&user_id=eq.${uid}`); }
     catch (e) { setSync(e.code === '42P01' || e.status === 404 ? 'notable' : 'error'); return; }
     const row = rows?.[0];
-    if (!row) { if (first && state.habits.length) pushCloud(); else setSync('ok'); return; }
-    if (row.updated_at === lastSeen) { setSync('ok'); return; }
-    const remote = normalize(row.data);
     const localHas = state.habits.length || state.tareas.items.length;
-    if (first && localHas && JSON.stringify(remote) !== JSON.stringify(state)) {
-      // Hay datos en los dos sitios: que decida la persona, nunca pisar en silencio.
-      showMsg(`<h2>¿Qué datos conservar?</h2>
-        <p class="meta" style="margin-top:12px">Tu cuenta tiene ${remote.habits.length} ${remote.habits.length === 1 ? 'hábito guardado' : 'hábitos guardados'} y este teléfono tiene ${state.habits.length}.</p>
-        <div class="dialog-actions"><button class="link" id="keep-local">Subir los de este teléfono</button><button class="primary" id="keep-remote">Usar los de la cuenta</button></div>`);
-      $('#keep-remote').onclick = () => { adopt(remote, row.updated_at); $('#msg-dialog').close(); };
-      $('#keep-local').onclick = () => { $('#msg-dialog').close(); pushCloud(); };
-      return;
-    }
-    adopt(remote, row.updated_at);
+    if (!row) { if (localHas) pushCloud(); else setSync('ok'); return; }
+    if (row.updated_at === lastSeen) { setSync('ok'); return; }
+    // Nunca se elige entre teléfono y cuenta: se combinan y se guarda la copia previa por si acaso.
+    const remote = normalize(row.data);
+    const merged = mergeStates(JSON.parse(JSON.stringify(state)), remote);
+    const localChanged = canon(merged) !== canon(state);
+    const remoteChanged = canon(merged) !== canon(remote);
+    if (localChanged) { snapshotLocal(); state = merged; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} renderAll(); }
+    lastSeen = row.updated_at; try { localStorage.setItem(SEEN_KEY, lastSeen); } catch {}
+    if (remoteChanged) pushCloud(); else setSync('ok');
   };
-  const adopt = (remote, at) => { state = remote; lastSeen = at; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} renderAll(); setSync('ok'); };
-  await pull(true);
+  await pull();
   clearInterval(pollTimer);
   pollTimer = setInterval(() => { if (document.visibilityState === 'visible') pull(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
@@ -785,10 +824,10 @@ async function connectCloud() {
     // Mientras haya cambios propios en camino, manda lo local.
     if (snap.metadata.hasPendingWrites || writing || dirty) return;
     if (snap.exists) {
-      state = normalize(structuredClone(snap.data()));
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-      renderAll();
-      setSync('ok');
+      const remote = normalize(structuredClone(snap.data()));
+      const merged = mergeStates(JSON.parse(JSON.stringify(state)), remote);
+      if (canon(merged) !== canon(state)) { snapshotLocal(); state = merged; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} renderAll(); }
+      if (canon(merged) !== canon(remote)) pushCloud(); else setSync('ok');
     } else if (first && state.habits.length) {
       pushCloud(); // Primera vez: sube lo que ya había en este dispositivo.
     } else setSync('ok');
@@ -1163,7 +1202,7 @@ $('#msg-dialog').addEventListener('click', e => {
   if (t.dataset.confirmDelete) {
     const id = t.dataset.confirmDelete;
     state.habits.forEach(x => { if (x.padre === id) x.padre = ''; });
-    state.habits = state.habits.filter(x => x.id !== id);
+    state.habits = state.habits.filter(x => x.id !== id); forget(id);
     delete state.log[id];
     delete state.razones[id]; delete state.motivos[id];
     save(); renderAll(); $('#msg-dialog').close();
@@ -1399,7 +1438,7 @@ function completeTask(task) {
 function uncompleteTask(task) {
   task.hecha = false; task.hechaEn = 0;
   const T = state.tareas, hija = T.items.find(y => y.origen === task.id && !y.hecha);
-  if (hija) T.items = T.items.filter(y => y !== hija);   // la siguiente vuelve a ser esta
+  if (hija) { T.items = T.items.filter(y => y !== hija); forget(hija.id); }   // la siguiente vuelve a ser esta
 }
 
 function taskForm(x) {
@@ -1420,7 +1459,7 @@ function taskForm(x) {
     save(); renderTareas(); $('#msg-dialog').close();
   };
   $('#t-rep').onchange = () => { $('#t-days').hidden = $('#t-rep').value !== 'dias'; };
-  $('#t-del').onclick = () => { T.items = T.items.filter(y => y !== x); save(); renderTareas(); $('#msg-dialog').close(); };
+  $('#t-del').onclick = () => { T.items = T.items.filter(y => y !== x); forget(x.id); save(); renderTareas(); $('#msg-dialog').close(); };
 }
 
 $('#view-tareas').addEventListener('submit', e => {
@@ -1455,7 +1494,7 @@ $('#view-tareas').addEventListener('click', e => {
       const L = T.listas.find(l => l.id === T.activa), n = T.items.filter(x => x.lista === L.id).length;
       showMsg(`<h2>¿Borrar «${esc(L.nombre)}»?</h2><p class="meta" style="margin-top:12px">${n ? `Se borran también sus ${n} ${n === 1 ? 'tarea' : 'tareas'}.` : 'La lista está vacía.'}</p>
         <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="dellist-go">Borrar</button></div>`);
-      $('#dellist-go').onclick = () => { T.items = T.items.filter(x => x.lista !== L.id); T.listas = T.listas.filter(l => l !== L); T.activa = T.listas[0].id; save(); renderTareas(); $('#msg-dialog').close(); };
+      $('#dellist-go').onclick = () => { T.items.filter(x => x.lista === L.id).forEach(x => forget(x.id)); forget(L.id); T.items = T.items.filter(x => x.lista !== L.id); T.listas = T.listas.filter(l => l !== L); T.activa = T.listas[0].id; save(); renderTareas(); $('#msg-dialog').close(); };
       break;
     }
   }
@@ -1742,6 +1781,16 @@ $('#view-analisis').addEventListener('click', e => {
   const h = e.target.closest('[data-ahabit]'); if (h) { anaHabit = h.dataset.ahabit; anaSel = null; renderAnalisis(); return; }
   const g = e.target.closest('[data-sel]'); if (g) { anaSel = anaSel === g.dataset.sel ? null : g.dataset.sel; renderAnalisis(); }
 });
+
+// Copia previa: lo que había en el teléfono antes de combinar con la nube.
+$('#prev-go').onclick = () => {
+  let prev = null; try { prev = JSON.parse(localStorage.getItem(PREV_KEY) || 'null'); } catch {}
+  if (!prev) return;
+  showMsg(`<h2>¿Recuperar la copia previa?</h2><p class="meta" style="margin-top:12px">Se combinará con lo que hay ahora: no se pierde nada de ninguna de las dos.</p>
+    <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="prev-ok">Recuperar</button></div>`);
+  $('#prev-ok').onclick = () => { state = mergeStates(prev.state, JSON.parse(JSON.stringify(state))); state.cambiado = Date.now(); save(); renderAll(); $('#msg-dialog').close(); };
+};
+renderPrev();
 
 // ---------- Copia de seguridad: un archivo .json con todo. Dentro de Claude no hay descargas, así que se oculta.
 $('#backup-out').onclick = () => {
