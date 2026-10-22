@@ -46,6 +46,7 @@
   .g-rate { color: var(--muted); font-size: .8rem; }
   .flame.off { filter: grayscale(1); opacity: .35; }
   h1 { font-size: 2rem; font-weight: 600; letter-spacing: -.02em; margin: 0; }
+  h1.tap { cursor: pointer; }
   .date { color: var(--muted); margin: 2px 0 32px; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   .link { color: var(--muted); font-size: .9rem; }
@@ -328,7 +329,7 @@
   <div class="upd" id="upd" hidden><span>Hay una versión nueva lista.</span><button class="primary" id="upd-go">Actualizar</button></div>
   <header class="top">
     <div>
-      <h1>Hoy</h1>
+      <h1 id="title"></h1>
       <p class="date"><span id="today"></span> <span id="sync"></span> <span id="notion"></span></p>
     </div>
     <div class="global" id="global"></div>
@@ -431,7 +432,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.1.2';
+const APP_VERSION = '2.2.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -518,6 +519,7 @@ function normalize(s) {
   s ||= {};
   s.habits ||= []; s.log ||= {}; s.razones ||= {}; s.notion ||= {};
   s.progreso ||= {}; s.timers ||= {};
+  s.nombre = String(s.nombre || '').trim();
   s.tareas ||= { listas: [{ id: 'inbox', nombre: 'Mis tareas' }], items: [] };
   if (!s.tareas.listas.length) s.tareas.listas.push({ id: 'inbox', nombre: 'Mis tareas' });
   for (const h of s.habits) {
@@ -530,6 +532,19 @@ function normalize(s) {
   }
   return s;
 }
+// Saludo según la hora, con el nombre de la persona.
+const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
+const titulo = () => view === 'hoy' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { cal: 'Calendario', tareas: 'Tareas' }[view];
+function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy'); t.title = view === 'hoy' ? 'Toca para poner tu nombre' : ''; }
+function nameForm() {
+  showMsg(`<h2>¿Cómo te llamas?</h2>
+    <div class="field"><label>Nombre (sin apellido)</label><input id="n-nombre" maxlength="30" autocomplete="given-name" value="${esc(state.nombre)}"></div>
+    <div class="dialog-actions"><button class="link" id="n-cancel">Cancelar</button><button class="primary" id="n-go">Guardar</button></div>`);
+  $('#n-nombre').focus();
+  $('#n-cancel').onclick = () => $('#msg-dialog').close();
+  $('#n-go').onclick = () => { state.nombre = firstName($('#n-nombre').value); $('#msg-dialog').close(); save(); renderTitle(); };
+}
+const firstName = v => String(v || '').trim().split(/\s+/)[0] || '';
 // Días de la semana: 0 = lunes … 6 = domingo. Un hábito solo cuenta los días que elegiste.
 const wd = day => (new Date(day + 'T12:00').getDay() + 6) % 7;
 const isSched = (h, day) => (h.dias || ALL_DAYS).includes(wd(day));
@@ -583,7 +598,7 @@ async function supa(path, { method = 'GET', body, headers = {}, token } = {}) {
   }
   return data;
 }
-const sessionFrom = d => d?.access_token ? { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000, uid: d.user?.id, email: d.user?.email } : null;
+const sessionFrom = d => d?.access_token ? { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000, uid: d.user?.id, email: d.user?.email, nombre: firstName(d.user?.user_metadata?.nombre) } : null;
 
 async function ensureToken() {
   if (!auth) return false;
@@ -620,6 +635,7 @@ function renderAccount() {
 
 function accountForm(mode = 'in') {
   showMsg(`<h2>${mode === 'up' ? 'Crear cuenta' : 'Iniciar sesión'}</h2>
+    ${mode === 'up' ? `<div class="field"><label>Nombre (sin apellido)</label><input id="a-name" maxlength="30" autocomplete="given-name" placeholder="¿Cómo te llamas?"></div>` : ''}
     <div class="field"><label>Correo</label><input id="a-email" type="email" autocomplete="email" placeholder="tu@correo.com"></div>
     <div class="field"><label>Contraseña</label><input id="a-pass" type="password" autocomplete="${mode === 'up' ? 'new-password' : 'current-password'}" placeholder="Mínimo 6 caracteres"></div>
     <p class="meta" id="a-msg" style="margin-top:12px"></p>
@@ -627,7 +643,7 @@ function accountForm(mode = 'in') {
       ${mode === 'up' ? `<button class="link" id="a-switch">Ya tengo cuenta</button>` : `<button class="link" id="a-switch">Crear cuenta</button><button class="link" id="a-forgot">Olvidé la contraseña</button>`}
       <button class="primary" id="a-go">${mode === 'up' ? 'Crear cuenta' : 'Entrar'}</button>
     </div>`);
-  $('#a-email').focus();
+  ($('#a-name') || $('#a-email')).focus();
   $('#a-switch').onclick = () => accountForm(mode === 'up' ? 'in' : 'up');
   $('#a-forgot')?.addEventListener('click', async () => {
     const email = $('#a-email').value.trim(); if (!email) { $('#a-email').focus(); return; }
@@ -635,15 +651,18 @@ function accountForm(mode = 'in') {
     catch (e) { $('#a-msg').textContent = AUTH_MSG(e); }
   });
   $('#a-go').onclick = async () => {
-    const email = $('#a-email').value.trim(), password = $('#a-pass').value;
+    const email = $('#a-email').value.trim(), password = $('#a-pass').value, nombre = firstName($('#a-name')?.value);
+    if (mode === 'up' && !nombre) { $('#a-msg').textContent = 'Pon tu nombre para saludarte.'; $('#a-name').focus(); return; }
     if (!email || password.length < 6) { $('#a-msg').textContent = 'Pon tu correo y una contraseña de al menos 6 caracteres.'; return; }
     $('#a-go').disabled = true; $('#a-msg').textContent = 'Un momento…';
     try {
       const d = mode === 'up'
-        ? await supa('/auth/v1/signup', { method: 'POST', body: { email, password }, token: SUPA_KEY })
+        ? await supa('/auth/v1/signup', { method: 'POST', body: { email, password, data: { nombre } }, token: SUPA_KEY })
         : await supa('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password }, token: SUPA_KEY });
       const ses = sessionFrom(d);
+      if (nombre) { state.nombre = nombre; save(); renderTitle(); }
       if (!ses) { $('#a-msg').textContent = 'Cuenta creada. Confirma tu correo (mira la bandeja de entrada) y luego entra.'; $('#a-go').disabled = false; return; }
+      if (!state.nombre && ses.nombre) { state.nombre = ses.nombre; save(); renderTitle(); }
       saveAuth(ses); $('#msg-dialog').close(); renderAccount(); connectCloud();
     } catch (e) { $('#a-msg').textContent = AUTH_MSG(e); $('#a-go').disabled = false; }
   };
@@ -768,6 +787,7 @@ const consHTML = h => `<h3 class="cons">Contras de no hacerlo</h3>${list(h.contr
 function render() {
   const fecha = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#today').textContent = fecha[0].toUpperCase() + fecha.slice(1);
+  renderTitle();
   const g = globalStats();
   const prevStreak = $('#global').dataset.streak;
   $('#global').dataset.streak = g.streak;
@@ -1302,10 +1322,12 @@ document.querySelector('.tabs').addEventListener('click', e => {
   $('#view-hoy').hidden = view !== 'hoy';
   $('#view-cal').hidden = view !== 'cal';
   $('#view-tareas').hidden = view !== 'tareas';
-  $('h1').textContent = { hoy: 'Hoy', cal: 'Calendario', tareas: 'Tareas' }[view];
+  renderTitle();
   renderAll();
   scrollTo(0, 0);
 });
+
+$('#title').addEventListener('click', () => { if (view === 'hoy') nameForm(); });
 
 let editing = null;
 const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean);
