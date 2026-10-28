@@ -1,6 +1,6 @@
 // Guarda la app en el teléfono para que abra sin internet.
 // La página se pide a la red primero (así llegan las versiones nuevas) y, sin red, sale de la caché.
-const CACHE = 'habitos-v2.6.3';
+const CACHE = 'habitos-v2.7.0';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {

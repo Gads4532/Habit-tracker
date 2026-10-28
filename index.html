@@ -335,7 +335,7 @@
   .recent > div { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .recent p { margin: 2px 0 0; }
   /* Barra inferior: Hoy | Calendario */
-  .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 40px;
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; gap: 0;
     padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--bg); border-top: 1px solid var(--line); z-index: 5; }
   .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .72rem; color: var(--muted); }
@@ -389,6 +389,7 @@
     </div>
     <div class="global" id="global"></div>
   </header>
+  <div id="view-enfoque" hidden></div>
   <div id="view-hoy">
     <p class="note bad" id="nocloud" hidden>Tus datos están solo en este teléfono. <button class="link" id="nocloud-go">Crea una cuenta</button> para guardarlos en línea.</p>
     <p class="note" id="notice" hidden></p>
@@ -412,6 +413,9 @@
 </main>
 
 <nav class="tabs">
+  <button class="tab" data-view="enfoque">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/></svg>Enfoque
+  </button>
   <button class="tab on" data-view="hoy">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.5L16 9.5"/></svg>Hábitos
   </button>
@@ -492,7 +496,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.6.3';
+const APP_VERSION = '2.7.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -585,6 +589,7 @@ function normalize(s) {
   s.tareas ||= { listas: [{ id: 'inbox', nombre: 'Mis tareas' }], items: [] };
   if (!s.tareas.listas.length) s.tareas.listas.push({ id: 'inbox', nombre: 'Mis tareas' });
   for (const x of s.tareas.items) { x.repite ||= ''; if (!Array.isArray(x.dias)) x.dias = []; }
+  s.enfoque = normEnfoque(s.enfoque);
   for (const h of s.habits) {
     if (h.rutina) continue;
     if (!Array.isArray(h.dias) || !h.dias.length) h.dias = [...ALL_DAYS];
@@ -596,10 +601,46 @@ function normalize(s) {
   }
   return s;
 }
+// Datos de Enfoque dentro del estado (se sincronizan con la cuenta como todo lo demás).
+function normEnfoque(e) {
+  e ||= {};
+  const d = new Date(), hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (!Array.isArray(e.apps)) e.apps = [['ig', 'Instagram', 'https://www.instagram.com/'], ['tt', 'TikTok', 'https://www.tiktok.com/'], ['yt', 'YouTube', 'https://m.youtube.com/'], ['x', 'X', 'https://x.com/'], ['fb', 'Facebook', 'https://www.facebook.com/']].map(([id, nombre, url]) => ({ id, nombre, url }));
+  if (!Array.isArray(e.alternativas) || !e.alternativas.length) e.alternativas = ['Leer 10 páginas de un libro', 'Caminar 10 minutos sin el teléfono', 'Tomar agua y estirarte 2 minutos', 'Ordenar tu espacio durante 5 minutos', 'Escribir tres cosas que agradeces hoy', 'Llamar a alguien que aprecias', 'Respirar un minuto con los ojos cerrados', 'Avanzar 5 minutos en la tarea más importante'];
+  e.limite = Math.max(1, Math.min(20, +e.limite || 3));
+  e.espera = [5, 10, 20, 30].includes(+e.espera) ? +e.espera : 10;
+  e.dias ||= {};
+  if (!Array.isArray(e.personas)) e.personas = [];
+  for (const p of e.personas) { p.cada = +p.cada || 30; p.ultimo ||= ''; p.tel ||= ''; if (!Array.isArray(p.historial)) p.historial = []; }
+  if (!Array.isArray(e.proyectos)) e.proyectos = [];
+  for (const p of e.proyectos) {
+    if (!Array.isArray(p.pasos)) p.pasos = []; p.creado ||= hoy;
+    for (const k of ['deseo', 'resultado', 'obstaculo', 'plan', 'paso', 'minima', 'cuando', 'hora', 'donde', 'nota', 'recompensa']) p[k] ||= '';
+    p.prioridad = [1, 2, 3].includes(+p.prioridad) ? +p.prioridad : 2;
+  }
+  if (!Array.isArray(e.planes)) e.planes = [];
+  if (!Array.isArray(e.predicciones)) e.predicciones = [];
+  for (const x of e.predicciones) x.id ||= crypto.randomUUID();
+  e.metaSemanal = Math.max(1, Math.min(14, +e.metaSemanal || 3));
+  if (!Array.isArray(e.ventanas) || !e.ventanas.length) e.ventanas = ['12:30', '18:00', '21:00'];
+  e.ventanaMin = [10, 15, 20, 30].includes(+e.ventanaMin) ? +e.ventanaMin : 20;
+  e.presupuesto = [15, 30, 45, 60].includes(+e.presupuesto) ? +e.presupuesto : 30;
+  e.config ||= {}; e.revision ||= '';
+  for (const k of ['animo', 'buenas', 'misiones']) if (!Array.isArray(e[k])) e[k] = [];
+  for (const k of ['animo', 'buenas', 'misiones']) for (const x of e[k]) x.id ||= crypto.randomUUID();
+  for (const p of e.personas) p.horas = +p.horas || 0;
+  e.laboral ||= { semana: '', items: [] };
+  e.pacto ||= { semana: '', texto: '' };
+  e.reto7 ||= { inicio: '' };
+  e.retoInicio ||= hoy;
+  if (!e.prioridades || e.prioridades.fecha !== hoy) e.prioridades = { fecha: hoy, items: [] };
+  e.bienvenida = !!e.bienvenida;
+  return e;
+}
 // Saludo según la hora, con el nombre de la persona.
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
-const titulo = () => view === 'hoy' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
-function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy'); t.title = view === 'hoy' ? 'Toca para poner tu nombre' : ''; }
+const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
+function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
     <div class="field"><label>Nombre (sin apellido)</label><input id="n-nombre" maxlength="30" autocomplete="given-name" value="${esc(state.nombre)}"></div>
@@ -654,6 +695,15 @@ function mergeStates(a, b) {
   out.timers = newer.timers;
   out.tareas = { listas: byId(newer.tareas.listas, older.tareas.listas), items: byId(newer.tareas.items, older.tareas.items), activa: newer.tareas.activa };
   out.nombre = newer.nombre || older.nombre;
+  // Enfoque: unión de personas, proyectos, planes y apps; por día, el mayor de cada contador.
+  const eN = newer.enfoque, eO = older.enfoque, dias = {};
+  for (const k of new Set([...Object.keys(eO.dias), ...Object.keys(eN.dias)])) {
+    const x = eN.dias[k] || {}, y = eO.dias[k] || {};
+    dias[k] = Object.fromEntries([...new Set([...Object.keys(x), ...Object.keys(y)])].map(f => [f, Math.max(+x[f] || 0, +y[f] || 0)]));
+  }
+  out.enfoque = normEnfoque({ ...eO, ...eN, dias, personas: byId(eN.personas, eO.personas), proyectos: byId(eN.proyectos, eO.proyectos),
+    planes: byId(eN.planes, eO.planes), apps: byId(eN.apps, eO.apps), predicciones: byId(eN.predicciones, eO.predicciones),
+    animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones) });
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
   return normalize(out);
@@ -1369,7 +1419,7 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -1399,10 +1449,136 @@ function renderTareas() {
     <div class="actions" style="margin-top:28px">
       <button class="link" data-tact="renamelist">Renombrar lista</button>
       ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}
+      <button class="link" data-tact="google">${gCfg().clientId ? (gSyncing ? 'Google Tasks: sincronizando…' : 'Google Tasks ↻') : 'Conectar Google Tasks'}</button>
     </div>`;
   justDoneTask = null; newTaskId = null; undoneTask = null; cleanJust = false;
+  gAuto();
 }
 const fmtFecha = d => { const x = new Date(d + 'T12:00'), t = today(); if (d === t) return 'Hoy'; if (d === dayKey(addDays(new Date(), 1))) return 'Mañana'; return x.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }); };
+
+// ---------- Google Tasks: sincronización en los dos sentidos con tu cuenta de Google.
+// Se usa tu propio «Client ID» de Google Cloud; el permiso (token) dura una hora y vive solo en este teléfono.
+const G_API = 'https://tasks.googleapis.com/tasks/v1/';
+const gCfg = () => { try { return JSON.parse(localStorage.getItem('habit-gtasks')) || {}; } catch { return {}; } };
+const gSetCfg = c => { try { localStorage.setItem('habit-gtasks', JSON.stringify(c)); } catch {} };
+let gSyncing = false, gAutoT = 0;
+const gValid = () => { const c = gCfg(); return c.token && c.exp > Date.now() + 60000; };
+function gLoad() {
+  return new Promise((res, rej) => {
+    if (window.google?.accounts?.oauth2) return res();
+    const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+    sc.onload = res; sc.onerror = () => rej(new Error('No se pudo cargar el inicio de sesión de Google.'));
+    document.head.appendChild(sc);
+  });
+}
+// Pide el permiso con un toque (ventana de Google). La primera vez pregunta; después suele ser inmediato.
+async function gToken(interactive) {
+  if (gValid()) return gCfg().token;
+  if (!interactive) return null;
+  await gLoad();
+  return new Promise((res, rej) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: gCfg().clientId, scope: 'https://www.googleapis.com/auth/tasks',
+      callback: r => { if (r.error) return rej(new Error(r.error_description || r.error)); gSetCfg({ ...gCfg(), token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, ok: true }); res(r.access_token); },
+      error_callback: e => rej(new Error(e?.type === 'popup_closed' ? 'Cerraste la ventana de Google.' : 'Google no abrió la ventana de permiso.')),
+    });
+    client.requestAccessToken({ prompt: gCfg().ok ? '' : 'consent' });
+  });
+}
+const gSnap = x => JSON.stringify([x.titulo, x.detalle || '', x.fecha || '', !!x.hecha]);
+const gBody = x => ({ title: x.titulo, notes: x.detalle || '', due: x.fecha ? x.fecha + 'T00:00:00.000Z' : null, status: x.hecha ? 'completed' : 'needsAction', ...(x.hecha ? {} : { completed: null }) });
+// Regla: lo que cambiaste en la app desde la última sincronización sube a Google; si no, manda lo de Google.
+async function gSync(interactive) {
+  if (gSyncing) return;
+  gSyncing = true; if (view === 'tareas') renderTareas();
+  try {
+    const tok = await gToken(interactive); if (!tok) return;
+    const api = async (path, opt = {}) => {
+      const r = await fetch(G_API + path, { ...opt, headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' } });
+      if (r.status === 401) { gSetCfg({ ...gCfg(), token: '', exp: 0 }); throw new Error('El permiso de Google caducó. Vuelve a sincronizar.'); }
+      if (!r.ok) throw new Error(`Google respondió ${r.status}.`);
+      return r.status === 204 ? null : r.json();
+    };
+    const T = state.tareas, dead = new Set(state.borrados);
+    const glists = (await api('users/@me/lists?maxResults=100')).items || [];
+    for (const gl of glists) {
+      if (dead.has('gl:' + gl.id)) { await api(`users/@me/lists/${gl.id}`, { method: 'DELETE' }); continue; }
+      let L = T.listas.find(l => l.gid === gl.id) || (gl === glists[0] && T.listas.find(l => !l.gid && l.id === 'inbox'));
+      if (!L) { L = { id: crypto.randomUUID(), nombre: gl.title }; T.listas.push(L); }
+      L.gid = gl.id;
+      if (L.gsnap !== undefined && L.nombre !== L.gsnap) await api(`users/@me/lists/${gl.id}`, { method: 'PATCH', body: JSON.stringify({ title: L.nombre }) });
+      else L.nombre = gl.title;
+      L.gsnap = L.nombre;
+    }
+    const vivas = new Set(glists.map(g => g.id));
+    for (const L of T.listas) {
+      if (L.gid && !vivas.has(L.gid) && !dead.has('gl:' + L.gid)) { delete L.gid; delete L.gsnap; }   // borrada en Google: se vuelve a crear
+      if (!L.gid) { const gl = await api('users/@me/lists', { method: 'POST', body: JSON.stringify({ title: L.nombre }) }); L.gid = gl.id; L.gsnap = L.nombre; }
+    }
+    for (const L of T.listas) {
+      const gitems = []; let page = '';
+      do { const r = await api(`lists/${L.gid}/tasks?showCompleted=true&showHidden=true&maxResults=100${page ? '&pageToken=' + page : ''}`); gitems.push(...(r.items || [])); page = r.nextPageToken; } while (page);
+      const seen = new Set();
+      for (const g of gitems) {
+        if (g.deleted || !g.title) continue;
+        if (dead.has('g:' + g.id)) { await api(`lists/${L.gid}/tasks/${g.id}`, { method: 'DELETE' }); continue; }
+        seen.add(g.id);
+        const remote = { titulo: g.title, detalle: g.notes || '', fecha: g.due ? g.due.slice(0, 10) : '', hecha: g.status === 'completed' };
+        let x = T.items.find(i => i.gid === g.id);
+        if (!x) { x = { id: crypto.randomUUID(), gid: g.id, lista: L.id, creado: Date.now(), repite: '', dias: [], ...remote, hechaEn: remote.hecha ? Date.parse(g.completed || '') || Date.now() : 0 }; x.gsnap = gSnap(x); T.items.push(x); continue; }
+        x.lista = L.id;
+        if (gSnap(x) !== x.gsnap) await api(`lists/${L.gid}/tasks/${g.id}`, { method: 'PATCH', body: JSON.stringify(gBody(x)) });
+        else { if (remote.hecha && !x.hecha) x.hechaEn = Date.now(); Object.assign(x, remote); }
+        x.gsnap = gSnap(x);
+      }
+      for (const x of T.items.filter(i => i.lista === L.id)) {
+        if (x.gid && !seen.has(x.gid)) { T.items = T.items.filter(i => i !== x); forget(x.id); }   // borrada en Google
+        else if (!x.gid) { const g = await api(`lists/${L.gid}/tasks`, { method: 'POST', body: JSON.stringify(gBody(x)) }); x.gid = g.id; x.gsnap = gSnap(x); }
+      }
+    }
+    gSetCfg({ ...gCfg(), ultima: Date.now() });
+    save();
+  } catch (e) {
+    if (interactive) dialogResult('Google Tasks', esc(e.message || 'No se pudo sincronizar.'));
+  } finally {
+    gSyncing = false; if (view === 'tareas') renderTareas();
+  }
+}
+// Tras cada cambio en Tareas, si hay algo nuevo o distinto y el permiso sigue vivo, se sincroniza solo.
+function gAuto() {
+  if (!gCfg().clientId || !gValid() || gSyncing) return;
+  const T = state.tareas;
+  if (!T.items.some(x => !x.gid || gSnap(x) !== x.gsnap) && !T.listas.some(l => !l.gid || l.nombre !== l.gsnap)) return;
+  clearTimeout(gAutoT); gAutoT = setTimeout(() => gSync(false), 2500);
+}
+function gtasksSheet() {
+  const c = gCfg();
+  if (!c.clientId) {
+    showMsg(`<h2>Conectar Google Tasks</h2>
+      <p class="meta" style="margin-top:12px">Tus listas y tareas de Google se sincronizan con las de aquí, en los dos sentidos. Se configura una sola vez (unos 10 minutos) con tu cuenta de Google:</p>
+      <ol class="meta" style="padding-left:18px;margin:10px 0 0">
+        <li><a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Crea un proyecto</a> en Google Cloud (gratis).</li>
+        <li><a href="https://console.cloud.google.com/apis/library/tasks.googleapis.com" target="_blank" rel="noopener">Activa la API de Google Tasks</a>.</li>
+        <li><a href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noopener">Configura la pantalla de permiso</a>: tipo «Externo» y, en «Público», añade tu correo como usuario de prueba.</li>
+        <li><a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener">Crea un cliente OAuth</a> de tipo «Aplicación web» con este origen autorizado: <b>${esc(location.origin)}</b></li>
+        <li>Copia el «ID de cliente» y pégalo aquí.</li>
+      </ol>
+      <label>ID de cliente</label><input id="g-cid" placeholder="123…apps.googleusercontent.com" autocomplete="off">
+      <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="g-save">Conectar</button></div>`);
+    $('#g-save').onclick = () => {
+      const id = $('#g-cid').value.trim();
+      if (!/\.apps\.googleusercontent\.com$/.test(id)) { $('#g-cid').focus(); return; }
+      gSetCfg({ clientId: id }); $('#msg-dialog').close(); gLoad().then(() => gSync(true)).catch(e => dialogResult('Google Tasks', esc(e.message)));
+    };
+    return;
+  }
+  showMsg(`<h2>Google Tasks</h2>
+    <p class="meta" style="margin-top:12px">${c.ultima ? `Última sincronización: ${new Date(c.ultima).toLocaleString('es', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.` : 'Aún no se ha sincronizado.'} Los cambios se sincronizan solos mientras el permiso esté activo (una hora); después, un toque aquí lo renueva.</p>
+    <p class="meta">Las tareas repetidas de esta app aparecen en Google como tareas sueltas: Google no permite crear repeticiones desde otras apps.</p>
+    <div class="dialog-actions"><button class="link danger" id="g-off">Desconectar</button><button class="link" data-close>Cerrar</button><button class="primary" id="g-now">Sincronizar ahora</button></div>`);
+  $('#g-now').onclick = () => { $('#msg-dialog').close(); gSync(true); };
+  $('#g-off').onclick = () => { try { google?.accounts?.oauth2?.revoke?.(c.token, () => {}); } catch {} localStorage.removeItem('habit-gtasks'); $('#msg-dialog').close(); renderTareas(); };
+}
 
 function listForm(title, value, onSave) {
   showMsg(`<h2>${title}</h2><input id="list-name" class="reason" placeholder="Nombre de la lista" maxlength="60" value="${esc(value)}">
@@ -1475,7 +1651,7 @@ function taskForm(x) {
     save(); renderTareas(); $('#msg-dialog').close();
   };
   $('#t-rep').onchange = () => { $('#t-days').hidden = $('#t-rep').value !== 'dias'; };
-  $('#t-del').onclick = () => { T.items = T.items.filter(y => y !== x); forget(x.id); save(); renderTareas(); $('#msg-dialog').close(); };
+  $('#t-del').onclick = () => { T.items = T.items.filter(y => y !== x); forget(x.id); if (x.gid) forget('g:' + x.gid); save(); renderTareas(); $('#msg-dialog').close(); };
 }
 
 $('#view-tareas').addEventListener('submit', e => {
@@ -1506,11 +1682,12 @@ $('#view-tareas').addEventListener('click', e => {
     case 'showdone': tareasShowDone = !tareasShowDone; renderTareas(); break;
     case 'newlist': listForm('Nueva lista', '', n => { const id = crypto.randomUUID(); T.listas.push({ id, nombre: n }); T.activa = id; }); break;
     case 'renamelist': { const L = T.listas.find(l => l.id === T.activa); listForm('Renombrar lista', L.nombre, n => L.nombre = n); break; }
+    case 'google': gtasksSheet(); break;
     case 'dellist': {
       const L = T.listas.find(l => l.id === T.activa), n = T.items.filter(x => x.lista === L.id).length;
       showMsg(`<h2>¿Borrar «${esc(L.nombre)}»?</h2><p class="meta" style="margin-top:12px">${n ? `Se borran también sus ${n} ${n === 1 ? 'tarea' : 'tareas'}.` : 'La lista está vacía.'}</p>
         <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="dellist-go">Borrar</button></div>`);
-      $('#dellist-go').onclick = () => { T.items.filter(x => x.lista === L.id).forEach(x => forget(x.id)); forget(L.id); T.items = T.items.filter(x => x.lista !== L.id); T.listas = T.listas.filter(l => l !== L); T.activa = T.listas[0].id; save(); renderTareas(); $('#msg-dialog').close(); };
+      $('#dellist-go').onclick = () => { T.items.filter(x => x.lista === L.id).forEach(x => { forget(x.id); if (x.gid) forget('g:' + x.gid); }); forget(L.id); if (L.gid) forget('gl:' + L.gid); T.items = T.items.filter(x => x.lista !== L.id); T.listas = T.listas.filter(l => l !== L); T.activa = T.listas[0].id; save(); renderTareas(); $('#msg-dialog').close(); };
       break;
     }
   }
@@ -1521,16 +1698,15 @@ document.querySelector('.tabs').addEventListener('click', e => {
   if (!b) return;
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
-  $('#view-hoy').hidden = view !== 'hoy';
-  $('#view-cal').hidden = view !== 'cal';
-  $('#view-tareas').hidden = view !== 'tareas';
-  $('#view-analisis').hidden = view !== 'analisis';
+  for (const v of ['enfoque', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   renderTitle();
   renderAll();
   scrollTo(0, 0);
+  if (view === 'enfoque') window.enfoqueVisible?.();
+  if (view === 'tareas' && gCfg().clientId) { gLoad().catch(() => {}); if (gValid()) gSync(false); }
 });
 
-$('#title').addEventListener('click', () => { if (view === 'hoy') nameForm(); });
+$('#title').addEventListener('click', () => { if (view === 'hoy' || view === 'enfoque') nameForm(); });
 
 let editing = null;
 const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean);
@@ -1860,7 +2036,1482 @@ $('#check-upd').onclick = async () => {
   }, 1500);
 };
 
+
+// ====================================================================
+// Enfoque: pestaña para usar menos el teléfono, quitar el FOMO y tomar la iniciativa.
+// Vive en un Shadow DOM para que sus estilos no se mezclen con los del Habit Tracker.
+// Lo que se sincroniza va en state.enfoque; la sesión de enfoque y la salida en curso son de este teléfono.
+// ====================================================================
+(() => {
+const ENFOQUE_CSS = `
+  :host { display: block; font: 16px/1.5 var(--font); color: var(--text);
+    --soft: #f3f3f5; --accent: var(--text); --on-accent: var(--bg); --amber: var(--warn);
+    --spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.099 24.3%, 1.108 26%, 1.103, 1.085 30.4%, 1.006 39%, 0.993 42.4%, 0.99 46.3%, 1); }
+  @media (prefers-color-scheme: dark) { :host { --soft: #1a1a1c; } }
+  :host-context([data-theme="dark"]) { --soft: #1a1a1c; }
+  :host-context([data-theme="light"]) { --soft: #f3f3f5; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: inherit; }
+  h1 { font-size: 2rem; font-weight: 600; letter-spacing: -.02em; margin: 0; line-height: 1.15; }
+  h2 { font-size: 1.25rem; font-weight: 600; letter-spacing: -.01em; margin: 0 0 6px; }
+  h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 36px 0 8px; }
+  .hello { color: var(--muted); font-size: 1rem; margin: 0; }
+  .date { color: var(--muted); margin: 2px 0 28px; }
+  .note, .meta { color: var(--muted); font-size: .9rem; margin: 0 0 16px; }
+  .link { color: var(--muted); font-size: .9rem; }
+  .link:hover { color: var(--text); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .global { text-align: right; flex: none; }
+  .g-num { font-size: 1.6rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .g-sub { color: var(--muted); font-size: .8rem; }
+
+  /* La pregunta de cada vez que tomas el teléfono */
+  .q { font-size: 1.15rem; font-weight: 500; margin: 0 0 14px; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .choice { text-align: left; background: var(--soft); border-radius: 16px; padding: 14px 14px 16px; min-height: 92px;
+    display: flex; flex-direction: column; gap: 6px; transition: transform .35s var(--spring); }
+  .choice:active { transform: scale(.96); }
+  .choice b { font-weight: 600; }
+  .choice span { color: var(--muted); font-size: .85rem; line-height: 1.3; }
+  .choice svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .choice.main { background: var(--accent); color: var(--on-accent); }
+  .choice.main span { color: inherit; opacity: .8; }
+
+  /* Estadísticas del día */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 28px; }
+  .stat { padding: 14px 0; }
+  .stat + .stat { padding-left: 12px; border-left: 1px solid var(--line); }
+  .stat b { display: block; font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .stat span { color: var(--muted); font-size: .8rem; }
+  .stat .over { color: var(--red); }
+
+  /* Filas: misma pieza que los hábitos del Habit Tracker */
+  .row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border-top: 1px solid var(--line); padding: 13px 0; }
+  .rows > .row:last-child { border-bottom: 1px solid var(--line); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--text)); flex: none; margin: 0 4px; }
+  .box { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--muted); flex: none; margin: 0 1px; }
+  .row .t { flex: 1; min-width: 0; }
+  .row .t div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .t small { display: block; color: var(--muted); font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .tag { color: var(--muted); font-size: .8rem; flex: none; }
+  .row .tag.late { color: var(--red); }
+  .more { color: var(--muted); font-size: .85rem; padding: 10px 0 0; }
+  .empty { color: var(--muted); font-size: .9rem; padding: 4px 0; }
+
+  /* Semana */
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; height: 120px; margin-top: 8px; }
+  .bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%; }
+  .bar i { display: block; width: 100%; max-width: 28px; border-radius: 6px 6px 3px 3px; background: var(--empty); min-height: 3px;
+    transform-origin: bottom; animation: grow .7s var(--spring) both; }
+  .bar.on i { background: var(--accent); }
+  .bar span { font-size: .75rem; color: var(--muted); }
+  .bar.today span { color: var(--text); font-weight: 600; }
+  @keyframes grow { from { transform: scaleY(0); } }
+  .week-sum { color: var(--muted); font-size: .88rem; margin: 12px 0 0; }
+  .week-sum b { color: var(--text); font-weight: 600; }
+
+  footer { margin-top: 44px; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: .85rem; }
+
+  /* Botones */
+  .primary { background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 12px 22px; font-weight: 600; }
+  .primary:disabled { opacity: .4; }
+  .outline { border: 1.5px solid var(--line); border-radius: 999px; padding: 10px 18px; }
+  .wide { width: 100%; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: var(--soft); border-radius: 999px; padding: 7px 14px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .chip.on { background: var(--text); color: var(--bg); }
+
+  /* Formularios */
+  .field { margin: 0 0 18px; }
+  .field > label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
+  input, textarea, select { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: transparent; padding: 6px 0;
+    border: 0; border-bottom: 1px solid var(--line); border-radius: 0; outline: none; }
+  input:focus, textarea:focus, select:focus { border-color: var(--text); }
+  textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
+  select option { background: var(--bg); color: var(--text); }
+
+  /* Hoja que sube desde abajo */
+  dialog { border: 0; padding: 0; background: var(--bg); color: var(--text); width: min(520px, 100vw); max-width: 100vw; max-height: 88dvh;
+    margin: auto auto 0; border-radius: 22px 22px 0 0; box-sizing: border-box; }
+  dialog[open] { animation: up .5s var(--spring); }
+  dialog::backdrop { background: rgb(0 0 0 / .45); animation: fade .25s; }
+  @media (min-width: 600px) { dialog { margin: auto; border-radius: 22px; } }
+  .sheet { padding: 22px max(20px, env(safe-area-inset-left, 0px)) calc(22px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; max-height: 88dvh; box-sizing: border-box; }
+  .sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--empty); margin: -8px auto 16px; }
+  .actions { display: flex; justify-content: flex-end; align-items: center; gap: 18px; margin-top: 22px; flex-wrap: wrap; }
+  .actions.stack { flex-direction: column; align-items: stretch; gap: 12px; }
+  .actions.stack .link { text-align: center; padding: 6px 0; }
+  .green { color: var(--green); } .red { color: var(--red); }
+  .pros { margin: 6px 0 14px; padding-left: 18px; }
+  .pros li { margin: 2px 0; }
+  .set-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .set-row span small { display: block; color: var(--muted); font-size: .8rem; }
+  .set-row select { width: auto; border: 0; text-align: right; }
+  .app-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .app-row .t { flex: 1; min-width: 0; }
+  .app-row small { display: block; color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .x { color: var(--muted); font-size: 1.3rem; line-height: 1; padding: 4px 8px; }
+  .add-app { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; align-items: end; margin-top: 10px; }
+
+  /* Pantallas completas: espera y enfoque */
+  .full { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; animation: fade .3s; overflow-y: auto; }
+  .full[hidden] { display: none; }
+  .full .inner { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .full .lead { color: var(--muted); margin: 0; }
+  .full .lead b { color: var(--text); }
+  .full .lead.red, .full .lead .red { color: var(--red); }
+  .breath { width: 180px; height: 180px; border-radius: 50%; display: grid; place-items: center; margin: 18px 0;
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent) 8%, transparent) 70%);
+    animation: breath 8s ease-in-out infinite; }
+  .breath span { font-size: 1rem; color: var(--text); }
+  @keyframes breath { 0%, 100% { transform: scale(.72); } 50% { transform: scale(1); } }
+  .count { font-size: 3rem; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; margin: 0; line-height: 1; }
+  .why { background: var(--soft); border-radius: 16px; padding: 14px 16px; text-align: left; width: 100%; box-sizing: border-box; font-size: .92rem; }
+  .why b { font-weight: 600; }
+  .why .red { display: block; margin-top: 4px; }
+  .ring { --p: 0%; width: 240px; height: 240px; border-radius: 50%; display: grid; place-items: center; position: relative; margin: 10px 0; }
+  .ring::before { content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(var(--accent) var(--p), var(--empty) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)); }
+  .ring .count { font-size: 3.4rem; }
+  .focus-what { font-size: 1.15rem; font-weight: 500; margin: 0; }
+
+  /* Intervención del momento */
+  .interv { background: var(--soft); border-radius: 18px; padding: 16px 16px 14px; margin: 0 0 28px; animation: up .5s var(--spring); }
+  .interv b { display: block; font-size: 1.02rem; margin-bottom: 4px; }
+  .interv p { margin: 0 0 12px; font-size: .92rem; }
+  .interv .sci { margin: 0 0 12px; }
+  .interv .row-b { display: flex; gap: 16px; align-items: center; }
+  .interv .primary { padding: 9px 16px; font-size: .9rem; }
+  /* Iniciativa y ciencia */
+  .amber { color: var(--amber); }
+  .meter { display: flex; justify-content: space-between; align-items: baseline; font-size: .9rem; color: var(--muted); }
+  .meter b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .meter-bar { height: 6px; border-radius: 3px; background: var(--empty); margin: 6px 0 12px; overflow: hidden; }
+  .meter-bar i { display: block; height: 100%; background: var(--green); border-radius: 3px; transition: width .6s var(--spring); }
+  .sci { font-size: .82rem; color: var(--muted); border-left: 2px solid var(--accent); padding: 2px 0 2px 10px; margin: 0 0 16px; }
+  .btn { display: block; text-align: center; text-decoration: none; }
+  .woop { margin: 4px 0 14px; font-size: .9rem; }
+  .woop dt { color: var(--muted); font-size: .78rem; margin-top: 8px; }
+  .woop dd { margin: 0; }
+  .refs li { margin: 0 0 12px; font-size: .9rem; }
+  .refs small { display: block; color: var(--muted); font-size: .78rem; }
+  .times { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  #toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); opacity: 0; z-index: 20;
+    background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 16px; font-size: .9rem; pointer-events: none;
+    transition: opacity .25s, transform .45s var(--spring); max-width: calc(100vw - 48px); text-align: center; }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  #e-unused { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 15; max-width: 488px; margin: 0 auto;
+    background: var(--text); color: var(--bg); border-radius: 16px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: .9rem; }
+  #update[hidden] { display: none; }
+  #update button { font-weight: 600; }
+
+  @keyframes up { from { transform: translateY(40%); opacity: 0; } }
+  @keyframes fade { from { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+`;
+const ENFOQUE_HTML = `
+
+  <div id="interv"></div>
+  <section id="prio-sec">
+    <h3 style="margin-top:0">Prioridades de hoy</h3>
+    <div id="prio"></div>
+  </section>
+
+  <section style="margin-top:32px">
+    <p class="q">¿Para qué tomaste el teléfono?</p>
+    <div class="choices">
+      <button class="choice" data-go="concreto">
+        <svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>
+        <b>Algo concreto</b><span>Lo haces y lo sueltas</span>
+      </button>
+      <button class="choice main" data-go="enfoque">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>
+        <b>Enfocarme</b><span>Una sesión sin teléfono</span>
+      </button>
+      <button class="choice" data-go="costumbre">
+        <svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M4.2 7.5l2.6 1.5M17.2 15l2.6 1.5M4.2 16.5l2.6-1.5M17.2 9l2.6-1.5"/></svg>
+        <b>Por costumbre</b><span>Una alternativa que sume</span>
+      </button>
+      <button class="choice" data-go="distraer">
+        <svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M11 18h2"/></svg>
+        <b>Distraerme</b><span>Con espera y límite diario</span>
+      </button>
+    </div>
+  </section>
+
+  <div class="stats" id="stats"></div>
+
+  <section>
+    <h3>Tomar la iniciativa</h3>
+    <div id="ini"></div>
+  </section>
+
+  <section>
+    <h3>Pendiente hoy</h3>
+    <div id="pend"></div>
+  </section>
+
+  <section>
+    <h3>Últimos 7 días</h3>
+    <div class="week" id="week"></div>
+    <p class="week-sum" id="week-sum"></p>
+  </section>
+
+  <footer>
+    <span><button class="link" id="open-settings">Ajustes de Enfoque</button> · <button class="link" id="open-sci">Por qué funciona</button> · <button class="link" id="open-datos">Tus datos</button></span>
+    
+  </footer>
+
+
+<dialog id="sheet"><div class="sheet" id="sheet-body"></div></dialog>
+<div class="full" id="gate" hidden><div class="inner" id="gate-body"></div></div>
+<div class="full" id="focus" hidden><div class="inner" id="focus-body"></div></div>
+<div id="toast"></div>
+
+`;
+const host = document.getElementById('view-enfoque');
+const root = host.attachShadow({ mode: 'open' });
+root.innerHTML = `<style>${ENFOQUE_CSS}</style><div class="enf">${ENFOQUE_HTML}</div>`;
+const LOCAL_KEY = 'habit-enfoque-local';
+let local = {};
+try { local = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch {}
+const LOCALES = new Set(['sesion', 'salida']);
+// ES lee y escribe en state.enfoque (siempre el actual, también tras combinar con la nube).
+const ES = new Proxy({}, {
+  get: (_, k) => LOCALES.has(k) ? local[k] ?? null : state.enfoque[k],
+  set: (_, k, v) => { (LOCALES.has(k) ? local : state.enfoque)[k] = v; return true; },
+});
+const HT = () => state;
+function guardar() {
+  // Solo se guardan los últimos 180 días.
+  const cut = dayKey(addDays(new Date(), -180));
+  for (const k of Object.keys(state.enfoque.dias)) if (k < cut) delete state.enfoque.dias[k];
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {}
+  save();
+}
+const irA = v => document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click();
+root.addEventListener('click', e => { const b = e.target.closest('[data-goview]'); if (b) { closeSheet(); irA(b.dataset.goview); } });
+const MINUTOS_ENFOQUE = [15, 25, 50, 90];
+const MINUTOS_SALIDA = [5, 10, 15, 30];
+const FRASE = 'Elijo distraerme';
+// Capas de Dunbar: cuanto más cercana la relación, más frecuente el contacto.
+const CADA = { 7: 'Íntimo · cada semana', 14: 'Muy cercano · cada 2 semanas', 30: 'Cercano · cada mes', 90: 'Amigo · cada 3 meses', 365: 'Conocido · cada año' };
+const SALUDOS = ['Hola, {n}. Me acordé de ti, ¿cómo has estado?', 'Hola, {n}. Hace tiempo que no hablamos y quería saber cómo vas.', 'Hola, {n}. Vi algo que me recordó a ti. ¿Qué tal todo?'];
+const PLANTILLAS = {
+  Saludo: n => SALUDOS[Math.floor(Math.random() * SALUDOS.length)].replace('{n}', n),
+  Gracias: n => `Hola, ${n}. Quería darte las gracias por [lo que hiciste]. Me ayudó a [cómo te afectó]. De verdad significa mucho para mí.`,
+  Plan: n => `Hola, ${n}. ¿Te animas a tomar un café esta semana? Yo puedo el [día] a las [hora].`,
+};
+// Preguntas con sustancia: las conversaciones profundas resultan menos incómodas y más cercanas de lo que se espera.
+const PREGUNTAS_ARON = ['Si pudieras invitar a cenar a cualquier persona del mundo, ¿a quién invitarías?', '¿Cómo sería un día perfecto para ti?', '¿Qué es lo que más agradeces en tu vida?', 'Si pudieras despertarte mañana con una cualidad nueva, ¿cuál sería?', '¿Cuál es tu recuerdo más preciado?', '¿Qué es lo que más valoras en una amistad?'];
+const PREGUNTAS = ['¿Qué es lo que más te ilusiona ahora mismo?', '¿Qué aprendiste este año que te cambió algo?', '¿Por qué estás más agradecido últimamente?', '¿Qué harías si supieras que no puedes fallar?', '¿Cuál fue el mejor momento de tu semana?', '¿Qué te gustaría que la gente supiera de ti?', '¿Qué te está costando más en este momento?', '¿Qué decisión reciente te enorgullece?', '¿Con qué sueñas para dentro de cinco años?'];
+// Configuración del teléfono (Olson et al., 2022): pequeños cambios que bajan el uso problemático.
+const CONFIG = [
+  ['inicio', 'Quitar las redes de la pantalla de inicio', 'Mantén pulsado el icono → Quitar (no desinstalar).'],
+  ['enfoque', 'Poner el Habit Tracker donde estaban', 'Que el pulgar encuentre la pregunta en vez del feed.'],
+  ['notif', 'Silenciar las notificaciones de redes', 'Ajustes → Notificaciones. Deja solo llamadas y mensajes de personas. No apagues todo: eso aumenta el FOMO.'],
+  ['grises', 'Pantalla en escala de grises', 'Ajustes → Bienestar digital → Modo descanso, o Accesibilidad → Corrección de color.'],
+  ['dormir', 'Cargar el teléfono fuera del dormitorio', 'Un despertador barato evita la primera y la última revisión del día.'],
+  ['vista', 'Ocultar el contenido en la pantalla bloqueada', 'Ajustes → Notificaciones → Pantalla de bloqueo → Ocultar contenido.'],
+  ['timer', 'Temporizadores de apps', 'Ajustes → Bienestar digital → Temporizadores. El tope estricto que Enfoque no puede poner.'],
+];
+const TIPOS = ['Mensaje', 'Llamada', 'Plan', 'Reunión', 'Gracias'];
+// Planes como verbos, para que la invitación se lea natural: «¿Te animas a tomar un café…?».
+const PLAN_IDEAS = ['tomar un café', 'almorzar', 'caminar', 'hacer deporte', 'una reunión de trabajo', 'cenar'];
+
+const $ = s => root.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Fechas en hora local, como 'YYYY-MM-DD' (igual que el Habit Tracker).
+const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const today = () => dayKey(new Date());
+// Días de la semana: 0 = lunes … 6 = domingo.
+const wd = day => (new Date(day + 'T12:00').getDay() + 6) % 7;
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+const fmtMin = m => { m = Math.round(m); if (m < 60) return `${m} min`; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} h ${r} min` : `${h} h`; };
+const fmtClock = s => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const fmtSec = s => s >= 60 ? `${Math.floor(s / 60)} min ${s % 60 ? `${s % 60} s` : ''}`.trim() : `${s} s`;
+
+const EMPTY_DAY = { enfoque: 0, sesiones: 0, interrupciones: 0, resistidas: 0, aperturas: 0, distraccion: 0, alternativas: 0, concretos: 0, iniciativas: 0, pasos: 0, fomoSi: 0, fomoNo: 0 };
+const dayOf = (k = today()) => ({ ...EMPTY_DAY, ...ES.dias[k] });
+function bump(field, n = 1, k = today()) { ES.dias[k] = { ...dayOf(k), [field]: (dayOf(k)[field] || 0) + n }; }
+
+// ---------- Hábitos y tareas: los del propio Habit Tracker.
+function pendientes() {
+  const s = HT();
+  const t = today(), w = wd(t);
+  const firstHour = h => (h.horas || [])[0] || '99';
+  const habits = (s.habits || [])
+    .filter(h => !h.rutina && (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !s.log?.[h.id]?.[t])
+    .sort((a, b) => firstHour(a) < firstHour(b) ? -1 : firstHour(a) > firstHour(b) ? 1 : 0);
+  const items = (s.tareas?.items || []).filter(x => !x.hecha);
+  const due = items.filter(x => x.fecha && x.fecha <= t).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
+  const sinFecha = items.filter(x => !x.fecha).sort((a, b) => (b.creado || 0) - (a.creado || 0));
+  return { habits, due, sinFecha, nombre: s.nombre || '' };
+}
+const nombre = () => HT().nombre || '';
+const fmtHora = hhmm => { if (!/^\d\d:\d\d$/.test(hhmm || '')) return ''; let [h, m] = hhmm.split(':').map(Number); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return `${h}:${String(m).padStart(2, '0')} ${ap}`; };
+const fmtFecha = f => { const t = today(); if (f === t) return 'Hoy'; if (f === dayKey(addDays(new Date(), -1))) return 'Ayer'; return new Date(f + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'short' }); };
+// Un recordatorio concreto para la pantalla de espera: lo que pierdes si sigues de largo.
+function recordatorio() {
+  const per = personasDue()[0];
+  const ini = per ? `<b>En vez de mirar lo que hacen otros, toma la iniciativa:</b> escríbele a ${esc(per.nombre)} (último contacto ${fmtDias(daysSince(per.ultimo))}).
+    <button class="link" style="display:block;margin-top:6px;color:var(--accent)" data-gate-per="${esc(per.id)}">Escribirle ahora</button>` : '';
+  const hab = recordatorioHabito();
+  const pri = ES.prioridades.items.find(x => !x.hecho);
+  const prTxt = pri ? `<b>Tu prioridad de hoy sigue pendiente:</b> ${esc(pri.t)}. Lo urgente y lo entretenido siempre parecen más importantes de lo que son.` : '';
+  return [prTxt, ini, prTxt ? '' : hab].filter(Boolean).join('<hr style="border:0;border-top:1px solid var(--line);margin:12px 0">');
+}
+function recordatorioHabito() {
+  const p = pendientes(); if (!p) return '';
+  const h = p.habits.find(h => h.contras?.length) || p.habits[0];
+  if (h) return `<b>${esc(h.nombre)}</b> sigue pendiente hoy.${h.contras?.length ? `<span class="red">Si no lo haces: ${esc(h.contras[0])}</span>` : h.minima ? `<span>Versión de 2 minutos: ${esc(h.minima)}</span>` : ''}`;
+  const x = p.due[0] || p.sinFecha[0];
+  if (x) return `<b>${esc(x.titulo)}</b> sigue en tu lista${x.fecha ? ` (${x.fecha < today() ? 'vencida' : 'vence hoy'})` : ''}.`;
+  return '';
+}
+
+// ---------- Pantalla principal
+function renderE() { renderInterv(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
+function renderStats() {
+  const d = dayOf(), over = d.aperturas > ES.limite;
+  $('#stats').innerHTML = `
+    <div class="stat"><b>${d.resistidas + d.alternativas}</b><span>Resististe</span></div>
+    <div class="stat"><b class="${over ? 'over' : ''}">${d.aperturas}<span class="num" style="font-size:.8rem;color:var(--muted);font-weight:400"> / ${ES.limite}</span></b><span>Aperturas</span></div>
+    <div class="stat"><b class="${d.distraccion >= ES.presupuesto ? 'over' : ''}">${d.distraccion}<span class="num" style="font-size:.8rem;color:var(--muted);font-weight:400"> / ${ES.presupuesto} min</span></b><span>Distracciones${retoDia() <= 21 ? ` · día ${retoDia()} de 21` : ''}</span></div>`;
+}
+function renderPend() {
+  const p = pendientes(), el = $('#pend');
+  if (!p) {
+    return;
+  }
+  const H = p.habits.slice(0, 5), tasks = [...p.due, ...p.sinFecha], T = tasks.slice(0, Math.max(3, 6 - H.length));
+  const rest = p.habits.length - H.length + tasks.length - T.length;
+  if (!H.length && !T.length) { el.innerHTML = `<p class="empty">Todo hecho por hoy. Buen momento para soltar el teléfono.</p>`; return; }
+  el.innerHTML = `<div class="rows">
+    ${H.map(h => `<button class="row" data-h="${esc(h.id)}" style="${h.color ? `--c:${esc(h.color)}` : ''}">
+      <span class="dot"></span><span class="t"><div>${esc(h.nombre)}</div>${h.minima ? `<small>2 min: ${esc(h.minima)}</small>` : ''}</span>
+      <span class="tag">${fmtHora((h.horas || [])[0]) || 'Hábito'}</span></button>`).join('')}
+    ${T.map(x => `<button class="row" data-x="${esc(x.id)}">
+      <span class="box"></span><span class="t"><div>${esc(x.titulo)}</div>${x.detalle ? `<small>${esc(x.detalle)}</small>` : ''}</span>
+      <span class="tag${x.fecha && x.fecha < today() ? ' late' : ''}">${x.fecha ? fmtFecha(x.fecha) : 'Tarea'}</span></button>`).join('')}
+  </div>
+  <p class="more">${rest > 0 ? `y ${rest} más · ` : ''}<button class="link" data-goview="hoy">Hábitos</button> · <button class="link" data-goview="tareas">Tareas</button></p>`;
+}
+function renderWeek() {
+  const days = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), i - 6)));
+  const vals = days.map(k => dayOf(k));
+  const max = Math.max(30, ...vals.map(v => v.enfoque));
+  $('#week').innerHTML = days.map((k, i) => `<div class="bar${vals[i].enfoque ? ' on' : ''}${k === today() ? ' today' : ''}" title="${fmtMin(vals[i].enfoque)}">
+    <i style="height:${Math.max(3, vals[i].enfoque / max * 92)}px;animation-delay:${i * 40}ms"></i><span>${DAY_L[wd(k)]}</span></div>`).join('');
+  const sum = f => vals.reduce((a, v) => a + v[f], 0);
+  const all = Object.values(ES.dias), si = all.reduce((a, v) => a + (v.fomoSi || 0), 0), tot = si + all.reduce((a, v) => a + (v.fomoNo || 0), 0);
+  $('#week-sum').innerHTML = `Enfoque <b>${fmtMin(sum('enfoque'))}</b> · Iniciativas <b>${sum('iniciativas')}</b> · Resististe <b>${sum('resistidas') + sum('alternativas')}</b> · Aperturas <b>${sum('aperturas')}</b> · Distracciones <b>~${fmtMin(sum('distraccion'))}</b>
+    ${sesgo() ? `<br>${sesgoTxt(sesgo())}` : ''}
+    ${tot ? `<br>Prueba de realidad: en <b>${si} de ${tot}</b> aperturas había algo importante (${Math.round(si / tot * 100)} %). El resto era miedo a perderse algo.` : ''}`;
+}
+
+// ---------- Hojas, avisos
+const sheet = $('#sheet');
+function showSheet(html) {
+  $('#sheet-body').innerHTML = `<div class="grab"></div>${html}`;
+  if (!sheet.open) sheet.showModal();
+}
+const closeSheet = () => sheet.open && sheet.close();
+sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2800); }
+const buzz = p => { try { navigator.vibrate?.(p); } catch {} };
+
+// ---------- Las cuatro respuestas
+root.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => ({
+  concreto: concretoForm, enfoque: () => focusForm(), costumbre: () => alternativas('La costumbre pide entretenimiento', 'Cámbialo por algo que sume. Elige una:'), distraer: appPicker,
+})[b.dataset.go]()));
+
+function concretoForm() {
+  showSheet(`<h2>¿Qué vas a hacer?</h2>
+    <p class="note">Nombrarlo evita que una consulta de un minuto se convierta en media hora.</p>
+    <div class="field"><input id="c-que" maxlength="80" placeholder="Responder a Ana, pagar la luz…" enterkeyhint="done"></div>
+    <div class="actions"><button class="link" id="c-cancel">Cancelar</button><button class="primary" id="c-go">Listo</button></div>`);
+  $('#c-que').focus();
+  $('#c-cancel').onclick = closeSheet;
+  const go = () => { bump('concretos'); guardar(); closeSheet(); renderE(); const q = $('#c-que').value.trim(); toast(q ? `${q}. Luego, teléfono abajo.` : 'Hazlo y deja el teléfono.'); };
+  $('#c-go').onclick = go;
+  $('#c-que').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+}
+
+function alternativas(titulo, sub) {
+  const p = pendientes();
+  const hs = (p?.habits || []).slice(0, 2);
+  const alts = [...ES.alternativas].sort(() => Math.random() - .5).slice(0, 3);
+  const per = personasDue()[0], pro = proyectosActivos().find(x => x.paso);
+  showSheet(`<h2>${esc(titulo)}</h2><p class="note">${esc(sub)}</p>
+    <div class="rows">
+      ${ES.prioridades.items.filter(x => !x.hecho).slice(0, 1).map(x => `<button class="row" data-alt-pri="${esc(x.id)}"><span class="dot" style="--c:var(--red)"></span><span class="t"><div>${esc(x.t)}</div><small>Tu prioridad de hoy</small></span></button>`).join('')}
+      ${per ? `<button class="row" data-alt-per="${esc(per.id)}"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Escríbele a ${esc(per.nombre)}</div><small>Contacto real en vez de mirar perfiles · ${fmtDias(daysSince(per.ultimo))}</small></span></button>` : ''}
+      ${pro ? `<button class="row" data-alt-pro="${esc(pro.id)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc(pro.paso)}</div><small>Siguiente paso de «${esc(pro.nombre)}»</small></span></button>` : ''}
+      ${hs.map(h => `<button class="row" data-alt-h="${esc(h.id)}" style="${h.color ? `--c:${esc(h.color)}` : ''}"><span class="dot"></span>
+        <span class="t"><div>${esc(h.minima || h.nombre)}</div><small>${h.minima ? `Versión de 2 min de «${esc(h.nombre)}»` : 'Hábito pendiente de hoy'}</small></span></button>`).join('')}
+      ${alts.map(a => `<button class="row" data-alt="${esc(a)}"><span class="box" style="border-radius:4px"></span><span class="t"><div>${esc(a)}</div></span></button>`).join('')}
+      <button class="row" data-alt-focus><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Una sesión de enfoque</div><small>25 minutos en una sola cosa</small></span></button>
+    </div>
+    <div class="actions"><button class="link" id="alt-close">Cerrar</button></div>`);
+  $('#alt-close').onclick = closeSheet;
+  $('#sheet-body').querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { bump('alternativas'); guardar(); closeSheet(); renderE(); buzz(20); toast('Bien elegido. Teléfono abajo y a ello.'); });
+  $('#sheet-body').querySelectorAll('[data-alt-h]').forEach(b => b.onclick = () => {
+    bump('alternativas'); guardar(); renderE();
+    const h = p.habits.find(h => h.id === b.dataset.altH);
+    habitSheet(h, true);
+  });
+  $('#sheet-body').querySelector('[data-alt-focus]').onclick = () => focusForm();
+  $('#sheet-body').querySelector('[data-alt-per]')?.addEventListener('click', () => personaSheet(per));
+  $('#sheet-body').querySelector('[data-alt-pri]')?.addEventListener('click', e => { const x = ES.prioridades.items.find(i => i.id === e.currentTarget.dataset.altPri); bump('alternativas'); guardar(); focusForm(x.t, 25, x.pro || ''); });
+  $('#sheet-body').querySelector('[data-alt-pro]')?.addEventListener('click', () => proyectoSheet(pro));
+}
+
+// ---------- Ficha de un hábito o tarea del Habit Tracker
+function habitSheet(h, elegido = false) {
+  if (!h) return;
+  showSheet(`<h2>${esc(h.nombre)}</h2>
+    ${elegido ? `<p class="note">Hazlo ahora y márcalo en el Habit Tracker.</p>` : h.identidad ? `<p class="note">Soy una persona que ${esc(h.identidad)}</p>` : ''}
+    ${h.minima ? `<p class="meta">Versión de 2 minutos: <b style="color:var(--text);font-weight:500">${esc(h.minima)}</b></p>` : ''}
+    ${h.beneficios?.length ? `<p class="meta green" style="margin:14px 0 0;font-weight:600">Beneficios</p><ul class="pros">${h.beneficios.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
+    ${h.contras?.length ? `<p class="meta red" style="margin:0;font-weight:600">Contras de no hacerlo</p><ul class="pros">${h.contras.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
+    <div class="actions stack">
+      <button class="primary" id="hs-focus">Enfocarme en esto</button>
+      <button class="link" data-goview="hoy">Marcarlo en Hábitos</button>
+    </div>`);
+  $('#hs-focus').onclick = () => focusForm(h.nombre, h.modo === 'tiempo' ? h.meta : 25);
+}
+function taskSheet(x) {
+  if (!x) return;
+  showSheet(`<h2>${esc(x.titulo)}</h2>
+    ${x.detalle ? `<p class="note" style="white-space:pre-wrap">${esc(x.detalle)}</p>` : ''}
+    ${x.fecha ? `<p class="meta${x.fecha < today() ? ' red' : ''}">${x.fecha < today() ? 'Vencida' : 'Fecha'}: ${fmtFecha(x.fecha)}</p>` : ''}
+    <div class="actions stack">
+      <button class="primary" id="ts-focus">Enfocarme en esto</button>
+      <button class="link" data-goview="tareas">Completarla en Tareas</button>
+    </div>`);
+  $('#ts-focus').onclick = () => focusForm(x.titulo);
+}
+$('#pend').addEventListener('click', e => {
+  const b = e.target.closest('.row'); if (!b) return;
+  const p = pendientes(); if (!p) return;
+  if (b.dataset.h) habitSheet(p.habits.find(h => h.id === b.dataset.h));
+  if (b.dataset.x) taskSheet([...p.due, ...p.sinFecha].find(x => x.id === b.dataset.x));
+});
+
+// ---------- Sesión de enfoque
+function focusForm(que = '', min = 25, pro = '') {
+  const p = pendientes();
+  const sug = p ? [...p.habits.map(h => h.nombre), ...p.due.map(x => x.titulo), ...p.sinFecha.slice(0, 8).map(x => x.titulo)] : [];
+  if (!MINUTOS_ENFOQUE.includes(min)) min = Math.max(2, Math.min(180, Math.round(+min || 25)));
+  const opts = [...new Set([...MINUTOS_ENFOQUE, min])].sort((a, b) => a - b);
+  showSheet(`<h2>Sesión de enfoque</h2>
+    <div class="field"><label>¿En qué?</label><input id="f-que" maxlength="80" value="${esc(que)}" placeholder="Una sola cosa" list="f-sug">
+      <datalist id="f-sug">${[...new Set(sug)].map(s => `<option value="${esc(s)}">`).join('')}</datalist></div>
+    <div class="field"><label>Duración</label><div class="chips" id="f-min">${opts.map(m => `<button class="chip${m === min ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
+    <div class="field"><label>¿Cómo está tu ánimo ahora? (1–5, opcional)</label><div class="chips" id="f-animo">${[1, 2, 3, 4, 5].map(n => `<button class="chip" data-v="${n}">${n}</button>`).join('')}</div></div>
+    <p class="note">Al empezar, bloquea el teléfono y déjalo boca abajo. Si lo vuelves a abrir antes de tiempo, cuenta como interrupción.</p>
+    <div class="actions"><button class="link" id="f-cancel">Cancelar</button><button class="primary" id="f-go">Empezar</button></div>`);
+  let chosen = min, animo = 0;
+  $('#f-animo').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; animo = +c.dataset.v; $('#f-animo').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  $('#f-min').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; chosen = +c.dataset.m; $('#f-min').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  $('#f-cancel').onclick = closeSheet;
+  $('#f-go').onclick = () => { closeSheet(); startFocus($('#f-que').value.trim(), chosen, pro, animo); };
+}
+let focusTick = 0;
+function startFocus(que, min, pro = '', animo = 0) {
+  ES.sesion = { inicio: Date.now(), min, que, pro, animo, ints: 0, fuera: 0, impulsos: 0 };
+  guardar(); showFocus(); buzz(15);
+  avisarAlTerminar(min);
+}
+// Aviso del sistema al terminar, si el teléfono deja que la app siga viva en segundo plano.
+let avisoT = 0;
+function avisarAlTerminar(min) {
+  clearTimeout(avisoT);
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+  avisoT = setTimeout(async () => {
+    if (Notification.permission !== 'granted' || document.visibilityState === 'visible') return;
+    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null);
+    const txt = { body: 'Sesión de enfoque terminada. Vuelve para registrarla.', icon: 'icon-192.png', tag: 'enfoque' };
+    try { reg ? reg.showNotification('Enfoque', txt) : new Notification('Enfoque', txt); } catch {}
+  }, min * 60000);
+}
+function focusLeft() { const s = ES.sesion; return s ? s.min * 60 - (Date.now() - s.inicio) / 1000 : 0; }
+function showFocus() {
+  const s = ES.sesion; if (!s) return;
+  $('#focus-body').innerHTML = `
+    <p class="lead">${s.que ? 'Enfocado en' : 'Sesión de enfoque'}</p>
+    ${s.que ? `<p class="focus-what">${esc(s.que)}</p>` : ''}
+    ${ES.proyectos.find(x => x.id === s.pro)?.recompensa ? `<p class="meta" style="margin:0">Mientras tanto: ${esc(ES.proyectos.find(x => x.id === s.pro).recompensa)}</p>` : ''}
+    <div class="ring" id="ring"><p class="count" id="f-left"></p></div>
+    <p class="lead" id="f-ints"></p>
+    <p class="note">Bloquea el teléfono y déjalo boca abajo.</p>
+    <button class="outline" id="f-urge">Tengo ganas de mirar el teléfono</button>
+    <button class="link" id="f-stop">Terminar antes</button>`;
+  $('#f-urge').onclick = () => {
+    s.impulsos = (s.impulsos || 0) + 1; guardar();
+    const pr = ES.proyectos.find(x => x.id === s.pro);
+    showSheet(`<h2>Surfea el impulso</h2>
+      <p class="note">Las ganas suben, llegan a un pico y bajan en un par de minutos si no las alimentas. Respira tres veces y obsérvalas.</p>
+      <p class="why">${pr?.plan ? `Tu plan: si ${esc(pr.obstaculo || 'aparece el obstáculo')}, entonces ${esc(pr.plan)}.` : 'Si tengo ganas de mirar el teléfono, entonces respiro tres veces y hago la siguiente acción concreta.'}</p>
+      <p class="meta">${s.impulsos} ${s.impulsos === 1 ? 'impulso' : 'impulsos'} en esta sesión. Notarlos ya es entrenar la atención.</p>
+      <div class="actions"><button class="primary" id="fu-ok">Sigo</button></div>`);
+    $('#fu-ok').onclick = closeSheet;
+  };
+  $('#focus').hidden = false;
+  $('#f-stop').onclick = () => {
+    const done = Math.floor((Date.now() - s.inicio) / 60000);
+    showSheet(`<h2>¿Terminar ahora?</h2><p class="note">Llevas ${fmtMin(done)} de ${fmtMin(s.min)}. Se cuentan los minutos hechos.</p>
+      <div class="actions"><button class="link" id="fs-no">Seguir</button><button class="primary" id="fs-yes">Terminar</button></div>`);
+    $('#fs-no').onclick = closeSheet;
+    $('#fs-yes').onclick = () => { closeSheet(); finishFocus(false); };
+  };
+  clearInterval(focusTick); focusTick = setInterval(paintFocus, 500); paintFocus();
+}
+function paintFocus() {
+  const s = ES.sesion; if (!s) return;
+  const left = focusLeft();
+  if (left <= 0) { finishFocus(true); return; }
+  $('#f-left').textContent = fmtClock(left);
+  $('#ring').style.setProperty('--p', `${(1 - left / (s.min * 60)) * 100}%`);
+  $('#f-ints').textContent = s.ints ? `${s.ints} ${s.ints === 1 ? 'interrupción' : 'interrupciones'}` : 'Sin interrupciones';
+}
+function finishFocus(completa) {
+  const s = ES.sesion; if (!s) return;
+  clearInterval(focusTick);
+  const mins = completa ? s.min : Math.floor((Date.now() - s.inicio) / 60000);
+  const k = dayKey(new Date(s.inicio));
+  bump('enfoque', mins, k); bump('interrupciones', s.ints, k); if (completa) bump('sesiones', 1, k); if (s.impulsos) bump('impulsos', s.impulsos, k);
+  clearTimeout(avisoT);
+  ES.sesion = null; guardar();
+  $('#focus').hidden = true; renderE();
+  if (completa) buzz([60, 80, 60, 80, 120]);
+  const pr = ES.proyectos.find(x => x.id === s.pro);
+  showSheet(`<h2>${completa ? 'Sesión completa' : 'Sesión terminada'}</h2>
+    <p class="note">${fmtMin(mins)} de enfoque${s.que ? ` en «${esc(s.que)}»` : ''} · ${s.ints ? `${s.ints} ${s.ints === 1 ? 'interrupción' : 'interrupciones'}` : 'sin interrupciones'}. Hoy llevas ${fmtMin(dayOf(k).enfoque)}.</p>
+    ${s.ints === 0 && completa ? `<p class="meta green">Ni una mirada al teléfono. Así se entrena la atención.</p>` : ''}
+    ${s.animo ? `<div class="field"><label>Empezaste con ánimo ${s.animo}. ¿Y ahora? (1–5)</label><div class="chips" id="fr-animo">${[1, 2, 3, 4, 5].map(n => `<button class="chip" data-v="${n}">${n}</button>`).join('')}</div></div>` : ''}
+    <div class="field"><label>¿Te perdiste algo importante mientras no mirabas?</label><div class="chips" id="fr-fomo"><button class="chip" data-f="si">Sí</button><button class="chip" data-f="no">No, nada</button></div></div>
+    <div class="actions stack">
+      ${pr ? `<div class="field" style="margin:0"><label>¿Dónde lo dejas? (la siguiente frase o línea, para retomarlo sin esfuerzo)</label><input id="fr-nota" maxlength="120" value="${esc(pr.nota)}"></div>
+        <button class="primary" id="fr-step">Paso hecho: definir el siguiente</button><button class="outline" id="fr-keep">Sigue pendiente: guardar nota</button>` : s.que ? `<button class="primary" data-goview="hoy">Marcarlo en Hábitos</button>` : ''}
+      <button class="${s.que ? 'link' : 'primary'}" id="fr-again">Otra sesión</button>
+      <button class="link" id="fr-close">Cerrar</button>
+    </div>`);
+  $('#fr-again').onclick = () => focusForm(s.que, s.min, s.pro);
+  $('#fr-animo')?.addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    ES.animo.push({ id: crypto.randomUUID(), d: k, antes: s.animo, despues: +c.dataset.v }); ES.animo = ES.animo.slice(-200); guardar();
+    $('#fr-animo').closest('.field').outerHTML = `<p class="meta">${animoTxt()}</p>`;
+  });
+  $('#fr-fomo').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    bump(c.dataset.f === 'si' ? 'fomoSi' : 'fomoNo', 1, k); guardar(); renderE();
+    $('#fr-fomo').closest('.field').outerHTML = `<p class="meta">${c.dataset.f === 'si' ? 'Anotado. Revísalo en tu próxima ventana.' : 'Anotado: no pasó nada mientras te concentrabas.'}</p>`;
+  });
+  const nota = () => { if (pr && $('#fr-nota')) { pr.nota = $('#fr-nota').value.trim(); bump('pasos', 0); guardar(); } };
+  $('#fr-step')?.addEventListener('click', () => { nota(); pasoHecho(pr); });
+  $('#fr-keep')?.addEventListener('click', () => { nota(); closeSheet(); renderE(); toast('Nota guardada: mañana empiezas por ahí.'); });
+  $('#fr-close').onclick = closeSheet;
+}
+
+// ---------- La puerta: espera, recordatorio y límite antes de abrir una distracción
+function appPicker() {
+  const d = dayOf(), wait = gateWait();
+  showSheet(`<h2>¿Qué quieres abrir?</h2>
+    <p class="note">Aperturas hoy: ${d.aperturas} de ${ES.limite} · ${d.distraccion} de ${ES.presupuesto} min. La próxima espera es de ${fmtSec(wait)}${sobreLimite() ? ' y tendrás que escribir una frase' : ''}.</p>
+    <p class="sci">${enVentana() ? `Estás en tu ventana de revisión hasta las ${fmtHora(addMin(enVentana(), ES.ventanaMin))}.` : `Fuera de tu ventana de revisión: la espera es el doble. La próxima es a las ${fmtHora(proximaVentana())}; lo que hay ahí seguirá ahí.`}</p>
+    <div class="rows">${ES.apps.map(a => `<button class="row" data-app="${esc(a.id)}"><span class="dot"></span><span class="t"><div>${esc(a.nombre)}</div></span><span class="tag">›</span></button>`).join('')}</div>
+    ${ES.apps.length ? '' : `<p class="empty">Añade tus apps en Ajustes.</p>`}
+    <div class="actions"><button class="link" id="ap-close">Mejor no</button></div>`);
+  $('#ap-close').onclick = () => { bump('resistidas'); guardar(); closeSheet(); renderE(); toast('Bien. Ese tiempo es tuyo.'); };
+  $('#sheet-body').querySelectorAll('[data-app]').forEach(b => b.onclick = () => { closeSheet(); openGate(ES.apps.find(a => a.id === b.dataset.app)); });
+}
+// Cada apertura del día duplica la espera: 10 s, 20 s, 40 s… hasta 3 minutos.
+// Fuera de las ventanas de revisión la espera es el doble (revisar por lotes, no a cada rato).
+const gateWait = () => Math.min(240, ES.espera * 2 ** dayOf().aperturas * (enVentana() ? 1 : 2));
+const toMin = hhmm => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+function enVentana() { const n = nowMin(); return ES.ventanas.find(v => n >= toMin(v) && n < toMin(v) + ES.ventanaMin) || ''; }
+function proximaVentana() { const n = nowMin(), vs = [...ES.ventanas].sort(); return vs.find(v => toMin(v) > n) || vs[0]; }
+const sobreLimite = () => { const d = dayOf(); return d.aperturas >= ES.limite || d.distraccion >= ES.presupuesto; };
+let gate = null;
+function openGate(app) {
+  if (!app) return;
+  gate = { app, total: gateWait(), fin: 0 };
+  gate.fin = Date.now() + gate.total * 1000;
+  const why = recordatorio();
+  gate.emo = '';
+  $('#gate-body').innerHTML = `
+    <p class="lead">Ibas a abrir <b>${esc(app.nombre)}</b></p>
+    <div class="breath"><span id="g-br">Inhala</span></div>
+    <p class="count" id="g-count"></p>
+    ${why ? `<div class="why">${why}</div>` : ''}
+    <div class="field" style="width:100%;margin:0"><label style="text-align:left">Mientras esperas: ¿qué sientes ahora?</label>
+      <div class="chips" id="g-emo">${EMOCIONES.map(m => `<button class="chip" data-e="${m}">${m}</button>`).join('')}</div>
+      <p class="meta" id="g-emo-tip" style="text-align:left;margin:8px 0 0"></p></div>
+    ${ES.config.grises ? '' : `<p class="meta" style="margin:0">Con la pantalla en grises el feed atrae menos (Zimmermann y Sobolev, 2023).</p>`}
+    <p class="note" style="margin:0">${enVentana() ? '' : `Fuera de tu ventana de revisión (próxima: ${fmtHora(proximaVentana())}). `}Si sales de esta pantalla, la espera vuelve a empezar.</p>
+    <button class="primary wide" id="g-no">Mejor no</button>`;
+  $('#gate').hidden = false;
+  $('#g-emo').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return; gate.emo = c.dataset.e;
+    $('#g-emo').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+    $('#g-emo-tip').textContent = EMO_TIP[gate.emo];
+  });
+  $('#g-no').onclick = () => gateNo();
+  $('#gate-body').querySelector('[data-gate-per]')?.addEventListener('click', e => {
+    const per = ES.personas.find(p => p.id === e.target.dataset.gatePer);
+    bump('resistidas'); guardar(); closeGate(); renderE(); personaSheet(per);
+  });
+  clearInterval(gate.tick);
+  let phase = 0;
+  gate.breath = setInterval(() => { const el = $('#g-br'); if (el) el.textContent = (phase = 1 - phase) ? 'Exhala' : 'Inhala'; }, 4000);
+  gate.tick = setInterval(paintGate, 250); paintGate();
+}
+function paintGate() {
+  if (!gate || gate.listo) return;
+  const left = (gate.fin - Date.now()) / 1000;
+  if (left > 0) { $('#g-count').textContent = Math.ceil(left); return; }
+  gate.listo = true; clearInterval(gate.tick); gateChoice();
+}
+function gateChoice() {
+  const d = dayOf(), over = sobreLimite(), app = gate.app;
+  let min = 10;
+  $('#gate-body').innerHTML = `
+    <h2>¿Todavía quieres abrir ${esc(app.nombre)}?</h2>
+    <p class="lead">Aperturas hoy: ${d.aperturas} de ${ES.limite} · Te quedan ${Math.max(0, ES.presupuesto - d.distraccion)} de ${ES.presupuesto} min</p>
+    ${over && ES.pacto.semana === lunes() && ES.pacto.texto ? `<p class="why">Tu pacto de esta semana: ${esc(ES.pacto.texto)}</p>` : ''}
+    ${over ? `<p class="lead red">Superaste tu límite de hoy. Para seguir, escribe: <b class="red">${FRASE}</b></p>
+      <div class="field" style="width:100%"><input id="g-phrase" autocomplete="off" autocapitalize="sentences" placeholder="${FRASE}"></div>` : ''}
+    <div class="field" style="width:100%"><label style="text-align:left">¿Para qué entras?</label>
+      <div class="chips" id="g-modo"><button class="chip on" data-m="hablar">Hablar con alguien o publicar</button><button class="chip" data-m="mirar">Solo mirar</button></div>
+      <p class="meta" id="g-modo-note" style="text-align:left;margin:8px 0 0"></p></div>
+    <div class="field" style="width:100%"><label style="text-align:left">¿Por cuánto tiempo?</label>
+      <div class="chips" id="g-min">${MINUTOS_SALIDA.map(m => `<button class="chip${m === min ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
+    <button class="primary wide" id="g-no">Mejor no</button>
+    <button class="link" id="g-yes" ${over ? 'disabled style="opacity:.4"' : ''}>Abrir ${esc(app.nombre)} ${min} min</button>`;
+  $('#g-min').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return; min = +c.dataset.m;
+    $('#g-min').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+    $('#g-yes').textContent = `Abrir ${app.nombre} ${min} min`;
+  });
+  let modo = 'hablar';
+  $('#g-modo').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return; modo = c.dataset.m;
+    $('#g-modo').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+    $('#g-modo-note').textContent = modo === 'mirar' ? 'Mirar sin interactuar es el uso que más se asocia a envidia y peor ánimo (Verduyn et al., 2015). ¿Y si le escribes a alguien en vez de mirar su perfil?' : '';
+  });
+  $('#g-phrase')?.addEventListener('input', e => {
+    const ok = e.target.value.trim().toLowerCase() === FRASE.toLowerCase();
+    $('#g-yes').disabled = !ok; $('#g-yes').style.opacity = ok ? '' : '.4';
+  });
+  $('#g-no').onclick = () => gateNo();
+  $('#g-yes').onclick = () => {
+    bump('aperturas'); if (gate.emo) bump('emo_' + gate.emo); ES.salida = { app: app.nombre, en: Date.now(), min, modo }; guardar();
+    closeGate(); renderE();
+    salidaOculta = false;
+    // Con «noopener» window.open siempre devuelve null, así que se corta el vínculo a mano.
+    const w = window.open(app.url, '_blank');
+    if (w) w.opener = null; else location.href = app.url;
+  };
+}
+function gateNo() {
+  if (gate?.emo) bump('emo_' + gate.emo);
+  bump('resistidas'); guardar(); closeGate(); renderE(); buzz(20);
+  alternativas('Bien. Ese tiempo es tuyo', 'Úsalo en algo que sume:');
+}
+function closeGate() { if (gate) { clearInterval(gate.tick); clearInterval(gate.breath); } gate = null; $('#gate').hidden = true; }
+
+// Al volver de la distracción se cuenta cuánto duró de verdad.
+let salidaOculta = false;
+function checkSalida(force = false) {
+  const s = ES.salida; if (!s || (!salidaOculta && !force)) return;
+  const mins = (Date.now() - s.en) / 60000;
+  if (mins < .5 && !force) return;
+  ES.salida = null;
+  const k = dayKey(new Date(s.en));
+  const medido = mins <= 240;
+  const real = medido ? Math.max(1, Math.round(mins)) : s.min;
+  bump('distraccion', real, k); guardar(); renderE();
+  const extra = real - s.min;
+  showSheet(`<h2>Volviste de ${esc(s.app)}</h2>
+    <p class="note">${medido ? `Estuviste fuera unos ${fmtMin(real)}; planeaste ${fmtMin(s.min)}.` : 'No se pudo medir: pasaron más de 4 horas. Se cuentan los minutos que planeaste.'}</p>
+    ${medido && extra > 1 ? `<p class="meta red">Te pasaste ${fmtMin(extra)}. La próxima espera será de ${fmtSec(gateWait())}.</p>` : medido ? `<p class="meta green">Cumpliste lo que planeaste.</p>` : ''}
+    <h3 style="margin-top:20px">Prueba de realidad</h3>
+    <p style="margin:0 0 12px">¿Había algo que de verdad te habrías perdido?</p>
+    <div class="chips"><button class="chip" data-fomo="si">Sí, algo importante</button><button class="chip" data-fomo="no">No, nada importante</button></div>
+    <div id="sv-after"></div>`);
+  $('#sheet-body').querySelectorAll('[data-fomo]').forEach(b => b.onclick = () => {
+    bump(b.dataset.fomo === 'si' ? 'fomoSi' : 'fomoNo', 1, k); guardar(); renderE();
+    const all = Object.values(ES.dias), si = all.reduce((a, v) => a + (v.fomoSi || 0), 0), tot = si + all.reduce((a, v) => a + (v.fomoNo || 0), 0);
+    $('#sheet-body').querySelector('.chips').outerHTML = `<p class="meta">Hasta ahora, en <b style="color:var(--text)">${tot - si} de ${tot}</b> aperturas no había nada importante. El miedo a perderse algo es una predicción; tus datos dicen otra cosa.</p>`;
+    $('#sv-after').innerHTML = `<div class="actions stack">
+      ${personasDue()[0] ? `<button class="primary" id="sv-per">Escríbele a ${esc(personasDue()[0].nombre)}</button>` : ''}
+      <button class="${personasDue()[0] ? 'outline' : 'primary'}" id="sv-focus">Ahora, una sesión de enfoque</button>
+      <button class="link" id="sv-close">Cerrar</button></div>`;
+    $('#sv-per')?.addEventListener('click', () => personaSheet(personasDue()[0]));
+    $('#sv-focus').onclick = () => focusForm();
+    $('#sv-close').onclick = closeSheet;
+  });
+}
+
+// ---------- Prioridades del día: tres como máximo y la más difícil primero.
+function renderPrio() {
+  const P = ES.prioridades.fecha === today() ? ES.prioridades : (ES.prioridades = { fecha: today(), items: [] });
+  const done = P.items.filter(x => x.hecho).length;
+  $('#prio').innerHTML = P.items.length ? `<div class="rows">${P.items.map((x, i) => `<div class="row" style="${x.hecho ? 'opacity:.5' : ''}">
+      <button class="box" data-pchk="${esc(x.id)}" aria-label="Hecha" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></button>
+      <button class="t" data-pgo="${esc(x.id)}" style="text-align:left"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div><small>${i === 0 ? 'La rana: primero, antes que todo' : x.origen || 'Prioridad'}</small></button>
+      <span class="tag" style="font-weight:600;color:${i === 0 ? 'var(--red)' : 'var(--muted)'}">${i + 1}</span></div>`).join('')}</div>
+    <p class="more">${done} de ${P.items.length} hechas · <button class="link" id="prio-edit">Cambiar</button></p>`
+    : `<button class="row" id="prio-edit" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--red)"></span><span class="t"><div>Elige tus prioridades de hoy</div><small>Tres como máximo. La más difícil va primero.</small></span><span class="tag">›</span></button>`;
+}
+$('#prio').addEventListener('click', e => {
+  const P = ES.prioridades;
+  const chk = e.target.closest('[data-pchk]'), go = e.target.closest('[data-pgo]');
+  if (e.target.closest('#prio-edit')) return prioForm();
+  if (chk) {
+    const x = P.items.find(i => i.id === chk.dataset.pchk); x.hecho = !x.hecho;
+    if (x.hecho) bump('iniciativas'); else bump('iniciativas', -1);
+    guardar(); renderE();
+    if (x.hecho) { buzz(30); const pr = ES.proyectos.find(p => p.id === x.pro); if (pr && pr.paso === x.t) pasoHecho(pr); else toast(P.items.every(i => i.hecho) ? 'Prioridades cumplidas. Lo demás es extra.' : 'Hecha. Sigue con la siguiente.'); }
+  }
+  if (go) { const x = P.items.find(i => i.id === go.dataset.pgo); if (x.per) personaSheet(ES.personas.find(p => p.id === x.per)); else focusForm(x.t, 25, x.pro || ''); }
+});
+function prioCandidatos() {
+  const out = [], ht = pendientes(), t = today();
+  for (const pr of proyectosActivos().filter(p => p.paso)) out.push({ t: pr.paso, origen: `${pr.nombre} · prioridad ${PRIO[pr.prioridad].toLowerCase()}`, pro: pr.id });
+  for (const x of ht?.due || []) out.push({ t: x.titulo, origen: x.fecha < t ? 'Tarea vencida' : 'Tarea de hoy' });
+  for (const p of personasDue().slice(0, 3)) out.push({ t: `Escribirle a ${p.nombre}`, origen: 'Iniciativa', per: p.id });
+  for (const pl of planesProximos().filter(pl => pl.fecha === t)) out.push({ t: `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, origen: 'Plan de hoy' });
+  for (const h of (ht?.habits || []).slice(0, 3)) out.push({ t: h.nombre, origen: 'Hábito' });
+  for (const x of (ht?.sinFecha || []).slice(0, 4)) out.push({ t: x.titulo, origen: 'Tarea' });
+  return out;
+}
+function prioForm() {
+  const P = ES.prioridades, cands = prioCandidatos().filter(c => !P.items.some(x => x.t === c.t));
+  showSheet(`<h2>Prioridades de hoy</h2>
+    <p class="sci">Tendemos a elegir lo urgente aunque lo importante valga más (Zhu, Yang y Hsee, 2018). Elige lo que de verdad mueve tus proyectos y relaciones, y pon primero lo más difícil: empezar por ahí aumenta la sensación de capacidad (Habbert y Schroeder, 2020).</p>
+    <div class="rows" id="pf-list">${P.items.map((x, i) => `<div class="row"><span class="tag" style="font-weight:600;width:14px">${i + 1}</span><span class="t"><div>${esc(x.t)}</div><small>${esc(x.origen || '')}</small></span>
+      ${i ? `<button class="link" data-up="${i}" aria-label="Subir">↑</button>` : ''}<button class="x" data-del="${i}" aria-label="Quitar">×</button></div>`).join('')}</div>
+    ${P.items.length < 3 ? `
+      <div class="field" style="margin-top:14px"><label>Añadir (${P.items.length} de 3)</label>
+        <div style="display:flex;gap:10px"><input id="pf-t" maxlength="100" placeholder="Lo más importante de hoy"><button class="link" id="pf-add">Añadir</button></div></div>
+      ${cands.length ? `<p class="meta" style="margin:4px 0 6px">Sugerencias</p><div class="rows">${cands.slice(0, 8).map((c, i) => `<button class="row" data-c="${i}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(c.t)}</div><small>${esc(c.origen)}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}` : `<p class="meta" style="margin-top:12px">Tres es el máximo: si todo es prioridad, nada lo es.</p>`}
+    <div class="actions"><button class="primary" id="pf-ok">Listo</button></div>`);
+  const add = c => { if (P.items.length >= 3) return; P.items.push({ id: crypto.randomUUID(), hecho: false, ...c }); guardar(); renderPrio(); prioForm(); };
+  $('#sheet-body').querySelectorAll('[data-c]').forEach(b => b.onclick = () => add(cands[+b.dataset.c]));
+  $('#pf-add')?.addEventListener('click', () => { const t = $('#pf-t').value.trim(); if (t) add({ t, origen: 'Prioridad' }); else $('#pf-t').focus(); });
+  $('#pf-t')?.addEventListener('keydown', e => { if (e.key === 'Enter') $('#pf-add').click(); });
+  $('#sheet-body').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { P.items.splice(+b.dataset.del, 1); guardar(); renderPrio(); prioForm(); });
+  $('#sheet-body').querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [P.items[i - 1], P.items[i]] = [P.items[i], P.items[i - 1]]; guardar(); renderPrio(); prioForm(); });
+  $('#pf-ok').onclick = () => { closeSheet(); renderE(); };
+}
+
+// ---------- Tomar la iniciativa: personas, planes y proyectos
+const daysSince = d => d ? Math.round((new Date(today() + 'T12:00') - new Date(d + 'T12:00')) / 864e5) : Infinity;
+const fmtDias = n => n === Infinity ? 'sin registro' : n === 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`;
+const addMin = (hhmm, m) => { const t = (toMin(hhmm) + m) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const fechaLarga = f => new Date(f + 'T12:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+// A quién le toca: cuanto más se pasó de la frecuencia que elegiste, antes sale.
+function personasDue() {
+  return ES.personas.map(p => ({ p, r: daysSince(p.ultimo) / p.cada })).filter(x => x.r >= 1).sort((a, b) => b.r - a.r).map(x => x.p);
+}
+const ultimoPaso = pr => pr.pasos.length ? pr.pasos[pr.pasos.length - 1].d : pr.creado;
+const proyectosActivos = () => ES.proyectos.filter(p => !p.archivado).sort((a, b) => a.prioridad - b.prioridad || (ultimoPaso(a) < ultimoPaso(b) ? -1 : ultimoPaso(a) > ultimoPaso(b) ? 1 : 0));
+const PRIO = { 1: 'Alta', 2: 'Media', 3: 'Baja' };
+const planesProximos = () => ES.planes.filter(p => !p.hecho && p.fecha >= today()).sort((a, b) => (a.fecha + a.hora) < (b.fecha + b.hora) ? -1 : 1);
+const planesSinCerrar = () => ES.planes.filter(p => !p.hecho && p.fecha < today());
+// Semana de lunes a hoy.
+const semanaKeys = () => { const back = wd(today()); return Array.from({ length: back + 1 }, (_, i) => dayKey(addDays(new Date(), i - back))); };
+const iniciativasSemana = () => semanaKeys().reduce((a, k) => a + dayOf(k).iniciativas, 0);
+// Predicción frente a resultado: cuánto más pesimista eres que la realidad.
+function sesgo() {
+  const xs = ES.predicciones.filter(x => x.real); if (!xs.length) return null;
+  return { n: xs.length, d: xs.reduce((a, x) => a + x.real - x.pred, 0) / xs.length };
+}
+const sesgoTxt = b => b && b.n >= 1 ? (b.d > 0.2 ? `Tus predicciones fueron, de media, <b>${b.d.toFixed(1).replace('.', ',')} puntos más pesimistas</b> que la realidad (${b.n} ${b.n === 1 ? 'contacto' : 'contactos'}).` : b.d < -0.2 ? `La realidad fue ${(-b.d).toFixed(1).replace('.', ',')} puntos peor de lo que esperabas (${b.n}). Sigue: la media se ajusta con más contactos.` : `Tus predicciones aciertan con la realidad (${b.n}).`) : '';
+
+function renderIni() {
+  const due = personasDue(), prs = proyectosActivos(), prox = planesProximos(), cerrar = planesSinCerrar();
+  const n = iniciativasSemana(), meta = ES.metaSemanal, rows = [];
+  for (const pl of cerrar.slice(0, 1)) rows.push(`<button class="row" data-plan="${esc(pl.id)}"><span class="dot" style="--c:var(--amber)"></span>
+    <span class="t"><div>¿Se hizo «${esc(cap(pl.titulo))}»?</div><small>${fmtFecha(pl.fecha)}${pl.con ? ' · con ' + esc(pl.con) : ''}</small></span><span class="tag">Cerrar</span></button>`);
+  for (const p of ES.personas.filter(p => p.pred?.enviado).slice(0, 1)) rows.push(`<button class="row" data-per="${esc(p.id)}"><span class="dot" style="--c:var(--amber)"></span>
+    <span class="t"><div>¿Cómo respondió ${esc(p.nombre)}?</div><small>Compara con lo que predijiste</small></span><span class="tag">Resultado</span></button>`);
+  for (const p of due.filter(p => !p.pred?.enviado).slice(0, 2)) rows.push(`<button class="row" data-per="${esc(p.id)}"><span class="dot" style="--c:var(--green)"></span>
+    <span class="t"><div>Escríbele a ${esc(p.nombre)}</div><small>Último contacto: ${fmtDias(daysSince(p.ultimo))}</small></span><span class="tag">Contacto</span></button>`);
+  for (const pr of prs.slice(0, 2)) {
+    const d = daysSince(ultimoPaso(pr));
+    rows.push(`<button class="row" data-pro="${esc(pr.id)}"><span class="dot" style="--c:var(--accent)"></span>
+      <span class="t"><div>${esc(pr.paso || 'Define el siguiente paso')}</div><small>${esc(pr.nombre)}${pr.cuando ? ` · ${fmtFecha(pr.cuando)}${pr.hora ? ' ' + fmtHora(pr.hora) : ''}` : ''}${d >= 7 ? ` · <span class="amber">sin avanzar ${fmtDias(d)}</span>` : ''}</small></span><span class="tag">${pr.prioridad === 1 ? 'Prioridad alta' : 'Proyecto'}</span></button>`);
+  }
+  const mi = misionHoy(), hecha = ES.misiones.some(x => x.d === today());
+  rows.push(`<button class="row" data-man="mision"><span class="dot" style="--c:${hecha ? 'var(--empty)' : 'var(--green)'}"></span>
+    <span class="t"><div style="${hecha ? 'text-decoration:line-through;color:var(--muted)' : ''}">${esc(mi.t)}</div><small>${reto7Dia() ? `Reto de desconocidos · día ${reto7Dia()} de 7` : 'Misión social de hoy'}</small></span><span class="tag">${hecha ? 'Hecha' : 'Misión'}</span></button>`);
+  const L = laboralSemana(), lh = L.items.filter(x => x.hecho).length;
+  rows.push(`<button class="row" data-man="laboral"><span class="dot" style="--c:var(--text)"></span>
+    <span class="t"><div>Iniciativa laboral de la semana</div><small>Una propuesta, una reunión, un problema anticipado</small></span><span class="tag">${lh} de 3</span></button>`);
+  for (const pl of prox.slice(0, 2)) rows.push(`<button class="row" data-plan="${esc(pl.id)}"><span class="dot" style="--c:var(--muted)"></span>
+    <span class="t"><div>${esc(cap(pl.titulo))}${pl.con ? ' con ' + esc(pl.con) : ''}</div><small>${fmtFecha(pl.fecha)} · ${fmtHora(pl.hora)}</small></span><span class="tag">Plan</span></button>`);
+  const hoyD = new Date(), nuevo = (wd(today()) === 0 || hoyD.getDate() === 1) && ES.revision !== today();
+  const revisionRow = nuevo || wd(today()) === 6 ? `<button class="row" data-man="revision"><span class="dot" style="--c:var(--accent)"></span>
+    <span class="t"><div>${nuevo ? 'Nuevo comienzo: revisión semanal' : 'Revisión semanal'}</div><small>10 minutos: logros, siguientes pasos y bloques de la semana</small></span><span class="tag">${hoyD.getDate() === 1 ? 'Mes nuevo' : wd(today()) === 0 ? 'Lunes' : 'Domingo'}</span></button>` : '';
+  if (revisionRow) rows.unshift(revisionRow);
+  $('#ini').innerHTML = `
+    <div class="meter"><span>Iniciativas esta semana</span><b>${n} de ${meta}</b></div>
+    <div class="meter-bar"><i style="width:${Math.min(100, n / meta * 100)}%"></i></div>
+    ${rows.length ? `<div class="rows">${rows.join('')}</div>` : `<p class="empty">Añade a las personas con las que quieres mantener el contacto y tus proyectos. Aquí aparecerá, cada día, a quién escribir y el siguiente paso de cada proyecto.</p>`}
+    <p class="more"><button class="link" data-man="revision">Revisión semanal</button> · <button class="link" data-man="personas">Personas (${ES.personas.length})</button> · <button class="link" data-man="proyectos">Proyectos (${prs.length})</button> · <button class="link" data-man="plan">Proponer un plan</button></p>`;
+}
+$('#ini').addEventListener('click', e => {
+  const b = e.target.closest('[data-per],[data-pro],[data-plan],[data-man]'); if (!b) return;
+  if (b.dataset.per) personaSheet(ES.personas.find(p => p.id === b.dataset.per));
+  if (b.dataset.pro) proyectoSheet(ES.proyectos.find(p => p.id === b.dataset.pro));
+  if (b.dataset.plan) planSheet(ES.planes.find(p => p.id === b.dataset.plan));
+  if (b.dataset.man === 'personas') personasManager();
+  if (b.dataset.man === 'proyectos') proyectosManager();
+  if (b.dataset.man === 'plan') planForm();
+  if (b.dataset.man === 'revision') revisionSemanal();
+  if (b.dataset.man === 'mision') misionSheet();
+  if (b.dataset.man === 'laboral') laboralSheet();
+});
+
+// Personas
+function registrar(p, tipo) {
+  const t = today(), repetido = p.historial.some(h => h.d === t && h.tipo === tipo);
+  p.ultimo = t;
+  if (p.pred && !p.pred.enviado) p.pred.enviado = true;
+  if (!repetido) { p.historial.push({ d: t, tipo }); p.historial = p.historial.slice(-30); bump('iniciativas'); }
+  guardar(); renderE();
+}
+function personasManager() {
+  const list = [...ES.personas].sort((a, b) => daysSince(b.ultimo) / b.cada - daysSince(a.ultimo) / a.cada);
+  showSheet(`<h2>Personas</h2>
+    <p class="sci">Las personas a las que escribes valoran tu mensaje más de lo que crees, sobre todo si es inesperado (Liu et al., 2023). Elige con quién quieres mantener el contacto y en qué círculo está.</p>
+    ${sesgo() ? `<p class="meta">${sesgoTxt(sesgo())}</p>` : ''}
+    <div class="rows">${list.map(p => `<button class="row" data-p="${esc(p.id)}"><span class="dot" style="--c:${daysSince(p.ultimo) >= p.cada ? 'var(--green)' : 'var(--empty)'}"></span>
+      <span class="t"><div>${esc(p.nombre)}</div><small>${CADA[p.cada] || ''} · último contacto ${fmtDias(daysSince(p.ultimo))}${p.horas ? ' · ' + fmtHoras(p.horas) + ' juntos' : ''}</small></span></button>`).join('')}</div>
+    ${list.length ? '' : '<p class="empty">Aún no hay nadie.</p>'}
+    <div class="actions"><button class="link" id="pm-close">Cerrar</button><button class="primary" id="pm-add">Añadir persona</button></div>`);
+  $('#sheet-body').querySelectorAll('[data-p]').forEach(b => b.onclick = () => personaSheet(ES.personas.find(p => p.id === b.dataset.p)));
+  $('#pm-add').onclick = () => personaForm();
+  $('#pm-close').onclick = closeSheet;
+}
+function personaForm(p = null) {
+  showSheet(`<h2>${p ? 'Editar' : 'Añadir'} persona</h2>
+    <div class="field"><label>Nombre</label><input id="pf-n" maxlength="40" value="${esc(p?.nombre)}" placeholder="Ana"></div>
+    <div class="field"><label>Teléfono con código de país (opcional)</label><input id="pf-t" inputmode="tel" value="${esc(p?.tel)}" placeholder="58 412 1234567"></div>
+    <div class="field"><label>Círculo y frecuencia de contacto</label><select id="pf-c">${Object.entries(CADA).map(([k, v]) => `<option value="${k}" ${+k === (p?.cada || 30) ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="actions">${p ? '<button class="link red" id="pf-del">Eliminar</button>' : ''}<button class="link" id="pf-cancel">Cancelar</button><button class="primary" id="pf-ok">Guardar</button></div>`);
+  $('#pf-n').focus();
+  $('#pf-cancel').onclick = () => p ? personaSheet(p) : personasManager();
+  $('#pf-del')?.addEventListener('click', () => { forget(p.id); ES.personas = ES.personas.filter(x => x !== p); guardar(); renderE(); personasManager(); });
+  $('#pf-ok').onclick = () => {
+    const nombre = $('#pf-n').value.trim(); if (!nombre) { $('#pf-n').focus(); return; }
+    const data = { nombre, tel: $('#pf-t').value.trim(), cada: +$('#pf-c').value };
+    if (p) Object.assign(p, data); else ES.personas.push(p = { id: crypto.randomUUID(), ultimo: '', historial: [], ...data });
+    guardar(); renderE(); personaSheet(p);
+  };
+}
+function personaSheet(p) {
+  if (!p) return;
+  const tel = p.tel.replace(/\D/g, '');
+  if (p.pred?.enviado) {
+    showSheet(`<h2>¿Cómo respondió ${esc(p.nombre)}?</h2>
+      <p class="note">Predijiste que lo valoraría un ${p.pred.v} de 7. ¿Cuánto lo valoró de verdad?</p>
+      <div class="chips" id="pr-real">${[1, 2, 3, 4, 5, 6, 7].map(n => `<button class="chip" data-v="${n}">${n}</button>`).join('')}</div>
+      <p class="meta" style="margin-top:8px">1 = nada · 7 = muchísimo</p>
+      <div class="actions"><button class="link" id="pr-skip">Aún no respondió</button></div>`);
+    $('#pr-real').addEventListener('click', e => {
+      const c = e.target.closest('.chip'); if (!c) return;
+      ES.predicciones.push({ id: crypto.randomUUID(), d: today(), quien: p.nombre, pred: p.pred.v, real: +c.dataset.v }); ES.predicciones = ES.predicciones.slice(-200);
+      delete p.pred; guardar(); renderE();
+      showSheet(`<h2>Anotado</h2><p class="note">${sesgoTxt(sesgo())}</p>
+        <p class="sci">Corregir las predicciones pesimistas sobre los demás es lo que mejor funciona contra la soledad (Masi et al., 2011).</p>
+        <div class="actions"><button class="primary" id="pr-ok">Listo</button></div>`);
+      $('#pr-ok').onclick = closeSheet;
+    });
+    $('#pr-skip').onclick = () => { delete p.pred; guardar(); renderE(); personaSheet(p); };
+    return;
+  }
+  showSheet(`<h2>${esc(p.nombre)}</h2>
+    <p class="note">Último contacto: ${fmtDias(daysSince(p.ultimo))} · ${CADA[p.cada] || ''}.</p>
+    <p class="sci">Quien recibe un mensaje inesperado lo valora más de lo que predice quien lo envía (Liu et al., 2023), y agradecer causa más alegría de la que imaginamos (Kumar y Epley, 2018).</p>
+    <div class="field"><label>Mensaje</label><div class="chips" id="pe-tpl" style="margin-bottom:8px">${Object.keys(PLANTILLAS).map((k, i) => `<button class="chip${i ? '' : ' on'}" data-t="${k}">${k}</button>`).join('')}</div>
+      <textarea id="pe-txt" style="min-height:84px">${esc(PLANTILLAS.Saludo(p.nombre))}</textarea></div>
+    <div class="field"><label>Antes de enviarlo: ¿cuánto crees que lo valorará? (1–7)</label>
+      <div class="chips" id="pe-pred">${[1, 2, 3, 4, 5, 6, 7].map(n => `<button class="chip${p.pred?.v === n ? ' on' : ''}" data-v="${n}">${n}</button>`).join('')}</div></div>
+    <div class="actions stack" style="margin-top:0">
+      <a class="primary btn" href="#" target="_blank" rel="noopener" id="pe-wa">Enviar por WhatsApp</a>
+      ${tel ? `<a class="outline btn" href="tel:+${tel}" data-log="Llamada">Llamar</a>` : ''}
+      <button class="outline" id="pe-plan">Proponer un plan</button>
+    </div>
+    <div class="field" style="margin-top:22px"><label>Registrar lo que hiciste</label><div class="chips">${TIPOS.map(t => `<button class="chip" data-reg="${t}">${t}</button>`).join('')}</div></div>
+    <div class="field"><label>Tiempo juntos: ${fmtHoras(p.horas)} ${horasMeta(p.horas)}</label><div class="chips" id="pe-h">${[0.5, 1, 2, 3].map(h => `<button class="chip" data-h="${h}">+${String(h).replace('.', ',')} h</button>`).join('')}</div></div>
+    ${p.historial.length ? `<p class="meta">${p.historial.slice(-4).reverse().map(h => `${esc(h.tipo)} · ${fmtFecha(h.d)}`).join('<br>')}</p>` : ''}
+    <div class="actions"><button class="link" id="pe-edit">Editar</button><button class="link" id="pe-all">Todas las personas</button></div>`);
+  const body = $('#sheet-body');
+  let tipo = 'Saludo';
+  const wa = () => { $('#pe-wa').href = `https://wa.me/${tel}?text=${encodeURIComponent($('#pe-txt').value)}`; };
+  wa(); $('#pe-txt').addEventListener('input', wa);
+  $('#pe-tpl').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return; tipo = c.dataset.t;
+    $('#pe-tpl').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+    $('#pe-txt').value = PLANTILLAS[tipo](p.nombre); wa();
+  });
+  $('#pe-pred').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    p.pred = { v: +c.dataset.v, d: today(), enviado: false }; guardar();
+    $('#pe-pred').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+  });
+  $('#pe-wa').addEventListener('click', () => { registrar(p, tipo === 'Gracias' ? 'Gracias' : tipo === 'Plan' ? 'Plan' : 'Mensaje'); toast('Registrado. Bien por escribir primero.'); });
+  body.querySelectorAll('[data-log]').forEach(a => a.addEventListener('click', () => { registrar(p, a.dataset.log); toast('Registrado. Bien por tomar la iniciativa.'); }));
+  body.querySelectorAll('[data-reg]').forEach(b => b.onclick = () => { registrar(p, b.dataset.reg); closeSheet(); buzz(20); toast(`${b.dataset.reg} con ${p.nombre}: registrado.`); });
+  $('#pe-plan').onclick = () => planForm(p.nombre);
+  $('#pe-h').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; p.horas = (+p.horas || 0) + +c.dataset.h; p.ultimo = today(); guardar(); renderE(); personaSheet(p); toast('Tiempo juntos registrado.'); });
+  $('#pe-edit').onclick = () => personaForm(p);
+  $('#pe-all').onclick = personasManager;
+}
+
+// Planes
+function planForm(con = '') {
+  const man = dayKey(addDays(new Date(), 1));
+  showSheet(`<h2>Proponer un plan</h2>
+    <p class="sci">Predecimos que hablar con otros será más incómodo y menos agradable de lo que resulta (Epley y Schroeder, 2014). Quien propone día y hora es quien hace que el plan ocurra.</p>
+    <div class="field"><label>¿Qué?</label><input id="pl-t" maxlength="60" placeholder="tomar un café">
+      <div class="chips" style="margin-top:10px" id="pl-ideas">${PLAN_IDEAS.map(i => `<button class="chip" data-i="${esc(i)}">${esc(cap(i))}</button>`).join('')}</div></div>
+    <div class="field"><label>¿Con quién?</label><input id="pl-c" maxlength="40" value="${esc(con)}" list="pl-people" placeholder="Nombre">
+      <datalist id="pl-people">${ES.personas.map(p => `<option value="${esc(p.nombre)}">`).join('')}</datalist></div>
+    <div class="times"><div class="field"><label>Fecha</label><input id="pl-f" type="date" value="${man}" min="${today()}"></div>
+      <div class="field"><label>Hora</label><input id="pl-h" type="time" value="18:00"></div></div>
+    <div class="actions"><button class="link" id="pl-cancel">Cancelar</button><button class="primary" id="pl-ok">Guardar plan</button></div>`);
+  $('#pl-ideas').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) $('#pl-t').value = c.dataset.i; });
+  $('#pl-cancel').onclick = closeSheet;
+  $('#pl-ok').onclick = () => {
+    const titulo = $('#pl-t').value.trim(), fecha = $('#pl-f').value, hora = $('#pl-h').value || '18:00';
+    if (!titulo) { $('#pl-t').focus(); return; }
+    if (!fecha) { $('#pl-f').focus(); return; }
+    const pl = { id: crypto.randomUUID(), titulo, con: $('#pl-c').value.trim(), fecha, hora, hecho: false };
+    ES.planes.push(pl);
+    const per = ES.personas.find(p => p.nombre.toLowerCase() === pl.con.toLowerCase());
+    if (per) registrar(per, 'Plan'); else { bump('iniciativas'); guardar(); renderE(); }
+    planSheet(pl, true);
+  };
+}
+function planSheet(pl, nuevo = false) {
+  if (!pl) return;
+  const per = ES.personas.find(p => p.nombre.toLowerCase() === (pl.con || '').toLowerCase());
+  const tel = per?.tel.replace(/\D/g, '') || '';
+  const texto = `Hola${pl.con ? `, ${pl.con}` : ''}. ¿Te animas a ${pl.titulo} el ${fechaLarga(pl.fecha)} a las ${fmtHora(pl.hora)}?`;
+  const ini = pl.fecha.replaceAll('-', '') + 'T' + pl.hora.replace(':', '') + '00';
+  const finD = new Date(`${pl.fecha}T${pl.hora}`); finD.setHours(finD.getHours() + 1);
+  const fin = dayKey(finD).replaceAll('-', '') + 'T' + String(finD.getHours()).padStart(2, '0') + String(finD.getMinutes()).padStart(2, '0') + '00';
+  const cal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(cap(pl.titulo) + (pl.con ? ' con ' + pl.con : ''))}&dates=${ini}/${fin}`;
+  const pasado = pl.fecha < today();
+  showSheet(`<h2>${esc(cap(pl.titulo))}${pl.con ? ' con ' + esc(pl.con) : ''}</h2>
+    <p class="note">${cap(fechaLarga(pl.fecha))} · ${fmtHora(pl.hora)}${nuevo ? '. Ahora, envía la invitación y apártalo en el calendario.' : ''}</p>
+    ${pasado ? `<p style="margin:0 0 12px">¿Se hizo?</p><div class="chips"><button class="chip" data-done="si">Sí</button><button class="chip" data-done="no">No, se canceló</button></div>` : `
+    <div class="actions stack" style="margin-top:0">
+      <a class="primary btn" href="https://wa.me/${tel}?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">Enviar invitación por WhatsApp</a>
+      <a class="outline btn" href="${cal}" target="_blank" rel="noopener">Añadir a Google Calendar</a>
+    </div>
+    <h3>Para la conversación</h3>
+    <ul class="pros">${[...PREGUNTAS].sort(() => Math.random() - .5).slice(0, 2).map(q => `<li>${esc(q)}</li>`).join('')}${[...PREGUNTAS_ARON].sort(() => Math.random() - .5).slice(0, 1).map(q => `<li>${esc(q)} <span class="meta">(Aron et al., 1997)</span></li>`).join('')}</ul>
+    <p class="meta">Pasa pronto de lo superficial a lo profundo: resulta menos incómodo de lo que crees (Kardas et al., 2022). Haz preguntas de seguimiento y, ante una buena noticia, responde con entusiasmo y pregunta más (Gable et al., 2004).</p>`}
+    <div class="actions"><button class="link red" id="ps-del">Eliminar</button><button class="link" id="ps-close">Cerrar</button></div>`);
+  $('#sheet-body').querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
+    pl.hecho = true; pl.resultado = b.dataset.done; guardar(); renderE();
+    showSheet(b.dataset.done === 'si'
+      ? `<h2>Plan cumplido</h2><p class="note">Probablemente le caíste mejor de lo que piensas: después de conversar, casi todos subestimamos cuánto le gustamos a la otra persona (Boothby et al., 2018).</p>
+        <div class="actions stack"><button class="primary" id="pd-next">Proponer el siguiente encuentro</button><button class="link" id="pd-close">Cerrar</button></div>`
+      : `<h2>Se canceló</h2><p class="note">Pasa. Lo que cuenta es volver a proponerlo, con día y hora.</p>
+        <div class="actions stack"><button class="primary" id="pd-next">Proponer otra fecha</button><button class="link" id="pd-close">Cerrar</button></div>`);
+    $('#pd-next').onclick = () => planForm(pl.con);
+    $('#pd-close').onclick = closeSheet;
+  });
+  $('#ps-del').onclick = () => { forget(pl.id); ES.planes = ES.planes.filter(x => x !== pl); guardar(); renderE(); closeSheet(); };
+  $('#ps-close').onclick = closeSheet;
+}
+
+// Proyectos: WOOP (deseo, resultado, obstáculo, plan si-entonces) y un siguiente paso siempre visible.
+function proyectosManager() {
+  const list = proyectosActivos(), arch = ES.proyectos.filter(p => p.archivado);
+  showSheet(`<h2>Proyectos</h2>
+    <p class="sci">Cada proyecto vive de su siguiente paso: una acción física de menos de 25 minutos. Registrar los avances pequeños es lo que más sostiene la motivación (Amabile y Kramer, 2011).</p>
+    <div class="rows">${list.map(p => { const d = daysSince(ultimoPaso(p)); return `<button class="row" data-p="${esc(p.id)}"><span class="dot" style="--c:${d >= 7 ? 'var(--amber)' : 'var(--accent)'}"></span>
+      <span class="t"><div>${esc(p.nombre)}</div><small>Prioridad ${PRIO[p.prioridad].toLowerCase()} · ${esc(p.paso || 'Sin siguiente paso')} · ${p.pasos.length} ${p.pasos.length === 1 ? 'paso' : 'pasos'}</small></span></button>`; }).join('')}</div>
+    ${list.length ? '' : '<p class="empty">Aún no hay proyectos.</p>'}
+    ${arch.length ? `<p class="meta" style="margin-top:12px">Terminados o archivados: ${arch.map(p => esc(p.nombre)).join(', ')}</p>` : ''}
+    <div class="actions"><button class="link" id="prm-close">Cerrar</button><button class="primary" id="prm-add">Nuevo proyecto</button></div>`);
+  $('#sheet-body').querySelectorAll('[data-p]').forEach(b => b.onclick = () => proyectoSheet(ES.proyectos.find(p => p.id === b.dataset.p)));
+  $('#prm-add').onclick = () => proyectoForm();
+  $('#prm-close').onclick = closeSheet;
+}
+function proyectoForm(pr = null) {
+  showSheet(`<h2>${pr ? 'Editar proyecto' : 'Nuevo proyecto'}</h2>
+    <p class="sci">Método WOOP: imaginar el deseo y luego el obstáculo interno, con un plan «si…, entonces…», mejora el logro de metas más que solo visualizar el éxito (Oettingen; Gollwitzer y Sheeran, 2006).</p>
+    <div class="field"><label>Proyecto</label><input id="pr-n" maxlength="60" value="${esc(pr?.nombre)}" placeholder="Lanzar mi web"></div>
+    <div class="field"><label>Prioridad</label><div class="chips" id="pr-prio">${[1, 2, 3].map(n => `<button class="chip${n === (pr?.prioridad || 2) ? ' on' : ''}" data-v="${n}">${PRIO[n]}</button>`).join('')}</div></div>
+    <div class="field"><label>Deseo: ¿qué quieres lograr? (medible y con fecha)</label><input id="pr-d" maxlength="120" value="${esc(pr?.deseo)}" placeholder="Tener la web publicada antes del 15 de diciembre"></div>
+    <div class="field"><label>Resultado: ¿qué es lo mejor que pasaría?</label><input id="pr-r" maxlength="120" value="${esc(pr?.resultado)}" placeholder="Recibir los primeros clientes"></div>
+    <div class="field"><label>Obstáculo: ¿qué en ti podría frenarte?</label><input id="pr-o" maxlength="120" value="${esc(pr?.obstaculo)}" placeholder="Abrir Instagram cuando me trabo"></div>
+    <div class="field"><label>Plan: si aparece ese obstáculo, entonces…</label><input id="pr-p" maxlength="120" value="${esc(pr?.plan)}" placeholder="Escribo la siguiente frase durante 2 minutos"></div>
+    <div class="field"><label>Siguiente paso (acción física, menos de 25 min)</label><input id="pr-s" maxlength="100" value="${esc(pr?.paso)}" placeholder="Escribir el texto de la portada"></div>
+    ${pasoCampos(pr)}
+    <div class="field"><label>Recompensa ligada (solo mientras trabajas en esto)</label><input id="pr-rw" maxlength="80" value="${esc(pr?.recompensa)}" placeholder="Mi podcast favorito, un café especial"></div>
+    <div class="actions">${pr ? `<button class="link" id="pr-arch">${pr.archivado ? 'Reactivar' : 'Archivar'}</button>` : ''}<button class="link" id="pr-cancel">Cancelar</button><button class="primary" id="pr-ok">Guardar</button></div>`);
+  $('#pr-n').focus();
+  let prio = pr?.prioridad || 2;
+  $('#pr-prio').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; prio = +c.dataset.v; $('#pr-prio').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  $('#pr-cancel').onclick = () => pr ? proyectoSheet(pr) : proyectosManager();
+  $('#pr-arch')?.addEventListener('click', () => { pr.archivado = !pr.archivado; guardar(); renderE(); proyectosManager(); });
+  $('#pr-ok').onclick = () => {
+    const nombre = $('#pr-n').value.trim(); if (!nombre) { $('#pr-n').focus(); return; }
+    const data = { nombre, deseo: $('#pr-d').value.trim(), resultado: $('#pr-r').value.trim(), obstaculo: $('#pr-o').value.trim(), plan: $('#pr-p').value.trim(), paso: $('#pr-s').value.trim(), recompensa: $('#pr-rw').value.trim(), prioridad: prio, ...leerPaso() };
+    if (pr) Object.assign(pr, data); else ES.proyectos.push(pr = { id: crypto.randomUUID(), creado: today(), pasos: [], ...data });
+    guardar(); renderE(); proyectoSheet(pr);
+  };
+}
+function proyectoSheet(pr) {
+  if (!pr) return;
+  const d = daysSince(ultimoPaso(pr));
+  showSheet(`<h2>${esc(pr.nombre)}</h2>
+    <p class="meta" style="margin:0 0 8px">Prioridad ${PRIO[pr.prioridad].toLowerCase()}</p>
+    ${d >= 7 ? `<p class="meta amber">Sin avanzar ${fmtDias(d)}. Hoy basta con un paso pequeño.</p>` : ''}
+    <p class="meta" style="margin:0">Siguiente paso</p>
+    <p style="font-size:1.15rem;font-weight:500;margin:0 0 6px">${esc(pr.paso || 'Sin definir')}</p>
+    ${pr.paso && (pr.cuando || pr.donde) ? `<p class="meta" style="margin:0 0 6px">Si ${pr.cuando ? `es ${fechaLarga(pr.cuando)}${pr.hora ? ' a las ' + fmtHora(pr.hora) : ''}` : 'llega el momento'}${pr.donde ? ` en ${esc(pr.donde)}` : ''}, entonces: <b style="color:var(--text);font-weight:500">${esc(pr.paso)}</b>.</p>` : pr.paso ? `<p class="meta amber" style="margin:0 0 6px">Ponle día, hora y lugar: con fecha y hora concretas, el plan se cumple mucho más (Milkman et al., 2011).</p>` : ''}
+    ${pr.minima ? `<p class="meta" style="margin:0 0 6px">Versión de 2 minutos: ${esc(pr.minima)}</p>` : ''}
+    ${pr.nota ? `<p class="why" style="margin:8px 0">Lo dejaste en: ${esc(pr.nota)}</p>` : ''}
+    <div class="chain" style="display:flex;gap:4px;margin:10px 0 14px">${Array.from({ length: 14 }, (_, i) => dayKey(addDays(new Date(), i - 13))).map(k => `<i title="${k}" style="flex:1;height:8px;border-radius:2px;background:${pr.pasos.some(x => x.d === k) ? 'var(--accent)' : 'var(--empty)'}"></i>`).join('')}</div>
+    <dl class="woop">
+      ${pr.deseo ? `<dt>Deseo</dt><dd>${esc(pr.deseo)}</dd>` : ''}
+      ${pr.resultado ? `<dt>Resultado</dt><dd>${esc(pr.resultado)}</dd>` : ''}
+      ${pr.obstaculo ? `<dt>Obstáculo</dt><dd>${esc(pr.obstaculo)}</dd>` : ''}
+      ${pr.plan ? `<dt>Si aparece, entonces</dt><dd>${esc(pr.plan)}</dd>` : ''}
+    </dl>
+    <div class="actions stack">
+      ${pr.paso ? `<button class="primary" id="ps-focus">Hacerlo ahora · 25 min</button>
+        <a class="outline btn" target="_blank" rel="noopener" href="${calUrl(pr.paso + ' · ' + pr.nombre, pr.cuando || dayKey(addDays(new Date(), 1)), pr.hora || '09:00', 60, pr.donde)}">Agendar un bloque en Google Calendar</a>
+        <button class="outline" id="ps-done">Paso hecho</button>
+        <button class="link" id="ps-proc">Estoy procrastinando</button>` : `<button class="primary" id="ps-edit2">Definir el siguiente paso</button>`}
+    </div>
+    ${pr.pasos.length ? `<h3>Pequeñas victorias (${pr.pasos.length})</h3><p class="meta">${pr.pasos.slice(-5).reverse().map(x => `${esc(x.t)} · ${fmtFecha(x.d)}`).join('<br>')}</p>` : ''}
+    <div class="actions"><button class="link" id="ps-edit">Editar</button><button class="link" id="ps-all">Todos los proyectos</button></div>`);
+  $('#ps-focus')?.addEventListener('click', () => focusForm(pr.paso, 25, pr.id));
+  $('#ps-done')?.addEventListener('click', () => pasoHecho(pr));
+  $('#ps-proc')?.addEventListener('click', () => procrastinando(pr));
+  $('#ps-edit2')?.addEventListener('click', () => proyectoForm(pr));
+  $('#ps-edit').onclick = () => proyectoForm(pr);
+  $('#ps-all').onclick = proyectosManager;
+}
+function pasoHecho(pr) {
+  if (!pr) return;
+  showSheet(`<h2>Pequeña victoria</h2>
+    <p class="note">«${esc(pr.paso)}» queda hecho. Cada paso registrado cuenta como una iniciativa.</p>
+    <div class="field"><label>¿Cuál es el siguiente paso?</label><input id="ph-s" maxlength="100" placeholder="Una acción física de menos de 25 minutos"></div>
+    ${pasoCampos(null)}
+    <div class="actions"><button class="link" id="ph-cancel">Cancelar</button><button class="primary" id="ph-ok">Guardar</button></div>`);
+  $('#ph-s').focus();
+  $('#ph-cancel').onclick = () => proyectoSheet(pr);
+  $('#ph-ok').onclick = () => {
+    pr.pasos.push({ t: pr.paso, d: today() }); pr.pasos = pr.pasos.slice(-200);
+    pr.paso = $('#ph-s').value.trim(); Object.assign(pr, leerPaso()); pr.nota = '';
+    bump('pasos'); bump('iniciativas'); guardar(); renderE(); buzz([30, 60, 30]);
+    proyectoSheet(pr); toast('Avance registrado.');
+  };
+}
+
+// Día, hora y lugar del siguiente paso: el plan «si…, entonces…» con fecha y hora concretas.
+function pasoCampos(pr) {
+  return `<div class="times"><div class="field"><label>¿Qué día?</label><input id="pp-c" type="date" value="${esc(pr?.cuando)}"></div>
+      <div class="field"><label>¿A qué hora?</label><input id="pp-h" type="time" value="${esc(pr?.hora)}"></div></div>
+    <div class="field"><label>¿Dónde?</label><input id="pp-d" maxlength="60" value="${esc(pr?.donde)}" placeholder="En mi escritorio"></div>
+    <div class="field"><label>Versión de 2 minutos (para los días difíciles)</label><input id="pp-m" maxlength="100" value="${esc(pr?.minima)}" placeholder="Abrir el documento y escribir el título"></div>`;
+}
+const leerPaso = () => ({ cuando: $('#pp-c').value, hora: $('#pp-h').value, donde: $('#pp-d').value.trim(), minima: $('#pp-m').value.trim() });
+function calUrl(texto, fecha, hora, mins, lugar = '') {
+  const a = new Date(`${fecha}T${hora}`), b = new Date(a.getTime() + mins * 60000);
+  const f = d => dayKey(d).replaceAll('-', '') + 'T' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + '00';
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(texto)}&dates=${f(a)}/${f(b)}${lugar ? '&location=' + encodeURIComponent(lugar) : ''}`;
+}
+// «Estoy procrastinando»: nombrar la emoción, reformular el pensamiento y empezar por 2 minutos (TCC + autocompasión).
+const TRABAS = {
+  'Miedo a hacerlo mal': 'Cambia «tiene que quedar perfecto» por «solo un borrador feo». Lo feo se corrige; lo que no existe, no.',
+  'No sé por dónde empezar': 'Eso indica que el paso es demasiado grande. Escribe la acción física más pequeña: abrir el archivo, escribir un título.',
+  'Aburrimiento': 'Liga la tarea a algo que disfrutes solo mientras la haces (música, un café) y ponle un tope de 10 minutos.',
+  'Cansancio': 'Haz la versión de 2 minutos. Actuar según el plan, no según el ánimo, suele subir la energía al empezar.',
+  'Me siento abrumado': 'Elige una sola cosa. Todo lo demás puede esperar 10 minutos.',
+};
+function procrastinando(pr) {
+  showSheet(`<h2>Estoy procrastinando</h2>
+    <p class="note">Le pasa a todo el mundo. Perdonarte la última vez reduce la procrastinación en la siguiente (Wohl et al., 2010). ¿Qué sientes ahora?</p>
+    <div class="rows">${Object.keys(TRABAS).map(t => `<button class="row" data-t="${esc(t)}"><span class="box"></span><span class="t"><div>${esc(t)}</div></span></button>`).join('')}</div>
+    <div class="actions"><button class="link" id="pc-close">Cerrar</button></div>`);
+  $('#pc-close').onclick = () => proyectoSheet(pr);
+  $('#sheet-body').querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+    showSheet(`<h2>${esc(b.dataset.t)}</h2>
+      <p style="margin:0 0 14px">${esc(TRABAS[b.dataset.t])}</p>
+      <p class="sci">Las intervenciones basadas en terapia cognitivo-conductual son las que más reducen la procrastinación (Rozental et al., 2018; van Eerde y Klingsieck, 2018).</p>
+      <div class="field"><label>Lo más pequeño que puedes hacer ahora</label><input id="pc-min" maxlength="100" value="${esc(pr.minima || pr.paso)}"></div>
+      <div class="actions stack"><button class="primary" id="pc-go">Empezar 2 minutos</button><button class="link" id="pc-back">Volver</button></div>`);
+    $('#pc-go').onclick = () => { closeSheet(); startFocus($('#pc-min').value.trim() || pr.paso, 2, pr.id); };
+    $('#pc-back').onclick = () => procrastinando(pr);
+  });
+}
+// Revisión semanal: logros, proyectos sin siguiente paso y bloques para la semana. Los lunes y el día 1 se ofrece sola.
+function revisionSemanal() {
+  ES.revision = today(); guardar();
+  const ks = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), i - 6)));
+  const sum = f => ks.reduce((a, k) => a + dayOf(k)[f], 0);
+  const victorias = ES.proyectos.flatMap(p => p.pasos.filter(x => ks.includes(x.d)).map(x => ({ ...x, p: p.nombre })));
+  const prs = proyectosActivos(), sinPaso = prs.filter(p => !p.paso), sinFecha = prs.filter(p => p.paso && !p.cuando);
+  const reporte = `Mi semana: ${fmtMin(sum('enfoque'))} de enfoque, ${sum('iniciativas')} iniciativas, ${victorias.length} pasos en proyectos${victorias.length ? ` (${victorias.slice(-3).map(v => v.t).join('; ')})` : ''}. Esta semana me comprometo a: ${prs.filter(p => p.paso).slice(0, 3).map(p => p.paso).join('; ') || '…'}.`;
+  showSheet(`<h2>Revisión semanal</h2>
+    <p class="note">Los comienzos (un lunes, un mes nuevo) son buen momento para retomar metas (Dai et al., 2014). Diez minutos bastan.</p>
+    <h3 style="margin-top:8px">1. Lo que lograste</h3>
+    <p class="meta">${fmtMin(sum('enfoque'))} de enfoque · ${sum('iniciativas')} iniciativas · ${victorias.length} pasos · resististe ${sum('resistidas') + sum('alternativas')} veces</p>
+    ${victorias.length ? `<ul class="pros">${victorias.slice(-6).map(v => `<li>${esc(v.t)} <span class="meta">· ${esc(v.p)}</span></li>`).join('')}</ul>` : ''}
+    <h3>2. Siguientes pasos</h3>
+    ${sinPaso.length || sinFecha.length ? `<div class="rows">${[...sinPaso, ...sinFecha].map(p => `<button class="row" data-p="${esc(p.id)}"><span class="dot" style="--c:var(--amber)"></span><span class="t"><div>${esc(p.nombre)}</div><small>${p.paso ? 'Ponle día y hora' : 'Sin siguiente paso'}</small></span></button>`).join('')}</div>` : '<p class="meta">Cada proyecto tiene paso con día y hora.</p>'}
+    <h3>3. Prioridades</h3>
+    <p class="meta">Ordena tus proyectos por prioridad: solo uno o dos en «Alta». ${prs.filter(p => p.prioridad === 1).length > 2 ? '<span class="amber">Ahora tienes ' + prs.filter(p => p.prioridad === 1).length + ' en alta: elige.</span>' : ''}</p>
+    <h3>4. Personas</h3>
+    <p class="meta">${personasDue().length ? `Te toca escribir a ${personasDue().slice(0, 4).map(p => esc(p.nombre)).join(', ')}.` : 'Estás al día con tus círculos.'} Meta: ${ES.metaSemanal} iniciativas esta semana.</p>
+    <h3>5. Pacto de la semana</h3>
+    <p class="meta">Un compromiso previo, con consecuencia que tú eliges, hace más caro saltarse el límite (Bryan, Karlan y Nelson, 2010).</p>
+    <div class="field"><input id="rv-pacto" maxlength="160" value="${esc(ES.pacto.semana === lunes() ? ES.pacto.texto : '')}" placeholder="Máximo ${ES.presupuesto} min al día de redes; si lo rompo, invito el café"></div>
+    <h3>6. Compártelo</h3>
+    <p class="meta">Hacer público el progreso aumenta su efecto (Harkin et al., 2016).</p>
+    <div class="actions stack"><a class="outline btn" target="_blank" rel="noopener" id="rv-wa" href="#">Enviar mi reporte y mi pacto por WhatsApp</a><button class="primary" id="rv-ok">Listo</button></div>`);
+  const pacto = () => { const t = $('#rv-pacto').value.trim(); ES.pacto = { semana: lunes(), texto: t }; guardar(); return t; };
+  const wa = () => { const t = $('#rv-pacto').value.trim(); $('#rv-wa').href = `https://wa.me/?text=${encodeURIComponent(reporte + (t ? ` Mi pacto: ${t}.` : ''))}`; };
+  wa(); $('#rv-pacto').addEventListener('input', wa); $('#rv-wa').addEventListener('click', pacto);
+  $('#sheet-body').querySelectorAll('[data-p]').forEach(b => b.onclick = () => proyectoForm(ES.proyectos.find(p => p.id === b.dataset.p)));
+  $('#rv-ok').onclick = () => { pacto(); closeSheet(); renderE(); };
+}
+
+// ---------- Emociones detrás del impulso (Throuvala et al., 2020): nombrarlas ayuda a regularlas.
+const EMOCIONES = ['Aburrimiento', 'Ansiedad', 'Soledad', 'Cansancio', 'Curiosidad', 'Evitar algo'];
+const EMO_TIP = {
+  Aburrimiento: 'El aburrimiento pide novedad: una alternativa de 5 minutos también la da.',
+  Ansiedad: 'El feed no baja la ansiedad, la alimenta. Prueba respirar con el círculo.',
+  Soledad: 'Mirar a otros no acompaña; escribirle a alguien, sí.',
+  Cansancio: 'Si estás cansado, descansa de verdad: ojos cerrados 3 minutos.',
+  Curiosidad: 'Anota qué querías ver y búscalo en tu ventana de revisión.',
+  'Evitar algo': '¿Qué estás evitando? La versión de 2 minutos suele bastar para empezar.',
+};
+const emociones = () => {
+  const c = {};
+  for (const d of Object.values(ES.dias)) for (const [k, v] of Object.entries(d)) if (k.startsWith('emo_')) c[k.slice(4)] = (c[k.slice(4)] || 0) + v;
+  return Object.entries(c).sort((a, b) => b[1] - a[1]);
+};
+// ---------- Ánimo antes y después de una sesión (activación conductual): actuar suele subir el ánimo.
+const animoTxt = () => { const xs = ES.animo.filter(x => x.antes && x.despues); if (!xs.length) return ''; const d = xs.reduce((a, x) => a + x.despues - x.antes, 0) / xs.length;
+  return `Tu ánimo ${d >= 0 ? 'sube' : 'baja'} de media ${Math.abs(d).toFixed(1).replace('.', ',')} puntos al terminar una sesión (${xs.length}).`; };
+// ---------- Reto de 21 días con el presupuesto: los cambios de menos de una semana no bastan.
+const retoDia = () => Math.max(1, daysSince(ES.retoInicio) + 1);
+// ---------- Semana (lunes) para el pacto y la iniciativa laboral.
+const lunes = () => dayKey(addDays(new Date(), -wd(today())));
+// ---------- Horas juntos (Hall, 2019): ~50 h para una amistad casual, ~90 para amigos, ~200 para buenos amigos.
+const fmtHoras = h => `${String(Math.round(h * 10) / 10).replace('.', ',')} h`;
+const horasMeta = h => h >= 200 ? '· buen amigo' : h >= 90 ? `· amigo, hacia 200 h` : h >= 50 ? `· amistad casual, hacia 90 h` : `· hacia 50 h`;
+// ---------- Misión social del día: un reto de 7 días con desconocidos (Sandstrom et al., 2022) o una conducta de las que más bienestar dan (Hall et al., 2023).
+const MISIONES_DESCONOCIDOS = ['Saluda y pregúntale algo a alguien en una fila o en el transporte.', 'Habla con alguien que lleve algo que te llame la atención y díselo.', 'Pregúntale a un vendedor o barista cómo va su día, y escucha la respuesta.', 'Pídele una recomendación (libro, comida, lugar) a un desconocido.', 'Haz un cumplido sincero a alguien que no conoces.', 'Inicia una conversación con alguien que tenga un perro o un niño.', 'Habla con alguien nuevo en el trabajo, el gimnasio o la universidad.'];
+const MISIONES_DIA = ['Ponte al día con un amigo: pregúntale por algo que te contó la última vez.', 'Haz un cumplido concreto a alguien cercano.', 'Escucha a alguien sin mirar el teléfono ni interrumpir.', 'Comparte algo tuyo que normalmente no cuentas.', 'Haz reír a alguien: comparte algo divertido.', 'Dile a alguien por qué lo valoras.', 'Pregúntale a alguien cómo puedes ayudarle esta semana.'];
+const reto7Dia = () => { if (!ES.reto7.inicio) return 0; const n = daysSince(ES.reto7.inicio) + 1; return n >= 1 && n <= 7 ? n : 0; };
+const misionHoy = () => { const n = reto7Dia(); return n ? { t: MISIONES_DESCONOCIDOS[n - 1], tipo: 'desconocido' } : { t: MISIONES_DIA[(daysSince('2026-01-05') % 7 + 7) % 7], tipo: 'cercano' }; };
+function misionSheet() {
+  const mi = misionHoy(), hoyM = ES.misiones.find(x => x.d === today());
+  const xs = ES.misiones.filter(x => x.tipo === 'desconocido' && x.abierto !== undefined), abiertos = xs.filter(x => x.abierto).length;
+  showSheet(`<h2>Misión social de hoy</h2>
+    <p style="font-size:1.1rem;font-weight:500;margin:0 0 10px">${esc(mi.t)}</p>
+    <p class="sci">${mi.tipo === 'desconocido' ? 'Antes de un reto así, la gente cree que un 40 % de los desconocidos querrá hablar; en la práctica lo quiso la gran mayoría, y la incomodidad bajó en una semana (Sandstrom, Boothby y Cooney, 2022).' : 'Una sola conversación de calidad al día con alguien cercano mejora el bienestar de ese día; mejor cara a cara (Hall et al., 2023).'}</p>
+    ${hoyM ? `<p class="meta green">Hecha hoy.</p>` : `
+    <div class="field"><label>Antes: del 1 al 7, ¿cuánto crees que la otra persona querrá hablar?</label><div class="chips" id="mi-pred">${[1, 2, 3, 4, 5, 6, 7].map(n => `<button class="chip" data-v="${n}">${n}</button>`).join('')}</div></div>
+    <div class="field"><label>Después: ¿estaba abierta a hablar?</label><div class="chips" id="mi-res"><button class="chip" data-r="1">Sí</button><button class="chip" data-r="0">No mucho</button></div></div>`}
+    ${xs.length ? `<p class="meta">Hasta ahora, ${abiertos} de ${xs.length} desconocidos estaban abiertos a hablar (${Math.round(abiertos / xs.length * 100)} %).</p>` : ''}
+    <div class="actions">${reto7Dia() ? '' : '<button class="link" id="mi-reto">Empezar el reto de 7 días con desconocidos</button>'}<button class="primary" id="mi-ok">Cerrar</button></div>`);
+  let pred = 0;
+  $('#mi-pred')?.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; pred = +c.dataset.v; $('#mi-pred').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  $('#mi-res')?.addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    ES.misiones.push({ id: crypto.randomUUID(), d: today(), t: mi.t, tipo: mi.tipo, pred, abierto: c.dataset.r === '1' }); ES.misiones = ES.misiones.slice(-200);
+    bump('iniciativas'); guardar(); renderE(); buzz(30); misionSheet();
+  });
+  $('#mi-reto')?.addEventListener('click', () => { ES.reto7 = { inicio: today() }; guardar(); renderE(); misionSheet(); });
+  $('#mi-ok').onclick = closeSheet;
+}
+// ---------- Iniciativa laboral (Parker, Bindl y Strauss, 2010; Campos et al., 2017): una propuesta, una reunión y un problema anticipado cada semana.
+const LAB = [['propuesta', 'Una propuesta', 'Una mejora que nadie te pidió'], ['reunion', 'Una reunión que inicias tú', 'Con quién y para qué'], ['problema', 'Un problema anticipado', 'Algo que puede fallar y cómo prevenirlo']];
+function laboralSemana() {
+  if (ES.laboral.semana !== lunes()) ES.laboral = { semana: lunes(), items: LAB.map(([k]) => ({ k, t: '', por: '', paso: '', hecho: false })) };
+  return ES.laboral;
+}
+function laboralSheet() {
+  const L = laboralSemana();
+  showSheet(`<h2>Iniciativa laboral</h2>
+    <p class="sci">La proactividad nace de tres cosas: «puedo» (un primer paso pequeño), «quiero» (por qué importa) y «tengo energía». Formar en iniciativa personal aumentó un 30 % los beneficios de pequeños empresarios frente a la formación clásica (Campos et al., 2017).</p>
+    ${L.items.map((x, i) => { const [k, t, ph] = LAB[i]; return `<h3>${t}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</h3>
+      <div class="field"><input data-f="t" data-i="${i}" maxlength="100" value="${esc(x.t)}" placeholder="${ph}"></div>
+      <div class="field"><input data-f="por" data-i="${i}" maxlength="100" value="${esc(x.por)}" placeholder="¿Por qué importa?"></div>
+      <div class="field"><input data-f="paso" data-i="${i}" maxlength="100" value="${esc(x.paso)}" placeholder="Primer paso de menos de 5 minutos"></div>
+      <div class="chips"><button class="chip${x.hecho ? ' on' : ''}" data-done="${i}">${x.hecho ? 'Hecha' : 'Marcar hecha'}</button>${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl(t + ': ' + x.t, dayKey(addDays(new Date(), 1)), '09:00', 30)}">Agendar</a>` : ''}</div>`; }).join('')}
+    <div class="actions"><button class="primary" id="lb-ok">Guardar</button></div>`);
+  const body = $('#sheet-body');
+  const leer = () => body.querySelectorAll('[data-f]').forEach(inp => { L.items[+inp.dataset.i][inp.dataset.f] = inp.value.trim(); });
+  body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
+    leer(); const x = L.items[+b.dataset.done]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1); guardar(); renderE(); laboralSheet();
+  });
+  $('#lb-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
+}
+// ---------- Tres cosas buenas (Seligman et al., 2005): al cerrar el día, en vez de un último scroll.
+function buenasSheet() {
+  const hoyB = ES.buenas.find(x => x.d === today());
+  showSheet(`<h2>Tres cosas buenas de hoy</h2>
+    <p class="sci">Escribir cada noche tres cosas que salieron bien, y por qué, aumentó la felicidad y redujo síntomas depresivos durante meses (Seligman, Steen, Park y Peterson, 2005).</p>
+    ${[0, 1, 2].map(i => `<div class="field"><input id="bn-${i}" maxlength="140" value="${esc(hoyB?.items[i] || '')}" placeholder="${['Algo que salió bien…', 'Alguien que hizo algo por ti…', 'Algo pequeño que disfrutaste…'][i]}"></div>`).join('')}
+    <div class="actions"><button class="link" id="bn-cancel">Ahora no</button><button class="primary" id="bn-ok">Guardar</button></div>`);
+  $('#bn-cancel').onclick = closeSheet;
+  $('#bn-ok').onclick = () => {
+    const items = [0, 1, 2].map(i => $('#bn-' + i).value.trim()).filter(Boolean); if (!items.length) { $('#bn-0').focus(); return; }
+    if (hoyB) hoyB.items = items; else ES.buenas.push({ id: crypto.randomUUID(), d: today(), items }); ES.buenas = ES.buenas.slice(-120);
+    guardar(); closeSheet(); renderE(); toast('Guardado. Buen cierre del día.');
+  };
+}
+// ---------- Intervención del momento: un solo mensaje, elegido por la hora, el día y tus datos.
+function intervenciones() {
+  const h = new Date().getHours(), dia = wd(today()), d = dayOf(), P = ES.prioridades;
+  const altaParada = proyectosActivos().find(p => p.prioridad === 1 && p.paso && daysSince(ultimoPaso(p)) >= 3);
+  const graciasSemana = ES.personas.some(p => p.historial.some(x => x.tipo === 'Gracias' && x.d >= lunes()));
+  const top = emociones()[0];
+  return [
+    h < 13 && !P.items.length && { id: 'prio', t: 'Empieza por lo importante', p: 'Elige tus tres prioridades de hoy antes de abrir nada más. La más difícil, primero.', sci: 'Zhu, Yang y Hsee (2018); Habbert y Schroeder (2020)', b: 'Elegir prioridades', a: () => prioForm() },
+    (dia === 0 || new Date().getDate() === 1) && ES.revision !== today() && { id: 'rev', t: 'Nuevo comienzo', p: 'Un lunes o un mes nuevo es el mejor momento para retomar lo que dejaste. Diez minutos de revisión.', sci: 'Dai, Milkman y Riis (2014)', b: 'Hacer la revisión', a: () => revisionSemanal() },
+    d.distraccion >= ES.presupuesto && { id: 'pres', t: 'Ya usaste tu presupuesto de hoy', p: `Llevas ${d.distraccion} min en distracciones. Lo que queda del día es tuyo: una alternativa que sume.`, sci: 'Hunt et al. (2018)', b: 'Ver alternativas', a: () => alternativas('Lo que queda del día es tuyo', 'Elige una:') },
+    altaParada && { id: 'compasion', t: `«${altaParada.nombre}» lleva ${daysSince(ultimoPaso(altaParada))} días quieto`, p: 'No pasa nada: perdonarte la pausa hace más fácil retomarlo. Hoy basta con 2 minutos.', sci: 'Wohl, Pychyl y Bennett (2010)', b: 'Empezar 2 minutos', a: () => startFocus(altaParada.minima || altaParada.paso, 2, altaParada.id) },
+    dia === 4 && ES.personas.length && !graciasSemana && { id: 'gracias', t: 'Gracias del viernes', p: 'Agradécele algo concreto a alguien. Le alegrará más de lo que imaginas.', sci: 'Kumar y Epley (2018)', b: 'Elegir a quién', a: () => personasManager() },
+    h >= 20 && !ES.buenas.some(x => x.d === today()) && { id: 'buenas', t: 'Antes del último scroll', p: 'Tres cosas buenas de hoy, en un minuto. Mejor cierre que el feed.', sci: 'Seligman et al. (2005)', b: 'Escribirlas', a: () => buenasSheet() },
+    retoDia() === 21 && { id: 'reto21', t: '21 días con tu presupuesto', p: 'Tres semanas reduciendo redes: es el tiempo que mostró menos soledad y depresión. Mira tus datos.', sci: 'Hunt et al. (2018)', b: 'Ver tus datos', a: () => datosSheet() },
+    h >= 10 && h < 20 && !ES.misiones.some(x => x.d === today()) && { id: 'mision', t: 'Misión social de hoy', p: misionHoy().t, sci: misionHoy().tipo === 'desconocido' ? 'Sandstrom, Boothby y Cooney (2022)' : 'Hall et al. (2023)', b: 'Ver misión', a: () => misionSheet() },
+    dia >= 2 && laboralSemana().items.filter(x => x.hecho).length === 0 && { id: 'laboral', t: 'Toma la iniciativa en el trabajo', p: 'Esta semana aún no hay propuesta, reunión ni problema anticipado. Elige uno y su primer paso.', sci: 'Parker, Bindl y Strauss (2010)', b: 'Planearla', a: () => laboralSheet() },
+    enVentana() && { id: 'ventana', t: 'Estás en tu ventana de revisión', p: `Revisa redes y mensajes con calma hasta las ${fmtHora(addMin(enVentana(), ES.ventanaMin))}. Fuera de ella, la espera es el doble.`, sci: 'Fitz et al. (2019)', b: '', a: null },
+    top && top[1] >= 3 && { id: 'emo', t: `Lo que más te empuja al teléfono: ${top[0].toLowerCase()}`, p: EMO_TIP[top[0]], sci: 'Throuvala et al. (2020)', b: 'Ver tus datos', a: () => datosSheet() },
+  ].filter(Boolean);
+}
+function renderInterv() {
+  const fuera = (local.descartes?.d === today() ? local.descartes.ids : []);
+  const x = intervenciones().find(i => !fuera.includes(i.id));
+  const el = $('#interv');
+  if (!x) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="interv"><b>${esc(x.t)}</b><p>${esc(x.p)}</p><p class="sci">${esc(x.sci)}</p>
+    <div class="row-b">${x.a ? `<button class="primary" id="iv-go">${esc(x.b)}</button>` : ''}<button class="link" id="iv-no">Ahora no</button></div></div>`;
+  $('#iv-go')?.addEventListener('click', x.a);
+  $('#iv-no').onclick = () => { local.descartes = { d: today(), ids: [...fuera, x.id] }; guardar(); renderInterv(); };
+}
+// ---------- Tus datos: todo lo que la app recoge, en un solo lugar.
+function datosSheet() {
+  const all = Object.values(ES.dias), sum = f => all.reduce((a, v) => a + (v[f] || 0), 0);
+  const si = sum('fomoSi'), tot = si + sum('fomoNo'), emo = emociones(), b = sesgo();
+  const xs = ES.misiones.filter(x => x.tipo === 'desconocido' && x.abierto !== undefined);
+  const amig = [...ES.personas].filter(p => p.horas).sort((a, c) => c.horas - a.horas).slice(0, 5);
+  showSheet(`<h2>Tus datos</h2>
+    <p class="note">Lo que la app ha registrado (últimos 180 días). Medir es la mitad del cambio (Harkin et al., 2016).</p>
+    <dl class="woop">
+      <dt>Enfoque</dt><dd>${fmtMin(sum('enfoque'))} en ${sum('sesiones')} sesiones completas · ${sum('interrupciones')} interrupciones · ${sum('impulsos')} impulsos surfeados</dd>
+      <dt>Ánimo</dt><dd>${animoTxt() || 'Aún sin datos: marca tu ánimo al empezar una sesión.'}</dd>
+      <dt>Puerta</dt><dd>Resististe ${sum('resistidas') + sum('alternativas')} veces · abriste ${sum('aperturas')} · ~${fmtMin(sum('distraccion'))} en distracciones</dd>
+      <dt>Lo que te empuja</dt><dd>${emo.length ? emo.map(([k, v]) => `${esc(k)} (${v})`).join(' · ') : 'Aún sin datos: marca qué sientes en la puerta.'}</dd>
+      <dt>Prueba de realidad (FOMO)</dt><dd>${tot ? `En ${si} de ${tot} ocasiones había algo importante (${Math.round(si / tot * 100)} %).` : 'Aún sin datos.'}</dd>
+      <dt>Iniciativas</dt><dd>${sum('iniciativas')} en total · ${sum('pasos')} pasos de proyecto</dd>
+      <dt>Predicciones sociales</dt><dd>${b ? sesgoTxt(b) : 'Aún sin datos: predice antes de escribir a alguien.'}</dd>
+      <dt>Desconocidos</dt><dd>${xs.length ? `${xs.filter(x => x.abierto).length} de ${xs.length} estaban abiertos a hablar.` : 'Aún sin datos.'}</dd>
+      <dt>Tiempo con personas</dt><dd>${amig.length ? amig.map(p => `${esc(p.nombre)} ${fmtHoras(p.horas)}`).join(' · ') : 'Aún sin datos.'}</dd>
+      <dt>Tres cosas buenas</dt><dd>${ES.buenas.length} días escritos</dd>
+    </dl>
+    <div class="actions"><button class="primary" id="dt-ok">Cerrar</button></div>`);
+  $('#dt-ok').onclick = closeSheet;
+}
+$('#open-datos').onclick = datosSheet;
+
+function configSheet() {
+  showSheet(`<h2>Configura tu teléfono</h2>
+    <p class="sci">Un paquete de cambios así redujo el uso problemático y el tiempo de pantalla, y mejoró el sueño, en un ensayo aleatorizado (Olson et al., 2022).</p>
+    <div class="rows">${CONFIG.map(([k, t, d]) => `<button class="row" data-c="${k}"><span class="box" style="${ES.config[k] ? 'background:var(--green);border-color:var(--green)' : ''}"></span>
+      <span class="t"><div>${esc(t)}</div><small style="white-space:normal">${esc(d)}</small></span></button>`).join('')}</div>
+    <div class="actions"><button class="primary" id="cf-ok">Listo</button></div>`);
+  $('#sheet-body').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { ES.config[b.dataset.c] = !ES.config[b.dataset.c]; guardar(); configSheet(); });
+  $('#cf-ok').onclick = closeSheet;
+}
+
+// ---------- Por qué funciona: cada herramienta con su fuente
+const CIENCIA = [
+  ['Puerta con espera y «Mejor no»', 'Una pausa breve con opción visible de no abrir redujo las aperturas un 57 % en 6 semanas; un 36 % de los intentos se abandonaba. El botón de abandonar fue lo más eficaz.', 'Grüning, Riedel y Lorenz-Spreen (2023), PNAS. Nota: el primer autor trabaja en la app one sec.'],
+  ['Presupuesto diario de 30 minutos', 'Limitar redes a ~30 min al día durante 3 semanas redujo soledad y síntomas depresivos. Un meta-análisis de 32 ensayos halla un efecto pequeño (g = 0,17), igual reduciendo que dejándolas del todo, y solo con una semana o más.', 'Hunt et al. (2018), J. Social and Clinical Psychology; Burnell et al. (2025), SSM – Mental Health'],
+  ['Tres ventanas de revisión', 'Recibir las notificaciones en 3 lotes al día mejoró atención y control y bajó el estrés; apagarlas todas aumentó la ansiedad y el FOMO.', 'Fitz et al. (2019), Computers in Human Behavior; Kushlev y Dunn (2015), Computers in Human Behavior'],
+  ['«Hablar» frente a «solo mirar»', 'Mirar redes sin interactuar empeoró el ánimo a través de la envidia.', 'Verduyn et al. (2015), J. Experimental Psychology: General'],
+  ['Prueba de realidad', 'El FOMO es una predicción. Contrastarla con lo que pasó es un experimento conductual de la terapia cognitivo-conductual (evidencia indirecta: aún no hay ensayos específicos para FOMO).', 'Przybylski et al. (2013), definición de FOMO; Mayo-Wilson et al. (2014), Lancet Psychiatry, sobre TCC'],
+  ['Configurar el teléfono', 'Quitar apps del inicio, notificaciones mínimas, grises y el teléfono fuera del dormitorio redujeron el uso problemático y mejoraron el sueño.', 'Olson et al. (2022), Int. J. Mental Health and Addiction'],
+  ['Escribir primero', 'Quien recibe un mensaje inesperado lo valora más de lo que predice quien lo envía, sobre todo con vínculos débiles.', 'Liu, Rim, Min y Min (2023), J. Personality and Social Psychology'],
+  ['Mensaje de gratitud', 'Quien agradece subestima la alegría que causa y sobreestima la incomodidad; por eso no lo envía.', 'Kumar y Epley (2018), Psychological Science'],
+  ['Predicción frente a resultado', 'Las intervenciones contra la soledad que corrigen las predicciones pesimistas sobre los demás son las más eficaces.', 'Masi, Chen, Hawkley y Cacioppo (2011), Personality and Social Psychology Review'],
+  ['Círculos de contacto', 'Las relaciones se organizan en capas (~5, 15, 50, 150) y la cercanía va ligada a la frecuencia de contacto. Las frecuencias son una guía, no una regla exacta.', 'Sutcliffe, Dunbar, Binder y Arrow (2012), British J. Psychology'],
+  ['Proponer planes', 'Hablar con otros, incluso con desconocidos, resulta más agradable de lo que predecimos.', 'Epley y Schroeder (2014), J. Experimental Psychology: General'],
+  ['Le caíste mejor de lo que crees', 'Tras conversar, subestimamos cuánto le gustamos a la otra persona («liking gap»).', 'Boothby, Cooney, Sandstrom y Clark (2018), Psychological Science'],
+  ['Preguntas profundas', 'Las conversaciones profundas son menos incómodas y más cercanas de lo esperado; hacer preguntas de seguimiento aumenta el agrado.', 'Kardas, Kumar y Epley (2022), JPSP; Huang et al. (2017), JPSP; Gable et al. (2004), JPSP'],
+  ['Plan «si…, entonces…»', 'Las intenciones de implementación tienen un efecto medio-alto sobre el logro de metas (d ≈ 0,65).', 'Gollwitzer y Sheeran (2006), Advances in Experimental Social Psychology'],
+  ['WOOP en cada proyecto', 'Contrastar el deseo con el obstáculo interno y planear cómo superarlo mejora el logro frente a solo soñar con la meta.', 'Oettingen (2014), Rethinking Positive Thinking; Wang et al. (2021), Frontiers in Psychology'],
+  ['Intervención del momento', 'Un solo mensaje elegido por la hora, el día y tus datos: prioridades por la mañana, revisión los lunes, gratitud los viernes, tres cosas buenas por la noche.', 'Combina las fuentes de esta lista; el principio es «la señal correcta en el momento correcto» (Gollwitzer y Sheeran, 2006)'],
+  ['Qué sientes en la puerta', 'Ejercicios breves de conciencia emocional redujeron la distracción por el móvil; el efecto pasó por reconocer la emoción.', 'Throuvala et al. (2020), IJERPH'],
+  ['Escala de grises', 'Poner la pantalla en grises redujo el tiempo de pantalla de inmediato (no el bienestar).', 'Zimmermann y Sobolev (2023), Cyberpsychology, Behavior, and Social Networking'],
+  ['Pacto de la semana', 'Los dispositivos de compromiso con consecuencia propia ayudan a sostener conductas difíciles.', 'Bryan, Karlan y Nelson (2010), Annual Review of Economics'],
+  ['Reto de 7 días con desconocidos', 'Una semana de misiones para hablar con desconocidos redujo el miedo y la incomodidad, y la gente siguió hablando más después.', 'Sandstrom, Boothby y Cooney (2022), J. Experimental Social Psychology'],
+  ['Misión social del día', 'Una conversación de calidad al día con un amigo mejora el bienestar de ese día; cara a cara rinde más.', 'Hall et al. (2023), Communication Research'],
+  ['Horas juntos', 'Hacen falta unas 50 horas para una amistad casual, 90 para amigos y más de 200 para buenos amigos.', 'Hall (2019), J. Social and Personal Relationships'],
+  ['36 preguntas', 'Preguntas de apertura creciente aumentan la cercanía entre personas que acaban de conocerse.', 'Aron et al. (1997), Personality and Social Psychology Bulletin'],
+  ['Iniciativa laboral', 'La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios un 30 %.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
+  ['Ánimo antes y después', 'Actuar según el plan y no según el ánimo (activación conductual) mejora el ánimo; registrarlo lo hace visible.', 'Ekers et al. (2014), PLOS ONE'],
+  ['Surfear el impulso', 'Observar las ganas sin actuar y tener un plan «si…, entonces…» para ese momento reduce la conducta impulsiva.', 'Gollwitzer y Sheeran (2006); Throuvala et al. (2020)'],
+  ['Tres cosas buenas', 'Escribir cada noche tres cosas buenas y por qué aumentó la felicidad durante seis meses.', 'Seligman, Steen, Park y Peterson (2005), American Psychologist'],
+  ['Tres prioridades al día', 'Ante una elección, tendemos a hacer lo urgente aunque lo importante dé más («efecto de la mera urgencia»). Nombrar lo importante cada mañana contrarresta ese sesgo.', 'Zhu, Yang y Hsee (2018), Journal of Consumer Research'],
+  ['La rana primero', 'Hacer las tareas de la más difícil a la más fácil aumenta la sensación de capacidad, aunque la gente cree lo contrario.', 'Habbert y Schroeder (2020), Journal of Experimental Social Psychology'],
+  ['Día, hora y lugar del paso', 'Escribir fecha y hora concretas aumentó el cumplimiento de un plan; solo la fecha, no. El formato «si…, entonces…» estricto es el de mayor efecto.', 'Milkman et al. (2011), PNAS; Sheeran, Listrom y Gollwitzer (2024), European Review of Social Psychology'],
+  ['Estoy procrastinando', 'La terapia cognitivo-conductual es la intervención más eficaz contra la procrastinación (g ≈ 0,34 frente a control en ensayos aleatorizados). Perdonarse reduce la procrastinación siguiente.', 'Rozental et al. (2018), Frontiers in Psychology; Wohl, Pychyl y Bennett (2010), Personality and Individual Differences'],
+  ['Registrar el avance', 'Monitorear el progreso mejora el logro de metas (d = 0,40), más si se anota y se comparte.', 'Harkin et al. (2016), Psychological Bulletin'],
+  ['Revisión el lunes y el día 1', 'Tras los «nuevos comienzos» la gente retoma metas con más facilidad.', 'Dai, Milkman y Riis (2014), Management Science'],
+  ['Recompensa ligada', 'Permitirse un placer solo mientras se hace la tarea difícil aumentó la constancia, aunque el efecto se diluye con el tiempo.', 'Milkman, Minson y Volpp (2014), Management Science'],
+  ['Dónde lo dejaste', 'Lo interrumpido tiende a retomarse (efecto Ovsiankina); anotar el punto exacto facilita volver.', 'Ghibellini y Meier (2025), Humanities and Social Sciences Communications'],
+  ['Siguiente paso y pequeñas victorias', 'Avanzar en un trabajo significativo, aunque sea poco, es lo que más eleva la motivación diaria.', 'Amabile y Kramer (2011), The Progress Principle'],
+  ['Sesiones de enfoque', 'Las interrupciones obligan a compensar trabajando más rápido, con más estrés; cada vuelta al teléfono se registra para que la veas.', 'Mark, Gudith y Klocke (2008), CHI'],
+  ['Alternativas en vez de solo quitar', 'Programar actividades gratificantes tiene efectos sólidos sobre el ánimo (activación conductual).', 'Cuijpers, van Straten y Warmerdam (2007), Clinical Psychology Review'],
+];
+function ciencia() {
+  showSheet(`<h2>Por qué funciona</h2>
+    <p class="note">Cada herramienta de Enfoque sale de un estudio. Si una función no se puede justificar con uno, sobra.</p>
+    <ol class="refs" style="padding-left:20px">${CIENCIA.map(([t, d, r]) => `<li><b>${esc(t)}</b><br>${esc(d)}<small>${esc(r)}</small></li>`).join('')}</ol>
+    <div class="actions"><button class="primary" id="ci-ok">Cerrar</button></div>`);
+  $('#ci-ok').onclick = closeSheet;
+}
+$('#open-sci').onclick = ciencia;
+
+// ---------- Lo que pasa al salir y volver a la app
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    if (ES.sesion && !ES.sesion.fuera) { ES.sesion.fuera = Date.now(); guardar(); }
+    if (ES.salida) salidaOculta = true;
+    return;
+  }
+  // De vuelta.
+  renderE();
+  if (gate && !gate.listo) { gate.fin = Date.now() + gate.total * 1000; paintGate(); toast('La espera vuelve a empezar.'); }
+  const s = ES.sesion;
+  if (s) {
+    if (focusLeft() <= 0) finishFocus(true);
+    else if (s.fuera) {
+      s.ints++; s.fuera = 0; guardar(); paintFocus(); buzz(40);
+      toast(`Tomaste el teléfono a los ${fmtMin((Date.now() - s.inicio) / 60000)}. Bloquéalo y sigue.`);
+    }
+  }
+  checkSalida();
+});
+
+// ---------- Ajustes
+function settings() {
+  showSheet(`<h2>Ajustes</h2>
+    <div class="set-row"><span>Aperturas al día<small>Después, hay que escribir una frase</small></span>
+      <select id="s-lim">${Array.from({ length: 10 }, (_, i) => i + 1).map(n => `<option ${n === ES.limite ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <div class="set-row"><span>Espera inicial<small>Se duplica con cada apertura del día</small></span>
+      <select id="s-wait">${[5, 10, 20, 30].map(n => `<option value="${n}" ${n === ES.espera ? 'selected' : ''}>${n} s</option>`).join('')}</select></div>
+    <div class="set-row"><span>Presupuesto de distracción<small>Unos 30 min al día reducen el FOMO (Hunt et al., 2018)</small></span>
+      <select id="s-bud">${[15, 30, 45, 60].map(n => `<option value="${n}" ${n === ES.presupuesto ? 'selected' : ''}>${n} min</option>`).join('')}</select></div>
+    <div class="set-row"><span>Meta de iniciativas<small>Contactos, planes y pasos de proyecto por semana</small></span>
+      <select id="s-meta">${Array.from({ length: 14 }, (_, i) => i + 1).map(n => `<option ${n === ES.metaSemanal ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <h3>Ventanas de revisión</h3>
+    <p class="meta">Revisar por lotes tres veces al día mejora la atención y baja el estrés (Fitz et al., 2019). Fuera de estas horas, la espera es el doble.</p>
+    <div class="times" style="grid-template-columns:1fr 1fr 1fr">${[0, 1, 2].map(i => `<div class="field"><label>${['Primera', 'Segunda', 'Tercera'][i]}</label><input id="s-v${i + 1}" type="time" value="${ES.ventanas[i] || ''}"></div>`).join('')}</div>
+    <div class="set-row"><span>Duración de cada ventana</span>
+      <select id="s-vmin">${[10, 15, 20, 30].map(n => `<option value="${n}" ${n === ES.ventanaMin ? 'selected' : ''}>${n} min</option>`).join('')}</select></div>
+    <h3>Apps que te distraen</h3>
+    <div id="s-apps">${ES.apps.map(a => `<div class="app-row"><span class="t">${esc(a.nombre)}<small>${esc(a.url)}</small></span><button class="x" data-del="${esc(a.id)}" aria-label="Quitar">×</button></div>`).join('')}</div>
+    <div class="add-app"><input id="s-an" placeholder="Nombre"><input id="s-au" placeholder="https://…" inputmode="url"><button class="link" id="s-add">Añadir</button></div>
+    <p class="meta" style="margin-top:10px">En Android, la dirección web abre la app si la tienes instalada.</p>
+    <h3>Alternativas</h3>
+    <div class="field"><textarea id="s-alts">${esc(ES.alternativas.join('\n'))}</textarea><p class="meta" style="margin-top:6px">Una por línea.</p></div>
+    <div class="set-row"><span>Configura tu teléfono<small>${CONFIG.filter(c => ES.config[c[0]]).length} de ${CONFIG.length} hechos</small></span><button class="link" id="s-conf">Ver</button></div>
+    <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
+      <select id="s-ini"><option value="enfoque">Enfoque</option><option value="hoy" ${localStorage.getItem('habit-inicio') === 'hoy' ? 'selected' : ''}>Hábitos</option></select></div>
+    <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
+    <div class="actions"><button class="primary" id="s-ok">Listo</button></div>`);
+  const body = $('#sheet-body');
+  body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { forget(b.dataset.del); ES.apps = ES.apps.filter(a => a.id !== b.dataset.del); guardar(); b.closest('.app-row').remove(); });
+  $('#s-add').onclick = () => {
+    const n = $('#s-an').value.trim(); let u = $('#s-au').value.trim();
+    if (!n || !u) { (n ? $('#s-au') : $('#s-an')).focus(); return; }
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+    ES.apps.push({ id: crypto.randomUUID(), nombre: n, url: u }); guardar(); settings();
+  };
+  $('#s-help').onclick = welcome;
+  $('#s-conf').onclick = configSheet;
+  $('#s-ok').onclick = () => {
+    try { localStorage.setItem('habit-inicio', $('#s-ini').value); } catch {}
+    ES.limite = +$('#s-lim').value; ES.espera = +$('#s-wait').value;
+    ES.presupuesto = +$('#s-bud').value; ES.metaSemanal = +$('#s-meta').value; ES.ventanaMin = +$('#s-vmin').value;
+    const vs = [$('#s-v1').value, $('#s-v2').value, $('#s-v3').value].filter(Boolean); if (vs.length) ES.ventanas = vs;
+    const alts = $('#s-alts').value.split('\n').map(s => s.trim()).filter(Boolean);
+    if (alts.length) ES.alternativas = alts;
+    guardar(); closeSheet(); renderE();
+  };
+}
+$('#open-settings').onclick = settings;
+
+// ---------- Bienvenida: el desincentivo de verdad es que las apps ya no estén a un toque.
+function welcome() {
+  showSheet(`<h2>Menos teléfono, más de lo que importa</h2>
+    <p class="note">Enfoque es la pestaña que se pone entre tú y las apps que te roban tiempo. Tres pasos, una sola vez:</p>
+    <ol class="pros" style="padding-left:20px">
+      <li style="margin-bottom:8px"><b>Instala el Habit Tracker</b> en la pantalla de inicio (Chrome → ⋮ → «Instalar aplicación»). Se abre en esta pestaña.</li>
+      <li style="margin-bottom:8px"><b>Quita Instagram, TikTok y demás de la pantalla de inicio</b>: mantén pulsado el icono → «Quitar» (no desinstalar). Siguen en el cajón de apps, pero ya no a un toque.</li>
+      <li><b>Pon el Habit Tracker en su lugar.</b> Cuando el pulgar vaya solo a ese rincón, abrirás esta pregunta en vez del feed.</li>
+    </ol>
+    <p class="note">Después, añade a las personas con las que quieres mantener el contacto y tus proyectos en «Tomar la iniciativa»: cada día verás a quién escribir y el siguiente paso.</p>
+    <p class="note">Para un tope estricto, combínalo con Bienestar digital de Android: Ajustes → Bienestar digital → Temporizadores de apps.</p>
+    <div class="actions"><button class="link" id="w-conf">Configurar el teléfono</button><button class="primary" id="w-go">Empezar</button></div>`);
+  $('#w-conf').onclick = () => { ES.bienvenida = true; guardar(); renderE(); configSheet(); };
+  $('#w-go').onclick = () => {
+    ES.bienvenida = true; guardar(); closeSheet(); renderE();
+  };
+}
+
+// ---------- Arranque
+window.renderEnfoque = () => renderE();
+window.enfoqueArranque = () => {
+  renderE();
+  if (ES.sesion) { irA('enfoque'); if (focusLeft() <= 0) finishFocus(true); else { if (ES.sesion.fuera) { ES.sesion.ints++; ES.sesion.fuera = 0; guardar(); } showFocus(); } }
+  else if (ES.salida) { irA('enfoque'); checkSalida(true); }
+};
+window.enfoqueVisible = () => { if (!ES.bienvenida) welcome(); };
+let lastDay = today();
+setInterval(() => { if (today() !== lastDay) { lastDay = today(); renderE(); } }, 60000);
+})();
+
 render();
+// La app abre en Enfoque (la pregunta antes del feed), salvo que en este teléfono se elija Hábitos.
+if (localStorage.getItem('habit-inicio') !== 'hoy') document.querySelector('.tabs .tab[data-view="enfoque"]').click();
+window.enfoqueArranque();
 setSync('local');
 renderAccount();
 connectCloud();
