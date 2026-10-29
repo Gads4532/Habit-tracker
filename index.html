@@ -3558,11 +3558,29 @@ function renderAgenda() {
 // La clave de la API de Claude vive solo en este teléfono.
 // ====================================================================
 const IA_KEY = 'rumbo-claude', IA_CHAT = 'rumbo-chat';
-const IA_MODELOS = { 'claude-opus-5-5': 'Claude Opus 5.5 (recomendado)', 'claude-sonnet-5-5': 'Claude Sonnet 5.5 (más económico)', 'claude-haiku-5-5': 'Claude Haiku 5.5 (el más económico)' };
+const IA_MODELOS = { 'claude-opus-5-5': 'Claude Opus 5.5 (el más capaz)', 'claude-sonnet-5-5': 'Claude Sonnet 5.5 (muy bueno, la mitad de precio)', 'claude-haiku-5-5': 'Claude Haiku 5.5 (el más barato, más básico)' };
+// Precio en dólares por millón de tokens: entrada, salida, lectura de caché, escritura de caché.
+const IA_PRECIO = { 'claude-opus-5-5': [4, 20, 0.2, 5], 'claude-sonnet-5-5': [2, 10, 0.2, 2.5], 'claude-haiku-5-5': [0.1, 0.5, 0.01, 0.125] };
+const IA_COSTO_TXT = { 'claude-opus-5-5': '~3–10 céntimos por mensaje', 'claude-sonnet-5-5': '~1–5 céntimos por mensaje', 'claude-haiku-5-5': 'menos de 1 céntimo por mensaje' };
+// Gasto estimado con el uso real que devuelve la API, por día (solo en este teléfono).
+const IA_GASTO = 'rumbo-claude-gasto';
+const iaGasto = () => { try { return JSON.parse(localStorage.getItem(IA_GASTO)) || {}; } catch { return {}; } };
+function iaSumarGasto(modelo, u) {
+  const [pi, po, pr, pw] = IA_PRECIO[modelo] || IA_PRECIO['claude-opus-5-5'];
+  const usd = ((u.input_tokens || 0) * pi + (u.output_tokens || 0) * po + (u.cache_read_input_tokens || 0) * pr + (u.cache_creation_input_tokens || 0) * pw) / 1e6;
+  const g = iaGasto(), k = today(); g[k] = (g[k] || 0) + usd;
+  for (const d of Object.keys(g)) if (d < dayKey(addDays(new Date(), -400))) delete g[d];
+  try { localStorage.setItem(IA_GASTO, JSON.stringify(g)); } catch {}
+}
+const fmtUsd = n => n < 0.01 ? (n > 0 ? '< 0,01 $' : '0 $') : n.toFixed(2).replace('.', ',') + ' $';
+const iaGastoTxt = () => { const g = iaGasto(), mes = today().slice(0, 7); return { hoy: g[today()] || 0, mes: Object.entries(g).filter(([d]) => d.startsWith(mes)).reduce((a, [, v]) => a + v, 0) }; };
 const iaCfg = () => { try { return JSON.parse(localStorage.getItem(IA_KEY)) || {}; } catch { return {}; } };
 const iaSetCfg = c => { try { localStorage.setItem(IA_KEY, JSON.stringify(c)); } catch {} };
-let iaMsgs = []; try { iaMsgs = JSON.parse(localStorage.getItem(IA_CHAT)) || []; } catch {}
-const iaGuardarChat = () => { try { localStorage.setItem(IA_CHAT, JSON.stringify(iaMsgs)); } catch {} };
+let iaMsgs = [], iaDia = '';
+try { const c = JSON.parse(localStorage.getItem(IA_CHAT)); if (Array.isArray(c)) iaMsgs = c; else if (c) { iaMsgs = c.msgs || []; iaDia = c.dia || ''; } } catch {}
+// Cada día empieza una conversación nueva: cada mensaje reenvía todo lo anterior y el asistente ve tus datos de hoy igual.
+function iaNuevoDia() { if (iaMsgs.length && iaDia !== today() && !iaOcupado) { iaMsgs = []; iaDia = today(); iaGuardarChat(); } }
+const iaGuardarChat = () => { try { localStorage.setItem(IA_CHAT, JSON.stringify({ dia: iaDia || today(), msgs: iaMsgs })); } catch {} };
 let iaOcupado = false, iaVivo = '', iaPasos = [], Anthropic = null;
 
 const IA_SYSTEM = `Eres el asistente de Rumbo, una app personal para usar menos el teléfono, erradicar el FOMO, cumplir hábitos y tareas, y tomar la iniciativa en proyectos, conversaciones, reuniones y planes. Hablas en español, de tú, con un registro claro y cercano, sin relleno. Respuestas breves (normalmente de 2 a 6 líneas); usa listas solo cuando ayuden.
@@ -3703,20 +3721,40 @@ function iaBurbujas() {
 function renderIA() {
   const c = iaCfg();
   if (!c.key) {
+    const m0 = c.modelo || 'claude-opus-5-5';
     iaW.innerHTML = `<div class="enf"><h2>Tu asistente</h2>
       <p class="note">Habla con Claude para planificar tu día, ordenar prioridades, agendar en tu calendario y tomar la iniciativa. Puede ver y cambiar lo que hay en la app cuando se lo pides.</p>
+      <h3 style="margin-top:8px">Cómo conseguir tu clave (una vez)</h3>
       <ol class="pros" style="padding-left:20px">
-        <li style="margin-bottom:6px">Crea una clave en <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com → API keys</a> (necesita saldo; cada mensaje cuesta unos céntimos).</li>
-        <li>Pégala aquí. Se guarda solo en este teléfono; no se sube a tu cuenta.</li>
+        <li style="margin-bottom:6px">Entra en <a href="https://platform.claude.com" target="_blank" rel="noopener">platform.claude.com</a> con tu correo. Es la consola para desarrolladores, distinta de la suscripción a claude.ai.</li>
+        <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">Settings → Billing</a>, añade saldo. Se paga por uso: con 5 $ puedes empezar.</li>
+        <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Settings → API keys</a>, toca «Create key», llámala «Rumbo» y cópiala. Empieza por <b>sk-ant-api</b>.</li>
+        <li>Pégala aquí abajo. Se guarda solo en este teléfono. No la pegues en chats ni la compartas: quien la tenga puede gastar tu saldo.</li>
       </ol>
-      <div class="field"><label>Clave de la API de Claude</label><input id="ia-k" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
+      <div class="field"><label>Clave de la API de Claude</label><input id="ia-k" type="password" autocomplete="off" placeholder="sk-ant-api…"></div>
+      <div class="field"><label>Modelo (se puede cambiar luego en Ajustes)</label>
+        <div class="rows" id="ia-mods">${Object.keys(IA_MODELOS).map(k => `<button class="row" data-m="${k}"><span class="box" style="${k === m0 ? 'background:var(--text);border-color:var(--text)' : ''}"></span>
+          <span class="t"><div>${esc(IA_MODELOS[k])}</div><small>${IA_COSTO_TXT[k]}</small></span></button>`).join('')}</div></div>
+      <p class="meta">Consejo: pon un límite de gasto en <a href="https://platform.claude.com/settings/limits" target="_blank" rel="noopener">Settings → Limits</a>. Usando el asistente unas 10 veces al día, Sonnet sale por unos 5–12 $ al mes y Opus por unos 10–25 $.</p>
+      <p class="meta red" id="ia-err"></p>
       <div class="actions"><button class="primary" id="ia-ok">Guardar</button></div></div>`;
-    iaW.querySelector('#ia-ok').onclick = () => { const k = iaW.querySelector('#ia-k').value.trim(); if (!k.startsWith('sk-ant-')) { iaW.querySelector('#ia-k').focus(); return; } iaSetCfg({ ...c, key: k }); renderIA(); };
+    let mod = m0;
+    iaW.querySelector('#ia-mods').addEventListener('click', e => {
+      const b = e.target.closest('[data-m]'); if (!b) return; mod = b.dataset.m;
+      iaW.querySelectorAll('#ia-mods .box').forEach(x => { const on = x.closest('[data-m]').dataset.m === mod; x.style.background = on ? 'var(--text)' : ''; x.style.borderColor = on ? 'var(--text)' : ''; });
+    });
+    iaW.querySelector('#ia-ok').onclick = () => {
+      const k = iaW.querySelector('#ia-k').value.trim();
+      if (!k.startsWith('sk-ant-')) { iaW.querySelector('#ia-err').textContent = 'Pega la clave completa; empieza por sk-ant-api.'; iaW.querySelector('#ia-k').focus(); return; }
+      if (!k.startsWith('sk-ant-api')) { iaW.querySelector('#ia-err').textContent = 'Esa no parece una clave de la API. Créala en platform.claude.com → Settings → API keys: empieza por sk-ant-api.'; return; }
+      iaSetCfg({ ...c, key: k, modelo: mod }); renderIA();
+    };
     return;
   }
-  const vacio = !iaMsgs.length && !iaOcupado;
+  iaNuevoDia();
+  const vacio = !iaMsgs.length && !iaOcupado, gs = iaGastoTxt();
   iaW.innerHTML = `<div class="enf">
-    <div class="ia-top"><span class="meta" style="margin:0">${esc(IA_MODELOS[c.modelo || 'claude-opus-5-5'] || '')}</span>
+    <div class="ia-top"><span class="meta" style="margin:0">${esc((IA_MODELOS[c.modelo || 'claude-opus-5-5'] || '').replace(/ \(.*/, ''))} · hoy ${fmtUsd(gs.hoy)} · mes ${fmtUsd(gs.mes)}</span>
       <span>${gCalOk() ? '' : '<button class="link" id="ia-g">Conectar Google</button> · '}<button class="link" id="ia-new">Nueva</button> · <button class="link" id="ia-cfg">Ajustes</button></span></div>
     ${vacio ? `<p class="note" style="margin-top:18px">¿En qué te ayudo? Puedo revisar tu día, proponer prioridades, agendar bloques en tu calendario y preparar a quién escribir.</p>
       <div class="chips" id="ia-sug">${['Planifica mi día', '¿Qué hago ahora?', 'Revisa mi semana', 'Agenda mis prioridades en el calendario', '¿A quién debería escribir hoy?'].map(s => `<button class="chip">${s}</button>`).join('')}</div>` : ''}
@@ -3738,6 +3776,9 @@ function iaAjustes() {
   iaW.innerHTML = `<div class="enf"><h2>Ajustes del asistente</h2>
     <div class="field"><label>Modelo</label><select id="ia-m">${Object.entries(IA_MODELOS).map(([k, v]) => `<option value="${k}" ${k === (c.modelo || 'claude-opus-5-5') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
     <div class="field"><label>Clave de la API (solo en este teléfono)</label><input id="ia-k" type="password" autocomplete="off" value="${esc(c.key)}"></div>
+    <p class="meta">Costo aproximado: ${Object.keys(IA_MODELOS).map(k => `${IA_MODELOS[k].replace(/ \(.*/, '')}: ${IA_COSTO_TXT[k]}`).join(' · ')}.</p>
+    <dl class="woop"><dt>Gasto estimado en este teléfono</dt><dd>Hoy ${fmtUsd(iaGastoTxt().hoy)} · este mes ${fmtUsd(iaGastoTxt().mes)}. El dato exacto está en <a href="https://platform.claude.com/usage" target="_blank" rel="noopener">platform.claude.com → Usage</a>.</dd></dl>
+    <p class="meta">Para gastar menos: Sonnet o Haiku en vez de Opus, y una conversación por tema. Cada día la conversación empieza de cero sola, porque cada mensaje reenvía todo lo anterior. Pon un límite en <a href="https://platform.claude.com/settings/limits" target="_blank" rel="noopener">Settings → Limits</a>.</p>
     <p class="meta">Lo que escribes y el resumen de tu día se envían a Anthropic para responderte. La conversación se guarda solo en este teléfono.</p>
     <div class="actions"><button class="link red" id="ia-del">Borrar la clave</button><button class="link" id="ia-back">Volver</button><button class="primary" id="ia-save">Guardar</button></div></div>`;
   iaW.querySelector('#ia-back').onclick = renderIA;
@@ -3747,6 +3788,7 @@ function iaAjustes() {
 async function iaEnviar(texto) {
   texto = String(texto || '').trim(); if (!texto || iaOcupado) return;
   const c = iaCfg(), modelo = c.modelo || 'claude-opus-5-5';
+  iaNuevoDia(); iaDia = today();
   const base = iaMsgs.length;
   iaMsgs.push({ role: 'user', content: [{ type: 'text', text: `${iaCtx()}\n${texto}` }] }); iaGuardarChat();
   iaOcupado = true; iaVivo = ''; iaPasos = []; renderIA();
@@ -3763,6 +3805,7 @@ async function iaEnviar(texto) {
       iaVivo = '';
       stream.on('text', t => { iaVivo += t; const el = iaW.querySelector('#ia-vivo'); if (el) { el.innerHTML = iaFormato(iaVivo); scrollTo(0, document.body.scrollHeight); } });
       const msg = await stream.finalMessage();
+      iaSumarGasto(modelo, msg.usage || {});
       iaMsgs.push({ role: 'assistant', content: msg.content }); iaGuardarChat();
       if (msg.stop_reason === 'pause_turn') continue;
       if (msg.stop_reason === 'refusal') { iaMsgs.push({ role: 'user', content: [{ type: 'text', text: `${iaCtx()}\n(El asistente no pudo responder a eso.)` }] }); break; }
