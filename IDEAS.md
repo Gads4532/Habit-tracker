@@ -104,3 +104,46 @@ Cada domingo:
 4. Una sola mejora del ambiente para la semana siguiente.
 
 ⏳ = todavía no está en el prototipo
+
+## Enfoque (desde 2.7.0)
+
+Pestaña que se abre primero: la pregunta «¿Para qué tomaste el teléfono?» antes del feed. Dos prioridades:
+**erradicar el FOMO** y **tomar la iniciativa** (conversaciones, reuniones, planes, proyectos). Cada función sale de
+un estudio; la lista completa con fuentes está en la app («Por qué funciona»). Vive en un Shadow DOM para no mezclar
+estilos; sus datos van en `state.enfoque` y se sincronizan con la cuenta (unión por id; por día, el mayor de cada
+contador). La sesión de enfoque y la salida en curso son de cada teléfono (`habit-enfoque-local`).
+
+| Frente | Función | Evidencia |
+|---|---|---|
+| Intervenir | Un mensaje del momento según hora, día y datos (prioridades por la mañana, revisión los lunes, gracias los viernes, tres cosas buenas por la noche, presupuesto agotado, proyecto parado, misión social, iniciativa laboral, ventana de revisión, emoción más frecuente) | Señal en el momento correcto (Gollwitzer y Sheeran 2006) |
+| Prioridades | Tres al día, la más difícil primero; prioridad alta/media/baja por proyecto | Zhu et al. 2018; Habbert y Schroeder 2020 |
+| FOMO | Puerta con espera creciente y «Mejor no» | Grüning et al. 2023 |
+| FOMO | Presupuesto de 30 min y reto de 21 días | Hunt et al. 2018; Burnell et al. 2025 |
+| FOMO | Tres ventanas de revisión; fuera, espera doble | Fitz et al. 2019; Kushlev y Dunn 2015 |
+| FOMO | Emoción en la puerta con consejo | Throuvala et al. 2020 |
+| FOMO | «Hablar» vs. «solo mirar»; recordatorio de escala de grises | Verduyn et al. 2015; Zimmermann y Sobolev 2023 |
+| FOMO | Prueba de realidad al volver y al terminar una sesión | Experimento conductual (TCC) |
+| FOMO | Configurar el teléfono (7 pasos) | Olson et al. 2022 |
+| FOMO | Pacto semanal con consecuencia, compartible | Bryan, Karlan y Nelson 2010 |
+| Iniciativa | Personas por círculos, plantillas (saludo, gracias, plan), predicción vs. resultado | Liu et al. 2023; Kumar y Epley 2018; Masi et al. 2011; Dunbar |
+| Iniciativa | Planes con día y hora, preguntas profundas y de Aron, brecha de agrado | Epley y Schroeder 2014; Kardas et al. 2022; Aron et al. 1997; Boothby et al. 2018 |
+| Iniciativa | Misión social del día y reto de 7 días con desconocidos | Hall et al. 2023; Sandstrom et al. 2022 |
+| Iniciativa | Horas juntos hacia 50 / 90 / 200 h | Hall 2019 |
+| Iniciativa | Iniciativa laboral semanal: propuesta, reunión, problema anticipado | Parker et al. 2010; Campos et al. 2017 |
+| Proyectos | WOOP, paso con día/hora/lugar, versión de 2 min, «Estoy procrastinando», pequeñas victorias, «dónde lo dejaste», recompensa ligada, revisión semanal | Oettingen; Milkman et al. 2011; Rozental et al. 2018; Wohl et al. 2010; Harkin et al. 2016; Dai et al. 2014 |
+| Enfoque | Sesiones con interrupciones, ánimo antes/después, «surfear el impulso», aviso al terminar si el sistema lo permite | Mark et al. 2008; Ekers et al. 2014 |
+| Cierre del día | Tres cosas buenas | Seligman et al. 2005 |
+| Datos | «Tus datos»: todo lo recogido en un lugar | Harkin et al. 2016 |
+
+**Límites honestos**: una web no puede bloquear otras apps ni medir su tiempo; la app interviene cuando se abre
+(por eso sustituye a las redes en la pantalla de inicio). Los avisos del sistema solo salen si el teléfono deja la
+app viva en segundo plano. No se hace: desintoxicaciones de 1–3 días, apagar todas las notificaciones, «brain drain»,
+vender Pomodoro/GTD como ciencia, rachas que castigan.
+
+## Google Tasks (desde 2.7.0)
+
+Sincronización en los dos sentidos de listas y tareas (título, notas, fecha, completada; altas y bajas) con la API de
+Google Tasks, usando un ID de cliente OAuth propio (Google Cloud, tipo «Aplicación web», origen
+`https://gads4532.github.io`). El permiso dura una hora y vive solo en el teléfono (`habit-gtasks`); con él vivo, cada
+cambio se sincroniza solo. Regla de conflicto: si la tarea cambió aquí desde la última sincronización, sube; si no,
+manda Google. Las repeticiones de la app llegan a Google como tareas sueltas (la API no permite crear repeticiones).
