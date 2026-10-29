@@ -1,7 +1,7 @@
 {
-  "name": "Habit Tracker",
-  "short_name": "Habit Tracker",
-  "description": "Tracker de hábitos minimalista con rachas, rutinas y calendario.",
+  "name": "Rumbo",
+  "short_name": "Rumbo",
+  "description": "Rumbo: menos teléfono y más de lo que importa. Enfoque, asistente con IA, hábitos, tareas y calendario.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

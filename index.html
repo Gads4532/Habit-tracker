@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Habit Tracker</title>
+<title>Rumbo</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -390,6 +390,7 @@
     <div class="global" id="global"></div>
   </header>
   <div id="view-enfoque" hidden></div>
+  <div id="view-ia" hidden></div>
   <div id="view-hoy">
     <p class="note bad" id="nocloud" hidden>Tus datos están solo en este teléfono. <button class="link" id="nocloud-go">Crea una cuenta</button> para guardarlos en línea.</p>
     <p class="note" id="notice" hidden></p>
@@ -415,6 +416,9 @@
 <nav class="tabs">
   <button class="tab" data-view="enfoque">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/></svg>Enfoque
+  </button>
+  <button class="tab" data-view="ia">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18.5l-1.5 3 4-1.6A9 9 0 1 0 5 18.5z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>Asistente
   </button>
   <button class="tab on" data-view="hoy">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.5L16 9.5"/></svg>Hábitos
@@ -496,7 +500,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.8.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -639,7 +643,7 @@ function normEnfoque(e) {
 }
 // Saludo según la hora, con el nombre de la persona.
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
-const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { ia: 'Asistente', cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -1419,7 +1423,7 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -1474,18 +1478,41 @@ function gLoad() {
   });
 }
 // Pide el permiso con un toque (ventana de Google). La primera vez pregunta; después suele ser inmediato.
-async function gToken(interactive) {
-  if (gValid()) return gCfg().token;
+const G_CAL = 'https://www.googleapis.com/auth/calendar.events';
+const gCalOk = () => gValid() && !!gCfg().cal;
+// Con cal = true se pide también Google Calendar (la primera vez, Google vuelve a preguntar).
+async function gToken(interactive, cal = false) {
+  if (gValid() && (!cal || gCfg().cal)) return gCfg().token;
   if (!interactive) return null;
   await gLoad();
   return new Promise((res, rej) => {
     const client = google.accounts.oauth2.initTokenClient({
-      client_id: gCfg().clientId, scope: 'https://www.googleapis.com/auth/tasks',
-      callback: r => { if (r.error) return rej(new Error(r.error_description || r.error)); gSetCfg({ ...gCfg(), token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, ok: true }); res(r.access_token); },
+      client_id: gCfg().clientId, scope: 'https://www.googleapis.com/auth/tasks ' + G_CAL,
+      callback: r => { if (r.error) return rej(new Error(r.error_description || r.error)); gSetCfg({ ...gCfg(), token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, ok: true, cal: google.accounts.oauth2.hasGrantedAllScopes(r, G_CAL) }); res(r.access_token); },
       error_callback: e => rej(new Error(e?.type === 'popup_closed' ? 'Cerraste la ventana de Google.' : 'Google no abrió la ventana de permiso.')),
     });
-    client.requestAccessToken({ prompt: gCfg().ok ? '' : 'consent' });
+    client.requestAccessToken({ prompt: gCfg().ok && gCfg().cal ? '' : 'consent' });
   });
+}
+// ---------- Google Calendar (calendario principal): ver y crear eventos.
+const CAL_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+async function gCalFetch(url, opt = {}) {
+  const r = await fetch(url, { ...opt, headers: { Authorization: 'Bearer ' + gCfg().token, 'Content-Type': 'application/json' } });
+  if (r.status === 401) { gSetCfg({ ...gCfg(), token: '', exp: 0 }); throw new Error('El permiso de Google caducó. Toca «Conectar Google Calendar».'); }
+  if (r.status === 403) { gSetCfg({ ...gCfg(), cal: false }); throw new Error('Google Calendar no está activado: activa la API de Google Calendar en tu proyecto de Google Cloud y vuelve a conectar.'); }
+  if (!r.ok) throw new Error(`Google Calendar respondió ${r.status}.`);
+  return r.json();
+}
+async function gCalEventos(desde, hasta) {
+  const q = new URLSearchParams({ timeMin: desde.toISOString(), timeMax: hasta.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '100' });
+  const r = await gCalFetch(`${CAL_API}?${q}`);
+  return (r.items || []).filter(e => e.status !== 'cancelled').map(e => ({ titulo: e.summary || '(Sin título)', inicio: e.start?.dateTime || e.start?.date, fin: e.end?.dateTime || e.end?.date,
+    todoElDia: !e.start?.dateTime, lugar: e.location || '', enlace: e.htmlLink || '' }));
+}
+function gCalCrear(a) {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return gCalFetch(CAL_API, { method: 'POST', body: JSON.stringify({ summary: a.titulo, location: a.lugar || undefined, description: a.descripcion || undefined,
+    start: { dateTime: `${a.fecha}T${a.hora_inicio}:00`, timeZone }, end: { dateTime: `${a.fecha}T${a.hora_fin}:00`, timeZone } }) });
 }
 const gSnap = x => JSON.stringify([x.titulo, x.detalle || '', x.fecha || '', !!x.hecha]);
 const gBody = x => ({ title: x.titulo, notes: x.detalle || '', due: x.fecha ? x.fecha + 'T00:00:00.000Z' : null, status: x.hecha ? 'completed' : 'needsAction', ...(x.hecha ? {} : { completed: null }) });
@@ -1688,7 +1715,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   if (!b) return;
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
-  for (const v of ['enfoque', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  for (const v of ['enfoque', 'ia', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   renderTitle();
   renderAll();
   scrollTo(0, 0);
@@ -2210,8 +2237,12 @@ const ENFOQUE_CSS = `
 const ENFOQUE_HTML = `
 
   <div id="interv"></div>
+  <section id="agenda-sec">
+    <h3 style="margin-top:0">Agenda de hoy</h3>
+    <div id="agenda"></div>
+  </section>
   <section id="prio-sec">
-    <h3 style="margin-top:0">Prioridades de hoy</h3>
+    <h3>Prioridades de hoy</h3>
     <div id="prio"></div>
   </section>
 
@@ -2306,7 +2337,7 @@ const PREGUNTAS = ['¿Qué es lo que más te ilusiona ahora mismo?', '¿Qué apr
 // Configuración del teléfono (Olson et al., 2022): pequeños cambios que bajan el uso problemático.
 const CONFIG = [
   ['inicio', 'Quitar las redes de la pantalla de inicio', 'Mantén pulsado el icono → Quitar (no desinstalar).'],
-  ['enfoque', 'Poner el Habit Tracker donde estaban', 'Que el pulgar encuentre la pregunta en vez del feed.'],
+  ['enfoque', 'Poner Rumbo donde estaban', 'Que el pulgar encuentre la pregunta en vez del feed.'],
   ['notif', 'Silenciar las notificaciones de redes', 'Ajustes → Notificaciones. Deja solo llamadas y mensajes de personas. No apagues todo: eso aumenta el FOMO.'],
   ['grises', 'Pantalla en escala de grises', 'Ajustes → Bienestar digital → Modo descanso, o Accesibilidad → Corrección de color.'],
   ['dormir', 'Cargar el teléfono fuera del dormitorio', 'Un despertador barato evita la primera y la última revisión del día.'],
@@ -2371,7 +2402,7 @@ function recordatorioHabito() {
 }
 
 // ---------- Pantalla principal
-function renderE() { renderInterv(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
+function renderE() { renderInterv(); renderAgenda(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
 function renderStats() {
   const d = dayOf(), over = d.aperturas > ES.limite;
   $('#stats').innerHTML = `
@@ -2472,7 +2503,7 @@ function alternativas(titulo, sub) {
 function habitSheet(h, elegido = false) {
   if (!h) return;
   showSheet(`<h2>${esc(h.nombre)}</h2>
-    ${elegido ? `<p class="note">Hazlo ahora y márcalo en el Habit Tracker.</p>` : h.identidad ? `<p class="note">Soy una persona que ${esc(h.identidad)}</p>` : ''}
+    ${elegido ? `<p class="note">Hazlo ahora y márcalo en Hábitos.</p>` : h.identidad ? `<p class="note">Soy una persona que ${esc(h.identidad)}</p>` : ''}
     ${h.minima ? `<p class="meta">Versión de 2 minutos: <b style="color:var(--text);font-weight:500">${esc(h.minima)}</b></p>` : ''}
     ${h.beneficios?.length ? `<p class="meta green" style="margin:14px 0 0;font-weight:600">Beneficios</p><ul class="pros">${h.beneficios.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
     ${h.contras?.length ? `<p class="meta red" style="margin:0;font-weight:600">Contras de no hacerlo</p><ul class="pros">${h.contras.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
@@ -3018,7 +3049,7 @@ function planSheet(pl, nuevo = false) {
     ${pasado ? `<p style="margin:0 0 12px">¿Se hizo?</p><div class="chips"><button class="chip" data-done="si">Sí</button><button class="chip" data-done="no">No, se canceló</button></div>` : `
     <div class="actions stack" style="margin-top:0">
       <a class="primary btn" href="https://wa.me/${tel}?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">Enviar invitación por WhatsApp</a>
-      <a class="outline btn" href="${cal}" target="_blank" rel="noopener">Añadir a Google Calendar</a>
+      ${gCalOk() ? `<button class="outline" id="ps-gcal">Crear en mi Google Calendar</button>` : `<a class="outline btn" href="${cal}" target="_blank" rel="noopener">Añadir a Google Calendar</a>`}
     </div>
     <h3>Para la conversación</h3>
     <ul class="pros">${[...PREGUNTAS].sort(() => Math.random() - .5).slice(0, 2).map(q => `<li>${esc(q)}</li>`).join('')}${[...PREGUNTAS_ARON].sort(() => Math.random() - .5).slice(0, 1).map(q => `<li>${esc(q)} <span class="meta">(Aron et al., 1997)</span></li>`).join('')}</ul>
@@ -3033,6 +3064,11 @@ function planSheet(pl, nuevo = false) {
         <div class="actions stack"><button class="primary" id="pd-next">Proponer otra fecha</button><button class="link" id="pd-close">Cerrar</button></div>`);
     $('#pd-next').onclick = () => planForm(pl.con);
     $('#pd-close').onclick = closeSheet;
+  });
+  $('#ps-gcal')?.addEventListener('click', async e => {
+    e.target.disabled = true;
+    try { await gCalCrear({ titulo: cap(pl.titulo) + (pl.con ? ' con ' + pl.con : ''), fecha: pl.fecha, hora_inicio: pl.hora, hora_fin: addMin(pl.hora, 60), lugar: '', descripcion: '' }); agendaCache.t = 0; renderAgenda(); toast('Creado en tu Google Calendar.'); }
+    catch (err) { toast(err.message); e.target.disabled = false; }
   });
   $('#ps-del').onclick = () => { forget(pl.id); ES.planes = ES.planes.filter(x => x !== pl); guardar(); renderE(); closeSheet(); };
   $('#ps-close').onclick = closeSheet;
@@ -3474,9 +3510,9 @@ function welcome() {
   showSheet(`<h2>Menos teléfono, más de lo que importa</h2>
     <p class="note">Enfoque es la pestaña que se pone entre tú y las apps que te roban tiempo. Tres pasos, una sola vez:</p>
     <ol class="pros" style="padding-left:20px">
-      <li style="margin-bottom:8px"><b>Instala el Habit Tracker</b> en la pantalla de inicio (Chrome → ⋮ → «Instalar aplicación»). Se abre en esta pestaña.</li>
+      <li style="margin-bottom:8px"><b>Instala Rumbo</b> en la pantalla de inicio (Chrome → ⋮ → «Instalar aplicación»). Se abre en esta pestaña.</li>
       <li style="margin-bottom:8px"><b>Quita Instagram, TikTok y demás de la pantalla de inicio</b>: mantén pulsado el icono → «Quitar» (no desinstalar). Siguen en el cajón de apps, pero ya no a un toque.</li>
-      <li><b>Pon el Habit Tracker en su lugar.</b> Cuando el pulgar vaya solo a ese rincón, abrirás esta pregunta en vez del feed.</li>
+      <li><b>Pon Rumbo en su lugar.</b> Cuando el pulgar vaya solo a ese rincón, abrirás esta pregunta en vez del feed.</li>
     </ol>
     <p class="note">Después, añade a las personas con las que quieres mantener el contacto y tus proyectos en «Tomar la iniciativa»: cada día verás a quién escribir y el siguiente paso.</p>
     <p class="note">Para un tope estricto, combínalo con Bienestar digital de Android: Ajustes → Bienestar digital → Temporizadores de apps.</p>
@@ -3486,6 +3522,289 @@ function welcome() {
     ES.bienvenida = true; guardar(); closeSheet(); renderE();
   };
 }
+
+// ====================================================================
+// Agenda: los eventos de hoy de Google Calendar (si está conectado).
+// ====================================================================
+let agendaCache = { d: '', t: 0, items: null, err: '' };
+async function cargarAgenda(force = false) {
+  if (!gCalOk()) return;
+  if (!force && agendaCache.d === today() && Date.now() - agendaCache.t < 5 * 60000) return;
+  try {
+    const desde = new Date(); desde.setHours(0, 0, 0, 0); const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 1);
+    agendaCache = { d: today(), t: Date.now(), items: await gCalEventos(desde, hasta), err: '' };
+  } catch (e) { agendaCache = { d: today(), t: Date.now(), items: null, err: e.message }; }
+  renderAgenda();
+}
+const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const fmtEvHora = ev => ev.todoElDia ? 'Todo el día' : fmtHora(hhmm(new Date(ev.inicio)));
+function renderAgenda() {
+  const el = $('#agenda'); if (!el) return;
+  if (!gCalOk()) {
+    el.innerHTML = `<button class="row" id="ag-con"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>Conectar Google Calendar</div><small>Para ver tu día aquí y que el asistente pueda agendar</small></span><span class="tag">›</span></button>`;
+    $('#ag-con').onclick = async () => { try { await gToken(true, true); cargarAgenda(true); } catch (e) { toast(e.message); } };
+    return;
+  }
+  if (agendaCache.d !== today() || !agendaCache.items) { el.innerHTML = `<p class="empty">${agendaCache.err ? esc(agendaCache.err) : 'Cargando…'}</p>`; cargarAgenda(); return; }
+  const evs = agendaCache.items;
+  el.innerHTML = evs.length ? `<div class="rows">${evs.map(ev => `<a class="row" style="text-decoration:none;${!ev.todoElDia && Date.parse(ev.fin) < Date.now() ? 'opacity:.45' : ''}" href="${esc(ev.enlace)}" target="_blank" rel="noopener">
+      <span class="dot" style="--c:var(--text)"></span><span class="t"><div>${esc(ev.titulo)}</div>${ev.lugar ? `<small>${esc(ev.lugar)}</small>` : ''}</span><span class="tag">${fmtEvHora(ev)}</span></a>`).join('')}</div>`
+    : `<p class="empty">Nada en el calendario hoy. Buen día para bloquear tiempo para tu prioridad.</p>`;
+}
+
+// ====================================================================
+// Asistente con Claude: conversa y coordina la app (prioridades, tareas,
+// proyectos, personas, planes, enfoque y Google Calendar) con herramientas.
+// La clave de la API de Claude vive solo en este teléfono.
+// ====================================================================
+const IA_KEY = 'rumbo-claude', IA_CHAT = 'rumbo-chat';
+const IA_MODELOS = { 'claude-opus-5-5': 'Claude Opus 5.5 (recomendado)', 'claude-sonnet-5-5': 'Claude Sonnet 5.5 (más económico)', 'claude-haiku-5-5': 'Claude Haiku 5.5 (el más económico)' };
+const iaCfg = () => { try { return JSON.parse(localStorage.getItem(IA_KEY)) || {}; } catch { return {}; } };
+const iaSetCfg = c => { try { localStorage.setItem(IA_KEY, JSON.stringify(c)); } catch {} };
+let iaMsgs = []; try { iaMsgs = JSON.parse(localStorage.getItem(IA_CHAT)) || []; } catch {}
+const iaGuardarChat = () => { try { localStorage.setItem(IA_CHAT, JSON.stringify(iaMsgs)); } catch {} };
+let iaOcupado = false, iaVivo = '', iaPasos = [], Anthropic = null;
+
+const IA_SYSTEM = `Eres el asistente de Rumbo, una app personal para usar menos el teléfono, erradicar el FOMO, cumplir hábitos y tareas, y tomar la iniciativa en proyectos, conversaciones, reuniones y planes. Hablas en español, de tú, con un registro claro y cercano, sin relleno. Respuestas breves (normalmente de 2 a 6 líneas); usa listas solo cuando ayuden.
+
+Cómo trabajas:
+- Antes de aconsejar o planificar, mira el estado real con ver_estado (y calendario_ver cuando importen las horas). No inventes datos.
+- Cuando la persona te pida algo concreto (crear una tarea, agendar, marcar algo como hecho), hazlo con las herramientas y confirma en una línea qué cambiaste.
+- Si propones cambios por iniciativa propia (por ejemplo, bloquear horas en el calendario o cambiar prioridades), descríbelos primero y espera un sí antes de hacerlos.
+- Lo importante antes que lo urgente: como máximo tres prioridades al día, la más difícil primero.
+- Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
+- Si aparece malestar serio, sugiere con tacto hablar con un profesional; no eres terapeuta.
+- Horas en formato de 12 horas con AM/PM; fechas como «jueves 30 de octubre».
+- Cada mensaje de la persona empieza con la fecha y la hora actuales entre corchetes: úsalas como referencia para «hoy», «mañana» o «esta tarde».`;
+
+const iaTool = (name, description, props) => ({ name, description, strict: true,
+  input_schema: { type: 'object', properties: props, required: Object.keys(props), additionalProperties: false } });
+const S = d => ({ type: 'string', description: d });
+const IA_TOOLS = [
+  iaTool('ver_estado', 'Devuelve el estado actual de la app: prioridades de hoy, hábitos y tareas pendientes, proyectos con su siguiente paso, personas a las que toca escribir, planes próximos, números de hoy y de la semana, iniciativa laboral y emociones más frecuentes ante el impulso de usar el teléfono.', {}),
+  iaTool('gestionar_prioridad', 'Agrega, completa o quita una de las prioridades de hoy (máximo tres; la primera es la más difícil).', {
+    accion: { type: 'string', enum: ['agregar', 'completar', 'quitar'] }, texto: S('Texto de la prioridad al agregar; vacío en otro caso.'), numero: { type: 'integer', description: 'Número de la prioridad (1-3) al completar o quitar; 0 al agregar.' } }),
+  iaTool('crear_tarea', 'Crea una tarea en la lista de Tareas (se sincroniza con Google Tasks si está conectado).', {
+    titulo: S('Título de la tarea.'), fecha: S('Fecha AAAA-MM-DD o vacío si no tiene.'), detalle: S('Notas o vacío.') }),
+  iaTool('completar_tarea', 'Marca como hecha una tarea pendiente, por su id (de ver_estado) o por su título.', { tarea: S('Id o título de la tarea.') }),
+  iaTool('proyecto_paso', 'Marca como hecho el siguiente paso de un proyecto y/o define el nuevo paso con día, hora y lugar.', {
+    proyecto: S('Nombre del proyecto.'), accion: { type: 'string', enum: ['hecho', 'definir'] }, paso: S('Nuevo siguiente paso (acción física de menos de 25 minutos) o vacío.'),
+    fecha: S('AAAA-MM-DD o vacío.'), hora: S('HH:MM en 24 h o vacío.'), donde: S('Lugar o vacío.') }),
+  iaTool('crear_proyecto', 'Crea un proyecto con el método WOOP y su primer paso.', {
+    nombre: S('Nombre del proyecto.'), deseo: S('Qué quiere lograr, medible y con fecha.'), obstaculo: S('Obstáculo interno principal.'), plan: S('Plan «si aparece el obstáculo, entonces…».'), paso: S('Primer paso físico de menos de 25 minutos.'),
+    prioridad: { type: 'string', enum: ['alta', 'media', 'baja'] } }),
+  iaTool('registrar_contacto', 'Registra que la persona tomó la iniciativa con alguien de su lista de Personas.', {
+    persona: S('Nombre de la persona.'), tipo: { type: 'string', enum: ['Mensaje', 'Llamada', 'Plan', 'Reunión', 'Gracias'] } }),
+  iaTool('crear_plan', 'Guarda un plan propuesto con otra persona (café, almuerzo, reunión…) con fecha y hora.', {
+    que: S('Qué, como verbo: «tomar un café», «almorzar», «una reunión de trabajo».'), con: S('Con quién.'), fecha: S('AAAA-MM-DD.'), hora: S('HH:MM en 24 h.') }),
+  iaTool('calendario_ver', 'Lista los eventos del Google Calendar principal entre dos fechas (incluidas).', { desde: S('AAAA-MM-DD.'), hasta: S('AAAA-MM-DD.') }),
+  iaTool('calendario_crear', 'Crea un evento en el Google Calendar principal. Úsalo solo si la persona lo pidió o aceptó.', {
+    titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
+  iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
+    que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
+];
+
+function iaEstado() {
+  const p = pendientes(), d = dayOf();
+  const ks = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), i - 6))), sum = f => ks.reduce((a, k) => a + (dayOf(k)[f] || 0), 0);
+  return {
+    nombre: HT().nombre || '',
+    prioridades_hoy: ES.prioridades.items.map((x, i) => ({ numero: i + 1, texto: x.t, hecha: !!x.hecho })),
+    habitos_pendientes_hoy: p.habits.map(h => ({ nombre: h.nombre, version_2_min: h.minima || '', hora: (h.horas || [])[0] || '' })),
+    tareas_pendientes: [...p.due, ...p.sinFecha.slice(0, 20)].map(x => ({ id: x.id, titulo: x.titulo, fecha: x.fecha || '', vencida: !!x.fecha && x.fecha < today() })),
+    proyectos: proyectosActivos().map(pr => ({ nombre: pr.nombre, prioridad: PRIO[pr.prioridad], siguiente_paso: pr.paso, fecha: pr.cuando, hora: pr.hora, lugar: pr.donde,
+      dias_sin_avanzar: Number.isFinite(daysSince(ultimoPaso(pr))) ? daysSince(ultimoPaso(pr)) : null, deseo: pr.deseo, obstaculo: pr.obstaculo, plan_si_entonces: pr.plan })),
+    personas: ES.personas.map(x => ({ nombre: x.nombre, circulo: CADA[x.cada] || '', ultimo_contacto: x.ultimo || 'nunca', le_toca: daysSince(x.ultimo) >= x.cada })),
+    planes_proximos: planesProximos().map(pl => ({ que: pl.titulo, con: pl.con, fecha: pl.fecha, hora: pl.hora })),
+    hoy: { enfoque_min: d.enfoque, aperturas_redes: d.aperturas, limite_aperturas: ES.limite, distraccion_min: d.distraccion, presupuesto_min: ES.presupuesto, resistio: d.resistidas + d.alternativas, iniciativas: d.iniciativas },
+    ultimos_7_dias: { enfoque_min: sum('enfoque'), iniciativas: sum('iniciativas'), aperturas_redes: sum('aperturas'), distraccion_min: sum('distraccion'), pasos_proyecto: sum('pasos') },
+    meta_iniciativas_semana: ES.metaSemanal, iniciativas_esta_semana: iniciativasSemana(),
+    iniciativa_laboral: laboralSemana().items.map(x => ({ tipo: x.k, que: x.t, hecho: x.hecho })),
+    emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
+    ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(),
+  };
+}
+const buscar = (lista, txt, campo) => { const q = String(txt || '').trim().toLowerCase(); return lista.find(x => x.id === txt) || lista.find(x => String(x[campo]).toLowerCase() === q) || lista.find(x => String(x[campo]).toLowerCase().includes(q)); };
+const nombresDe = (lista, campo) => lista.map(x => x[campo]).join(', ') || 'ninguno';
+async function iaEjecutar(nombre, a) {
+  const T = HT().tareas;
+  switch (nombre) {
+    case 'ver_estado': return iaEstado();
+    case 'gestionar_prioridad': {
+      const P = ES.prioridades;
+      if (a.accion === 'agregar') { if (P.items.length >= 3) throw new Error('Ya hay tres prioridades hoy; pregunta cuál quitar.'); P.items.push({ id: crypto.randomUUID(), t: a.texto, hecho: false, origen: 'Asistente' }); }
+      else { const x = P.items[a.numero - 1]; if (!x) throw new Error(`No existe la prioridad ${a.numero}.`); if (a.accion === 'quitar') P.items.splice(a.numero - 1, 1); else if (!x.hecho) { x.hecho = true; bump('iniciativas'); } }
+      guardar(); renderE(); return { prioridades_hoy: P.items.map((x, i) => `${i + 1}. ${x.t}${x.hecho ? ' (hecha)' : ''}`) };
+    }
+    case 'crear_tarea': {
+      const lista = T.listas.find(l => l.id === T.activa) || T.listas[0];
+      const x = { id: crypto.randomUUID(), lista: lista.id, titulo: a.titulo, detalle: a.detalle || '', fecha: /^\d{4}-\d\d-\d\d$/.test(a.fecha) ? a.fecha : '', hecha: false, creado: Date.now(), repite: '', dias: [] };
+      T.items.push(x); save(); if (view === 'tareas') renderTareas(); gAuto(); return { creada: x.titulo, lista: lista.nombre, fecha: x.fecha };
+    }
+    case 'completar_tarea': {
+      const x = buscar(T.items.filter(i => !i.hecha), a.tarea, 'titulo'); if (!x) throw new Error('No encontré esa tarea pendiente.');
+      completeTask(x); save(); if (view === 'tareas') renderTareas(); gAuto(); renderE(); return { completada: x.titulo };
+    }
+    case 'proyecto_paso': {
+      const pr = buscar(proyectosActivos(), a.proyecto, 'nombre'); if (!pr) throw new Error(`No existe ese proyecto. Proyectos: ${nombresDe(proyectosActivos(), 'nombre')}.`);
+      if (a.accion === 'hecho' && pr.paso) { pr.pasos.push({ t: pr.paso, d: today() }); pr.paso = ''; pr.nota = ''; bump('pasos'); bump('iniciativas'); }
+      if (a.paso) pr.paso = a.paso;
+      if (a.fecha) pr.cuando = a.fecha; if (a.hora) pr.hora = a.hora; if (a.donde) pr.donde = a.donde;
+      guardar(); renderE(); return { proyecto: pr.nombre, siguiente_paso: pr.paso, fecha: pr.cuando, hora: pr.hora, lugar: pr.donde };
+    }
+    case 'crear_proyecto': {
+      const pr = { id: crypto.randomUUID(), creado: today(), pasos: [], nombre: a.nombre, deseo: a.deseo, resultado: '', obstaculo: a.obstaculo, plan: a.plan, paso: a.paso, minima: '', cuando: '', hora: '', donde: '', nota: '', recompensa: '', prioridad: { alta: 1, media: 2, baja: 3 }[a.prioridad] || 2 };
+      ES.proyectos.push(pr); guardar(); renderE(); return { creado: pr.nombre };
+    }
+    case 'registrar_contacto': {
+      const p = buscar(ES.personas, a.persona, 'nombre'); if (!p) throw new Error(`No está en Personas. Personas: ${nombresDe(ES.personas, 'nombre')}.`);
+      registrar(p, a.tipo); return { registrado: `${a.tipo} con ${p.nombre}` };
+    }
+    case 'crear_plan': {
+      const pl = { id: crypto.randomUUID(), titulo: a.que, con: a.con, fecha: a.fecha, hora: a.hora || '18:00', hecho: false };
+      ES.planes.push(pl); const per = ES.personas.find(p => p.nombre.toLowerCase() === a.con.toLowerCase());
+      if (per) registrar(per, 'Plan'); else { bump('iniciativas'); guardar(); renderE(); }
+      return { plan: `${a.que} con ${a.con}, ${a.fecha} ${a.hora}`, nota: 'Recuérdale que envíe la invitación (la ficha del plan tiene el botón de WhatsApp).' };
+    }
+    case 'calendario_ver': {
+      if (!gCalOk()) throw new Error('Google Calendar no está conectado: la persona debe tocar «Conectar Google» en el asistente o en Enfoque.');
+      const desde = new Date(a.desde + 'T00:00'), hasta = new Date(a.hasta + 'T00:00'); hasta.setDate(hasta.getDate() + 1);
+      return { eventos: (await gCalEventos(desde, hasta)).map(ev => ({ titulo: ev.titulo, inicio: ev.inicio, fin: ev.fin, todo_el_dia: ev.todoElDia, lugar: ev.lugar })) };
+    }
+    case 'calendario_crear': {
+      if (!gCalOk()) throw new Error('Google Calendar no está conectado: la persona debe tocar «Conectar Google» en el asistente o en Enfoque.');
+      const ev = await gCalCrear(a); agendaCache.t = 0; renderAgenda();
+      return { creado: ev.summary, inicio: ev.start?.dateTime || ev.start?.date, enlace: ev.htmlLink };
+    }
+    case 'iniciar_enfoque': {
+      const min = Math.max(5, Math.min(120, a.minutos | 0)); irA('enfoque'); startFocus(a.que, min); return { iniciada: `${min} min en «${a.que}»` };
+    }
+  }
+  throw new Error('Herramienta desconocida.');
+}
+const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
+  crear_proyecto: 'Creó un proyecto', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
+
+// Texto con **negritas** y saltos de línea, siempre escapado.
+const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+const iaCtx = () => { const d = new Date(); return `[${d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${fmtHora(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)}]`; };
+const iaSinCtx = t => t.replace(/^\[[^\]]*\]\n/, '');
+function iaBurbujas() {
+  const out = [];
+  for (const m of iaMsgs) {
+    const blocks = typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content;
+    for (const b of blocks) {
+      if (b.type === 'text' && b.text.trim()) out.push(`<div class="msg ${m.role === 'user' ? 'u' : 'a'}">${iaFormato(m.role === 'user' ? iaSinCtx(b.text) : b.text)}</div>`);
+      if (b.type === 'tool_use') out.push(`<div class="msg t">✓ ${esc(IA_ACCION[b.name] || b.name)}</div>`);
+    }
+  }
+  return out.join('');
+}
+function renderIA() {
+  const c = iaCfg();
+  if (!c.key) {
+    iaW.innerHTML = `<div class="enf"><h2>Tu asistente</h2>
+      <p class="note">Habla con Claude para planificar tu día, ordenar prioridades, agendar en tu calendario y tomar la iniciativa. Puede ver y cambiar lo que hay en la app cuando se lo pides.</p>
+      <ol class="pros" style="padding-left:20px">
+        <li style="margin-bottom:6px">Crea una clave en <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com → API keys</a> (necesita saldo; cada mensaje cuesta unos céntimos).</li>
+        <li>Pégala aquí. Se guarda solo en este teléfono; no se sube a tu cuenta.</li>
+      </ol>
+      <div class="field"><label>Clave de la API de Claude</label><input id="ia-k" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
+      <div class="actions"><button class="primary" id="ia-ok">Guardar</button></div></div>`;
+    iaW.querySelector('#ia-ok').onclick = () => { const k = iaW.querySelector('#ia-k').value.trim(); if (!k.startsWith('sk-ant-')) { iaW.querySelector('#ia-k').focus(); return; } iaSetCfg({ ...c, key: k }); renderIA(); };
+    return;
+  }
+  const vacio = !iaMsgs.length && !iaOcupado;
+  iaW.innerHTML = `<div class="enf">
+    <div class="ia-top"><span class="meta" style="margin:0">${esc(IA_MODELOS[c.modelo || 'claude-opus-5-5'] || '')}</span>
+      <span>${gCalOk() ? '' : '<button class="link" id="ia-g">Conectar Google</button> · '}<button class="link" id="ia-new">Nueva</button> · <button class="link" id="ia-cfg">Ajustes</button></span></div>
+    ${vacio ? `<p class="note" style="margin-top:18px">¿En qué te ayudo? Puedo revisar tu día, proponer prioridades, agendar bloques en tu calendario y preparar a quién escribir.</p>
+      <div class="chips" id="ia-sug">${['Planifica mi día', '¿Qué hago ahora?', 'Revisa mi semana', 'Agenda mis prioridades en el calendario', '¿A quién debería escribir hoy?'].map(s => `<button class="chip">${s}</button>`).join('')}</div>` : ''}
+    <div class="chat" id="ia-chat">${iaBurbujas()}${iaPasos.map(p => `<div class="msg t">✓ ${esc(p)}</div>`).join('')}${iaOcupado ? `<div class="msg a" id="ia-vivo">${iaVivo ? iaFormato(iaVivo) : '<span class="dots">Pensando…</span>'}</div>` : ''}</div>
+    <div class="composer"><textarea id="ia-in" rows="1" placeholder="Escribe al asistente…" ${iaOcupado ? 'disabled' : ''}></textarea><button class="send" id="ia-send" aria-label="Enviar" ${iaOcupado ? 'disabled' : ''}>↑</button></div>
+  </div>`;
+  const inp = iaW.querySelector('#ia-in');
+  inp.addEventListener('input', () => { inp.style.height = 'auto'; inp.style.height = Math.min(140, inp.scrollHeight) + 'px'; });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); iaEnviar(inp.value); } });
+  iaW.querySelector('#ia-send').onclick = () => iaEnviar(inp.value);
+  iaW.querySelector('#ia-sug')?.addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) iaEnviar(b.textContent); });
+  iaW.querySelector('#ia-new').onclick = () => { if (iaOcupado) return; iaMsgs = []; iaGuardarChat(); renderIA(); };
+  iaW.querySelector('#ia-cfg').onclick = iaAjustes;
+  iaW.querySelector('#ia-g')?.addEventListener('click', async () => { try { await gToken(true, true); renderIA(); renderAgenda(); } catch (e) { toast(e.message); } });
+  requestAnimationFrame(() => scrollTo(0, document.body.scrollHeight));
+}
+function iaAjustes() {
+  const c = iaCfg();
+  iaW.innerHTML = `<div class="enf"><h2>Ajustes del asistente</h2>
+    <div class="field"><label>Modelo</label><select id="ia-m">${Object.entries(IA_MODELOS).map(([k, v]) => `<option value="${k}" ${k === (c.modelo || 'claude-opus-5-5') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+    <div class="field"><label>Clave de la API (solo en este teléfono)</label><input id="ia-k" type="password" autocomplete="off" value="${esc(c.key)}"></div>
+    <p class="meta">Lo que escribes y el resumen de tu día se envían a Anthropic para responderte. La conversación se guarda solo en este teléfono.</p>
+    <div class="actions"><button class="link red" id="ia-del">Borrar la clave</button><button class="link" id="ia-back">Volver</button><button class="primary" id="ia-save">Guardar</button></div></div>`;
+  iaW.querySelector('#ia-back').onclick = renderIA;
+  iaW.querySelector('#ia-del').onclick = () => { iaSetCfg({}); renderIA(); };
+  iaW.querySelector('#ia-save').onclick = () => { iaSetCfg({ ...c, modelo: iaW.querySelector('#ia-m').value, key: iaW.querySelector('#ia-k').value.trim() }); renderIA(); };
+}
+async function iaEnviar(texto) {
+  texto = String(texto || '').trim(); if (!texto || iaOcupado) return;
+  const c = iaCfg(), modelo = c.modelo || 'claude-opus-5-5';
+  const base = iaMsgs.length;
+  iaMsgs.push({ role: 'user', content: [{ type: 'text', text: `${iaCtx()}\n${texto}` }] }); iaGuardarChat();
+  iaOcupado = true; iaVivo = ''; iaPasos = []; renderIA();
+  try {
+    Anthropic ||= (await import('./vendor/anthropic-sdk-0.134.0.mjs')).default;
+    const client = new Anthropic({ apiKey: c.key, dangerouslyAllowBrowser: true });
+    for (let vuelta = 0; vuelta < 12; vuelta++) {
+      const stream = client.beta.messages.stream({
+        model: modelo, max_tokens: 16000, system: IA_SYSTEM, tools: IA_TOOLS, messages: iaMsgs,
+        output_config: { effort: 'medium' }, cache_control: { type: 'ephemeral' },
+        // Si el modelo declina por sus filtros, la API reintenta sola con otro modelo adecuado.
+        ...(modelo === 'claude-haiku-5-5' ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }),
+      });
+      iaVivo = '';
+      stream.on('text', t => { iaVivo += t; const el = iaW.querySelector('#ia-vivo'); if (el) { el.innerHTML = iaFormato(iaVivo); scrollTo(0, document.body.scrollHeight); } });
+      const msg = await stream.finalMessage();
+      iaMsgs.push({ role: 'assistant', content: msg.content }); iaGuardarChat();
+      if (msg.stop_reason === 'pause_turn') continue;
+      if (msg.stop_reason === 'refusal') { iaMsgs.push({ role: 'user', content: [{ type: 'text', text: `${iaCtx()}\n(El asistente no pudo responder a eso.)` }] }); break; }
+      const usos = msg.content.filter(b => b.type === 'tool_use');
+      if (msg.stop_reason !== 'tool_use' || !usos.length) break;
+      const resultados = [];
+      for (const u of usos) {
+        try { const r = await iaEjecutar(u.name, u.input); resultados.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(r) }); }
+        catch (e) { resultados.push({ type: 'tool_result', tool_use_id: u.id, is_error: true, content: e.message || 'Error' }); }
+      }
+      iaMsgs.push({ role: 'user', content: resultados }); iaGuardarChat();
+      iaVivo = ''; renderIA();
+    }
+  } catch (e) {
+    const s = e?.status;
+    const txt = s === 401 ? 'La clave de la API no es válida. Revísala en Ajustes del asistente.' : s === 429 ? 'Demasiadas peticiones o sin saldo. Espera un momento o revisa tu saldo en platform.claude.com.'
+      : s === 400 && /credit|balance/i.test(e.message) ? 'Tu cuenta de Claude no tiene saldo. Añádelo en platform.claude.com.' : !navigator.onLine ? 'Sin conexión. El asistente necesita internet.' : `No se pudo responder: ${e.message || e}`;
+    // Se deshace la vuelta fallida entera (solo se quita del final) para que la conversación siga siendo válida.
+    iaMsgs.length = base; iaGuardarChat(); toast(txt);
+  } finally { iaOcupado = false; iaVivo = ''; iaPasos = []; renderIA(); }
+}
+const iaHost = document.getElementById('view-ia');
+const iaR = iaHost.attachShadow({ mode: 'open' });
+const iaStyle = document.createElement('style');
+iaStyle.textContent = ENFOQUE_CSS + `
+  .ia-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: .85rem; }
+  .chat { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; padding-bottom: 96px; }
+  .msg { max-width: 88%; padding: 10px 14px; border-radius: 18px; white-space: pre-wrap; line-height: 1.45; font-size: .95rem; overflow-wrap: anywhere; }
+  .msg.u { align-self: flex-end; background: var(--text); color: var(--bg); border-bottom-right-radius: 6px; }
+  .msg.a { align-self: flex-start; background: var(--soft); border-bottom-left-radius: 6px; }
+  .msg.t { align-self: flex-start; background: none; color: var(--muted); font-size: .8rem; padding: 0 6px; }
+  .dots { color: var(--muted); }
+  .composer { position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); background: var(--bg); z-index: 4;
+    padding: 8px max(16px, env(safe-area-inset-left, 0px)); display: flex; gap: 8px; align-items: flex-end; border-top: 1px solid var(--line); }
+  .composer textarea { flex: 1; min-height: 40px; max-height: 140px; resize: none; border: 1px solid var(--line); border-radius: 20px; padding: 9px 14px; line-height: 1.4; }
+  .send { width: 40px; height: 40px; border-radius: 50%; background: var(--text); color: var(--bg); flex: none; font-size: 1.1rem; font-weight: 700; }
+  .send:disabled { opacity: .35; }`;
+// El contenido se reescribe entero en renderIA; el estilo queda fijo.
+const iaW = document.createElement('div');
+iaR.appendChild(iaStyle); iaR.appendChild(iaW);
+window.renderIA = () => renderIA();
+
 
 // ---------- Arranque
 window.renderEnfoque = () => renderE();

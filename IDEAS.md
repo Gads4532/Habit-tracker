@@ -147,3 +147,11 @@ Google Tasks, usando un ID de cliente OAuth propio (Google Cloud, tipo «Aplicac
 `https://gads4532.github.io`). El permiso dura una hora y vive solo en el teléfono (`habit-gtasks`); con él vivo, cada
 cambio se sincroniza solo. Regla de conflicto: si la tarea cambió aquí desde la última sincronización, sube; si no,
 manda Google. Las repeticiones de la app llegan a Google como tareas sueltas (la API no permite crear repeticiones).
+
+## Rumbo 2.8.0: asistente con Claude y Google Calendar
+
+- **Nombre**: la app pasa a llamarse **Rumbo** (Habit Tracker es ahora la pestaña Hábitos). URL, claves de almacenamiento y datos no cambian.
+- **Asistente** (pestaña propia): chat con Claude Opus 5.5 por defecto (Sonnet 5.5 y Haiku 5.5 elegibles), con la clave de la API de cada persona guardada solo en su teléfono. Streaming, esfuerzo `medium`, caché automática de prompts y reintento automático con otro modelo si el filtro declina (`fallbacks: "default"`).
+  Herramientas: `ver_estado`, `gestionar_prioridad`, `crear_tarea`, `completar_tarea`, `proyecto_paso`, `crear_proyecto`, `registrar_contacto`, `crear_plan`, `calendario_ver`, `calendario_crear`, `iniciar_enfoque`. Hace lo que se le pide; lo que propone por su cuenta lo pregunta antes.
+  La conversación vive en el teléfono (`rumbo-chat`), solo se añade al final y, si una vuelta falla, se deshace entera.
+- **Google Calendar**: mismo permiso que Google Tasks con el alcance `calendar.events`. Agenda de hoy en Enfoque, «Crear en mi Google Calendar» en los planes y herramientas del asistente.

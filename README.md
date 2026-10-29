@@ -1,5 +1,6 @@
-# Habit Tracker
+# Rumbo
 
+Antes «Habit Tracker» (la dirección y los datos no cambian). 
 Tracker de hábitos minimalista: rachas, rutinas, calendario con justificaciones y
 beneficios/contras por hábito. Un solo archivo, sin dependencias.
 
@@ -17,3 +18,11 @@ través de Supabase; `supabase.sql` prepara la tabla una sola vez.
 
 Desarrollada con Claude a partir de *Hábitos Atómicos* y otros libros; el banco de
 ideas vive en [Gads4532/Skills](https://github.com/Gads4532/Skills/tree/main/apps/habit-tracker).
+
+Desde 2.8.0 se llama **Rumbo** y tiene un **Asistente** (pestaña propia) que usa la API de Claude con la clave
+de cada persona (solo en su teléfono): conversa, revisa el día y coordina la app con herramientas (prioridades,
+tareas, proyectos, personas, planes, sesiones de enfoque y Google Calendar). El SDK oficial
+(`@anthropic-ai/sdk` 0.134.0) va empaquetado en `vendor/` para que funcione sin CDN.
+**Google Calendar**: la pestaña Enfoque muestra la agenda de hoy, los planes se crean directamente en el
+calendario y el asistente puede ver y crear eventos (requiere activar la API de Google Calendar en el proyecto
+de Google Cloud).
