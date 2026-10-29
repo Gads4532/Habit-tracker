@@ -1449,7 +1449,7 @@ function renderTareas() {
     <div class="actions" style="margin-top:28px">
       <button class="link" data-tact="renamelist">Renombrar lista</button>
       ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}
-      <button class="link" data-tact="google">${gCfg().clientId ? (gSyncing ? 'Google Tasks: sincronizando…' : 'Google Tasks ↻') : 'Conectar Google Tasks'}</button>
+      <button class="link" data-tact="google">${gCfg().ok ? (gSyncing ? 'Google Tasks: sincronizando…' : 'Google Tasks ↻') : 'Conectar Google Tasks'}</button>
     </div>`;
   justDoneTask = null; newTaskId = null; undoneTask = null; cleanJust = false;
   gAuto();
@@ -1459,7 +1459,9 @@ const fmtFecha = d => { const x = new Date(d + 'T12:00'), t = today(); if (d ===
 // ---------- Google Tasks: sincronización en los dos sentidos con tu cuenta de Google.
 // Se usa tu propio «Client ID» de Google Cloud; el permiso (token) dura una hora y vive solo en este teléfono.
 const G_API = 'https://tasks.googleapis.com/tasks/v1/';
-const gCfg = () => { try { return JSON.parse(localStorage.getItem('habit-gtasks')) || {}; } catch { return {}; } };
+// ID de cliente OAuth del proyecto de Google Cloud de la app (es público por diseño; no es un secreto).
+const G_CLIENT = '277700122013-1e7f2kblecbu6e1pebaem9j335e1psqp.apps.googleusercontent.com';
+const gCfg = () => { let c = {}; try { c = JSON.parse(localStorage.getItem('habit-gtasks')) || {}; } catch {} return { ...c, clientId: c.clientId || G_CLIENT }; };
 const gSetCfg = c => { try { localStorage.setItem('habit-gtasks', JSON.stringify(c)); } catch {} };
 let gSyncing = false, gAutoT = 0;
 const gValid = () => { const c = gCfg(); return c.token && c.exp > Date.now() + 60000; };
@@ -1553,23 +1555,11 @@ function gAuto() {
 }
 function gtasksSheet() {
   const c = gCfg();
-  if (!c.clientId) {
+  if (!c.ok) {
     showMsg(`<h2>Conectar Google Tasks</h2>
-      <p class="meta" style="margin-top:12px">Tus listas y tareas de Google se sincronizan con las de aquí, en los dos sentidos. Se configura una sola vez (unos 10 minutos) con tu cuenta de Google:</p>
-      <ol class="meta" style="padding-left:18px;margin:10px 0 0">
-        <li><a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Crea un proyecto</a> en Google Cloud (gratis).</li>
-        <li><a href="https://console.cloud.google.com/apis/library/tasks.googleapis.com" target="_blank" rel="noopener">Activa la API de Google Tasks</a>.</li>
-        <li><a href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noopener">Configura la pantalla de permiso</a>: tipo «Externo» y, en «Público», añade tu correo como usuario de prueba.</li>
-        <li><a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener">Crea un cliente OAuth</a> de tipo «Aplicación web» con este origen autorizado: <b>${esc(location.origin)}</b></li>
-        <li>Copia el «ID de cliente» y pégalo aquí.</li>
-      </ol>
-      <label>ID de cliente</label><input id="g-cid" placeholder="123…apps.googleusercontent.com" autocomplete="off">
+      <p class="meta" style="margin-top:12px">Tus listas y tareas de Google se sincronizan con las de aquí, en los dos sentidos. Al conectar, Google te pedirá permiso para ver y editar tus tareas.</p>
       <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="g-save">Conectar</button></div>`);
-    $('#g-save').onclick = () => {
-      const id = $('#g-cid').value.trim();
-      if (!/\.apps\.googleusercontent\.com$/.test(id)) { $('#g-cid').focus(); return; }
-      gSetCfg({ clientId: id }); $('#msg-dialog').close(); gLoad().then(() => gSync(true)).catch(e => dialogResult('Google Tasks', esc(e.message)));
-    };
+    $('#g-save').onclick = () => { $('#msg-dialog').close(); gSync(true); };
     return;
   }
   showMsg(`<h2>Google Tasks</h2>
@@ -1703,7 +1693,8 @@ document.querySelector('.tabs').addEventListener('click', e => {
   renderAll();
   scrollTo(0, 0);
   if (view === 'enfoque') window.enfoqueVisible?.();
-  if (view === 'tareas' && gCfg().clientId) { gLoad().catch(() => {}); if (gValid()) gSync(false); }
+  // Se precarga el inicio de sesión de Google para que la ventana de permiso abra al primer toque.
+  if (view === 'tareas') { gLoad().catch(() => {}); if (gCfg().ok && gValid()) gSync(false); }
 });
 
 $('#title').addEventListener('click', () => { if (view === 'hoy' || view === 'enfoque') nameForm(); });
