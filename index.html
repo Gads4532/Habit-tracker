@@ -2321,6 +2321,12 @@ const ENFOQUE_HTML = `
 const host = document.getElementById('view-enfoque');
 const root = host.attachShadow({ mode: 'open' });
 root.innerHTML = `<style>${ENFOQUE_CSS}</style><div class="enf">${ENFOQUE_HTML}</div>`;
+// La hoja, el aviso corto y las pantallas completas (puerta, sesión) viven en un contenedor que nunca se oculta,
+// para que funcionen desde cualquier pestaña (Ideas, Asistente…), no solo desde Enfoque.
+const ovHost = document.createElement('div'); ovHost.id = 'view-overlays'; document.body.appendChild(ovHost);
+const ov = ovHost.attachShadow({ mode: 'open' });
+ov.innerHTML = `<style>${ENFOQUE_CSS}</style>`;
+for (const id of ['sheet', 'toast', 'gate', 'focus']) ov.appendChild(root.getElementById(id));
 const LOCAL_KEY = 'habit-enfoque-local';
 let local = {};
 try { local = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch {}
@@ -2368,7 +2374,7 @@ const TIPOS = ['Mensaje', 'Llamada', 'Plan', 'Reunión', 'Gracias'];
 // Planes como verbos, para que la invitación se lea natural: «¿Te animas a tomar un café…?».
 const PLAN_IDEAS = ['tomar un café', 'almorzar', 'caminar', 'hacer deporte', 'una reunión de trabajo', 'cenar'];
 
-const $ = s => root.querySelector(s);
+const $ = s => root.querySelector(s) || ov.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Fechas en hora local, como 'YYYY-MM-DD' (igual que el Habit Tracker).
@@ -3724,6 +3730,7 @@ const IA_TOOLS = [
     titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
   iaTool('pizarra_agregar', 'Pone ideas como notas en una pizarra de la pestaña Ideas (la crea si no existe). Útil para lluvias de ideas, planes y mapas.', {
     pizarra: S('Nombre de la pizarra.'), notas: { type: 'array', items: { type: 'string' }, description: 'Textos breves, uno por nota (máximo 20).' } }),
+  iaTool('diario_escribir', 'Guarda una entrada en el Diario de la pestaña Ideas (por ejemplo, un resumen que la persona dictó o pidió guardar).', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
 ];
@@ -3800,6 +3807,10 @@ async function iaEjecutar(nombre, a) {
       const ev = await gCalCrear(a); agendaCache.t = 0; renderAgenda();
       return { creado: ev.summary, inicio: ev.start?.dateTime || ev.start?.date, enlace: ev.htmlLink };
     }
+    case 'diario_escribir': {
+      const x = { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: a.pregunta || '', txt: String(a.texto).slice(0, 5000), animo: 0, cambiado: Date.now() };
+      ES.diario.push(x); guardar(); return { guardado: true, nota: 'Está en Ideas → Diario' + (ntOk() ? '; desde ahí se envía a Notion.' : '.') };
+    }
     case 'pizarra_agregar': {
       const b = pzAgregarNotas(a.pizarra, a.notas.slice(0, 20).map(t => String(t).slice(0, 200)));
       return { pizarra: b.nombre, notas_añadidas: Math.min(20, a.notas.length), nota: 'Está en la pestaña Ideas.' };
@@ -3811,7 +3822,7 @@ async function iaEjecutar(nombre, a) {
   throw new Error('Herramienta desconocida.');
 }
 const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
-  crear_proyecto: 'Creó un proyecto', pizarra_agregar: 'Escribió en una pizarra', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
+  crear_proyecto: 'Creó un proyecto', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
 
 // Texto con **negritas** y saltos de línea, siempre escapado.
 const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
@@ -4023,6 +4034,7 @@ function renderPizarras() {
   const L = [...ES.pizarras].sort((a, c) => (c.cambiado || 0) - (a.cambiado || 0));
   pzW.innerHTML = `<div class="enf">
     ${djLista()}
+    <button class="row" id="nt-row" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:${ntOk() ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${ntOk() ? 'Notion conectado' : 'Conectar Notion'}</div><small>${ntOk() ? `Destino: ${esc(ntCfg().pageTitle || '')}` : 'Para enviar el diario y las pizarras directo'}</small></span><span class="tag">›</span></button>
     <h3>Pizarras</h3>
     <p class="note" style="margin-bottom:8px">Ordena ideas con notas, texto, dibujos y flechas. Se guardan en tu cuenta.</p>
     ${L.length ? `<div class="rows">${L.map(b => `<button class="row" data-b="${b.id}"><span class="dot" style="--c:${PZ_NOTAS[0]}"></span><span class="t"><div>${esc(b.nombre)}</div>
@@ -4032,6 +4044,7 @@ function renderPizarras() {
     <p class="meta" style="margin-top:14px">Consejo: pídele al Asistente «pon en una pizarra las ideas para…» y las acomoda como notas.</p></div>`;
   pzW.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { pzId = b.dataset.b; pzHist = []; pzEditor(true); });
   pzW.querySelector('#dj-new').onclick = () => djEditor();
+  pzW.querySelector('#nt-row').onclick = notionSheet;
   pzW.querySelectorAll('[data-dj]').forEach(b => b.onclick = () => djEditor(ES.diario.find(x => x.id === b.dataset.dj)));
   pzW.querySelector('#dj-sem')?.addEventListener('click', () => { const desde = dayKey(addDays(new Date(), -6)); const l = ES.diario.filter(x => x.d >= desde).sort((a, b) => (a.d + a.h) < (b.d + b.h) ? -1 : 1);
     djEnviar(l, `Diario · semana del ${new Date(desde + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' })}`); });
@@ -4046,7 +4059,7 @@ function pzEditor(centrar = false) {
   pzW.innerHTML = `<div class="pz">
     <div class="pz-bar">
       <button class="link" id="pz-back">‹ Pizarras</button><button class="pz-name" id="pz-name">${esc(b.nombre)}</button>
-      <span class="pz-r"><button class="link" id="pz-undo">Deshacer</button> · <button class="link" id="pz-fit">Centrar</button> · <button class="link red" id="pz-del">Borrar</button></span>
+      <span class="pz-r"><button class="link" id="pz-undo">Deshacer</button> · <button class="link" id="pz-fit">Centrar</button> · <button class="link" id="pz-nt">Notion</button> · <button class="link red" id="pz-del">Borrar</button></span>
     </div>
     <div class="pz-tools">${PZ_MODOS.map(([k, n]) => `<button class="chip${k === pzModo ? ' on' : ''}" data-m="${k}">${n}</button>`).join('')}
       <span class="pz-cols">${PZ_NOTAS.map((c, i) => `<button class="pz-col${i === pzColor ? ' on' : ''}" data-c="${i}" style="background:${pzModo === 'nota' ? c : PZ_TINTA[i] === 'currentColor' ? 'var(--text)' : PZ_TINTA[i]}" aria-label="Color ${i + 1}"></button>`).join('')}</span></div>
@@ -4060,6 +4073,7 @@ function pzEditor(centrar = false) {
   q('#pz-name').onclick = () => pzEditar({ t: 'nombre', txt: b.nombre });
   q('#pz-undo').onclick = () => { const s = pzHist.pop(); if (s) { b.els = JSON.parse(s); pzGuardar(); pzPintar(); } };
   q('#pz-fit').onclick = pzCentrar;
+  q('#pz-nt').onclick = e => pzEnviarNotion(b, e.target);
   q('#pz-del').onclick = () => { if (!confirm(`¿Borrar la pizarra «${b.nombre}»?`)) return; forget(b.id); ES.pizarras = ES.pizarras.filter(x => x !== b); pzId = null; guardar(); renderPizarras(); };
   q('.pz-tools').addEventListener('click', e => {
     const m = e.target.closest('[data-m]'), c = e.target.closest('[data-c]');
@@ -4186,11 +4200,101 @@ function djMarkdown(lista) {
     return `## ${cap(djFecha(x.d))}${x.h ? ' · ' + fmtHora(x.h) : ''}\n${x.animo ? `**Ánimo:** ${x.animo}/5\n` : ''}${x.preg ? `**${x.preg}**\n` : ''}\n${x.txt}\n${buenas ? `\n**Tres cosas buenas:**\n${buenas.items.map(i => '- ' + i).join('\n')}\n` : ''}`;
   }).join('\n---\n\n');
 }
+// ---------- Notion: la API no acepta llamadas desde el navegador, así que pasan por la función «notion» de Supabase
+// (supabase/functions/notion/index.ts). El token de integración vive solo en este teléfono.
+const NT_KEY = 'rumbo-notion';
+const ntCfg = () => { try { return JSON.parse(localStorage.getItem(NT_KEY)) || {}; } catch { return {}; } };
+const ntSetCfg = c => { try { localStorage.setItem(NT_KEY, JSON.stringify(c)); } catch {} };
+const ntOk = () => !!(ntCfg().token && ntCfg().pageId);
+async function notion(path, method = 'GET', body) {
+  if (!auth) throw new Error('Notion usa tu cuenta para el puente: inicia sesión en la pestaña Hábitos.');
+  if (!(await ensureToken())) throw new Error('Tu sesión caducó: vuelve a entrar en tu cuenta.');
+  const r = await fetch(`${SUPA_URL}/functions/v1/notion`, { method, headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + auth.access_token, 'Content-Type': 'application/json', 'x-notion-token': ntCfg().token || '', 'x-notion-path': path }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const text = await r.text(); let d = null; try { d = JSON.parse(text); } catch {}
+  if (r.status === 404 && !d?.object) throw new Error('Falta desplegar la función «notion» en Supabase (está en supabase/functions/notion del repositorio).');
+  if (!r.ok) throw new Error(d?.message || d?.error || `Notion respondió ${r.status}.`);
+  return d;
+}
+const ntRt = t => [{ type: 'text', text: { content: String(t).slice(0, 2000) } }];
+const ntBloque = (tipo, t) => ({ object: 'block', type: tipo, [tipo]: { rich_text: ntRt(t) } });
+// Crea una página hija de la página elegida; Notion admite 100 bloques por petición, el resto se añade después.
+async function ntCrearPagina(titulo, bloques) {
+  const pg = await notion('pages', 'POST', { parent: { page_id: ntCfg().pageId }, properties: { title: { title: ntRt(titulo) } }, children: bloques.slice(0, 100) });
+  for (let i = 100; i < bloques.length; i += 100) await notion(`blocks/${pg.id}/children`, 'PATCH', { children: bloques.slice(i, i + 100) });
+  return pg;
+}
+function djBloques(lista) {
+  const out = [];
+  for (const x of lista) {
+    const buenas = ES.buenas.find(b => b.d === x.d);
+    out.push(ntBloque('heading_2', `${cap(djFecha(x.d))}${x.h ? ' · ' + fmtHora(x.h) : ''}`));
+    if (x.animo) out.push(ntBloque('paragraph', `Ánimo: ${x.animo}/5`));
+    if (x.preg) out.push(ntBloque('heading_3', x.preg));
+    for (const l of x.txt.split('\n')) out.push(ntBloque('paragraph', l));
+    if (buenas) { out.push(ntBloque('heading_3', 'Tres cosas buenas')); for (const i of buenas.items) out.push(ntBloque('bulleted_list_item', i)); }
+  }
+  return out;
+}
 async function djEnviar(lista, titulo) {
+  if (ntOk()) {
+    toastIdeas('Enviando a Notion…');
+    try { const pg = await ntCrearPagina(titulo, djBloques(lista)); for (const x of lista) x.notion = { id: pg.id, url: pg.url }; guardar(); toastIdeas('Listo: está en Notion.'); renderPizarras(); }
+    catch (e) { toastIdeas(e.message); }
+    return;
+  }
   const texto = `# ${titulo}\n\n${djMarkdown(lista)}`;
   if (navigator.share) { try { await navigator.share({ title: titulo, text: texto }); return; } catch (e) { if (e.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(texto); toastIdeas('Copiado. Pégalo en una página de Notion: mantiene el formato.'); }
+  try { await navigator.clipboard.writeText(texto); toastIdeas('Copiado. Pégalo en una página de Notion. Para enviarlo directo, conecta Notion.'); }
   catch { toastIdeas('No se pudo copiar automáticamente.'); }
+}
+// Pizarra → página de Notion: las zonas son encabezados con sus notas como viñetas; el resto, viñetas y párrafos.
+function pzBloques(b) {
+  const dentro = (n, z) => n.x + n.w / 2 >= z.x && n.x + n.w / 2 <= z.x + z.w && n.y + n.h / 2 >= z.y && n.y + n.h / 2 <= z.y + z.h;
+  const zonas = b.els.filter(e => e.t === 'zona'), notas = b.els.filter(e => e.t === 'nota' && e.txt.trim()), textos = b.els.filter(e => e.t === 'texto' && e.txt.trim());
+  const usadas = new Set(), out = [];
+  for (const z of zonas) { out.push(ntBloque('heading_2', z.txt || 'Zona')); for (const n of notas) if (dentro(n, z)) { usadas.add(n); out.push(ntBloque('bulleted_list_item', n.txt)); } }
+  const sueltas = notas.filter(n => !usadas.has(n));
+  if (sueltas.length) { if (zonas.length) out.push(ntBloque('heading_2', 'Notas')); for (const n of sueltas) out.push(ntBloque('bulleted_list_item', n.txt)); }
+  for (const t of textos) out.push(ntBloque('paragraph', t.txt));
+  const dib = b.els.filter(e => e.t === 'trazo' || e.t === 'flecha').length;
+  if (dib) out.push(ntBloque('paragraph', `(${dib} dibujos y flechas se quedan en la pizarra de la app.)`));
+  return out.length ? out : [ntBloque('paragraph', 'Pizarra vacía')];
+}
+async function pzEnviarNotion(b, btn) {
+  if (!ntOk()) return notionSheet();
+  if (btn) btn.disabled = true;
+  try { const pg = await ntCrearPagina(b.nombre, pzBloques(b)); b.notion = { id: pg.id, url: pg.url }; pzGuardar(); toast('Listo: la pizarra está en Notion.'); }
+  catch (e) { toast(e.message); }
+  if (btn) btn.disabled = false;
+}
+function notionSheet() {
+  const c = ntCfg();
+  showSheet(`<h2>Notion</h2>
+    ${c.token ? `<p class="note">Conectado${c.pageTitle ? ` · destino: <b>${esc(c.pageTitle)}</b>` : ''}. El diario y las pizarras se crean como páginas dentro de ese destino.</p>` : `
+    <p class="note">El diario y las pizarras se enviarán directo a Notion, como páginas dentro de una página que elijas. Se configura una vez:</p>
+    <ol class="pros" style="padding-left:20px">
+      <li style="margin-bottom:6px">En <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noopener">notion.so/profile/integrations</a> crea una integración interna («New integration»), llámala «Organización Personal» y copia el «Internal Integration Secret» (empieza por <b>ntn_</b>).</li>
+      <li style="margin-bottom:6px">En Notion, abre la página donde quieres guardar todo (por ejemplo «Diario»), toca «···» → «Conexiones» → añade la integración.</li>
+      <li>Pega aquí el secreto y elige esa página.</li>
+    </ol>`}
+    <div class="field"><label>Secreto de la integración (solo en este teléfono)</label><input id="nt-tok" type="password" autocomplete="off" value="${esc(c.token || '')}" placeholder="ntn_…"></div>
+    <div id="nt-pages"></div>
+    <p class="meta red" id="nt-err"></p>
+    <div class="actions">${c.token ? '<button class="link red" id="nt-off">Desconectar</button>' : ''}<button class="link" id="nt-cancel">Cerrar</button><button class="primary" id="nt-buscar">Elegir página</button></div>`);
+  $('#nt-cancel').onclick = closeSheet;
+  $('#nt-off')?.addEventListener('click', () => { ntSetCfg({}); closeSheet(); renderPizarras(); });
+  $('#nt-buscar').onclick = async e => {
+    const tok = $('#nt-tok').value.trim(); if (!tok) { $('#nt-tok').focus(); return; }
+    ntSetCfg({ ...ntCfg(), token: tok }); e.target.disabled = true; $('#nt-err').textContent = '';
+    try {
+      const r = await notion('search', 'POST', { filter: { property: 'object', value: 'page' }, page_size: 25, sort: { direction: 'descending', timestamp: 'last_edited_time' } });
+      const pags = (r.results || []).map(p => ({ id: p.id, t: (Object.values(p.properties || {}).find(x => x.type === 'title')?.title || []).map(x => x.plain_text).join('') || '(Sin título)' }));
+      if (!pags.length) { $('#nt-err').textContent = 'La integración no ve ninguna página. En Notion, abre la página destino → «···» → Conexiones → añade la integración, y vuelve a intentar.'; e.target.disabled = false; return; }
+      $('#nt-pages').innerHTML = `<p class="meta" style="margin:0 0 4px">Páginas que ve la integración. Elige el destino:</p><div class="rows">${pags.map(p => `<button class="row" data-pg="${esc(p.id)}" data-t="${esc(p.t)}"><span class="dot" style="--c:${ntCfg().pageId === p.id ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${esc(p.t)}</div></span></button>`).join('')}</div>`;
+      $('#nt-pages').querySelectorAll('[data-pg]').forEach(b => b.onclick = () => { ntSetCfg({ ...ntCfg(), pageId: b.dataset.pg, pageTitle: b.dataset.t }); closeSheet(); renderPizarras(); toast(`Notion conectado: «${b.dataset.t}».`); });
+    } catch (err) { $('#nt-err').textContent = err.message; }
+    e.target.disabled = false;
+  };
 }
 function toastIdeas(t) { const el = pzW.querySelector('#dj-toast'); if (el) { el.textContent = t; el.hidden = false; setTimeout(() => { el.hidden = true; }, 3500); } }
 function djEditor(x = null) {
@@ -4204,7 +4308,7 @@ function djEditor(x = null) {
     <textarea id="dj-txt" rows="10" placeholder="Escribe sin pensar demasiado. Nadie más lo lee." style="min-height:220px;border:1px solid var(--line);border-radius:12px;padding:10px 12px">${esc(djEdit.txt)}</textarea>
     <div class="field" style="margin-top:14px"><label>Ánimo (opcional)</label><div class="chips" id="dj-an">${[1, 2, 3, 4, 5].map(n => `<button class="chip${djEdit.animo === n ? ' on' : ''}" data-v="${n}">${n}</button>`).join('')}</div></div>
     <p class="meta" id="dj-toast" hidden></p>
-    <div class="actions">${nueva ? '' : '<button class="link red" id="dj-del">Eliminar</button>'}<button class="link" id="dj-notion">Enviar a Notion</button><button class="primary" id="dj-ok">Guardar</button></div></div>`;
+    <div class="actions">${nueva ? '' : '<button class="link red" id="dj-del">Eliminar</button>'}${djEdit.notion ? `<a class="link" href="${esc(djEdit.notion.url)}" target="_blank" rel="noopener">Abrir en Notion</a>` : ''}<button class="link" id="dj-notion">${djEdit.notion ? 'Enviar de nuevo' : 'Enviar a Notion'}</button><button class="primary" id="dj-ok">Guardar</button></div></div>`;
   const q = s => pzW.querySelector(s);
   const leer = () => { djEdit.txt = q('#dj-txt').value.trim(); };
   q('#dj-pregs').addEventListener('click', e => { const c = e.target.closest('[data-p]'); if (!c) return; djEdit.preg = c.dataset.p === 'Libre' ? '' : c.dataset.p;
@@ -4222,7 +4326,7 @@ function djLista() {
   return `<h3 style="margin-top:0">Diario</h3>
     <button class="row" id="dj-new"><span class="dot" style="--c:var(--text)"></span><span class="t"><div>Escribir hoy</div><small>${esc(DIARIO_PREGUNTAS[(new Date().getDate() + new Date().getMonth()) % DIARIO_PREGUNTAS.length])}</small></span><span class="tag">›</span></button>
     ${L.length ? `<div class="rows">${L.slice(0, 6).map(x => `<button class="row" data-dj="${x.id}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(x.txt.split('\n')[0].slice(0, 70))}</div>
-      <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))}${x.animo ? ' · ánimo ' + x.animo : ''}</small></span></button>`).join('')}</div>
+      <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))}${x.animo ? ' · ánimo ' + x.animo : ''}${x.notion ? ' · en Notion' : ''}</small></span></button>`).join('')}</div>
       <p class="more">${L.length > 6 ? `${L.length} entradas · ` : ''}<button class="link" id="dj-sem">Enviar la última semana a Notion</button></p><p class="meta" id="dj-toast" hidden></p>` : ''}`;
 }
 
