@@ -651,7 +651,9 @@ function normEnfoque(e) {
 }
 // Saludo según la hora, con el nombre de la persona.
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
-const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { ia: 'Asistente', pizarra: 'Ideas', cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
+// Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
+const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
+const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { ia: 'Asistente', pizarra: 'Ideas', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -1453,7 +1455,7 @@ function renderTareas() {
       </button>
     </div>`;
   $('#view-tareas').innerHTML = `
-    <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)}</button>`).join('')}
+    <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)} (${pendientesDe(l.id)})</button>`).join('')}
       <button class="chip" data-tact="newlist">+ Lista</button></div>
     <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea" autocomplete="off"></form>
     ${pend.length ? pend.map(row).join('') : cleanJust ? `<div class="tclean">${CHECK_BIG}<span>Todo hecho. Lista limpia.</span></div>` : `<p class="empty">Nada pendiente en «${esc(L.nombre)}».</p>`}
@@ -1465,6 +1467,7 @@ function renderTareas() {
       <button class="link" data-tact="google">${gCfg().ok ? (gSyncing ? 'Google Tasks: sincronizando…' : 'Google Tasks ↻') : 'Conectar Google Tasks'}</button>
     </div>`;
   justDoneTask = null; newTaskId = null; undoneTask = null; cleanJust = false;
+  if (view === 'tareas') renderTitle();
   gAuto();
 }
 const fmtFecha = d => { const x = new Date(d + 'T12:00'), t = today(); if (d === t) return 'Hoy'; if (d === dayKey(addDays(new Date(), 1))) return 'Mañana'; return x.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }); };
