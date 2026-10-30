@@ -73,6 +73,10 @@ function avisos(st, tz, prefs, desde, hasta) {
       out.push({ title: 'Cierre del día', body: `${d.enfoque || 0} min de enfoque · ${d.iniciativas || 0} iniciativas · resististe ${(d.resistidas || 0) + (d.alternativas || 0)} veces.\n¿Tres cosas buenas de hoy?`, tag: 'noche', url: './?v=enfoque' });
     }
     if (prefs.semana !== false && w === 0 && en(fecha, '08:30')) out.push({ title: 'Nuevo comienzo: revisión semanal', body: 'Diez minutos: logros, siguientes pasos con día y hora, y a quién escribir.', tag: 'semana', url: './?v=enfoque' });
+    if (prefs.semana !== false && w === 2 && en(fecha, '12:00')) {
+      const I = E.iniciativas4?.items || [], falt = ['estudio', 'proyecto', 'laboral', 'social'].filter((k, i) => !I[i]?.hecho);
+      if (falt.length) out.push({ title: 'Tus 4 iniciativas de la semana', body: `Pendientes: ${falt.join(', ')}. Cada una vale 30 XP; las cuatro, +50.`, tag: 'ini4', url: './?v=enfoque' });
+    }
     if (prefs.semana !== false && w === 4 && en(fecha, '17:00')) out.push({ title: 'Gracias del viernes', body: 'Agradécele algo concreto a alguien. Le alegrará más de lo que imaginas.', tag: 'viernes', url: './?v=enfoque' });
   }
   return out.slice(0, 4);

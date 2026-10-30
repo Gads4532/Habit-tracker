@@ -638,7 +638,8 @@ function normEnfoque(e) {
   for (const k of ['animo', 'buenas', 'misiones']) if (!Array.isArray(e[k])) e[k] = [];
   for (const k of ['animo', 'buenas', 'misiones']) for (const x of e[k]) x.id ||= crypto.randomUUID();
   for (const p of e.personas) p.horas = +p.horas || 0;
-  e.laboral ||= { semana: '', items: [] };
+  e.laboral ||= { semana: '', items: [] };   // (versión anterior: solo laboral)
+  e.iniciativas4 ||= { semana: '', items: [] };
   e.pacto ||= { semana: '', texto: '' };
   e.reto7 ||= { inicio: '' };
   e.retoInicio ||= hoy;
@@ -2976,9 +2977,9 @@ function renderIni() {
   const mi = misionHoy(), hecha = ES.misiones.some(x => x.d === today());
   rows.push(`<button class="row" data-man="mision"><span class="dot" style="--c:${hecha ? 'var(--empty)' : 'var(--green)'}"></span>
     <span class="t"><div style="${hecha ? 'text-decoration:line-through;color:var(--muted)' : ''}">${esc(mi.t)}</div><small>${reto7Dia() ? `Reto de desconocidos · día ${reto7Dia()} de 7` : 'Misión social de hoy'}</small></span><span class="tag">${hecha ? 'Hecha' : 'Misión'}</span></button>`);
-  const L = laboralSemana(), lh = L.items.filter(x => x.hecho).length;
-  rows.push(`<button class="row" data-man="laboral"><span class="dot" style="--c:var(--text)"></span>
-    <span class="t"><div>Iniciativa laboral de la semana</div><small>Una propuesta, una reunión, un problema anticipado</small></span><span class="tag">${lh} de 3</span></button>`);
+  const I4 = ini4Semana(), ih = I4.items.filter(x => x.hecho).length;
+  rows.push(`<button class="row" data-man="ini4"><span class="dot" style="--c:${ih === 4 ? 'var(--green)' : 'var(--text)'}"></span>
+    <span class="t"><div>Las 4 iniciativas de la semana</div><small>${INI4.map(([k, n], i) => `${n}${I4.items[i]?.hecho ? ' ✓' : ''}`).join(' · ')}</small></span><span class="tag">${ih} de 4</span></button>`);
   for (const pl of prox.slice(0, 2)) rows.push(`<button class="row" data-plan="${esc(pl.id)}"><span class="dot" style="--c:var(--muted)"></span>
     <span class="t"><div>${esc(cap(pl.titulo))}${pl.con ? ' con ' + esc(pl.con) : ''}</div><small>${fmtFecha(pl.fecha)} · ${fmtHora(pl.hora)}</small></span><span class="tag">Plan</span></button>`);
   const hoyD = new Date(), nuevo = (wd(today()) === 0 || hoyD.getDate() === 1) && ES.revision !== today();
@@ -3001,7 +3002,7 @@ $('#ini').addEventListener('click', e => {
   if (b.dataset.man === 'plan') planForm();
   if (b.dataset.man === 'revision') revisionSemanal();
   if (b.dataset.man === 'mision') misionSheet();
-  if (b.dataset.man === 'laboral') laboralSheet();
+  if (b.dataset.man === 'ini4') ini4Sheet();
 });
 
 // Personas
@@ -3309,18 +3310,21 @@ function revisionSemanal() {
     ${sinPaso.length || sinFecha.length ? `<div class="rows">${[...sinPaso, ...sinFecha].map(p => `<button class="row" data-p="${esc(p.id)}"><span class="dot" style="--c:var(--amber)"></span><span class="t"><div>${esc(p.nombre)}</div><small>${p.paso ? 'Ponle día y hora' : 'Sin siguiente paso'}</small></span></button>`).join('')}</div>` : '<p class="meta">Cada proyecto tiene paso con día y hora.</p>'}
     <h3>3. Prioridades</h3>
     <p class="meta">Ordena tus proyectos por prioridad: solo uno o dos en «Alta». ${prs.filter(p => p.prioridad === 1).length > 2 ? '<span class="amber">Ahora tienes ' + prs.filter(p => p.prioridad === 1).length + ' en alta: elige.</span>' : ''}</p>
-    <h3>4. Personas</h3>
+    <h3>4. Las 4 iniciativas</h3>
+    <p class="meta">${ini4Semana().items.filter(x => x.hecho).length} de 4 hechas la semana pasada. Define las de esta semana: estudio, proyecto, laboral y social. <button class="link" id="rv-ini4">Definirlas</button></p>
+    <h3>5. Personas</h3>
     <p class="meta">${personasDue().length ? `Te toca escribir a ${personasDue().slice(0, 4).map(p => esc(p.nombre)).join(', ')}.` : 'Estás al día con tus círculos.'} Meta: ${ES.metaSemanal} iniciativas esta semana.</p>
-    <h3>5. Pacto de la semana</h3>
+    <h3>6. Pacto de la semana</h3>
     <p class="meta">Un compromiso previo, con consecuencia que tú eliges, hace más caro saltarse el límite (Bryan, Karlan y Nelson, 2010).</p>
     <div class="field"><input id="rv-pacto" maxlength="160" value="${esc(ES.pacto.semana === lunes() ? ES.pacto.texto : '')}" placeholder="Máximo ${ES.presupuesto} min al día de redes; si lo rompo, invito el café"></div>
-    <h3>6. Compártelo</h3>
+    <h3>7. Compártelo</h3>
     <p class="meta">Hacer público el progreso aumenta su efecto (Harkin et al., 2016).</p>
     <div class="actions stack"><a class="outline btn" target="_blank" rel="noopener" id="rv-wa" href="#">Enviar mi reporte y mi pacto por WhatsApp</a><button class="primary" id="rv-ok">Listo</button></div>`);
   const pacto = () => { const t = $('#rv-pacto').value.trim(); ES.pacto = { semana: lunes(), texto: t }; guardar(); return t; };
   const wa = () => { const t = $('#rv-pacto').value.trim(); $('#rv-wa').href = `https://wa.me/?text=${encodeURIComponent(reporte + (t ? ` Mi pacto: ${t}.` : ''))}`; };
   wa(); $('#rv-pacto').addEventListener('input', wa); $('#rv-wa').addEventListener('click', pacto);
   $('#sheet-body').querySelectorAll('[data-p]').forEach(b => b.onclick = () => proyectoForm(ES.proyectos.find(p => p.id === b.dataset.p)));
+  $('#rv-ini4').onclick = () => { pacto(); ini4Sheet(); };
   $('#rv-ok').onclick = () => { pacto(); closeSheet(); renderE(); };
 }
 
@@ -3452,28 +3456,57 @@ function misionSheet() {
   $('#mi-reto')?.addEventListener('click', () => { ES.reto7 = { inicio: today() }; guardar(); renderE(); misionSheet(); });
   $('#mi-ok').onclick = closeSheet;
 }
-// ---------- Iniciativa laboral (Parker, Bindl y Strauss, 2010; Campos et al., 2017): una propuesta, una reunión y un problema anticipado cada semana.
-const LAB = [['propuesta', 'Una propuesta', 'Una mejora que nadie te pidió'], ['reunion', 'Una reunión que inicias tú', 'Con quién y para qué'], ['problema', 'Un problema anticipado', 'Algo que puede fallar y cómo prevenirlo']];
-function laboralSemana() {
-  if (ES.laboral.semana !== lunes()) ES.laboral = { semana: lunes(), items: LAB.map(([k]) => ({ k, t: '', por: '', paso: '', hecho: false })) };
-  return ES.laboral;
+// ---------- Las 4 iniciativas de la semana: estudio, proyecto, laboral y social. Mismo peso, mismo XP (30).
+// La proactividad nace de «puedo» (un primer paso pequeño), «quiero» (por qué importa) y «tengo energía» (Parker, Bindl y Strauss, 2010);
+// entrenar la iniciativa personal mejora resultados reales (Campos et al., 2017). Un plan con día y hora se cumple mucho más (Milkman et al., 2011).
+const INI4 = [
+  ['estudio', 'Estudio', 'Aprender algo que elegiste tú', 'Leer un capítulo, un curso, practicar una habilidad'],
+  ['proyecto', 'Proyecto', 'Avanzar un proyecto propio', 'El siguiente paso de un proyecto, o uno nuevo'],
+  ['laboral', 'Laboral', 'Una propuesta, una reunión o un problema anticipado', 'Algo en el trabajo que nadie te pidió'],
+  ['social', 'Social', 'Un plan, una llamada o una conversación que propones tú', 'Con quién y para qué'],
+];
+const XP_INI = 30;
+function ini4Semana() {
+  if (ES.iniciativas4.semana !== lunes()) ES.iniciativas4 = { semana: lunes(), items: INI4.map(([k]) => ({ k, t: '', por: '', paso: '', cuando: '', hora: '', hecho: false })) };
+  while (ES.iniciativas4.items.length < 4) ES.iniciativas4.items.push({ k: INI4[ES.iniciativas4.items.length][0], t: '', por: '', paso: '', cuando: '', hora: '', hecho: false });
+  return ES.iniciativas4;
 }
-function laboralSheet() {
-  const L = laboralSemana();
-  showSheet(`<h2>Iniciativa laboral</h2>
-    <p class="sci">La proactividad nace de tres cosas: «puedo» (un primer paso pequeño), «quiero» (por qué importa) y «tengo energía». Formar en iniciativa personal aumentó un 30 % los beneficios de pequeños empresarios frente a la formación clásica (Campos et al., 2017).</p>
-    ${L.items.map((x, i) => { const [k, t, ph] = LAB[i]; return `<h3>${t}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</h3>
-      <div class="field"><input data-f="t" data-i="${i}" maxlength="100" value="${esc(x.t)}" placeholder="${ph}"></div>
-      <div class="field"><input data-f="por" data-i="${i}" maxlength="100" value="${esc(x.por)}" placeholder="¿Por qué importa?"></div>
-      <div class="field"><input data-f="paso" data-i="${i}" maxlength="100" value="${esc(x.paso)}" placeholder="Primer paso de menos de 5 minutos"></div>
-      <div class="chips"><button class="chip${x.hecho ? ' on' : ''}" data-done="${i}">${x.hecho ? 'Hecha' : 'Marcar hecha'}</button>${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl(t + ': ' + x.t, dayKey(addDays(new Date(), 1)), '09:00', 30)}">Agendar</a>` : ''}</div>`; }).join('')}
-    <div class="actions"><button class="primary" id="lb-ok">Guardar</button></div>`);
+// Sugerencias según lo que ya hay en la app, para que proponer no empiece de cero.
+function ini4Sugerencias(k) {
+  const p = pendientes();
+  if (k === 'proyecto') return proyectosActivos().filter(x => x.paso).slice(0, 3).map(x => `${x.paso} (${x.nombre})`);
+  if (k === 'social') return [...personasDue().slice(0, 2).map(x => `Proponerle un plan a ${x.nombre}`), ...planesProximos().slice(0, 1).map(pl => `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`)];
+  if (k === 'estudio') return (p?.habits || []).filter(h => /leer|estudi|curso|aprend|practic|idioma|ingl/i.test(h.nombre)).slice(0, 2).map(h => h.nombre);
+  return [];
+}
+function ini4Sheet(abrir = -1) {
+  const I = ini4Semana(), hechas = I.items.filter(x => x.hecho).length;
+  showSheet(`<h2>Las 4 iniciativas de la semana</h2>
+    <p class="sci">Cuatro frentes, el mismo peso: estudio, proyecto, trabajo y social. Cada una vale ${XP_INI} XP y las cuatro juntas, +50. Escribe qué, por qué importa y el primer paso de 5 minutos; ponle día y hora y se cumple el doble (Milkman et al., 2011).</p>
+    <div class="meter"><span>Esta semana</span><b>${hechas} de 4</b></div><div class="meter-bar"><i style="width:${hechas * 25}%"></i></div>
+    ${I.items.map((x, i) => { const [k, n, d, ph] = INI4[i], sug = ini4Sugerencias(k).filter(t => t !== x.t), open = abrir === i || (abrir < 0 && !x.hecho && !x.t && i === I.items.findIndex(y => !y.hecho && !y.t));
+      return `<div class="rows"><button class="row" data-open="${i}"><span class="box" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></span>
+        <span class="t"><div>Iniciativa de ${n.toLowerCase()}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</div><small style="white-space:normal">${x.t ? esc(x.t) + (x.cuando ? ` · ${fmtFecha(x.cuando)}${x.hora ? ' ' + fmtHora(x.hora) : ''}` : '') : esc(d)}</small></span><span class="tag">${open ? '▾' : '›'}</span></button></div>
+      <div class="ini-f" data-i="${i}" ${open ? '' : 'hidden'} style="padding:6px 0 14px 28px">
+        ${sug.length ? `<div class="chips" style="margin-bottom:8px">${sug.map(t => `<button class="chip" data-sug="${i}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}
+        <div class="field"><input data-f="t" data-i="${i}" maxlength="100" value="${esc(x.t)}" placeholder="${esc(ph)}"></div>
+        <div class="field"><input data-f="por" data-i="${i}" maxlength="100" value="${esc(x.por)}" placeholder="¿Por qué importa?"></div>
+        <div class="field"><input data-f="paso" data-i="${i}" maxlength="100" value="${esc(x.paso)}" placeholder="Primer paso de menos de 5 minutos"></div>
+        <div class="times"><div class="field"><label>Día</label><input data-f="cuando" data-i="${i}" type="date" value="${esc(x.cuando)}"></div><div class="field"><label>Hora</label><input data-f="hora" data-i="${i}" type="time" value="${esc(x.hora)}"></div></div>
+        <div class="chips"><button class="chip${x.hecho ? ' on' : ''}" data-done="${i}">${x.hecho ? 'Hecha' : `Marcar hecha · +${XP_INI} XP`}</button>
+          ${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl('Iniciativa de ' + n.toLowerCase() + ': ' + x.t, x.cuando || dayKey(addDays(new Date(), 1)), x.hora || '09:00', 30)}">Agendar</a>` : ''}</div>
+      </div>`; }).join('')}
+    <div class="actions"><button class="primary" id="i4-ok">Guardar</button></div>`);
   const body = $('#sheet-body');
-  const leer = () => body.querySelectorAll('[data-f]').forEach(inp => { L.items[+inp.dataset.i][inp.dataset.f] = inp.value.trim(); });
+  const leer = () => body.querySelectorAll('[data-f]').forEach(inp => { I.items[+inp.dataset.i][inp.dataset.f] = inp.value.trim(); });
+  body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { leer(); guardar(); const i = +b.dataset.open; ini4Sheet(body.querySelector(`.ini-f[data-i="${i}"]`).hidden ? i : -2); });
+  body.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { body.querySelector(`[data-f="t"][data-i="${b.dataset.sug}"]`).value = b.dataset.t; });
   body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
-    leer(); const x = L.items[+b.dataset.done]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1); if (x.hecho) xpGanar(30, 'Iniciativa laboral'); guardar(); renderE(); laboralSheet();
+    leer(); const i = +b.dataset.done, x = I.items[i]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1);
+    if (x.hecho) { xpGanar(XP_INI, `Iniciativa de ${INI4[i][1].toLowerCase()}`); if (I.items.every(y => y.hecho) && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 4 iniciativas de la semana'), 1200); } }
+    guardar(); renderE(); ini4Sheet(i);
   });
-  $('#lb-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
+  $('#i4-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
 }
 // ---------- Tres cosas buenas (Seligman et al., 2005): al cerrar el día, en vez de un último scroll.
 function buenasSheet() {
@@ -3506,7 +3539,8 @@ function intervenciones() {
     h >= 20 && !ES.buenas.some(x => x.d === today()) && { id: 'buenas', t: 'Antes del último scroll', p: 'Tres cosas buenas de hoy, en un minuto. Mejor cierre que el feed.', sci: 'Seligman et al. (2005)', b: 'Escribirlas', a: () => buenasSheet() },
     retoDia() === 21 && { id: 'reto21', t: '21 días con tu presupuesto', p: 'Tres semanas reduciendo redes: es el tiempo que mostró menos soledad y depresión. Mira tus datos.', sci: 'Hunt et al. (2018)', b: 'Ver tus datos', a: () => datosSheet() },
     h >= 10 && h < 20 && !ES.misiones.some(x => x.d === today()) && { id: 'mision', t: 'Misión social de hoy', p: misionHoy().t, sci: misionHoy().tipo === 'desconocido' ? 'Sandstrom, Boothby y Cooney (2022)' : 'Hall et al. (2023)', b: 'Ver misión', a: () => misionSheet() },
-    dia >= 2 && laboralSemana().items.filter(x => x.hecho).length === 0 && { id: 'laboral', t: 'Toma la iniciativa en el trabajo', p: 'Esta semana aún no hay propuesta, reunión ni problema anticipado. Elige uno y su primer paso.', sci: 'Parker, Bindl y Strauss (2010)', b: 'Planearla', a: () => laboralSheet() },
+    dia >= 2 && ini4Semana().items.filter(x => x.t).length < 4 && { id: 'ini4', t: 'Tus 4 iniciativas de la semana', p: `Faltan por definir ${4 - ini4Semana().items.filter(x => x.t).length}: ${INI4.filter((_, i) => !ini4Semana().items[i].t).map(([, n]) => n.toLowerCase()).join(', ')}. Cada una vale ${XP_INI} XP; las cuatro, +50.`, sci: 'Parker, Bindl y Strauss (2010); Milkman et al. (2011)', b: 'Definirlas', a: () => ini4Sheet() },
+    dia >= 4 && ini4Semana().items.some(x => x.t && !x.hecho) && { id: 'ini4b', t: 'Iniciativas pendientes esta semana', p: ini4Semana().items.filter(x => x.t && !x.hecho).map((x, _, __) => x.t).join(' · '), sci: 'Parker, Bindl y Strauss (2010)', b: 'Verlas', a: () => ini4Sheet() },
     enVentana() && { id: 'ventana', t: 'Estás en tu ventana de revisión', p: `Revisa redes y mensajes con calma hasta las ${fmtHora(addMin(enVentana(), ES.ventanaMin))}. Fuera de ella, la espera es el doble.`, sci: 'Fitz et al. (2019)', b: '', a: null },
     top && top[1] >= 3 && { id: 'emo', t: `Lo que más te empuja al teléfono: ${top[0].toLowerCase()}`, p: EMO_TIP[top[0]], sci: 'Throuvala et al. (2020)', b: 'Ver tus datos', a: () => datosSheet() },
   ].filter(Boolean);
@@ -3584,7 +3618,7 @@ const CIENCIA = [
   ['Misión social del día', 'Una conversación de calidad al día con un amigo mejora el bienestar de ese día; cara a cara rinde más.', 'Hall et al. (2023), Communication Research'],
   ['Horas juntos', 'Hacen falta unas 50 horas para una amistad casual, 90 para amigos y más de 200 para buenos amigos.', 'Hall (2019), J. Social and Personal Relationships'],
   ['36 preguntas', 'Preguntas de apertura creciente aumentan la cercanía entre personas que acaban de conocerse.', 'Aron et al. (1997), Personality and Social Psychology Bulletin'],
-  ['Iniciativa laboral', 'La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios un 30 %.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
+  ['Las 4 iniciativas de la semana', 'Estudio, proyecto, laboral y social, con el mismo peso. La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios un 30 %.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
   ['Ánimo antes y después', 'Actuar según el plan y no según el ánimo (activación conductual) mejora el ánimo; registrarlo lo hace visible.', 'Ekers et al. (2014), PLOS ONE'],
   ['Surfear el impulso', 'Observar las ganas sin actuar y tener un plan «si…, entonces…» para ese momento reduce la conducta impulsiva.', 'Gollwitzer y Sheeran (2006); Throuvala et al. (2020)'],
   ['Tres cosas buenas', 'Escribir cada noche tres cosas buenas y por qué aumentó la felicidad durante seis meses.', 'Seligman, Steen, Park y Peterson (2005), American Psychologist'],
@@ -3770,6 +3804,7 @@ Cómo trabajas:
 - Cuando la persona te pida algo concreto (crear una tarea, agendar, marcar algo como hecho), hazlo con las herramientas y confirma en una línea qué cambiaste.
 - Si propones cambios por iniciativa propia (por ejemplo, bloquear horas en el calendario o cambiar prioridades), descríbelos primero y espera un sí antes de hacerlos.
 - Lo importante antes que lo urgente: tres prioridades al día, la más difícil primero; cuando las tres están hechas se pueden añadir extras.
+- Cada semana hay 4 iniciativas con el mismo peso: estudio, proyecto, laboral y social (30 XP cada una). Ayuda a definirlas con qué, por qué y primer paso, y a ponerles día y hora.
 - Cada acción buena suma XP (prioridades, hábitos, tareas, enfoque, resistir las redes, escribir a alguien, pasos de proyecto…). Si la persona lo pregunta, cuéntale su nivel y cuánto falta; no inventes puntos.
 - Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
 - Si aparece malestar serio, sugiere con tacto hablar con un profesional; no eres terapeuta.
@@ -3801,6 +3836,9 @@ const IA_TOOLS = [
     titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
   iaTool('pizarra_agregar', 'Pone ideas como notas en una pizarra de la pestaña Ideas (la crea si no existe). Útil para lluvias de ideas, planes y mapas.', {
     pizarra: S('Nombre de la pizarra.'), notas: { type: 'array', items: { type: 'string' }, description: 'Textos breves, uno por nota (máximo 20).' } }),
+  iaTool('iniciativa_semana', 'Define o marca como hecha una de las 4 iniciativas de la semana (estudio, proyecto, laboral, social).', {
+    tipo: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social'] }, accion: { type: 'string', enum: ['definir', 'hecha'] },
+    que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), fecha: S('AAAA-MM-DD o vacío.'), hora: S('HH:MM en 24 h o vacío.') }),
   iaTool('diario_escribir', 'Guarda una entrada en el Diario de la pestaña Ideas (por ejemplo, un resumen que la persona dictó o pidió guardar).', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
@@ -3822,7 +3860,7 @@ function iaEstado() {
     hoy: { enfoque_min: d.enfoque, aperturas_redes: d.aperturas, limite_aperturas: ES.limite, distraccion_min: d.distraccion, presupuesto_min: ES.presupuesto, resistio: d.resistidas + d.alternativas, iniciativas: d.iniciativas },
     ultimos_7_dias: { enfoque_min: sum('enfoque'), iniciativas: sum('iniciativas'), aperturas_redes: sum('aperturas'), distraccion_min: sum('distraccion'), pasos_proyecto: sum('pasos') },
     meta_iniciativas_semana: ES.metaSemanal, iniciativas_esta_semana: iniciativasSemana(),
-    iniciativa_laboral: laboralSemana().items.map(x => ({ tipo: x.k, que: x.t, hecho: x.hecho })),
+    iniciativas_semana: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, fecha: x.cuando, hora: x.hora, hecha: x.hecho })),
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
     ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
   };
@@ -3879,6 +3917,12 @@ async function iaEjecutar(nombre, a) {
       const ev = await gCalCrear(a); agendaCache.t = 0; renderAgenda();
       return { creado: ev.summary, inicio: ev.start?.dateTime || ev.start?.date, enlace: ev.htmlLink };
     }
+    case 'iniciativa_semana': {
+      const I = ini4Semana(), i = INI4.findIndex(([k]) => k === a.tipo), x = I.items[i];
+      if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.fecha) x.cuando = a.fecha; if (a.hora) x.hora = a.hora; }
+      else if (!x.hecho) { x.hecho = true; bump('iniciativas'); xpGanar(XP_INI, `Iniciativa de ${a.tipo}`); if (I.items.every(y => y.hecho) && !I.bonus) { I.bonus = true; xpGanar(50, 'Las 4 iniciativas de la semana'); } }
+      guardar(); renderE(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_esta_semana: I.items.filter(y => y.hecho).length };
+    }
     case 'diario_escribir': {
       const x = { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: a.pregunta || '', txt: String(a.texto).slice(0, 5000), animo: 0, cambiado: Date.now() };
       ES.diario.push(x); guardar(); return { guardado: true, nota: 'Está en Ideas → Diario' + (ntOk() ? '; desde ahí se envía a Notion.' : '.') };
@@ -3894,7 +3938,7 @@ async function iaEjecutar(nombre, a) {
   throw new Error('Herramienta desconocida.');
 }
 const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
-  crear_proyecto: 'Creó un proyecto', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
+  crear_proyecto: 'Creó un proyecto', iniciativa_semana: 'Actualizó una iniciativa de la semana', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
 
 // Texto con **negritas** y saltos de línea, siempre escapado.
 const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
