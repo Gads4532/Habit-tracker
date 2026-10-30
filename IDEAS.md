@@ -173,3 +173,10 @@ manda Google. Las repeticiones de la app llegan a Google como tareas sueltas (la
 ## Las 4 iniciativas del día
 
 Sustituye a la «iniciativa laboral»: cada día hay cuatro frentes con el mismo peso y el mismo XP (30 cada una): **estudio**, **proyecto**, **laboral** y **social**. Reglas: **mínimo 2 al día** (+40 XP al llegar; las cuatro, +50) y **social al menos 6 días a la semana** (+60 al cumplirlo). Los mínimos se cambian en Ajustes. La app avisa a las 4 PM si falta el mínimo y, desde el mediodía, si la social de hoy es necesaria para llegar a los 6 días; también por notificación push. Racha de días con el mínimo; el historial diario va en `dias[k].ini4` / `ini_social` e `iniHist`. Cada una lleva qué, por qué importa, primer paso de 5 minutos y día y hora (Milkman et al. 2011), con sugerencias tomadas de la app (siguiente paso de proyectos, personas a las que toca escribir, hábitos de estudio) y botón para agendar. Aparecen en Enfoque, en la revisión semanal, como intervención del miércoles y del viernes si faltan, como aviso push el miércoles al mediodía, y el asistente puede definirlas o marcarlas (`iniciativa_semana`).
+
+### Opciones, iniciativas propias y Notion
+
+- **Catálogo**: 12 ideas concretas por tipo (estudio, proyecto, laboral, social), en formato acción, para elegir en un toque («Elegir de la lista»).
+- **Mis iniciativas** («Crear la mía»): estructura que asegura el cumplimiento: acción concreta, por qué, primer paso de 5 min, hora y lugar, obstáculo probable con plan «si…, entonces…» (Gollwitzer y Sheeran 2006) y señal de hecha (Locke y Latham 2002). Se guardan en `catalogoIni[tipo]` (sincronizado), cuentan las veces usadas y se reutilizan.
+- **Desde Notion**: elige una página; cada viñeta, número, casilla, encabezado o párrafo corto se convierte en opción marcable y se guarda en «Mis iniciativas» con origen «Notion · página».
+- El asistente ve `mis_iniciativas` y puede definir una con la estructura completa y guardarla como reutilizable.

@@ -642,6 +642,7 @@ function normEnfoque(e) {
   e.iniciativas4 ||= { dia: '', items: [] };
   e.minIni = [1, 2, 3, 4].includes(+e.minIni) ? +e.minIni : 2;
   e.minSocial = [3, 4, 5, 6, 7].includes(+e.minSocial) ? +e.minSocial : 6;
+  e.catalogoIni ||= {}; for (const k of ['estudio', 'proyecto', 'laboral', 'social']) if (!Array.isArray(e.catalogoIni[k])) e.catalogoIni[k] = [];
   e.pacto ||= { semana: '', texto: '' };
   e.reto7 ||= { inicio: '' };
   e.retoInicio ||= hoy;
@@ -722,6 +723,7 @@ function mergeStates(a, b) {
   out.enfoque = normEnfoque({ ...eO, ...eN, dias, personas: byId(eN.personas, eO.personas), proyectos: byId(eN.proyectos, eO.proyectos),
     planes: byId(eN.planes, eO.planes), apps: byId(eN.apps, eO.apps), predicciones: byId(eN.predicciones, eO.predicciones),
     animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones),
+    catalogoIni: Object.fromEntries(['estudio', 'proyecto', 'laboral', 'social'].map(k => [k, byId(eN.catalogoIni?.[k] || [], eO.catalogoIni?.[k] || [])])),
     pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) } });
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
@@ -3500,6 +3502,85 @@ function iniPremios(I) {
   if (h === 4 && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 4 iniciativas del día'), 2400); }
   if (socialDiasSemana() >= ES.minSocial && !ES.socialBonus?.[lunes()]) { ES.socialBonus = { [lunes()]: true }; setTimeout(() => xpGanar(60, `Social ${ES.minSocial} días esta semana`), 3600); }
 }
+// Catálogo de opciones por tipo: muchas ideas concretas, en formato acción, para elegir en un toque.
+const INI_CAT = {
+  estudio: ['Leer 20 páginas de un libro', 'Una lección de un curso en línea', '25 minutos de práctica deliberada de una habilidad', 'Ver una charla o clase y resumirla en 5 líneas', 'Repasar notas con tarjetas (recuerdo activo)', 'Practicar 15 minutos de un idioma', 'Escribir lo que aprendí hoy en el diario', 'Resolver 3 ejercicios del tema que estudio', 'Enseñarle a alguien lo que aprendí', 'Leer un artículo o paper y anotar 3 ideas', 'Escuchar un pódcast de mi campo y anotar una idea aplicable', 'Hacer un mapa mental del tema en una pizarra'],
+  proyecto: ['El siguiente paso de mi proyecto principal (25 min)', 'Definir el siguiente paso de un proyecto parado', 'Hacer la versión de 2 minutos de un paso difícil', 'Dividir un paso grande en tres pequeños', 'Mostrar el avance a alguien y pedir una opinión', 'Resolver el bloqueo que lleva días parado', 'Escribir el plan WOOP de un proyecto nuevo', 'Un bloque de 50 minutos sin teléfono para el proyecto', 'Publicar o entregar una versión aunque esté imperfecta', 'Revisar el proyecto: qué sobra y qué falta', 'Automatizar o simplificar una parte repetitiva', 'Investigar 20 minutos algo que necesito para el proyecto'],
+  laboral: ['Proponer una mejora que nadie me pidió', 'Pedir una reunión de 15 minutos con alguien clave', 'Anticipar un problema y proponer cómo prevenirlo', 'Dar feedback útil y concreto a un compañero', 'Pedir feedback sobre mi trabajo', 'Ofrecerme para una tarea que nadie quiere', 'Documentar un proceso para que otros lo usen', 'Presentar una idea en 3 líneas a mi jefe', 'Aprender una herramienta que usa el equipo', 'Terminar hoy lo que suelo dejar para mañana', 'Conectar a dos personas que se ayudarían', 'Agradecer públicamente el trabajo de alguien'],
+  social: ['Escribirle a alguien que no contacto hace tiempo', 'Proponer un café, un almuerzo o una caminata', 'Llamar a un familiar', 'Agradecerle algo concreto a alguien', 'Hablar con un desconocido (fila, transporte, cafetería)', 'Invitar a alguien nuevo a un plan', 'Hacer un cumplido sincero y específico', 'Preguntarle a un amigo por algo que me contó', 'Organizar un plan de grupo', 'Responder un mensaje pendiente con una propuesta concreta', 'Pedir ayuda o consejo a alguien', 'Ir a un evento o grupo donde pueda conocer gente'],
+};
+function iniAplicar(i, o) {
+  const I = ini4Semana(), x = I.items[i];
+  Object.assign(x, { t: o.t || x.t, por: o.por || x.por, paso: o.paso || x.paso, hora: o.hora || x.hora, donde: o.donde || x.donde || '', obst: o.obst || x.obst || '', plan: o.plan || x.plan || '', exito: o.exito || x.exito || '' });
+  guardar(); renderE(); ini4Sheet(i);
+}
+function iniCatalogo(i) {
+  const [k, n] = INI4[i], mias = ES.catalogoIni[k], usadas = Object.values(ES.iniHist || {}).flat();
+  showSheet(`<h2>Iniciativa de ${n.toLowerCase()}: opciones</h2>
+    <p class="note">Toca una y se pone como la de hoy. Las tuyas guardan su estructura completa.</p>
+    ${mias.length ? `<h3 style="margin-top:8px">Mis iniciativas</h3><div class="rows">${mias.map(o => `<button class="row" data-mia="${esc(o.id)}"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>${esc(o.t)}</div><small>${esc(o.paso || o.por || o.origen || '')}</small></span><span class="tag">${o.veces ? o.veces + '×' : ''}</span></button>`).join('')}</div>` : ''}
+    <h3>Ideas</h3>
+    <div class="rows">${INI_CAT[k].map((t, j) => `<button class="row" data-idea="${j}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(t)}</div></span></button>`).join('')}</div>
+    <div class="actions"><button class="link" id="ic-notion">Desde Notion</button><button class="link" id="ic-crear">Crear la mía</button><button class="link" id="ic-back">Volver</button></div>`);
+  const body = $('#sheet-body');
+  body.querySelectorAll('[data-idea]').forEach(b => b.onclick = () => iniAplicar(i, { t: INI_CAT[k][+b.dataset.idea] }));
+  body.querySelectorAll('[data-mia]').forEach(b => b.onclick = () => { const o = mias.find(m => m.id === b.dataset.mia); o.veces = (o.veces || 0) + 1; iniAplicar(i, o); });
+  $('#ic-crear').onclick = () => iniCrear(i);
+  $('#ic-notion').onclick = () => iniDesdeNotion(i);
+  $('#ic-back').onclick = () => ini4Sheet(i);
+}
+// Crear una iniciativa propia con la estructura que la asegura: acción concreta, por qué, primer paso, cuándo y dónde,
+// obstáculo con plan «si…, entonces…» (Gollwitzer y Sheeran, 2006) y señal de hecha (Locke y Latham, 2002).
+function iniCrear(i, base = {}) {
+  const [k, n] = INI4[i];
+  showSheet(`<h2>Mi iniciativa de ${n.toLowerCase()}</h2>
+    <p class="sci">Lo que la hace cumplible: una acción concreta (un verbo), un primer paso de 5 minutos, hora y lugar, el obstáculo probable con su plan y una señal clara de que quedó hecha.</p>
+    <div class="field"><label>Qué (acción concreta)</label><input id="ic-t" maxlength="100" value="${esc(base.t || '')}" placeholder="${esc(INI4[i][3])}"></div>
+    <div class="field"><label>Por qué importa</label><input id="ic-por" maxlength="120" value="${esc(base.por || '')}" placeholder="Qué cambia en mi vida si lo hago"></div>
+    <div class="field"><label>Primer paso (menos de 5 minutos)</label><input id="ic-paso" maxlength="100" value="${esc(base.paso || '')}" placeholder="Abrir el documento, marcar el número…"></div>
+    <div class="times"><div class="field"><label>Hora habitual</label><input id="ic-hora" type="time" value="${esc(base.hora || '')}"></div><div class="field"><label>Dónde</label><input id="ic-donde" maxlength="60" value="${esc(base.donde || '')}" placeholder="Lugar"></div></div>
+    <div class="field"><label>Obstáculo probable</label><input id="ic-obst" maxlength="100" value="${esc(base.obst || '')}" placeholder="Me da pereza, me distraigo, no sé por dónde empezar"></div>
+    <div class="field"><label>Si aparece, entonces…</label><input id="ic-plan" maxlength="100" value="${esc(base.plan || '')}" placeholder="Hago solo el primer paso y vuelvo a decidir"></div>
+    <div class="field"><label>Sabré que está hecha cuando…</label><input id="ic-exito" maxlength="100" value="${esc(base.exito || '')}" placeholder="El mensaje esté enviado / las 20 páginas leídas"></div>
+    <div class="actions"><button class="link" id="ic-cancel">Cancelar</button><button class="primary" id="ic-save">Guardar y usar hoy</button></div>`);
+  $('#ic-cancel').onclick = () => ini4Sheet(i);
+  $('#ic-save').onclick = () => {
+    const o = { id: crypto.randomUUID(), t: $('#ic-t').value.trim(), por: $('#ic-por').value.trim(), paso: $('#ic-paso').value.trim(), hora: $('#ic-hora').value, donde: $('#ic-donde').value.trim(), obst: $('#ic-obst').value.trim(), plan: $('#ic-plan').value.trim(), exito: $('#ic-exito').value.trim(), origen: base.origen || 'Mía', veces: 1 };
+    if (!o.t) { $('#ic-t').focus(); return; }
+    ES.catalogoIni[k].push(o); guardar(); iniAplicar(i, o); toast('Guardada en «Mis iniciativas».');
+  };
+}
+// Traer iniciativas desde una página de Notion: cada viñeta, número, casilla o párrafo corto se convierte en una opción.
+async function iniDesdeNotion(i) {
+  if (!ntOk()) return notionSheet();
+  const [k, n] = INI4[i];
+  showSheet(`<h2>Desde Notion</h2><p class="note">Elige la página con tus ideas de ${n.toLowerCase()}. Cada línea de la página será una opción.</p><p class="meta" id="in-msg">Buscando páginas…</p><div id="in-list"></div><div class="actions"><button class="link" id="in-back">Volver</button></div>`);
+  $('#in-back').onclick = () => ini4Sheet(i);
+  try {
+    const r = await notion('search', 'POST', { filter: { property: 'object', value: 'page' }, page_size: 30, sort: { direction: 'descending', timestamp: 'last_edited_time' } });
+    const pags = (r.results || []).map(p => ({ id: p.id, t: (Object.values(p.properties || {}).find(x => x.type === 'title')?.title || []).map(x => x.plain_text).join('') || '(Sin título)' }));
+    $('#in-msg').textContent = pags.length ? '' : 'La integración no ve páginas. Compártele la página en Notion («···» → Conexiones).';
+    $('#in-list').innerHTML = `<div class="rows">${pags.map(p => `<button class="row" data-pg="${esc(p.id)}" data-t="${esc(p.t)}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(p.t)}</div></span><span class="tag">›</span></button>`).join('')}</div>`;
+    $('#in-list').querySelectorAll('[data-pg]').forEach(b => b.onclick = async () => {
+      $('#in-msg').textContent = 'Leyendo la página…'; $('#in-list').innerHTML = '';
+      try {
+        const texto = bl => (bl[bl.type]?.rich_text || []).map(x => x.plain_text).join('').trim();
+        let lineas = [], cursor = '';
+        do { const q = await notion(`blocks/${b.dataset.pg}/children?page_size=100${cursor ? '&start_cursor=' + cursor : ''}`); for (const bl of q.results || []) { const t = texto(bl); if (t && t.length <= 160 && ['bulleted_list_item', 'numbered_list_item', 'to_do', 'paragraph', 'heading_1', 'heading_2', 'heading_3', 'toggle', 'callout', 'quote'].includes(bl.type)) lineas.push(t); } cursor = q.has_more ? q.next_cursor : ''; } while (cursor && lineas.length < 200);
+        if (!lineas.length) { $('#in-msg').textContent = 'La página no tiene líneas de texto que se puedan usar.'; return; }
+        $('#in-msg').textContent = `${lineas.length} líneas en «${b.dataset.t}». Marca las que quieras como opciones:`;
+        $('#in-list').innerHTML = `<div class="rows">${lineas.map((t, j) => `<label class="row" style="cursor:pointer"><input type="checkbox" data-j="${j}" style="width:auto;margin:0 4px"> <span class="t"><div>${esc(t)}</div></span></label>`).join('')}</div>
+          <div class="actions"><button class="primary" id="in-ok">Guardar como opciones</button></div>`;
+        $('#in-ok').onclick = () => {
+          const sel = [...$('#in-list').querySelectorAll('input:checked')].map(c => lineas[+c.dataset.j]);
+          if (!sel.length) return;
+          for (const t of sel) if (!ES.catalogoIni[k].some(o => o.t === t)) ES.catalogoIni[k].push({ id: crypto.randomUUID(), t, origen: `Notion · ${b.dataset.t}`, veces: 0 });
+          guardar(); toast(`${sel.length} opciones guardadas en «Mis iniciativas».`); iniCatalogo(i);
+        };
+      } catch (e) { $('#in-msg').textContent = e.message; }
+    });
+  } catch (e) { $('#in-msg').textContent = e.message; }
+}
 function ini4Sheet(abrir = -1) {
   const I = ini4Semana(), hechas = I.items.filter(x => x.hecho).length, r = rachaIni();
   showSheet(`<h2>Las 4 iniciativas de hoy</h2>
@@ -3510,11 +3591,16 @@ function ini4Sheet(abrir = -1) {
       return `<div class="rows"><button class="row" data-open="${i}"><span class="box" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></span>
         <span class="t"><div>Iniciativa de ${n.toLowerCase()}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</div><small style="white-space:normal">${x.t ? esc(x.t) + (x.cuando ? ` · ${fmtFecha(x.cuando)}${x.hora ? ' ' + fmtHora(x.hora) : ''}` : '') : esc(d)}</small></span><span class="tag">${open ? '▾' : '›'}</span></button></div>
       <div class="ini-f" data-i="${i}" ${open ? '' : 'hidden'} style="padding:6px 0 14px 28px">
-        ${sug.length ? `<div class="chips" style="margin-bottom:8px">${sug.map(t => `<button class="chip" data-sug="${i}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}
+        <div class="chips" style="margin-bottom:8px"><button class="chip" data-cat="${i}">Elegir de la lista</button><button class="chip" data-crear="${i}">Crear la mía</button><button class="chip" data-notion="${i}">Desde Notion</button>
+          ${sug.map(t => `<button class="chip" data-sug="${i}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <div class="field"><input data-f="t" data-i="${i}" maxlength="100" value="${esc(x.t)}" placeholder="${esc(ph)}"></div>
         <div class="field"><input data-f="por" data-i="${i}" maxlength="100" value="${esc(x.por)}" placeholder="¿Por qué importa?"></div>
         <div class="field"><input data-f="paso" data-i="${i}" maxlength="100" value="${esc(x.paso)}" placeholder="Primer paso de menos de 5 minutos"></div>
-        <div class="field"><label>¿A qué hora hoy?</label><input data-f="hora" data-i="${i}" type="time" value="${esc(x.hora)}"></div>
+        <div class="times"><div class="field"><label>¿A qué hora hoy?</label><input data-f="hora" data-i="${i}" type="time" value="${esc(x.hora)}"></div><div class="field"><label>¿Dónde?</label><input data-f="donde" data-i="${i}" maxlength="60" value="${esc(x.donde || '')}" placeholder="Lugar"></div></div>
+        <details ${x.obst || x.exito ? 'open' : ''} style="margin:0 0 10px"><summary class="meta" style="cursor:pointer">Estructura para asegurarla (obstáculo, plan y señal de hecha)</summary>
+          <div class="field"><input data-f="obst" data-i="${i}" maxlength="100" value="${esc(x.obst || '')}" placeholder="Obstáculo probable: «me da pereza», «no encuentro el momento»"></div>
+          <div class="field"><input data-f="plan" data-i="${i}" maxlength="100" value="${esc(x.plan || '')}" placeholder="Si aparece, entonces… (p. ej. hago solo el primer paso de 5 min)"></div>
+          <div class="field"><input data-f="exito" data-i="${i}" maxlength="100" value="${esc(x.exito || '')}" placeholder="Sabré que está hecha cuando…"></div></details>
         <div class="chips"><button class="chip${x.hecho ? ' on' : ''}" data-done="${i}">${x.hecho ? 'Hecha' : `Marcar hecha · +${XP_INI} XP`}</button>
           ${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl('Iniciativa de ' + n.toLowerCase() + ': ' + x.t, today(), x.hora || '18:00', 30)}">Agendar</a>` : ''}</div>
       </div>`; }).join('')}
@@ -3523,6 +3609,9 @@ function ini4Sheet(abrir = -1) {
   const leer = () => body.querySelectorAll('[data-f]').forEach(inp => { I.items[+inp.dataset.i][inp.dataset.f] = inp.value.trim(); });
   body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { leer(); guardar(); const i = +b.dataset.open; ini4Sheet(body.querySelector(`.ini-f[data-i="${i}"]`).hidden ? i : -2); });
   body.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { body.querySelector(`[data-f="t"][data-i="${b.dataset.sug}"]`).value = b.dataset.t; });
+  body.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { leer(); guardar(); iniCatalogo(+b.dataset.cat); });
+  body.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => { leer(); guardar(); iniCrear(+b.dataset.crear); });
+  body.querySelectorAll('[data-notion]').forEach(b => b.onclick = () => { leer(); guardar(); iniDesdeNotion(+b.dataset.notion); });
   body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
     leer(); const i = +b.dataset.done, x = I.items[i]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1);
     if (x.hecho) { bump('ini4'); if (x.k === 'social') bump('ini_social'); iniPremios(I); } else { bump('ini4', -1); if (x.k === 'social') bump('ini_social', -1); }
@@ -3863,9 +3952,10 @@ const IA_TOOLS = [
     titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
   iaTool('pizarra_agregar', 'Pone ideas como notas en una pizarra de la pestaña Ideas (la crea si no existe). Útil para lluvias de ideas, planes y mapas.', {
     pizarra: S('Nombre de la pizarra.'), notas: { type: 'array', items: { type: 'string' }, description: 'Textos breves, uno por nota (máximo 20).' } }),
-  iaTool('iniciativa_dia', 'Define o marca como hecha una de las 4 iniciativas de hoy (estudio, proyecto, laboral, social). La persona debe hacer un mínimo al día.', {
+  iaTool('iniciativa_dia', 'Define o marca como hecha una de las 4 iniciativas de hoy (estudio, proyecto, laboral, social). La persona debe hacer un mínimo al día. Al definir, usa la estructura completa cuando puedas: obstáculo, plan «si…, entonces…» y señal de hecha.', {
     tipo: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social'] }, accion: { type: 'string', enum: ['definir', 'hecha'] },
-    que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), hora: S('HH:MM en 24 h o vacío.') }),
+    que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), hora: S('HH:MM en 24 h o vacío.'),
+    obstaculo: S('Obstáculo probable o vacío.'), plan: S('Si aparece el obstáculo, entonces… (o vacío).'), exito: S('Sabré que está hecha cuando… (o vacío).'), guardar_en_mis_iniciativas: { type: 'boolean', description: 'true para guardarla también como opción reutilizable.' } }),
   iaTool('diario_escribir', 'Guarda una entrada en el Diario de la pestaña Ideas (por ejemplo, un resumen que la persona dictó o pidió guardar).', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
@@ -3887,6 +3977,7 @@ function iaEstado() {
     hoy: { enfoque_min: d.enfoque, aperturas_redes: d.aperturas, limite_aperturas: ES.limite, distraccion_min: d.distraccion, presupuesto_min: ES.presupuesto, resistio: d.resistidas + d.alternativas, iniciativas: d.iniciativas },
     ultimos_7_dias: { enfoque_min: sum('enfoque'), iniciativas: sum('iniciativas'), aperturas_redes: sum('aperturas'), distraccion_min: sum('distraccion'), pasos_proyecto: sum('pasos') },
     meta_iniciativas_semana: ES.metaSemanal, iniciativas_esta_semana: iniciativasSemana(),
+    mis_iniciativas: Object.fromEntries(Object.entries(ES.catalogoIni).map(([k, v]) => [k, v.slice(0, 15).map(o => o.t)])),
     iniciativas_hoy: { minimo_diario: ES.minIni, hechas: iniHechasHoy(), racha_dias: rachaIni(), social_dias_esta_semana: socialDiasSemana(), social_minimo_semanal: ES.minSocial, social_en_riesgo: socialEnRiesgo(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
     ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
@@ -3946,7 +4037,8 @@ async function iaEjecutar(nombre, a) {
     }
     case 'iniciativa_dia': {
       const I = ini4Semana(), i = INI4.findIndex(([k]) => k === a.tipo), x = I.items[i];
-      if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; }
+      if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; if (a.obstaculo) x.obst = a.obstaculo; if (a.plan) x.plan = a.plan; if (a.exito) x.exito = a.exito;
+        if (a.guardar_en_mis_iniciativas && x.t && !ES.catalogoIni[a.tipo].some(o => o.t === x.t)) ES.catalogoIni[a.tipo].push({ id: crypto.randomUUID(), t: x.t, por: x.por, paso: x.paso, hora: x.hora, obst: x.obst, plan: x.plan, exito: x.exito, origen: 'Asistente', veces: 1 }); }
       else if (!x.hecho) { x.hecho = true; bump('iniciativas'); bump('ini4'); if (x.k === 'social') bump('ini_social'); iniPremios(I); }
       guardar(); renderE(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
     }
