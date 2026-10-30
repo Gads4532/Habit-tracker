@@ -28,3 +28,5 @@ calendario y el asistente puede ver y crear eventos (requiere activar la API de 
 de Google Cloud).
 
 **Notion**, **XP** y **notificaciones** (2.9.0): el diario y las pizarras se envían a Notion a través de la función `supabase/functions/notion`; cada acción suma XP con niveles y meta diaria; y una tarea programada de GitHub (`.github/workflows/notificaciones.yml`) envía avisos push aunque la app esté cerrada (necesita `push.sql` en Supabase y los secretos `SUPABASE_SERVICE_KEY` y `VAPID_PRIVATE_KEY`). Detalles en `IDEAS.md`.
+
+**Bienestar** (pestaña): mente (mindfulness y herramientas cognitivas con evidencia) y espíritu (vida cristiana práctica) juntos, con prácticas guiadas de 1 a 15 minutos y escenarios (esperanza, consolación, confianza, paz, fortaleza, dirección, perdón, gratitud) que unen la Palabra, una oración guiada y una herramienta para la mente. **Ahora**: en Enfoque siempre hay una cosa siguiente con propósito, y el descanso también se elige (descanso con propósito). Detalles y fuentes en `IDEAS.md` y en la app («Por qué funciona»).

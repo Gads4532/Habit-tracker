@@ -180,3 +180,19 @@ Sustituye a la «iniciativa laboral»: cada día hay cuatro frentes con el mismo
 - **Mis iniciativas** («Crear la mía»): estructura que asegura el cumplimiento: acción concreta, por qué, primer paso de 5 min, hora y lugar, obstáculo probable con plan «si…, entonces…» (Gollwitzer y Sheeran 2006) y señal de hecha (Locke y Latham 2002). Se guardan en `catalogoIni[tipo]` (sincronizado), cuentan las veces usadas y se reutilizan.
 - **Desde Notion**: elige una página; cada viñeta, número, casilla, encabezado o párrafo corto se convierte en opción marcable y se guarda en «Mis iniciativas» con origen «Notion · página».
 - El asistente ve `mis_iniciativas` y puede definir una con la estructura completa y guardarla como reutilizable.
+
+## Bienestar (pestaña): mente y espíritu, juntos
+
+Prácticas guiadas de 1 a 15 minutos con pantalla propia (pasos con tiempo o patrón de respiración con círculo), evidencia en cada una, registro (`practicas`, `estado`) y XP. Cualquier práctica espiritual completa deja hecha la **iniciativa espiritual del día** (que es diaria).
+
+- **Mente** (mindfulness y herramientas cognitivas): suspiro cíclico (Balban 2023), atención a la respiración y escaneo corporal (Goyal 2014), respiración en caja (Zaccaro 2018), pausa STOP (Albulescu 2022), desfusión (A-Tjak 2015), reestructurar un pensamiento (Cuijpers 2023), soltar una preocupación con hora fija (Borkovec 1983), chequeo de ánimo (Harkin 2016), pausa de autocompasión (Ferrari 2019), mejor yo posible (Meevissen 2011), afirmar lo que valoro (Cohen y Sherman 2014), plan contra la tentación (Gollwitzer y Sheeran 2006), decidir con distancia (Grossmann y Kross 2014).
+- **Espíritu** (vida cristiana práctica): oración de la mañana, lectura de la Palabra (lectio divina con pasaje del día y enlace a YouVersion RVR1960), examen del día, oración por otros (sugiere personas de la app; Lambert 2010), perdonar (Wade 2014), gracias a Dios (Emmons y McCullough 2003), versículo de la semana (RV1909, dominio público; repetición espaciada, Cepeda 2006), acto de servicio (Curry 2018), oración de la noche (Koenig 2012).
+- **Escenarios** («¿Qué necesitas ahora?»): General, Esperanza, Consolación, Confianza (Autoridad · Autoestima · Visión de mí mismo, cada una con sus versículos, «Declaro» y oración), Paz, Fortaleza, Dirección, Perdón, Gratitud. Cada uno: la Palabra (RV1909 con enlace), una oración guiada de 3–4 minutos y una herramienta de la mente con evidencia.
+- «Ahora te conviene» elige la práctica por hora y por lo hecho; la tarjeta «Ahora» de Enfoque manda a Bienestar cuando falta la espiritual.
+- Nota de límites: las prácticas acompañan; si el malestar pesa o dura, hablar con un profesional.
+
+## Ahora, descanso con propósito y espiritual diaria
+
+- **«Ahora»** en Enfoque: siempre una cosa siguiente con propósito (prioridad → iniciativa con hora → mínimo de iniciativas → espiritual → social en riesgo → hábito → tarea → prioridades → tres cosas buenas → descanso con propósito). Es imposible quedarse sin saber qué hacer, y la alternativa al scroll es siempre un descanso elegido.
+- **Descansar con propósito**: quinta respuesta a «¿Para qué tomaste el teléfono?» y botón en «Ahora»: tipo (siesta, caminar, respirar, no hacer nada sin pantalla, música, estirar, comer sin pantalla, leer por placer) y tiempo; corre como sesión, registra `descanso` y da XP (Albulescu 2022; Kaplan 1995).
+- **Iniciativa espiritual**: quinta iniciativa, diaria, con catálogo cristiano; racha propia y bonus cada 7 días; aviso a las 7 PM en la app y a las 8 PM por push si falta.

@@ -68,6 +68,7 @@ function avisos(st, tz, prefs, desde, hasta) {
       if (!P || !P.length) out.push({ title: 'Aún no eliges tus prioridades', body: 'Tres como máximo, la más difícil primero. Te toma un minuto.', tag: 'mediodia', url: './?v=enfoque' });
       else if (x) out.push({ title: 'Tu prioridad sigue pendiente', body: `${x.t}. ¿25 minutos ahora, con el teléfono boca abajo?`, tag: 'mediodia', url: './?v=enfoque' });
     }
+    if (prefs.noche !== false && en(fecha, '20:00') && !((E.dias?.[fecha]?.ini_esp || 0) > 0)) out.push({ title: 'Tu momento espiritual de hoy', body: 'Todos los días: unos minutos de oración, silencio, gratitud o servicio. Hoy aún no está.', tag: 'esp', url: './?v=enfoque' });
     if (prefs.noche !== false && en(fecha, '21:00')) {
       const d = E.dias?.[fecha] || {};
       out.push({ title: 'Cierre del día', body: `${d.enfoque || 0} min de enfoque · ${d.iniciativas || 0} iniciativas · resististe ${(d.resistidas || 0) + (d.alternativas || 0)} veces.\n¿Tres cosas buenas de hoy?`, tag: 'noche', url: './?v=enfoque' });

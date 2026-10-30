@@ -338,7 +338,7 @@
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; gap: 0;
     padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--bg); border-top: 1px solid var(--line); z-index: 5; }
-  .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .72rem; color: var(--muted); }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .68rem; color: var(--muted); min-width: 0; }
   .tab svg { width: 22px; height: 22px; }
   .tab.on { color: var(--text); }
   /* Calendario */
@@ -392,6 +392,7 @@
   <div id="view-enfoque" hidden></div>
   <div id="view-ia" hidden></div>
   <div id="view-pizarra" hidden></div>
+  <div id="view-bienestar" hidden></div>
   <div id="view-hoy">
     <p class="note" style="margin-top:-12px"><button class="link" data-subvista="cal">Calendario de hábitos</button> · <button class="link" data-subvista="analisis">Análisis</button></p>
     <p class="note bad" id="nocloud" hidden>Tus datos están solo en este teléfono. <button class="link" id="nocloud-go">Crea una cuenta</button> para guardarlos en línea.</p>
@@ -430,6 +431,9 @@
   </button>
   <button class="tab" data-view="pizarra">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="13" rx="2.5"/><path d="M7 9.5h5M7 12.5h8M9 21l3-4 3 4"/></svg>Ideas
+  </button>
+  <button class="tab" data-view="bienestar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-5-3-8-6.5-8-10.5A4.5 4.5 0 0 1 12 8a4.5 4.5 0 0 1 8 2.5C20 14.5 17 18 12 21z"/><path d="M12 8v13"/></svg>Bienestar
   </button>
   <button class="tab" data-view="cal" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendario
@@ -642,7 +646,7 @@ function normEnfoque(e) {
   e.iniciativas4 ||= { dia: '', items: [] };
   e.minIni = [1, 2, 3, 4].includes(+e.minIni) ? +e.minIni : 2;
   e.minSocial = [3, 4, 5, 6, 7].includes(+e.minSocial) ? +e.minSocial : 6;
-  e.catalogoIni ||= {}; for (const k of ['estudio', 'proyecto', 'laboral', 'social']) if (!Array.isArray(e.catalogoIni[k])) e.catalogoIni[k] = [];
+  e.catalogoIni ||= {}; for (const k of ['estudio', 'proyecto', 'laboral', 'social', 'espiritual']) if (!Array.isArray(e.catalogoIni[k])) e.catalogoIni[k] = [];
   e.pacto ||= { semana: '', texto: '' };
   e.reto7 ||= { inicio: '' };
   e.retoInicio ||= hoy;
@@ -650,6 +654,7 @@ function normEnfoque(e) {
   if (!Array.isArray(e.pizarras)) e.pizarras = [];
   for (const b of e.pizarras) { if (!Array.isArray(b.els)) b.els = []; b.nombre ||= 'Pizarra'; }
   if (!Array.isArray(e.diario)) e.diario = [];
+  for (const k of ['practicas', 'estado']) { if (!Array.isArray(e[k])) e[k] = []; for (const x of e[k]) x.id ||= crypto.randomUUID(); }
   if (!e.prioridades || e.prioridades.fecha !== hoy) e.prioridades = { fecha: hoy, items: [] };
   e.bienvenida = !!e.bienvenida;
   return e;
@@ -658,7 +663,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { ia: 'Asistente', pizarra: 'Ideas', cal: 'Calendario', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { ia: 'Asistente', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -723,8 +728,8 @@ function mergeStates(a, b) {
   out.enfoque = normEnfoque({ ...eO, ...eN, dias, personas: byId(eN.personas, eO.personas), proyectos: byId(eN.proyectos, eO.proyectos),
     planes: byId(eN.planes, eO.planes), apps: byId(eN.apps, eO.apps), predicciones: byId(eN.predicciones, eO.predicciones),
     animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones),
-    catalogoIni: Object.fromEntries(['estudio', 'proyecto', 'laboral', 'social'].map(k => [k, byId(eN.catalogoIni?.[k] || [], eO.catalogoIni?.[k] || [])])),
-    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) } });
+    catalogoIni: Object.fromEntries(['estudio', 'proyecto', 'laboral', 'social', 'espiritual'].map(k => [k, byId(eN.catalogoIni?.[k] || [], eO.catalogoIni?.[k] || [])])),
+    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) } });
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
   return normalize(out);
@@ -1441,7 +1446,7 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -1735,7 +1740,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   if (!b) return;
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
-  for (const v of ['enfoque', 'ia', 'pizarra', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  for (const v of ['enfoque', 'ia', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   renderTitle();
   renderAll();
   scrollTo(0, 0);
@@ -2222,6 +2227,13 @@ const ENFOQUE_CSS = `
   .ring .count { font-size: 3.4rem; }
   .focus-what { font-size: 1.15rem; font-weight: 500; margin: 0; }
 
+  /* Ahora: lo siguiente con propósito */
+  .ahora { border: 1.5px solid var(--text); border-radius: 18px; padding: 14px 16px; margin: 0 0 14px; }
+  .ahora .k { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 4px; }
+  .ahora b { display: block; font-size: 1.08rem; font-weight: 600; margin-bottom: 2px; }
+  .ahora p { margin: 0 0 10px; color: var(--muted); font-size: .9rem; }
+  .ahora .row-b { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .ahora .primary { padding: 9px 16px; font-size: .9rem; }
   /* XP y nivel */
   .xp { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; }
   .xp .lv { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 1.05rem; background: var(--text); color: var(--bg); flex: none; }
@@ -2281,6 +2293,7 @@ const ENFOQUE_CSS = `
 const ENFOQUE_HTML = `
 
   <div id="xp"></div>
+  <div id="ahora"></div>
   <button class="sos" id="sos"><b>¿Día sin rumbo?</b><span>Plan de rescate en 5 minutos</span></button>
   <div id="interv"></div>
   <section id="agenda-sec">
@@ -2310,6 +2323,10 @@ const ENFOQUE_HTML = `
       <button class="choice" data-go="distraer">
         <svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M11 18h2"/></svg>
         <b>Distraerme</b><span>Con espera y límite diario</span>
+      </button>
+      <button class="choice" data-go="descanso" style="grid-column:1 / -1;min-height:0;flex-direction:row;align-items:center;justify-content:space-between">
+        <span><b>Descansar con propósito</b> <span>· sin pantalla, con tiempo elegido</span></span>
+        <svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V9l7-5 7 5v11"/><path d="M9 20v-6h6v6"/></svg>
       </button>
     </div>
   </section>
@@ -2455,7 +2472,33 @@ function recordatorioHabito() {
 }
 
 // ---------- Pantalla principal
-function renderE() { renderXp(); renderInterv(); renderAgenda(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
+// Siempre hay una cosa siguiente con propósito; si todo está hecho, la siguiente es descansar bien.
+function ahoraSugerido() {
+  const h = new Date().getHours(), P = ES.prioridades.items, p = pendientes(), I = ini4Semana().items, nowM = nowMin();
+  const x = P.find(i => !i.hecho);
+  if (x) return { k: 'Tu prioridad ahora', t: x.t, p: P.indexOf(x) === 0 ? 'La rana: primero, antes que todo.' : 'Una sola cosa, 25 minutos, teléfono boca abajo.', b: 'Empezar 25 min', a: () => x.per ? personaSheet(ES.personas.find(q => q.id === x.per)) : focusForm(x.t, 25, x.pro || '') };
+  const conHora = I.map((it, i) => ({ it, i })).filter(({ it }) => it.t && !it.hecho && it.hora).sort((a, b) => toMin(a.it.hora) - toMin(b.it.hora)).find(({ it }) => toMin(it.hora) <= nowM + 60);
+  if (conHora) return { k: `Iniciativa de ${INI4[conHora.i][1].toLowerCase()} · ${fmtHora(conHora.it.hora)}`, t: conHora.it.t, p: conHora.it.paso ? `Primer paso: ${conHora.it.paso}` : '', b: 'Hacerla', a: () => ini4Sheet(conHora.i) };
+  if (iniHechasHoy() < ES.minIni) { const i = I.findIndex(it => it.t && !it.hecho); if (i >= 0) return { k: `Iniciativa de ${INI4[i][1].toLowerCase()}`, t: I[i].t, p: `Te faltan ${ES.minIni - iniHechasHoy()} para el mínimo de hoy.`, b: 'Hacerla', a: () => ini4Sheet(i) };
+    return { k: 'Tus iniciativas de hoy', t: `Elige ${ES.minIni - iniHechasHoy()} de las cinco`, p: 'Estudio, proyecto, laboral, social, espiritual.', b: 'Elegir', a: () => ini4Sheet() }; }
+  if (h >= 11 && !espHoy()) return { k: 'Espiritual · todos los días', t: I[4].t || (h < 15 ? 'Oración de la mañana o lectura de la Palabra' : h < 20 ? 'Lectura de la Palabra u oración por otros' : 'Examen del día u oración de la noche'), p: 'Cinco minutos con Dios. Cuenta como tu iniciativa espiritual.', b: 'Ir a Bienestar', a: () => irA('bienestar') };
+  if (socialEnRiesgo() && !(dayOf().ini_social > 0)) return { k: 'Social · hoy cuenta', t: I[3].t || 'Un mensaje, una llamada o un plan que propongas tú', p: `${socialDiasSemana()} de ${ES.minSocial} días esta semana.`, b: 'Hacerla', a: () => ini4Sheet(3) };
+  const hab = (p?.habits || []).find(hb => (hb.horas || []).some(hm => Math.abs(toMin(hm) - nowM) <= 60)) || (p?.habits || [])[0];
+  if (hab) return { k: 'Hábito', t: hab.nombre, p: hab.minima ? `Versión de 2 minutos: ${hab.minima}` : '', b: 'Ir a Hábitos', a: () => irA('hoy') };
+  const tv = (p?.due || [])[0];
+  if (tv) return { k: tv.fecha < today() ? 'Tarea vencida' : 'Tarea de hoy', t: tv.titulo, p: '', b: 'Ir a Tareas', a: () => irA('tareas') };
+  if (!P.length && h < 20) return { k: 'Empieza por lo importante', t: 'Elige tus 3 prioridades de hoy', p: 'La más difícil primero.', b: 'Elegir', a: () => prioForm() };
+  if (h >= 20 && !ES.buenas.some(b => b.d === today())) return { k: 'Cierre del día', t: 'Tres cosas buenas de hoy', p: 'Mejor cierre que el feed.', b: 'Escribirlas', a: () => buenasSheet() };
+  return { k: 'Todo lo de hoy está hecho', t: 'Descansa con propósito', p: 'Siesta, caminar, respirar, no hacer nada sin pantalla. Elige cuál y cuánto.', b: 'Descansar', a: () => descansoForm(), descanso: true };
+}
+function renderAhora() {
+  const el = $('#ahora'); if (!el) return;
+  const a = ahoraSugerido();
+  el.innerHTML = `<div class="ahora"><p class="k">Ahora</p><b>${esc(a.t)}</b>${a.p ? `<p>${esc(a.p)}</p>` : `<p>${esc(a.k)}</p>`}
+    <div class="row-b"><button class="primary" id="ah-go">${esc(a.b)}</button>${a.descanso ? '' : '<button class="link" id="ah-rest">Descansar con propósito</button>'}</div></div>`;
+  $('#ah-go').onclick = a.a; $('#ah-rest')?.addEventListener('click', descansoForm);
+}
+function renderE() { renderXp(); renderAhora(); renderInterv(); renderAgenda(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
 // ---------- XP: cada acción que te acerca a lo que importa suma puntos; nunca se restan.
 // La gamificación mueve la motivación y la conducta con efectos pequeños a moderados (Sailer y Homner, 2020); por eso premia
 // lo que la evidencia dice que funciona y no castiga: sin rachas rotas ni puntos negativos.
@@ -2543,7 +2586,7 @@ const buzz = p => { try { navigator.vibrate?.(p); } catch {} };
 
 // ---------- Las cuatro respuestas
 root.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => ({
-  concreto: concretoForm, enfoque: () => focusForm(), costumbre: () => alternativas('La costumbre pide entretenimiento', 'Cámbialo por algo que sume. Elige una:'), distraer: appPicker,
+  concreto: concretoForm, enfoque: () => focusForm(), descanso: () => descansoForm(), costumbre: () => alternativas('La costumbre pide entretenimiento', 'Cámbialo por algo que sume. Elige una:'), distraer: appPicker,
 })[b.dataset.go]()));
 
 function concretoForm() {
@@ -2639,8 +2682,23 @@ function focusForm(que = '', min = 25, pro = '') {
   $('#f-go').onclick = () => { closeSheet(); startFocus($('#f-que').value.trim(), chosen, pro, animo); };
 }
 let focusTick = 0;
-function startFocus(que, min, pro = '', animo = 0) {
-  ES.sesion = { inicio: Date.now(), min, que, pro, animo, ints: 0, fuera: 0, impulsos: 0 };
+// Descanso con propósito: también cuenta, si lo eliges tú y no es scroll.
+const DESCANSOS = [['Siesta corta', 20], ['Caminar sin teléfono', 20], ['Respirar o meditar', 10], ['No hacer nada, mirar por la ventana', 10], ['Música sin pantalla', 15], ['Estirar el cuerpo', 10], ['Comer o tomar algo sin pantalla', 20], ['Leer por placer', 30]];
+function descansoForm() {
+  let tipo = DESCANSOS[0][0], min = DESCANSOS[0][1];
+  showSheet(`<h2>Descansar con propósito</h2>
+    <p class="sci">Una pausa breve que eliges tú restaura la atención; el scroll no (Albulescu et al., 2022; Kaplan, 1995). Elige qué y cuánto, y deja el teléfono boca abajo.</p>
+    <div class="rows" id="ds-tipos">${DESCANSOS.map(([t, m], i) => `<button class="row" data-i="${i}"><span class="box" style="${i === 0 ? 'background:var(--text);border-color:var(--text)' : ''}"></span><span class="t"><div>${t}</div></span><span class="tag">${m} min</span></button>`).join('')}</div>
+    <div class="field" style="margin-top:12px"><label>Duración</label><div class="chips" id="ds-min">${[5, 10, 15, 20, 30, 45].map(m => `<button class="chip${m === min ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
+    <div class="actions"><button class="link" id="ds-cancel">Cancelar</button><button class="primary" id="ds-go">Empezar</button></div>`);
+  const pintar = () => { $('#ds-tipos').querySelectorAll('.box').forEach(b => { const on = DESCANSOS[+b.closest('[data-i]').dataset.i][0] === tipo; b.style.background = on ? 'var(--text)' : ''; b.style.borderColor = on ? 'var(--text)' : ''; }); $('#ds-min').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', +c.dataset.m === min)); };
+  $('#ds-tipos').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b) return; [tipo, min] = DESCANSOS[+b.dataset.i]; if (![5, 10, 15, 20, 30, 45].includes(min)) min = 15; pintar(); });
+  $('#ds-min').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; min = +c.dataset.m; pintar(); });
+  $('#ds-cancel').onclick = closeSheet;
+  $('#ds-go').onclick = () => { closeSheet(); startFocus(tipo, min, '', 0, 'descanso'); };
+}
+function startFocus(que, min, pro = '', animo = 0, tipo = 'enfoque') {
+  ES.sesion = { inicio: Date.now(), min, que, pro, animo, tipo, ints: 0, fuera: 0, impulsos: 0 };
   guardar(); showFocus(); buzz(15);
   avisarAlTerminar(min);
 }
@@ -2661,7 +2719,7 @@ function focusLeft() { const s = ES.sesion; return s ? s.min * 60 - (Date.now() 
 function showFocus() {
   const s = ES.sesion; if (!s) return;
   $('#focus-body').innerHTML = `
-    <p class="lead">${s.que ? 'Enfocado en' : 'Sesión de enfoque'}</p>
+    <p class="lead">${s.tipo === 'descanso' ? 'Descansando' : s.que ? 'Enfocado en' : 'Sesión de enfoque'}</p>
     ${s.que ? `<p class="focus-what">${esc(s.que)}</p>` : ''}
     ${ES.proyectos.find(x => x.id === s.pro)?.recompensa ? `<p class="meta" style="margin:0">Mientras tanto: ${esc(ES.proyectos.find(x => x.id === s.pro).recompensa)}</p>` : ''}
     <div class="ring" id="ring"><p class="count" id="f-left"></p></div>
@@ -2702,9 +2760,20 @@ function finishFocus(completa) {
   clearInterval(focusTick);
   const mins = completa ? s.min : Math.floor((Date.now() - s.inicio) / 60000);
   const k = dayKey(new Date(s.inicio));
+  clearTimeout(avisoT);
+  if (s.tipo === 'descanso') {
+    bump('descanso', mins, k); bump('interrupciones', s.ints, k); if (s.impulsos) bump('impulsos', s.impulsos, k);
+    if (mins) xpGanar(Math.min(30, mins) + (completa && !s.ints ? 10 : 0), 'Descanso con propósito');
+    ES.sesion = null; guardar(); $('#focus').hidden = true; renderE(); if (completa) buzz([40, 60, 40]);
+    showSheet(`<h2>${completa ? 'Descanso completo' : 'Descanso terminado'}</h2>
+      <p class="note">${fmtMin(mins)} de «${esc(s.que)}»${s.ints ? ` · ${s.ints} ${s.ints === 1 ? 'vez miraste el teléfono' : 'veces miraste el teléfono'}` : ' · sin tocar el teléfono'}. Descansar así también es hacer algo con propósito.</p>
+      <div class="actions stack"><button class="primary" id="fr-next">¿Y ahora qué?</button><button class="link" id="fr-close">Cerrar</button></div>`);
+    $('#fr-next').onclick = () => { closeSheet(); const a = ahoraSugerido(); if (a?.a) a.a(); };
+    $('#fr-close').onclick = closeSheet;
+    return;
+  }
   bump('enfoque', mins, k); bump('interrupciones', s.ints, k); if (completa) bump('sesiones', 1, k);
   if (mins) xpGanar(Math.min(90, mins) + (completa && !s.ints ? 20 : 0), completa && !s.ints ? 'Enfoque sin interrupciones' : 'Minutos de enfoque'); if (s.impulsos) bump('impulsos', s.impulsos, k);
-  clearTimeout(avisoT);
   ES.sesion = null; guardar();
   $('#focus').hidden = true; renderE();
   if (completa) buzz([60, 80, 60, 80, 120]);
@@ -2983,7 +3052,7 @@ function renderIni() {
     <span class="t"><div style="${hecha ? 'text-decoration:line-through;color:var(--muted)' : ''}">${esc(mi.t)}</div><small>${reto7Dia() ? `Reto de desconocidos · día ${reto7Dia()} de 7` : 'Misión social de hoy'}</small></span><span class="tag">${hecha ? 'Hecha' : 'Misión'}</span></button>`);
   const I4 = ini4Semana(), ih = I4.items.filter(x => x.hecho).length, ri = rachaIni();
   rows.unshift(`<button class="row" data-man="ini4"><span class="dot" style="--c:${ih >= ES.minIni ? 'var(--green)' : 'var(--red)'}"></span>
-    <span class="t"><div>Las 4 iniciativas de hoy${ri > 1 ? ` · racha ${ri}` : ''}</div><small>${INI4.map(([k, n], i) => `${n}${I4.items[i]?.hecho ? ' ✓' : ''}`).join(' · ')}${ih < ES.minIni ? ` · faltan ${ES.minIni - ih} para el mínimo` : ''}${socialEnRiesgo() && !(dayOf().ini_social > 0) ? ` · <span class="red">social hoy (${socialDiasSemana()}/${ES.minSocial} esta semana)</span>` : ''}</small></span><span class="tag" style="${ih >= ES.minIni ? 'color:var(--green)' : ''}">${ih} de 4</span></button>`);
+    <span class="t"><div>Las 5 iniciativas de hoy${ri > 1 ? ` · racha ${ri}` : ''}</div><small>${INI4.map(([k, n], i) => `${n}${I4.items[i]?.hecho ? ' ✓' : ''}`).join(' · ')}${ih < ES.minIni ? ` · faltan ${ES.minIni - ih} para el mínimo` : ''}${socialEnRiesgo() && !(dayOf().ini_social > 0) ? ` · <span class="red">social hoy (${socialDiasSemana()}/${ES.minSocial} esta semana)</span>` : ''}${!espHoy() ? ' · <span class="amber">espiritual pendiente</span>' : ''}</small></span><span class="tag" style="${ih >= ES.minIni && espHoy() ? 'color:var(--green)' : ''}">${ih} de ${N_INI}</span></button>`);
   for (const pl of prox.slice(0, 2)) rows.push(`<button class="row" data-plan="${esc(pl.id)}"><span class="dot" style="--c:var(--muted)"></span>
     <span class="t"><div>${esc(cap(pl.titulo))}${pl.con ? ' con ' + esc(pl.con) : ''}</div><small>${fmtFecha(pl.fecha)} · ${fmtHora(pl.hora)}</small></span><span class="tag">Plan</span></button>`);
   const hoyD = new Date(), nuevo = (wd(today()) === 0 || hoyD.getDate() === 1) && ES.revision !== today();
@@ -3314,8 +3383,8 @@ function revisionSemanal() {
     ${sinPaso.length || sinFecha.length ? `<div class="rows">${[...sinPaso, ...sinFecha].map(p => `<button class="row" data-p="${esc(p.id)}"><span class="dot" style="--c:var(--amber)"></span><span class="t"><div>${esc(p.nombre)}</div><small>${p.paso ? 'Ponle día y hora' : 'Sin siguiente paso'}</small></span></button>`).join('')}</div>` : '<p class="meta">Cada proyecto tiene paso con día y hora.</p>'}
     <h3>3. Prioridades</h3>
     <p class="meta">Ordena tus proyectos por prioridad: solo uno o dos en «Alta». ${prs.filter(p => p.prioridad === 1).length > 2 ? '<span class="amber">Ahora tienes ' + prs.filter(p => p.prioridad === 1).length + ' en alta: elige.</span>' : ''}</p>
-    <h3>4. Las 4 iniciativas</h3>
-    <p class="meta">La semana pasada: ${ks.reduce((a, k) => a + (dayOf(k).ini4 || 0), 0)} iniciativas en 7 días (mínimo ${ES.minIni} al día = ${ES.minIni * 7}). Social: ${ks.filter(k => (dayOf(k).ini_social || 0) > 0).length} de 7 días (mínimo ${ES.minSocial}). Racha actual: ${rachaIni()} ${rachaIni() === 1 ? 'día' : 'días'}. <button class="link" id="rv-ini4">Las de hoy</button></p>
+    <h3>4. Las 5 iniciativas</h3>
+    <p class="meta">La semana pasada: ${ks.reduce((a, k) => a + (dayOf(k).ini4 || 0), 0)} iniciativas en 7 días (mínimo ${ES.minIni} al día = ${ES.minIni * 7}). Social: ${ks.filter(k => (dayOf(k).ini_social || 0) > 0).length} de 7 días (mínimo ${ES.minSocial}). Espiritual: ${ks.filter(k => (dayOf(k).ini_esp || 0) > 0).length} de 7. Racha actual: ${rachaIni()} ${rachaIni() === 1 ? 'día' : 'días'}. <button class="link" id="rv-ini4">Las de hoy</button></p>
     <h3>5. Personas</h3>
     <p class="meta">${personasDue().length ? `Te toca escribir a ${personasDue().slice(0, 4).map(p => esc(p.nombre)).join(', ')}.` : 'Estás al día con tus círculos.'} Meta: ${ES.metaSemanal} iniciativas esta semana.</p>
     <h3>6. Pacto de la semana</h3>
@@ -3460,7 +3529,7 @@ function misionSheet() {
   $('#mi-reto')?.addEventListener('click', () => { ES.reto7 = { inicio: today() }; guardar(); renderE(); misionSheet(); });
   $('#mi-ok').onclick = closeSheet;
 }
-// ---------- Las 4 iniciativas del día: estudio, proyecto, laboral y social. Mismo peso, mismo XP (30). Mínimo 2 al día.
+// ---------- Las 5 iniciativas del día: estudio, proyecto, laboral, social y espiritual. Mismo peso, mismo XP (30). Mínimo 2 al día; la espiritual, todos los días.
 // La proactividad nace de «puedo» (un primer paso pequeño), «quiero» (por qué importa) y «tengo energía» (Parker, Bindl y Strauss, 2010);
 // entrenar la iniciativa personal mejora resultados reales (Campos et al., 2017). Un plan con día y hora se cumple mucho más (Milkman et al., 2011).
 const INI4 = [
@@ -3468,13 +3537,18 @@ const INI4 = [
   ['proyecto', 'Proyecto', 'Avanzar un proyecto propio', 'El siguiente paso de un proyecto, o uno nuevo'],
   ['laboral', 'Laboral', 'Una propuesta, una reunión o un problema anticipado', 'Algo en el trabajo que nadie te pidió'],
   ['social', 'Social', 'Un plan, una llamada o una conversación que propones tú', 'Con quién y para qué'],
+  ['espiritual', 'Espiritual', 'Un momento de oración, silencio, gratitud o servicio. Todos los días', 'Orar, meditar, leer algo que te eleve, servir a alguien'],
 ];
+const N_INI = INI4.length;
 const XP_INI = 30;
 const iniHechasHoy = () => ini4Semana().items.filter(x => x.hecho).length;
 // Social: días de esta semana (lunes a hoy) con la iniciativa social hecha, y cuántos días quedan para llegar al mínimo semanal.
 const socialDiasSemana = () => semanaKeys().filter(k => (dayOf(k).ini_social || 0) > 0).length;
 const socialQuedan = () => 7 - wd(today()) - 1 + ((dayOf().ini_social || 0) > 0 ? 0 : 1);   // días que aún pueden contar (hoy incluido si no se hizo)
 const socialEnRiesgo = () => socialDiasSemana() < ES.minSocial && ES.minSocial - socialDiasSemana() >= socialQuedan();
+// Espiritual: todos los días. Racha de días seguidos con la espiritual hecha.
+const espHoy = () => (dayOf().ini_esp || 0) > 0;
+function rachaEsp() { let n = espHoy() ? 1 : 0; for (let i = 1; i < 400; i++) { if ((dayOf(dayKey(addDays(new Date(), -i))).ini_esp || 0) > 0) n++; else break; } return n; }
 // Días seguidos (hasta ayer, más hoy si ya llegó) con al menos el mínimo de iniciativas.
 function rachaIni() { let n = iniHechasHoy() >= ES.minIni ? 1 : 0; for (let i = 1; i < 400; i++) { const k = dayKey(addDays(new Date(), -i)); if ((ES.iniHist?.[k] || (dayOf(k).ini4 ? [1] : [])).length >= ES.minIni || (dayOf(k).ini4 || 0) >= ES.minIni) n++; else break; } return n; }
 function ini4Semana() {
@@ -3483,7 +3557,7 @@ function ini4Semana() {
     if (ES.iniciativas4.dia && ES.iniciativas4.items?.some(x => x.hecho)) { ES.iniHist ||= {}; ES.iniHist[ES.iniciativas4.dia] = ES.iniciativas4.items.filter(x => x.hecho).map(x => x.k); }
     ES.iniciativas4 = { dia: today(), items: INI4.map(([k]) => ({ k, t: '', por: '', paso: '', cuando: '', hora: '', hecho: false })) };
   }
-  while (ES.iniciativas4.items.length < 4) ES.iniciativas4.items.push({ k: INI4[ES.iniciativas4.items.length][0], t: '', por: '', paso: '', cuando: '', hora: '', hecho: false });
+  while (ES.iniciativas4.items.length < N_INI) ES.iniciativas4.items.push({ k: INI4[ES.iniciativas4.items.length][0], t: '', por: '', paso: '', cuando: '', hora: '', hecho: false });
   return ES.iniciativas4;
 }
 // Sugerencias según lo que ya hay en la app, para que proponer no empiece de cero.
@@ -3499,7 +3573,8 @@ function iniPremios(I) {
   const h = I.items.filter(y => y.hecho).length, ultima = I.items.find(y => y.hecho && !y.premiada);
   if (ultima) { ultima.premiada = true; xpGanar(XP_INI, `Iniciativa de ${INI4.find(([k]) => k === ultima.k)[1].toLowerCase()}`); }
   if (h >= ES.minIni && !I.minimo) { I.minimo = true; setTimeout(() => { xpGanar(40, `Mínimo del día: ${ES.minIni} iniciativas`); buzz([40, 60, 40]); }, 1200); }
-  if (h === 4 && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 4 iniciativas del día'), 2400); }
+  if (h === N_INI && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 5 iniciativas del día'), 2400); }
+  if (I.items[4]?.hecho && !I.espBonus) { I.espBonus = true; const r = rachaEsp(); if (r && r % 7 === 0) setTimeout(() => xpGanar(40, `Espiritual ${r} días seguidos`), 3000); }
   if (socialDiasSemana() >= ES.minSocial && !ES.socialBonus?.[lunes()]) { ES.socialBonus = { [lunes()]: true }; setTimeout(() => xpGanar(60, `Social ${ES.minSocial} días esta semana`), 3600); }
 }
 // Catálogo de opciones por tipo: muchas ideas concretas, en formato acción, para elegir en un toque.
@@ -3507,6 +3582,7 @@ const INI_CAT = {
   estudio: ['Leer 20 páginas de un libro', 'Una lección de un curso en línea', '25 minutos de práctica deliberada de una habilidad', 'Ver una charla o clase y resumirla en 5 líneas', 'Repasar notas con tarjetas (recuerdo activo)', 'Practicar 15 minutos de un idioma', 'Escribir lo que aprendí hoy en el diario', 'Resolver 3 ejercicios del tema que estudio', 'Enseñarle a alguien lo que aprendí', 'Leer un artículo o paper y anotar 3 ideas', 'Escuchar un pódcast de mi campo y anotar una idea aplicable', 'Hacer un mapa mental del tema en una pizarra'],
   proyecto: ['El siguiente paso de mi proyecto principal (25 min)', 'Definir el siguiente paso de un proyecto parado', 'Hacer la versión de 2 minutos de un paso difícil', 'Dividir un paso grande en tres pequeños', 'Mostrar el avance a alguien y pedir una opinión', 'Resolver el bloqueo que lleva días parado', 'Escribir el plan WOOP de un proyecto nuevo', 'Un bloque de 50 minutos sin teléfono para el proyecto', 'Publicar o entregar una versión aunque esté imperfecta', 'Revisar el proyecto: qué sobra y qué falta', 'Automatizar o simplificar una parte repetitiva', 'Investigar 20 minutos algo que necesito para el proyecto'],
   laboral: ['Proponer una mejora que nadie me pidió', 'Pedir una reunión de 15 minutos con alguien clave', 'Anticipar un problema y proponer cómo prevenirlo', 'Dar feedback útil y concreto a un compañero', 'Pedir feedback sobre mi trabajo', 'Ofrecerme para una tarea que nadie quiere', 'Documentar un proceso para que otros lo usen', 'Presentar una idea en 3 líneas a mi jefe', 'Aprender una herramienta que usa el equipo', 'Terminar hoy lo que suelo dejar para mañana', 'Conectar a dos personas que se ayudarían', 'Agradecer públicamente el trabajo de alguien'],
+  espiritual: ['Oración de la mañana (gratitud, entrega del día, intercesión, Padre Nuestro)', 'Leer un pasaje de la Biblia y anotar una frase (lectio divina)', 'Examen del día: gratitud, repaso, perdón, propósito', 'Orar por tres personas concretas', 'Repasar el versículo de la semana de memoria', 'Un acto de servicio sin que nadie lo sepa', 'Ir a misa, culto o grupo de mi comunidad', 'Perdonar a alguien de corazón y orar por esa persona', 'Escribir tres cosas por las que doy gracias a Dios', 'Diez minutos de silencio ante Dios', 'Dar una palabra de ánimo o compartir la fe con alguien', 'Oración de la noche: entregar el día y descansar'],
   social: ['Escribirle a alguien que no contacto hace tiempo', 'Proponer un café, un almuerzo o una caminata', 'Llamar a un familiar', 'Agradecerle algo concreto a alguien', 'Hablar con un desconocido (fila, transporte, cafetería)', 'Invitar a alguien nuevo a un plan', 'Hacer un cumplido sincero y específico', 'Preguntarle a un amigo por algo que me contó', 'Organizar un plan de grupo', 'Responder un mensaje pendiente con una propuesta concreta', 'Pedir ayuda o consejo a alguien', 'Ir a un evento o grupo donde pueda conocer gente'],
 };
 function iniAplicar(i, o) {
@@ -3583,15 +3659,16 @@ async function iniDesdeNotion(i) {
 }
 function ini4Sheet(abrir = -1) {
   const I = ini4Semana(), hechas = I.items.filter(x => x.hecho).length, r = rachaIni();
-  showSheet(`<h2>Las 4 iniciativas de hoy</h2>
-    <p class="sci">Cuatro frentes, el mismo peso: estudio, proyecto, trabajo y social. Mínimo ${ES.minIni} al día (+${XP_INI} XP cada una, +40 al llegar al mínimo, +50 más por las cuatro). Qué, por qué importa y el primer paso de 5 minutos; con hora se cumple el doble (Milkman et al., 2011).</p>
-    <div class="meter"><span>Hoy${r ? ` · racha de ${r} ${r === 1 ? 'día' : 'días'}` : ''}</span><b class="${hechas >= ES.minIni ? 'green' : ''}">${hechas} de 4 · mínimo ${ES.minIni}</b></div><div class="meter-bar"><i style="width:${hechas * 25}%;${hechas >= ES.minIni ? '' : 'background:var(--amber)'}"></i></div>
+  showSheet(`<h2>Las 5 iniciativas de hoy</h2>
+    <p class="sci">Cinco frentes, el mismo peso: estudio, proyecto, trabajo, social y espiritual. Mínimo ${ES.minIni} al día (+${XP_INI} XP cada una, +40 al llegar al mínimo, +50 más por las cinco); la espiritual, todos los días, y la social, ${ES.minSocial} días a la semana. Qué, por qué importa y el primer paso de 5 minutos; con hora se cumple el doble (Milkman et al., 2011).</p>
+    <div class="meter"><span>Hoy${r ? ` · racha de ${r} ${r === 1 ? 'día' : 'días'}` : ''}</span><b class="${hechas >= ES.minIni ? 'green' : ''}">${hechas} de ${N_INI} · mínimo ${ES.minIni}</b></div><div class="meter-bar"><i style="width:${hechas / N_INI * 100}%;${hechas >= ES.minIni ? '' : 'background:var(--amber)'}"></i></div>
+    <div class="meter"><span>Espiritual · todos los días</span><b class="${espHoy() ? 'green' : ''}">${espHoy() ? 'hecha hoy' : 'pendiente hoy'}${rachaEsp() > 1 ? ` · racha ${rachaEsp()}` : ''}</b></div>
     <div class="meter"><span>Social esta semana (mínimo ${ES.minSocial} días)</span><b class="${socialDiasSemana() >= ES.minSocial ? 'green' : socialEnRiesgo() ? 'red' : ''}">${socialDiasSemana()} de ${ES.minSocial}${socialEnRiesgo() && socialDiasSemana() < ES.minSocial ? ' · hoy cuenta' : ''}</b></div><div class="meter-bar"><i style="width:${Math.min(100, socialDiasSemana() / ES.minSocial * 100)}%;${socialEnRiesgo() && socialDiasSemana() < ES.minSocial ? 'background:var(--red)' : ''}"></i></div>
     ${I.items.map((x, i) => { const [k, n, d, ph] = INI4[i], sug = ini4Sugerencias(k).filter(t => t !== x.t), open = abrir === i || (abrir < 0 && !x.hecho && !x.t && i === I.items.findIndex(y => !y.hecho && !y.t));
       return `<div class="rows"><button class="row" data-open="${i}"><span class="box" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></span>
         <span class="t"><div>Iniciativa de ${n.toLowerCase()}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</div><small style="white-space:normal">${x.t ? esc(x.t) + (x.cuando ? ` · ${fmtFecha(x.cuando)}${x.hora ? ' ' + fmtHora(x.hora) : ''}` : '') : esc(d)}</small></span><span class="tag">${open ? '▾' : '›'}</span></button></div>
       <div class="ini-f" data-i="${i}" ${open ? '' : 'hidden'} style="padding:6px 0 14px 28px">
-        <div class="chips" style="margin-bottom:8px"><button class="chip" data-cat="${i}">Elegir de la lista</button><button class="chip" data-crear="${i}">Crear la mía</button><button class="chip" data-notion="${i}">Desde Notion</button>
+        <div class="chips" style="margin-bottom:8px">${k === 'espiritual' ? '<button class="chip" data-bw="1">Prácticas guiadas</button>' : ''}<button class="chip" data-cat="${i}">Elegir de la lista</button><button class="chip" data-crear="${i}">Crear la mía</button><button class="chip" data-notion="${i}">Desde Notion</button>
           ${sug.map(t => `<button class="chip" data-sug="${i}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <div class="field"><input data-f="t" data-i="${i}" maxlength="100" value="${esc(x.t)}" placeholder="${esc(ph)}"></div>
         <div class="field"><input data-f="por" data-i="${i}" maxlength="100" value="${esc(x.por)}" placeholder="¿Por qué importa?"></div>
@@ -3610,11 +3687,12 @@ function ini4Sheet(abrir = -1) {
   body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { leer(); guardar(); const i = +b.dataset.open; ini4Sheet(body.querySelector(`.ini-f[data-i="${i}"]`).hidden ? i : -2); });
   body.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { body.querySelector(`[data-f="t"][data-i="${b.dataset.sug}"]`).value = b.dataset.t; });
   body.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { leer(); guardar(); iniCatalogo(+b.dataset.cat); });
+  body.querySelector('[data-bw]')?.addEventListener('click', () => { leer(); guardar(); closeSheet(); irA('bienestar'); });
   body.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => { leer(); guardar(); iniCrear(+b.dataset.crear); });
   body.querySelectorAll('[data-notion]').forEach(b => b.onclick = () => { leer(); guardar(); iniDesdeNotion(+b.dataset.notion); });
   body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
     leer(); const i = +b.dataset.done, x = I.items[i]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1);
-    if (x.hecho) { bump('ini4'); if (x.k === 'social') bump('ini_social'); iniPremios(I); } else { bump('ini4', -1); if (x.k === 'social') bump('ini_social', -1); }
+    if (x.hecho) { bump('ini4'); if (x.k === 'social') bump('ini_social'); if (x.k === 'espiritual') bump('ini_esp'); iniPremios(I); } else { bump('ini4', -1); if (x.k === 'social') bump('ini_social', -1); if (x.k === 'espiritual') bump('ini_esp', -1); }
     guardar(); renderE(); ini4Sheet(i);
   });
   $('#i4-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
@@ -3650,7 +3728,8 @@ function intervenciones() {
     h >= 20 && !ES.buenas.some(x => x.d === today()) && { id: 'buenas', t: 'Antes del último scroll', p: 'Tres cosas buenas de hoy, en un minuto. Mejor cierre que el feed.', sci: 'Seligman et al. (2005)', b: 'Escribirlas', a: () => buenasSheet() },
     retoDia() === 21 && { id: 'reto21', t: '21 días con tu presupuesto', p: 'Tres semanas reduciendo redes: es el tiempo que mostró menos soledad y depresión. Mira tus datos.', sci: 'Hunt et al. (2018)', b: 'Ver tus datos', a: () => datosSheet() },
     h >= 10 && h < 20 && !ES.misiones.some(x => x.d === today()) && { id: 'mision', t: 'Misión social de hoy', p: misionHoy().t, sci: misionHoy().tipo === 'desconocido' ? 'Sandstrom, Boothby y Cooney (2022)' : 'Hall et al. (2023)', b: 'Ver misión', a: () => misionSheet() },
-    h >= 9 && ini4Semana().items.filter(x => x.t).length < ES.minIni && { id: 'ini4', t: `Tus ${ES.minIni} iniciativas de hoy`, p: `Elige al menos ${ES.minIni} de las cuatro (estudio, proyecto, laboral, social) y ponles hora. Cada una vale ${XP_INI} XP; el mínimo, +40.`, sci: 'Parker, Bindl y Strauss (2010); Milkman et al. (2011)', b: 'Elegirlas', a: () => ini4Sheet() },
+    h >= 19 && !espHoy() && { id: 'esp', t: 'Tu momento con Dios de hoy', p: 'Todos los días: examen del día, oración de la noche o lectura de la Palabra. Cinco minutos bastan.', sci: 'Koenig (2012); Emmons y McCullough (2003)', b: 'Ir a Bienestar', a: () => irA('bienestar') },
+    h >= 9 && ini4Semana().items.filter(x => x.t).length < ES.minIni && { id: 'ini4', t: `Tus ${ES.minIni} iniciativas de hoy`, p: `Elige al menos ${ES.minIni} de las cinco (estudio, proyecto, laboral, social, espiritual) y ponles hora. Cada una vale ${XP_INI} XP; el mínimo, +40.`, sci: 'Parker, Bindl y Strauss (2010); Milkman et al. (2011)', b: 'Elegirlas', a: () => ini4Sheet() },
     h >= 12 && socialEnRiesgo() && !(dayOf().ini_social > 0) && { id: 'social6', t: `Social: ${socialDiasSemana()} de ${ES.minSocial} días esta semana`, p: 'Para llegar al mínimo, la iniciativa social de hoy cuenta. Un mensaje, una llamada o un plan que propongas tú.', sci: 'Hall et al. (2023); Liu et al. (2023)', b: 'Hacerla ahora', a: () => ini4Sheet(3) },
     h >= 16 && iniHechasHoy() < ES.minIni && ini4Semana().items.some(x => x.t && !x.hecho) && { id: 'ini4b', t: `Te faltan ${ES.minIni - iniHechasHoy()} para el mínimo de hoy`, p: ini4Semana().items.filter(x => x.t && !x.hecho).map(x => x.t).join(' · '), sci: 'Parker, Bindl y Strauss (2010)', b: 'Verlas', a: () => ini4Sheet() },
     enVentana() && { id: 'ventana', t: 'Estás en tu ventana de revisión', p: `Revisa redes y mensajes con calma hasta las ${fmtHora(addMin(enVentana(), ES.ventanaMin))}. Fuera de ella, la espera es el doble.`, sci: 'Fitz et al. (2019)', b: '', a: null },
@@ -3677,6 +3756,7 @@ function datosSheet() {
     <p class="note">Lo que la app ha registrado (últimos 180 días). Medir es la mitad del cambio (Harkin et al., 2016).</p>
     <dl class="woop">
       <dt>Nivel</dt><dd>${nivelDe(ES.xp.total)} · ${esc(nivelNombre(nivelDe(ES.xp.total)))} · ${ES.xp.total} XP en total · ${sum('xp')} en 180 días · racha de ${rachaXp()} días con meta</dd>
+      <dt>Descanso con propósito</dt><dd>${fmtMin(sum('descanso'))} en 180 días</dd>
       <dt>Enfoque</dt><dd>${fmtMin(sum('enfoque'))} en ${sum('sesiones')} sesiones completas · ${sum('interrupciones')} interrupciones · ${sum('impulsos')} impulsos surfeados</dd>
       <dt>Ánimo</dt><dd>${animoTxt() || 'Aún sin datos: marca tu ánimo al empezar una sesión.'}</dd>
       <dt>Puerta</dt><dd>Resististe ${sum('resistidas') + sum('alternativas')} veces · abriste ${sum('aperturas')} · ~${fmtMin(sum('distraccion'))} en distracciones</dd>
@@ -3721,6 +3801,13 @@ const CIENCIA = [
   ['Plan «si…, entonces…»', 'Las intenciones de implementación tienen un efecto medio-alto sobre el logro de metas (d ≈ 0,65).', 'Gollwitzer y Sheeran (2006), Advances in Experimental Social Psychology'],
   ['WOOP en cada proyecto', 'Contrastar el deseo con el obstáculo interno y planear cómo superarlo mejora el logro frente a solo soñar con la meta.', 'Oettingen (2014), Rethinking Positive Thinking; Wang et al. (2021), Frontiers in Psychology'],
   ['XP y niveles', 'La gamificación mejora la motivación y la conducta con efectos pequeños a moderados; funciona mejor cuando premia la conducta que importa y no castiga. Aquí nunca se restan puntos ni se «rompen» rachas con culpa.', 'Sailer y Homner (2020), Educational Psychology Review'],
+  ['Mindfulness y respiración', 'Los programas de meditación tienen evidencia moderada para ansiedad, depresión y dolor; la respiración lenta reduce la activación.', 'Goyal et al. (2014), JAMA Internal Medicine; Zaccaro et al. (2018), Frontiers in Human Neuroscience'],
+  ['Herramientas cognitivas', 'Reestructurar pensamientos (TCC), despegarse de ellos (ACT) y aplazar la preocupación a una hora fija tienen evidencia en ensayos y metaanálisis.', 'Cuijpers et al. (2023), World Psychiatry; A-Tjak et al. (2015), Psychotherapy and Psychosomatics; Borkovec et al. (1983)'],
+  ['Autocompasión y afirmación de valores', 'La autocompasión reduce ansiedad y depresión y sostiene mejor que la autoestima por logros; afirmar los propios valores protege bajo amenaza.', 'Ferrari et al. (2019), Mindfulness; Cohen y Sherman (2014), Annual Review of Psychology'],
+  ['Esperanza y decisiones', 'Escribir sobre el mejor yo posible aumenta el optimismo; razonar sobre el propio problema como si fuera de un amigo mejora la sabiduría de la decisión.', 'Meevissen et al. (2011), J. Behavior Therapy and Experimental Psychiatry; Grossmann y Kross (2014), Psychological Science'],
+  ['Vida cristiana práctica', 'La práctica religiosa regular se asocia con mejor salud mental; orar por otros aumenta el perdón; las intervenciones de perdón reducen depresión y ansiedad; ayudar a otros mejora el bienestar.', 'Koenig (2012), ISRN Psychiatry; Lambert et al. (2010), Psychological Science; Wade et al. (2014), JCCP; Curry et al. (2018), JESP'],
+  ['Iniciativa espiritual diaria', 'La práctica religiosa o espiritual regular se asocia con mejor salud mental y más bienestar; las emociones positivas cultivadas a diario (meditación, gratitud) amplían recursos personales.', 'Koenig (2012), ISRN Psychiatry; Fredrickson et al. (2008), JPSP'],
+  ['Descanso con propósito', 'Las pausas breves y elegidas restauran la atención y el rendimiento; el descanso sin pantalla y en la naturaleza restaura más que el scroll.', 'Albulescu et al. (2022), PLOS ONE; Kaplan (1995), J. Environmental Psychology'],
   ['Plan de rescate', 'Cuando el día no tiene rumbo: un minuto de suspiros cíclicos (dos inhalaciones y una exhalación larga) calma rápido; escribir lo pendiente reduce los pensamientos intrusivos; elegir una sola cosa y un primer paso de 2 minutos hace fácil empezar.', 'Balban et al. (2023), Cell Reports Medicine; Masicampo y Baumeister (2011), JPSP'],
   ['Intervención del momento', 'Un solo mensaje elegido por la hora, el día y tus datos: prioridades por la mañana, revisión los lunes, gratitud los viernes, tres cosas buenas por la noche.', 'Combina las fuentes de esta lista; el principio es «la señal correcta en el momento correcto» (Gollwitzer y Sheeran, 2006)'],
   ['Qué sientes en la puerta', 'Ejercicios breves de conciencia emocional redujeron la distracción por el móvil; el efecto pasó por reconocer la emoción.', 'Throuvala et al. (2020), IJERPH'],
@@ -3730,7 +3817,7 @@ const CIENCIA = [
   ['Misión social del día', 'Una conversación de calidad al día con un amigo mejora el bienestar de ese día; cara a cara rinde más.', 'Hall et al. (2023), Communication Research'],
   ['Horas juntos', 'Hacen falta unas 50 horas para una amistad casual, 90 para amigos y más de 200 para buenos amigos.', 'Hall (2019), J. Social and Personal Relationships'],
   ['36 preguntas', 'Preguntas de apertura creciente aumentan la cercanía entre personas que acaban de conocerse.', 'Aron et al. (1997), Personality and Social Psychology Bulletin'],
-  ['Las 4 iniciativas del día', 'Estudio, proyecto, laboral y social, con el mismo peso y un mínimo diario. La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios un 30 %.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
+  ['Las 5 iniciativas del día', 'Estudio, proyecto, laboral, social y espiritual, con el mismo peso, un mínimo diario y la espiritual cada día. La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios un 30 %.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
   ['Ánimo antes y después', 'Actuar según el plan y no según el ánimo (activación conductual) mejora el ánimo; registrarlo lo hace visible.', 'Ekers et al. (2014), PLOS ONE'],
   ['Surfear el impulso', 'Observar las ganas sin actuar y tener un plan «si…, entonces…» para ese momento reduce la conducta impulsiva.', 'Gollwitzer y Sheeran (2006); Throuvala et al. (2020)'],
   ['Tres cosas buenas', 'Escribir cada noche tres cosas buenas y por qué aumentó la felicidad durante seis meses.', 'Seligman, Steen, Park y Peterson (2005), American Psychologist'],
@@ -3785,7 +3872,7 @@ function settings() {
       <select id="s-wait">${[5, 10, 20, 30].map(n => `<option value="${n}" ${n === ES.espera ? 'selected' : ''}>${n} s</option>`).join('')}</select></div>
     <div class="set-row"><span>Presupuesto de distracción<small>Unos 30 min al día reducen el FOMO (Hunt et al., 2018)</small></span>
       <select id="s-bud">${[15, 30, 45, 60].map(n => `<option value="${n}" ${n === ES.presupuesto ? 'selected' : ''}>${n} min</option>`).join('')}</select></div>
-    <div class="set-row"><span>Iniciativas mínimas al día<small>De las cuatro: estudio, proyecto, laboral, social</small></span>
+    <div class="set-row"><span>Iniciativas mínimas al día<small>De las cinco: estudio, proyecto, laboral, social, espiritual</small></span>
       <select id="s-ini">${[1, 2, 3, 4].map(n => `<option value="${n}" ${n === ES.minIni ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Social: días mínimos a la semana<small>La iniciativa social hecha</small></span>
       <select id="s-soc">${[3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === ES.minSocial ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
@@ -3919,8 +4006,10 @@ Cómo trabajas:
 - Antes de aconsejar o planificar, mira el estado real con ver_estado (y calendario_ver cuando importen las horas). No inventes datos.
 - Cuando la persona te pida algo concreto (crear una tarea, agendar, marcar algo como hecho), hazlo con las herramientas y confirma en una línea qué cambiaste.
 - Si propones cambios por iniciativa propia (por ejemplo, bloquear horas en el calendario o cambiar prioridades), descríbelos primero y espera un sí antes de hacerlos.
+- La persona es cristiana: lo espiritual es cristiano, práctico y breve (oración, Palabra, examen, perdón, servicio). En la pestaña Bienestar hay escenarios (esperanza, consolación, confianza con autoridad/autoestima/identidad, paz, fortaleza, dirección, perdón, gratitud) y prácticas de mente con evidencia; ábrelos con bienestar_abrir cuando encajen con lo que cuenta.
+- Principio: que sea imposible no hacer algo con propósito, incluido el descanso. Si no hay nada pendiente, propón un descanso con propósito (siesta, caminar, respirar, no hacer nada sin pantalla) con tiempo elegido; nunca scroll.
 - Lo importante antes que lo urgente: tres prioridades al día, la más difícil primero; cuando las tres están hechas se pueden añadir extras.
-- Cada día hay 4 iniciativas con el mismo peso: estudio, proyecto, laboral y social (30 XP cada una), y la persona se comprometió a un mínimo diario (ver iniciativas_hoy.minimo_diario) y a hacer la social al menos iniciativas_hoy.social_minimo_semanal días por semana; si social_en_riesgo es true, la de hoy es la que toca. Ayuda a elegir cuáles hoy, con qué, por qué, primer paso y hora; si va tarde y faltan, recuérdalo con tacto.
+- Cada día hay 5 iniciativas con el mismo peso: estudio, proyecto, laboral, social y espiritual (30 XP cada una); la espiritual es todos los días, y la persona se comprometió a un mínimo diario (ver iniciativas_hoy.minimo_diario) y a hacer la social al menos iniciativas_hoy.social_minimo_semanal días por semana; si social_en_riesgo es true, la de hoy es la que toca. Ayuda a elegir cuáles hoy, con qué, por qué, primer paso y hora; si va tarde y faltan, recuérdalo con tacto.
 - Cada acción buena suma XP (prioridades, hábitos, tareas, enfoque, resistir las redes, escribir a alguien, pasos de proyecto…). Si la persona lo pregunta, cuéntale su nivel y cuánto falta; no inventes puntos.
 - Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
 - Si aparece malestar serio, sugiere con tacto hablar con un profesional; no eres terapeuta.
@@ -3952,10 +4041,11 @@ const IA_TOOLS = [
     titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
   iaTool('pizarra_agregar', 'Pone ideas como notas en una pizarra de la pestaña Ideas (la crea si no existe). Útil para lluvias de ideas, planes y mapas.', {
     pizarra: S('Nombre de la pizarra.'), notas: { type: 'array', items: { type: 'string' }, description: 'Textos breves, uno por nota (máximo 20).' } }),
-  iaTool('iniciativa_dia', 'Define o marca como hecha una de las 4 iniciativas de hoy (estudio, proyecto, laboral, social). La persona debe hacer un mínimo al día. Al definir, usa la estructura completa cuando puedas: obstáculo, plan «si…, entonces…» y señal de hecha.', {
-    tipo: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social'] }, accion: { type: 'string', enum: ['definir', 'hecha'] },
+  iaTool('iniciativa_dia', 'Define o marca como hecha una de las 5 iniciativas de hoy (estudio, proyecto, laboral, social, espiritual; la espiritual es diaria). La persona debe hacer un mínimo al día. Al definir, usa la estructura completa cuando puedas: obstáculo, plan «si…, entonces…» y señal de hecha.', {
+    tipo: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social', 'espiritual'] }, accion: { type: 'string', enum: ['definir', 'hecha'] },
     que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), hora: S('HH:MM en 24 h o vacío.'),
     obstaculo: S('Obstáculo probable o vacío.'), plan: S('Si aparece el obstáculo, entonces… (o vacío).'), exito: S('Sabré que está hecha cuando… (o vacío).'), guardar_en_mis_iniciativas: { type: 'boolean', description: 'true para guardarla también como opción reutilizable.' } }),
+  iaTool('bienestar_abrir', 'Abre en la pestaña Bienestar una práctica guiada o un escenario. Prácticas: suspiro, atencion, caja, cuerpo, stop, desfusion, reestructurar, preocupacion, animo, autocompasion, mejor_yo, afirmacion, tentacion, decision, oracion_m, lectio, examen, intercesion, perdon, gracias, versiculo, servicio, noche. Escenarios (Palabra + oración + herramienta): general, esperanza, consuelo, autoridad, autoestima, identidad, paz, fortaleza, direccion, gratitud.', { clave: S('Clave de la práctica o del escenario.') }),
   iaTool('diario_escribir', 'Guarda una entrada en el Diario de la pestaña Ideas (por ejemplo, un resumen que la persona dictó o pidió guardar).', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
@@ -3974,11 +4064,13 @@ function iaEstado() {
       dias_sin_avanzar: Number.isFinite(daysSince(ultimoPaso(pr))) ? daysSince(ultimoPaso(pr)) : null, deseo: pr.deseo, obstaculo: pr.obstaculo, plan_si_entonces: pr.plan })),
     personas: ES.personas.map(x => ({ nombre: x.nombre, circulo: CADA[x.cada] || '', ultimo_contacto: x.ultimo || 'nunca', le_toca: daysSince(x.ultimo) >= x.cada })),
     planes_proximos: planesProximos().map(pl => ({ que: pl.titulo, con: pl.con, fecha: pl.fecha, hora: pl.hora })),
-    hoy: { enfoque_min: d.enfoque, aperturas_redes: d.aperturas, limite_aperturas: ES.limite, distraccion_min: d.distraccion, presupuesto_min: ES.presupuesto, resistio: d.resistidas + d.alternativas, iniciativas: d.iniciativas },
+    ahora_sugerido: ahoraSugerido().t,
+    bienestar_hoy: { animo: ES.estado.find(x => x.d === today())?.v || null, practicas: practicasHoy().map(x => x.k), minutos_mente: menteHoy(), espiritual_hecha: espHoy() },
+    hoy: { enfoque_min: d.enfoque, descanso_con_proposito_min: d.descanso || 0, aperturas_redes: d.aperturas, limite_aperturas: ES.limite, distraccion_min: d.distraccion, presupuesto_min: ES.presupuesto, resistio: d.resistidas + d.alternativas, iniciativas: d.iniciativas },
     ultimos_7_dias: { enfoque_min: sum('enfoque'), iniciativas: sum('iniciativas'), aperturas_redes: sum('aperturas'), distraccion_min: sum('distraccion'), pasos_proyecto: sum('pasos') },
     meta_iniciativas_semana: ES.metaSemanal, iniciativas_esta_semana: iniciativasSemana(),
     mis_iniciativas: Object.fromEntries(Object.entries(ES.catalogoIni).map(([k, v]) => [k, v.slice(0, 15).map(o => o.t)])),
-    iniciativas_hoy: { minimo_diario: ES.minIni, hechas: iniHechasHoy(), racha_dias: rachaIni(), social_dias_esta_semana: socialDiasSemana(), social_minimo_semanal: ES.minSocial, social_en_riesgo: socialEnRiesgo(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
+    iniciativas_hoy: { minimo_diario: ES.minIni, hechas: iniHechasHoy(), racha_dias: rachaIni(), espiritual_hecha_hoy: espHoy(), espiritual_racha: rachaEsp(), social_dias_esta_semana: socialDiasSemana(), social_minimo_semanal: ES.minSocial, social_en_riesgo: socialEnRiesgo(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
     ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
   };
@@ -4039,9 +4131,10 @@ async function iaEjecutar(nombre, a) {
       const I = ini4Semana(), i = INI4.findIndex(([k]) => k === a.tipo), x = I.items[i];
       if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; if (a.obstaculo) x.obst = a.obstaculo; if (a.plan) x.plan = a.plan; if (a.exito) x.exito = a.exito;
         if (a.guardar_en_mis_iniciativas && x.t && !ES.catalogoIni[a.tipo].some(o => o.t === x.t)) ES.catalogoIni[a.tipo].push({ id: crypto.randomUUID(), t: x.t, por: x.por, paso: x.paso, hora: x.hora, obst: x.obst, plan: x.plan, exito: x.exito, origen: 'Asistente', veces: 1 }); }
-      else if (!x.hecho) { x.hecho = true; bump('iniciativas'); bump('ini4'); if (x.k === 'social') bump('ini_social'); iniPremios(I); }
+      else if (!x.hecho) { x.hecho = true; bump('iniciativas'); bump('ini4'); if (x.k === 'social') bump('ini_social'); if (x.k === 'espiritual') bump('ini_esp'); iniPremios(I); }
       guardar(); renderE(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
     }
+    case 'bienestar_abrir': { if (!window.practicaIniciar(a.clave)) throw new Error('No existe esa clave.'); return { abierto: a.clave }; }
     case 'diario_escribir': {
       const x = { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: a.pregunta || '', txt: String(a.texto).slice(0, 5000), animo: 0, cambiado: Date.now() };
       ES.diario.push(x); guardar(); return { guardado: true, nota: 'Está en Ideas → Diario' + (ntOk() ? '; desde ahí se envía a Notion.' : '.') };
@@ -4057,7 +4150,7 @@ async function iaEjecutar(nombre, a) {
   throw new Error('Herramienta desconocida.');
 }
 const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
-  crear_proyecto: 'Creó un proyecto', iniciativa_dia: 'Actualizó una iniciativa de hoy', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
+  crear_proyecto: 'Creó un proyecto', bienestar_abrir: 'Abrió una práctica de Bienestar', iniciativa_dia: 'Actualizó una iniciativa de hoy', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
 
 // Texto con **negritas** y saltos de línea, siempre escapado.
 const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
@@ -4563,6 +4656,362 @@ function djLista() {
     ${L.length ? `<div class="rows">${L.slice(0, 6).map(x => `<button class="row" data-dj="${x.id}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(x.txt.split('\n')[0].slice(0, 70))}</div>
       <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))}${x.animo ? ' · ánimo ' + x.animo : ''}${x.notion ? ' · en Notion' : ''}</small></span></button>`).join('')}</div>
       <p class="more">${L.length > 6 ? `${L.length} entradas · ` : ''}<button class="link" id="dj-sem">Enviar la última semana a Notion</button></p><p class="meta" id="dj-toast" hidden></p>` : ''}`;
+}
+
+// ====================================================================
+// Bienestar: mente (mindfulness y bienestar cognitivo) y espíritu (vida cristiana práctica), juntos.
+// Prácticas guiadas de 1 a 15 minutos, con su evidencia. Lo espiritual cuenta como la iniciativa espiritual del día.
+// ====================================================================
+const YV = (ref) => { const m = { Jer: 'JER', '2Ti': '2TI', '1Jn': '1JN', Gn: 'GEN', Sal: 'PSA', Pr: 'PRO', Is: 'ISA', Lm: 'LAM', Mt: 'MAT', Lc: 'LUK', Jn: 'JHN', Ro: 'ROM', '1Co': '1CO', '2Co': '2CO', Ga: 'GAL', Ef: 'EPH', Fil: 'PHP', Col: 'COL', Stg: 'JAS', '1P': '1PE', Jos: 'JOS', '1Ts': '1TH', He: 'HEB' };
+  const [, lib, cap, v] = ref.match(/^(\S+) (\d+)(?::([\d-]+))?$/) || []; return lib && m[lib] ? `https://www.bible.com/bible/149/${m[lib]}.${cap}${v ? '.' + v : ''}.RVR1960` : 'https://www.bible.com/'; };
+const REF_NOMBRE = { Jer: 'Jeremías', '2Ti': '2 Timoteo', '1Jn': '1 Juan', Gn: 'Génesis', Sal: 'Salmo', Pr: 'Proverbios', Is: 'Isaías', Lm: 'Lamentaciones', Mt: 'Mateo', Lc: 'Lucas', Jn: 'Juan', Ro: 'Romanos', '1Co': '1 Corintios', '2Co': '2 Corintios', Ga: 'Gálatas', Ef: 'Efesios', Fil: 'Filipenses', Col: 'Colosenses', Stg: 'Santiago', '1P': '1 Pedro', Jos: 'Josué', '1Ts': '1 Tesalonicenses', He: 'Hebreos' };
+const refTxt = ref => ref.replace(/^(\S+)/, (_, l) => REF_NOMBRE[l] || l);
+// Versículos cortos para memorizar (Reina-Valera 1909, de dominio público). Uno por semana.
+const VERSICULOS = [['Fil 4:13', 'Todo lo puedo en Cristo que me fortalece.'], ['Sal 23:1', 'Jehová es mi pastor; nada me faltará.'], ['1P 5:7', 'Echando toda vuestra solicitud en él, porque él tiene cuidado de vosotros.'],
+  ['Is 41:10', 'No temas, que yo soy contigo; no desmayes, que yo soy tu Dios que te esfuerzo.'], ['Pr 3:5', 'Fíate de Jehová de todo tu corazón, y no estribes en tu prudencia.'], ['Sal 37:5', 'Encomienda a Jehová tu camino, y espera en él; y él hará.'],
+  ['Mt 11:28', 'Venid a mí todos los que estáis trabajados y cargados, que yo os haré descansar.'], ['Mt 6:33', 'Mas buscad primeramente el reino de Dios y su justicia, y todas estas cosas os serán añadidas.'], ['2Co 12:9', 'Bástate mi gracia; porque mi potencia en la flaqueza se perfecciona.'],
+  ['Sal 27:1', 'Jehová es mi luz y mi salvación: ¿de quién temeré?'], ['Sal 119:105', 'Lámpara es a mis pies tu palabra, y lumbrera a mi camino.'], ['Ro 8:28', 'Y sabemos que a los que a Dios aman, todas las cosas les ayudan a bien.'],
+  ['Jos 1:9', 'Esfuérzate y sé valiente: no temas ni desmayes, porque Jehová tu Dios será contigo en donde quiera que fueres.'], ['Fil 4:6', 'Por nada estéis afanosos; sino sean notorias vuestras peticiones delante de Dios en toda oración y ruego, con hacimiento de gracias.'],
+  ['Sal 46:1', 'Dios es nuestro amparo y fortaleza, nuestro pronto auxilio en las tribulaciones.'], ['Lm 3:22-23', 'Es por la misericordia de Jehová que no somos consumidos; nuevas son cada mañana: grande es tu fidelidad.'], ['Ga 6:9', 'No nos cansemos, pues, de hacer bien; que a su tiempo segaremos, si no hubiéremos desmayado.'], ['Col 3:23', 'Y todo lo que hagáis, hacedlo de ánimo, como al Señor, y no a los hombres.']];
+// Pasajes breves para la lectura del día (lectio divina). Uno por día, rotando.
+const PASAJES = ['Sal 23', 'Mt 6:25-34', 'Fil 4:4-9', 'Sal 139:1-14', 'Jn 15:1-11', 'Ro 12:9-21', 'Stg 1:2-8', 'Sal 91', 'Lc 10:38-42', 'Is 40:28-31', 'Mt 5:1-12', '1Co 13', 'Sal 103', 'Ef 4:25-32', 'Col 3:12-17', 'Jn 14:1-7', 'Sal 51', 'Pr 3:1-12', 'Mt 25:31-40', 'Sal 121', 'He 12:1-3', '1Ts 5:14-24', 'Lc 12:22-34', 'Sal 1'];
+const diaN = () => Math.floor(Date.parse(today() + 'T12:00Z') / 864e5);
+const versiculoSemana = () => VERSICULOS[Math.floor(diaN() / 7) % VERSICULOS.length];
+const pasajeHoy = () => PASAJES[diaN() % PASAJES.length];
+const SERVICIOS = ['Ayuda a alguien sin que lo sepa', 'Llama a alguien que esté solo', 'Ofrece ayuda concreta a quien la necesita hoy', 'Da una palabra de ánimo sincera', 'Cede tu tiempo: escucha a alguien sin prisa', 'Comparte algo tuyo con quien tiene menos', 'Perdona una deuda pequeña o un favor pendiente', 'Haz una tarea de casa que no te toca'];
+const CUES_ATENCION = ['Siente el aire entrar y salir por la nariz', 'Cuenta cada respiración hasta diez y vuelve a empezar', 'Si te fuiste, vuelve. Eso es el ejercicio, no un fallo', 'Nota dónde sientes más la respiración: nariz, pecho, abdomen', 'Deja que el cuerpo respire solo; tú solo observas', 'Un pensamiento es una nube: pasa. Vuelve al aire'];
+const PRACTICAS = [
+  { k: 'suspiro', tipo: 'mente', n: 'Suspiro cíclico', d: 'Calma rápida: dos inhalaciones por la nariz y una exhalación larga por la boca.', min: [2, 3, 5], patron: [['Inhala', 2], ['Un poco más', 1], ['Exhala lento', 6]], sci: 'En un ensayo, 5 minutos al día mejoraron el ánimo y bajaron la activación más que la meditación (Balban et al., 2023, Cell Reports Medicine).' },
+  { k: 'atencion', tipo: 'mente', n: 'Atención a la respiración', d: 'La práctica base del mindfulness: volver al aire cada vez que la mente se va.', min: [5, 10, 15], cues: CUES_ATENCION, sci: 'Programas de meditación con evidencia moderada para ansiedad, depresión y dolor (Goyal et al., 2014, JAMA Internal Medicine).' },
+  { k: 'caja', tipo: 'mente', n: 'Respiración en caja', d: '4-4-4-4. Para el estrés agudo, antes de una reunión o una conversación difícil.', min: [2, 3, 5], patron: [['Inhala', 4], ['Retén', 4], ['Exhala', 4], ['Retén', 4]], sci: 'La respiración lenta (menos de 10 por minuto) reduce la activación y mejora el ánimo (Zaccaro et al., 2018, Frontiers in Human Neuroscience).' },
+  { k: 'cuerpo', tipo: 'mente', n: 'Escaneo corporal', d: 'Recorre el cuerpo sin cambiar nada. Para soltar tensión y dormir mejor.', min: [6, 10], pasos: [['Pies y piernas: nota el contacto, el peso, la temperatura', 75], ['Abdomen: siente cómo sube y baja', 75], ['Pecho y espalda', 60], ['Manos y brazos', 60], ['Hombros y cuello: suelta lo que sobra', 60], ['Cara: mandíbula, ojos, frente', 60], ['Todo el cuerpo a la vez, respirando', 60]], sci: 'Componente de MBSR, con evidencia para estrés y sueño (Goyal et al., 2014).' },
+  { k: 'stop', tipo: 'mente', n: 'Pausa STOP', d: 'Un minuto para no reaccionar en automático.', min: [1], pasos: [['S: detente. Deja lo que haces', 10], ['T: toma una respiración completa', 20], ['O: observa. ¿Qué hay en el cuerpo, en la emoción, en el pensamiento?', 20], ['P: procede. ¿Qué es lo más sabio ahora?', 10]], sci: 'Micropráctica de mindfulness usada en MBSR y MBCT; las pausas breves restauran la atención (Albulescu et al., 2022, PLOS ONE).' },
+  { k: 'desfusion', tipo: 'mente', n: 'Despegarte de un pensamiento', d: 'Para cuando un pensamiento te atrapa: míralo en vez de mirar desde él.', min: [3], pasos: [['Nombra el pensamiento que te atrapa. En una frase', 45], ['Ahora dilo así: «Estoy teniendo el pensamiento de que…»', 45], ['Y ahora: «Noto que estoy teniendo el pensamiento de que…»', 45], ['Míralo pasar, como un coche por la calle. Tú eres quien mira, no el coche', 45]], sci: 'Defusión cognitiva de la Terapia de Aceptación y Compromiso, con evidencia en metaanálisis (A-Tjak et al., 2015, Psychotherapy and Psychosomatics).' },
+  { k: 'reestructurar', tipo: 'mente', n: 'Reestructurar un pensamiento', d: 'Tres preguntas de la terapia cognitiva para un pensamiento que pesa.', form: true, sci: 'La terapia cognitivo-conductual es el tratamiento psicológico con más evidencia para ansiedad y depresión (Cuijpers et al., 2023, World Psychiatry).' },
+  { k: 'preocupacion', tipo: 'mente', n: 'Soltar una preocupación', d: '¿Está en mis manos? Si sí, un primer paso; si no, la suelto. Y una hora fija para preocuparse.', form: true, sci: 'Aplazar la preocupación a un momento fijo reduce el tiempo preocupado (Borkovec et al., 1983, Behaviour Research and Therapy).' },
+  { k: 'animo', tipo: 'mente', n: 'Chequeo de ánimo', d: 'Un número del 1 al 5 y una palabra. Veinte segundos.', form: true, sci: 'Registrar el estado propio mejora la autorregulación (Harkin et al., 2016, Psychological Bulletin).' },
+  { k: 'oracion_m', tipo: 'espiritu', n: 'Oración de la mañana', d: 'Cinco minutos para empezar el día con Dios: gratitud, entrega, intercesión, Padre Nuestro, intención.', min: [5], pasos: [['Gracias, Señor, por… (tres cosas concretas)', 60], ['Te entrego este día: mis prioridades y lo que no controlo', 60], ['Oro por… (tres personas, con nombre)', 60], ['Padre nuestro, que estás en los cielos…', 60], ['Mi intención para hoy, en una palabra. Amén', 60]], sci: 'La práctica religiosa regular se asocia con mejor salud mental y afrontamiento (Koenig, 2012, ISRN Psychiatry; Pargament, 1997).' },
+  { k: 'lectio', tipo: 'espiritu', n: 'Lectura de la Palabra', d: 'Lectio divina en cuatro pasos con el pasaje de hoy: leer, meditar, orar, actuar.', min: [10], pasos: [['Lee despacio el pasaje de hoy, dos veces', 180], ['Medita: ¿qué palabra o frase te toca hoy?', 180], ['Ora: respóndele a Dios desde ahí, con tus palabras', 120], ['Contempla y decide: ¿qué harás hoy con esto?', 120]], sci: 'Lectura reflexiva de la Escritura; la religiosidad intrínseca se asocia con bienestar (Koenig, 2012).' },
+  { k: 'examen', tipo: 'espiritu', n: 'Examen del día', d: 'Cinco pasos de san Ignacio para cerrar el día con verdad y gratitud.', min: [5], pasos: [['Da gracias por lo bueno de hoy', 60], ['Pide luz para ver el día con verdad', 45], ['Repasa el día: momentos, personas, decisiones. ¿Dónde estuvo Dios?', 90], ['Pide perdón por lo que no estuvo bien', 45], ['Propósito para mañana, con su gracia', 60]], sci: 'Combina gratitud (Emmons y McCullough, 2003, JPSP) y revisión del día; la gratitud diaria mejora el bienestar en ensayos.' },
+  { k: 'intercesion', tipo: 'espiritu', n: 'Oración por otros', d: 'Tres minutos orando por tres personas concretas; la app te sugiere quiénes.', min: [3], pasos: 'personas', sci: 'Orar por otros se asocia con más perdón y mejor relación con ellos (Lambert et al., 2010, Psychological Science).' },
+  { k: 'perdon', tipo: 'espiritu', n: 'Perdonar', d: 'Cinco pasos para perdonar de corazón a alguien concreto.', min: [5], pasos: [['Piensa en quién y qué pasó. Nómbralo con honestidad', 60], ['Reconoce el daño y lo que sentiste. No lo minimices', 60], ['Decide: «Elijo perdonar, como yo fui perdonado» (Mt 6:14)', 60], ['Ora por esa persona: pide su bien', 60], ['Suéltalo en manos de Dios. Si vuelve el rencor, vuelve a soltar', 60]], sci: 'Las intervenciones de perdón reducen depresión y ansiedad y aumentan la esperanza (Wade et al., 2014, J. Consulting and Clinical Psychology).' },
+  { k: 'gracias', tipo: 'espiritu', n: 'Gracias a Dios: tres cosas', d: 'Tres cosas concretas de hoy, y por qué.', form: true, sci: 'Escribir gratitud a diario mejora el bienestar y el optimismo (Emmons y McCullough, 2003, JPSP).' },
+  { k: 'versiculo', tipo: 'espiritu', n: 'Versículo de la semana', d: 'Uno por semana, para memorizar y llevar en el día.', form: true, sci: 'Memorizar y repetir espaciadamente fija el recuerdo (Cepeda et al., 2006, Psychological Bulletin).' },
+  { k: 'servicio', tipo: 'espiritu', n: 'Acto de servicio', d: 'Una ayuda concreta hoy, mejor si nadie lo sabe.', form: true, sci: 'Ayudar a otros mejora el bienestar de quien ayuda (Curry et al., 2018, J. Experimental Social Psychology).' },
+  { k: 'noche', tipo: 'espiritu', n: 'Oración de la noche', d: 'Tres minutos para entregar el día y descansar en paz.', min: [3], pasos: [['Gracias por este día, por lo que salió bien y por lo que aprendí', 60], ['Te entrego lo que no terminé y lo que me preocupa', 60], ['«En tus manos encomiendo mi espíritu». Pido descanso y paz', 60]], sci: 'Rutinas de cierre del día y oración se asocian con mejor sueño y menos rumiación (Koenig, 2012).' },
+];
+const prDe = k => PRACTICAS.find(p => p.k === k);
+const practicasHoy = () => ES.practicas.filter(x => x.d === today());
+const menteHoy = () => practicasHoy().filter(x => x.tipo === 'mente').reduce((a, x) => a + (x.min || 0), 0);
+function rachaMente() { let n = practicasHoy().some(x => x.tipo === 'mente') ? 1 : 0; for (let i = 1; i < 400; i++) { if ((dayOf(dayKey(addDays(new Date(), -i))).mente || 0) > 0) n++; else break; } return n; }
+// Al completar una práctica espiritual, la iniciativa espiritual del día queda hecha.
+function marcarEspiritual(nombre) {
+  const I = ini4Semana(), e = I.items[4]; if (!e || e.hecho) return;
+  if (!e.t) e.t = nombre; e.hecho = true; bump('iniciativas'); bump('ini4'); bump('ini_esp'); iniPremios(I); guardar(); renderE();
+}
+function practicaRegistrar(pr, min, completa, nota = '') {
+  ES.practicas.push({ id: crypto.randomUUID(), d: today(), k: pr.k, tipo: pr.tipo, min, completa, nota }); ES.practicas = ES.practicas.slice(-500);
+  bump(pr.tipo === 'mente' ? 'mente' : 'espiritu', min); guardar();
+  xpGanar(completa ? 15 : 5, pr.n);
+  if (pr.tipo === 'espiritu' && completa) marcarEspiritual(pr.n);
+  renderBw();
+}
+// ---------- Práctica guiada a pantalla completa: pasos con tiempo o patrón de respiración.
+let prT = 0;
+function practicaRun(pr, min) {
+  const total = min * 60, inicio = Date.now();
+  let pasos = pr.pasos;
+  if (pasos === 'personas') { const ps = [...personasDue(), ...ES.personas].filter((p, i, a) => a.indexOf(p) === i).slice(0, 3).map(p => p.nombre); while (ps.length < 3) ps.push(['alguien de tu familia', 'alguien que lo pasa mal', 'alguien con quien te cuesta'][ps.length]); pasos = ps.map(n => [`Ora por ${n}: pide su bien, nómbralo ante Dios`, Math.round(total / 3)]); }
+  if (pr.cues) { pasos = []; for (let t = 0; t < total; t += 60) pasos.push([pr.cues[(t / 60) % pr.cues.length], Math.min(60, total - t)]); }
+  if (pasos) { const suma = pasos.reduce((a, p) => a + p[1], 0); pasos = pasos.map(([t, s]) => [t, s * total / suma]); }
+  const el = $('#practica'); el.hidden = false;
+  el.innerHTML = `<div class="inner"><p class="lead">${esc(pr.n)}</p>
+    ${pr.patron ? `<div class="br-c" id="pr-c"><span id="pr-fase">Prepárate</span></div>` : `<p class="focus-what" id="pr-fase" style="min-height:3.2em"></p>`}
+    <p class="count" id="pr-cnt"></p><p class="meta" id="pr-tot" style="margin:0"></p>
+    ${pr.k === 'lectio' ? `<a class="outline btn" style="margin-top:6px" target="_blank" rel="noopener" href="${YV(pasajeHoy())}">Abrir ${esc(refTxt(pasajeHoy()))}</a>` : ''}
+    <p class="note" style="margin-top:10px">Teléfono quieto. ${pr.tipo === 'espiritu' ? 'Es tiempo con Dios.' : 'Si te vas, vuelve.'}</p>
+    <button class="link" id="pr-stop">Terminar antes</button></div>`;
+  let fase = -1;
+  const pintar = () => {
+    const t = (Date.now() - inicio) / 1000, left = total - t;
+    if (left <= 0) { clearInterval(prT); el.hidden = true; buzz([60, 80, 60]); practicaFin(pr, min, true); return; }
+    $('#pr-tot').textContent = `${fmtClock(left)} en total`;
+    if (pr.patron) {
+      const ciclo = pr.patron.reduce((a, p) => a + p[1], 0); let tt = t % ciclo, i = 0; while (tt >= pr.patron[i][1]) { tt -= pr.patron[i][1]; i++; }
+      $('#pr-cnt').textContent = Math.ceil(pr.patron[i][1] - tt);
+      if (i !== fase) { fase = i; $('#pr-fase').textContent = pr.patron[i][0]; const c = $('#pr-c'); c.style.transition = `transform ${pr.patron[i][1]}s ease-in-out`; c.style.transform = /inhala|más/i.test(pr.patron[i][0]) ? 'scale(1)' : /exhala/i.test(pr.patron[i][0]) ? 'scale(.62)' : c.style.transform; buzz(12); }
+    } else {
+      let acc = 0, i = 0; while (i < pasos.length - 1 && t >= acc + pasos[i][1]) { acc += pasos[i][1]; i++; }
+      $('#pr-cnt').textContent = fmtClock(Math.max(0, acc + pasos[i][1] - t));
+      if (i !== fase) { fase = i; $('#pr-fase').textContent = pasos[i][0]; buzz(20); }
+    }
+  };
+  clearInterval(prT); prT = setInterval(pintar, 250); pintar();
+  $('#pr-stop').onclick = () => { clearInterval(prT); el.hidden = true; const mins = Math.floor((Date.now() - inicio) / 60000); practicaFin(pr, mins, false); };
+}
+function practicaFin(pr, min, completa) {
+  practicaRegistrar(pr, min, completa);
+  showSheet(`<h2>${completa ? 'Práctica completa' : 'Práctica terminada'}</h2>
+    <p class="note">${esc(pr.n)} · ${fmtMin(min)}${pr.tipo === 'espiritu' && completa ? ' · tu iniciativa espiritual de hoy queda hecha' : ''}.</p>
+    <div class="field"><label>¿Qué te deja? (opcional, va al Diario)</label><input id="pf-nota" maxlength="200" placeholder="Una frase"></div>
+    <div class="actions"><button class="primary" id="pf-ok">Listo</button></div>`);
+  $('#pf-ok').onclick = () => { const t = $('#pf-nota').value.trim(); if (t) { ES.diario.push({ id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: pr.n, txt: t, animo: 0, cambiado: Date.now() }); guardar(); } closeSheet(); renderBw(); };
+}
+// ---------- Prácticas con formulario (rápidas, sin temporizador)
+function practicaForm(pr) {
+  if (practicaFormExtra(pr)) return;
+  if (pr.k === 'animo') {
+    const hoyE = ES.estado.find(x => x.d === today());
+    showSheet(`<h2>¿Cómo estás ahora?</h2><p class="sci">${esc(pr.sci)}</p>
+      <div class="chips" id="an-v">${[1, 2, 3, 4, 5].map(n => `<button class="chip${hoyE?.v === n ? ' on' : ''}" data-v="${n}">${['😞', '😕', '😐', '🙂', '😄'][n - 1]} ${n}</button>`).join('')}</div>
+      <div class="field" style="margin-top:14px"><label>Una palabra</label><input id="an-t" maxlength="40" value="${esc(hoyE?.nota || '')}" placeholder="Cansado, tranquilo, inquieto…"></div>
+      <div class="actions"><button class="link" id="an-cancel">Cerrar</button><button class="primary" id="an-ok">Guardar</button></div>`);
+    let v = hoyE?.v || 0;
+    $('#an-v').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; v = +c.dataset.v; $('#an-v').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+    $('#an-cancel').onclick = closeSheet;
+    $('#an-ok').onclick = () => { if (!v) return; if (hoyE) { hoyE.v = v; hoyE.nota = $('#an-t').value.trim(); } else { ES.estado.push({ id: crypto.randomUUID(), d: today(), v, nota: $('#an-t').value.trim() }); xpGanar(5, 'Chequeo de ánimo'); } ES.estado = ES.estado.slice(-400); guardar(); closeSheet(); renderBw(); };
+    return;
+  }
+  if (pr.k === 'reestructurar') {
+    showSheet(`<h2>Reestructurar un pensamiento</h2><p class="sci">${esc(pr.sci)}</p>
+      <div class="field"><label>El pensamiento que pesa (tal cual)</label><input id="re-p" maxlength="200" placeholder="«Voy a fallar», «no le importo»"></div>
+      <div class="field"><label>¿Qué evidencia tengo a favor?</label><input id="re-f" maxlength="200"></div>
+      <div class="field"><label>¿Y en contra?</label><input id="re-c" maxlength="200"></div>
+      <div class="field"><label>Una forma más realista de verlo</label><input id="re-a" maxlength="200" placeholder="Lo que le dirías a un amigo"></div>
+      <div class="actions"><button class="link" id="re-cancel">Cerrar</button><button class="primary" id="re-ok">Guardar</button></div>`);
+    $('#re-cancel').onclick = closeSheet;
+    $('#re-ok').onclick = () => { const p = $('#re-p').value.trim(), a = $('#re-a').value.trim(); if (!p || !a) { (p ? $('#re-a') : $('#re-p')).focus(); return; }
+      ES.diario.push({ id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: 'Reestructurar un pensamiento', txt: `Pensamiento: ${p}\nA favor: ${$('#re-f').value.trim()}\nEn contra: ${$('#re-c').value.trim()}\nMás realista: ${a}`, animo: 0, cambiado: Date.now() });
+      practicaRegistrar(pr, 3, true); closeSheet(); toast('Guardado en el Diario.'); };
+    return;
+  }
+  if (pr.k === 'preocupacion') {
+    showSheet(`<h2>Soltar una preocupación</h2><p class="sci">${esc(pr.sci)}</p>
+      <div class="field"><label>¿Qué te preocupa?</label><input id="pq-t" maxlength="200"></div>
+      <div class="field"><label>¿Está en mis manos?</label><div class="chips" id="pq-m"><button class="chip" data-m="si">Sí, en parte</button><button class="chip" data-m="no">No</button></div></div>
+      <div class="field" id="pq-paso" hidden><label>Entonces, el primer paso (va a Tareas)</label><input id="pq-p" maxlength="100"></div>
+      <p class="meta" id="pq-no" hidden>No está en tus manos: la sueltas y, si es cristiano para ti, la pones en oración (1 Pedro 5:7). Si vuelve, tienes tu hora de preocuparse.</p>
+      <div class="field"><label>Hora de preocuparse (15 min, una vez al día)</label><input id="pq-h" type="time" value="${esc(ES.horaPreocupar || '18:30')}"></div>
+      <div class="actions"><button class="link" id="pq-cancel">Cerrar</button><button class="primary" id="pq-ok">Soltar</button></div>`);
+    let m = '';
+    $('#pq-m').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; m = c.dataset.m; $('#pq-m').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); $('#pq-paso').hidden = m !== 'si'; $('#pq-no').hidden = m !== 'no'; });
+    $('#pq-cancel').onclick = closeSheet;
+    $('#pq-ok').onclick = () => { const t = $('#pq-t').value.trim(); if (!t || !m) { $('#pq-t').focus(); return; }
+      ES.horaPreocupar = $('#pq-h').value || '18:30';
+      if (m === 'si' && $('#pq-p').value.trim()) { const T = HT().tareas, l = T.listas.find(x => x.id === T.activa) || T.listas[0]; T.items.push({ id: crypto.randomUUID(), lista: l.id, titulo: $('#pq-p').value.trim(), detalle: `Preocupación: ${t}`, fecha: today(), hecha: false, creado: Date.now(), repite: '', dias: [] }); save(); gAuto(); }
+      ES.diario.push({ id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: 'Soltar una preocupación', txt: `${t}\n${m === 'si' ? 'En mis manos: ' + ($('#pq-p').value.trim() || 'sin paso aún') : 'No está en mis manos: la suelto.'}`, animo: 0, cambiado: Date.now() });
+      practicaRegistrar(pr, 2, true); closeSheet(); toast(m === 'si' ? 'Primer paso en Tareas. Lo demás, a su hora.' : 'Soltada. Si vuelve, a su hora.'); };
+    return;
+  }
+  if (pr.k === 'gracias') {
+    showSheet(`<h2>Gracias, Señor, por…</h2><p class="sci">${esc(pr.sci)}</p>
+      ${[0, 1, 2].map(i => `<div class="field"><input id="gr-${i}" maxlength="140" placeholder="${['Algo de hoy…', 'Alguien…', 'Algo pequeño que casi pasa desapercibido…'][i]}"></div>`).join('')}
+      <div class="actions"><button class="link" id="gr-cancel">Cerrar</button><button class="primary" id="gr-ok">Amén</button></div>`);
+    $('#gr-cancel').onclick = closeSheet;
+    $('#gr-ok').onclick = () => { const items = [0, 1, 2].map(i => $('#gr-' + i).value.trim()).filter(Boolean); if (!items.length) { $('#gr-0').focus(); return; }
+      const hoyB = ES.buenas.find(b => b.d === today()); if (hoyB) hoyB.items = [...new Set([...hoyB.items, ...items])]; else ES.buenas.push({ id: crypto.randomUUID(), d: today(), items });
+      practicaRegistrar(pr, 2, true); closeSheet(); };
+    return;
+  }
+  if (pr.k === 'versiculo') {
+    const [ref, txt] = versiculoSemana(), hecho = practicasHoy().some(x => x.k === 'versiculo');
+    showSheet(`<h2>Versículo de la semana</h2>
+      <p style="font-size:1.15rem;line-height:1.5;margin:0 0 4px">«${esc(txt)}»</p><p class="meta">${esc(refTxt(ref))} (Reina-Valera 1909) · <a class="link" href="${YV(ref)}" target="_blank" rel="noopener">Leer el pasaje</a></p>
+      <p class="sci">${esc(pr.sci)} Hoy: léelo tres veces, tápalo y dilo de memoria; mañana, otra vez.</p>
+      <div class="actions"><button class="link" id="vs-cancel">Cerrar</button><button class="primary" id="vs-ok" ${hecho ? 'disabled' : ''}>${hecho ? 'Repasado hoy' : 'Lo repasé de memoria'}</button></div>`);
+    $('#vs-cancel').onclick = closeSheet;
+    $('#vs-ok').onclick = () => { practicaRegistrar(pr, 2, true); closeSheet(); };
+    return;
+  }
+  if (pr.k === 'servicio') {
+    const idea = SERVICIOS[diaN() % SERVICIOS.length];
+    showSheet(`<h2>Acto de servicio de hoy</h2><p class="sci">${esc(pr.sci)}</p>
+      <p style="font-size:1.1rem;font-weight:500;margin:0 0 10px">${esc(idea)}</p>
+      <div class="chips" id="sv-ideas">${SERVICIOS.filter(x => x !== idea).slice(0, 4).map(x => `<button class="chip" data-t="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <div class="field" style="margin-top:12px"><label>O el tuyo</label><input id="sv-t" maxlength="120" value="${esc(idea)}"></div>
+      <div class="actions"><button class="link" id="sv-cancel">Cerrar</button><button class="primary" id="sv-ok">Hecho</button></div>`);
+    $('#sv-ideas').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) $('#sv-t').value = c.dataset.t; });
+    $('#sv-cancel').onclick = closeSheet;
+    $('#sv-ok').onclick = () => { practicaRegistrar(pr, 5, true, $('#sv-t').value.trim()); closeSheet(); };
+  }
+}
+function practicaSheet(pr) {
+  if (pr.form) return practicaForm(pr);
+  let min = pr.min[0];
+  showSheet(`<h2>${esc(pr.n)}</h2><p class="note">${esc(pr.d)}</p><p class="sci">${esc(pr.sci)}</p>
+    ${pr.k === 'lectio' ? `<p class="meta">Pasaje de hoy: <b style="color:var(--text)">${esc(refTxt(pasajeHoy()))}</b> · <a class="link" href="${YV(pasajeHoy())}" target="_blank" rel="noopener">abrir en la Biblia</a></p>` : ''}
+    <div class="field"><label>Duración</label><div class="chips" id="ps-min">${pr.min.map(m => `<button class="chip${m === min ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
+    <div class="actions"><button class="link" id="ps-cancel">Cerrar</button><button class="primary" id="ps-go">Empezar</button></div>`);
+  $('#ps-min').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; min = +c.dataset.m; $('#ps-min').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  $('#ps-cancel').onclick = closeSheet;
+  $('#ps-go').onclick = () => { closeSheet(); practicaRun(pr, min); };
+}
+// Qué conviene ahora, según la hora y lo hecho.
+function bwRecomendada() {
+  const h = new Date().getHours(), hechas = new Set(practicasHoy().map(x => x.k)), est = ES.estado.find(x => x.d === today());
+  if (h < 11 && !hechas.has('oracion_m')) return 'oracion_m';
+  if (!est) return 'animo';
+  if (h >= 20 && !hechas.has('examen') && !hechas.has('noche')) return 'examen';
+  if (!espHoy()) return h >= 17 ? 'noche' : 'lectio';
+  if (!practicasHoy().some(x => x.tipo === 'mente' && x.min)) return est && est.v <= 2 ? 'suspiro' : 'atencion';
+  if (socialEnRiesgo()) return 'intercesion';
+  return h >= 21 ? 'noche' : 'stop';
+}
+function renderBw() {
+  const est = ES.estado.find(x => x.d === today()), rec = prDe(bwRecomendada()), hechas = new Set(practicasHoy().map(x => x.k));
+  const fila = pr => `<button class="row" data-pr="${pr.k}"><span class="box" style="${hechas.has(pr.k) ? 'background:var(--green);border-color:var(--green)' : ''}"></span><span class="t"><div>${esc(pr.n)}</div><small>${esc(pr.d)}</small></span><span class="tag">${pr.form ? '›' : pr.min[0] + ' min'}</span></button>`;
+  const [vref, vtxt] = versiculoSemana();
+  bwW.innerHTML = `<div class="enf">
+    <div class="stats" style="margin-top:0">
+      <div class="stat"><b>${est ? ['😞', '😕', '😐', '🙂', '😄'][est.v - 1] : '–'}</b><span>Ánimo hoy</span></div>
+      <div class="stat"><b>${menteHoy()} min</b><span>Mente hoy${rachaMente() > 1 ? ` · racha ${rachaMente()}` : ''}</span></div>
+      <div class="stat"><b class="${espHoy() ? 'green' : ''}">${espHoy() ? '✓' : '–'}</b><span>Espíritu hoy${rachaEsp() > 1 ? ` · racha ${rachaEsp()}` : ''}</span></div>
+    </div>
+    <div class="ahora" style="margin-top:18px"><p class="k">Ahora te conviene</p><b>${esc(rec.n)}</b><p>${esc(rec.d)}</p><div class="row-b"><button class="primary" id="bw-rec">${rec.form ? 'Abrir' : `Empezar · ${rec.min[0]} min`}</button></div></div>
+    <p class="why" style="margin:0 0 6px"><b>Versículo de la semana</b><br>«${esc(vtxt)}» <span class="meta">· ${esc(refTxt(vref))}</span></p>
+    <h3>¿Qué necesitas ahora?</h3>
+    <p class="meta" style="margin:0 0 8px">Palabra, oración guiada y una herramienta para la mente, según el momento.</p>
+    <div class="chips">${ESCENARIOS.map(e => `<button class="chip" data-esc="${e.k}">${esc(e.n)}</button>`).join('')}</div>
+    <h3>Espíritu</h3>
+    <p class="meta" style="margin:0 0 6px">Vida cristiana práctica. Cualquiera completa tu iniciativa espiritual del día.</p>
+    <div class="rows">${PRACTICAS.filter(p => p.tipo === 'espiritu').map(fila).join('')}</div>
+    <h3>Mente</h3>
+    <p class="meta" style="margin:0 0 6px">Mindfulness y herramientas cognitivas con evidencia. Cortas, para usarlas cuando hacen falta.</p>
+    <div class="rows">${PRACTICAS.filter(p => p.tipo === 'mente').map(fila).join('')}</div>
+    <p class="meta" style="margin-top:16px">Si lo que sientes pesa mucho o dura semanas, habla con alguien de confianza o con un profesional. Estas prácticas acompañan; no sustituyen.</p>
+  </div>`;
+  bwW.querySelector('#bw-rec').onclick = () => practicaSheet(rec);
+  bwW.querySelectorAll('[data-esc]').forEach(b => b.onclick = () => escenarioSheet(b.dataset.esc));
+  bwW.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => practicaSheet(prDe(b.dataset.pr)));
+}
+const bwHost = document.getElementById('view-bienestar');
+const bwR = bwHost.attachShadow({ mode: 'open' });
+const bwStyle = document.createElement('style'); bwStyle.textContent = ENFOQUE_CSS;
+const bwW = document.createElement('div'); bwR.append(bwStyle, bwW);
+// Pantalla de práctica, en el contenedor que nunca se oculta.
+const prEl = document.createElement('div'); prEl.className = 'full'; prEl.id = 'practica'; prEl.hidden = true; ov.appendChild(prEl);
+const prStyle = document.createElement('style'); prStyle.textContent = `.br-c { width: 200px; height: 200px; border-radius: 50%; display: grid; place-items: center; margin: 14px 0; transform: scale(.62);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent) 8%, transparent) 70%); } .br-c span { font-size: 1.05rem; color: var(--text); }`; ov.appendChild(prStyle);
+window.renderBienestar = () => renderBw();
+window.practicaIniciar = (k, min) => { if (escenarioDe(k)) { irA('bienestar'); escenarioSheet(escenarioDe(k).padre ? escenarioDe(k).padre.k : k, escenarioDe(k).padre ? k : ''); return true; } const pr = prDe(k); if (!pr) return false; irA('bienestar'); if (pr.form) practicaForm(pr); else practicaRun(pr, min || pr.min[0]); return true; };
+
+// ---------- Escenarios: qué necesitas ahora. Palabra (Reina-Valera 1909), oración guiada y una herramienta de la mente con evidencia.
+const V = (ref, txt) => [ref, txt];
+const ESCENARIOS = [
+  { k: 'general', n: 'General', d: 'Para empezar o cerrar el día, o cuando no sabes qué pedir.', versos: [V('Sal 23:1', 'Jehová es mi pastor; nada me faltará.'), V('Pr 3:5-6', 'Fíate de Jehová de todo tu corazón, y no estribes en tu prudencia. Reconócelo en todos tus caminos, y él enderezará tus veredas.'), V('Mt 6:33', 'Mas buscad primeramente el reino de Dios y su justicia, y todas estas cosas os serán añadidas.'), V('Fil 4:13', 'Todo lo puedo en Cristo que me fortalece.'), V('Jos 1:9', 'Esfuérzate y sé valiente; no temas ni desmayes, porque Jehová tu Dios será contigo en donde quiera que fueres.')],
+    oracion: [['Señor, aquí estoy. Gracias por este día y por tu presencia', 50], ['Te reconozco en todos mis caminos: pon mi día en tus manos', 50], ['Pido por lo que hoy me toca: prioridades, personas, lo que me cuesta', 60], ['Padre nuestro…', 50], ['Amén. ¿Cuál es el siguiente paso con propósito?', 30]], mente: 'atencion' },
+  { k: 'esperanza', n: 'Esperanza', d: 'Cuando el futuro se ve oscuro, nada avanza o pesa el desánimo.', versos: [V('Jer 29:11', 'Porque yo sé los pensamientos que tengo acerca de vosotros, dice Jehová, pensamientos de paz, y no de mal, para daros el fin que esperáis.'), V('Ro 15:13', 'Y el Dios de esperanza os llene de todo gozo y paz creyendo, para que abundéis en esperanza por la virtud del Espíritu Santo.'), V('Lm 3:22-23', 'Es por la misericordia de Jehová que no somos consumidos; nuevas son cada mañana: grande es tu fidelidad.'), V('Is 40:31', 'Mas los que esperan a Jehová tendrán nuevas fuerzas; levantarán las alas como águilas, correrán, y no se cansarán, caminarán, y no se fatigarán.'), V('Ro 5:5', 'Y la esperanza no avergüenza; porque el amor de Dios está derramado en nuestros corazones por el Espíritu Santo que nos es dado.'), V('Sal 42:11', '¿Por qué te abates, oh alma mía, y por qué te conturbas en mí? Espera a Dios; porque aún le tengo de alabar: es él salvamento de mi rostro, y mi Dios.')],
+    oracion: [['Dios de esperanza, te digo con honestidad qué veo oscuro', 60], ['Recuerdo lo que ya hiciste: nombra dos veces en que saliste adelante', 60], ['Tus pensamientos son de paz y no de mal: pongo en tus manos lo que viene', 60], ['Dame hoy un paso pequeño, y las fuerzas para darlo', 45], ['Amén. Elijo esperar en ti', 15]],
+    mente: 'mejor_yo' },
+  { k: 'consuelo', n: 'Consolación', d: 'Duelo, pérdida, tristeza, soledad, una herida que aún duele.', versos: [V('Mt 5:4', 'Bienaventurados los que lloran; porque ellos recibirán consolación.'), V('Sal 34:18', 'Cercano está Jehová a los quebrantados de corazón; y salvará a los contritos de espíritu.'), V('2Co 1:3-4', 'Bendito sea el Dios y Padre del Señor Jesucristo, el Padre de misericordias, y el Dios de toda consolación, el cual nos consuela en todas nuestras tribulaciones.'), V('Sal 23:4', 'Aunque ande en valle de sombra de muerte, no temeré mal alguno; porque tú estarás conmigo: tu vara y tu cayado me infundirán aliento.'), V('Is 43:2', 'Cuando pasares por las aguas, yo seré contigo; y por los ríos, no te anegarán.'), V('Sal 147:3', 'Él sana a los quebrantados de corazón, y liga sus heridas.'), V('Jn 14:27', 'La paz os dejo, mi paz os doy: no como el mundo la da, yo os la doy. No se turbe vuestro corazón, ni tenga miedo.')],
+    oracion: [['Padre de misericordias, esto es lo que me duele (dilo con sus palabras)', 60], ['No tengo que fingir fortaleza: tú estás cerca del quebrantado', 60], ['Pongo mi dolor y a quien echo de menos en tus manos', 60], ['Recibo tu paz, la que el mundo no da. Respiro despacio', 60], ['Amén. Hoy, un paso suave: comer, caminar, hablar con alguien', 30]],
+    mente: 'autocompasion' },
+  { k: 'confianza', n: 'Confianza', d: 'Autoridad, autoestima y visión de ti mismo: quién eres en Cristo antes de actuar.',
+    sub: [
+      { k: 'autoridad', n: 'Autoridad', d: 'Para liderar, decidir, hablar claro, poner límites o enfrentar algo que intimida.', versos: [V('2Ti 1:7', 'Porque no nos ha dado Dios el espíritu de temor, sino el de fortaleza, y de amor, y de templanza.'), V('Lc 10:19', 'He aquí os doy potestad de hollar sobre serpientes y sobre escorpiones, y sobre toda fuerza del enemigo, y nada os dañará.'), V('1Jn 4:4', 'Hijitos, vosotros sois de Dios, y los habéis vencido; porque el que en vosotros está, es mayor que el que está en el mundo.'), V('Stg 4:7', 'Someteos pues a Dios; resistid al diablo, y de vosotros huirá.'), V('Ef 6:10', 'Por lo demás, hermanos míos, confortaos en el Señor, y en la potencia de su fortaleza.'), V('Ro 8:37', 'Antes, en todas estas cosas hacemos más que vencer por medio de aquel que nos amó.')],
+        declaro: ['No tengo espíritu de temor, sino de fortaleza, amor y dominio propio.', 'El que está en mí es mayor que lo que está en el mundo.', 'Actúo con la autoridad que Cristo me dio, con amor y templanza.'],
+        oracion: [['Señor, la situación que me intimida es… (nómbrala)', 45], ['No me diste espíritu de temor: recibo fortaleza, amor y dominio propio', 45], ['Declaro en voz baja: «El que está en mí es mayor»', 45], ['Dame las palabras y la calma; que mi autoridad sirva y no aplaste', 45], ['Amén. Voy con la cabeza alta y los pies en el suelo', 20]] },
+      { k: 'autoestima', n: 'Autoestima', d: 'Cuando te sientes poco, comparado, rechazado o insuficiente.', versos: [V('Sal 139:14', 'Te alabaré; porque formidables, maravillosas son tus obras: estoy maravillado, y mi alma lo conoce mucho.'), V('Is 43:4', 'Porque en mis ojos fuiste de grande estima, fuiste honorable, y yo te amé.'), V('Lc 12:7', 'Pues aun los cabellos de vuestra cabeza están todos contados. No temáis pues: de más estima sois que muchos pajarillos.'), V('1Jn 3:1', 'Mirad cuál amor nos ha dado el Padre, que seamos llamados hijos de Dios.'), V('Ef 2:10', 'Porque somos hechura suya, criados en Cristo Jesús para buenas obras, las cuales Dios preparó para que anduviésemos en ellas.'), V('Ro 8:38-39', 'Ni lo alto, ni lo bajo, ni ninguna criatura nos podrá apartar del amor de Dios, que es en Cristo Jesús Señor nuestro.')],
+        declaro: ['Soy hechura de Dios, hecho con intención y para buenas obras.', 'Mi valor no depende de mi rendimiento ni de la opinión de otros.', 'Soy amado antes de hacer nada para merecerlo.'],
+        oracion: [['Padre, hoy me siento poco por… (dilo sin adornos)', 45], ['Tú me formaste con intención: «formidables, maravillosas son tus obras»', 45], ['Mi valor está en tu amor, no en mi rendimiento ni en lo que otros opinen', 45], ['Me trato hoy como tú me tratas: con misericordia y verdad', 45], ['Amén. Soy tu hijo, y basta', 20]] },
+      { k: 'identidad', n: 'Visión de mí mismo', d: 'Para recordar quién eres y hacia dónde vas, cuando te defines por errores, roles o etiquetas.', versos: [V('2Co 5:17', 'De modo que si alguno está en Cristo, nueva criatura es: las cosas viejas pasaron; he aquí todas son hechas nuevas.'), V('1P 2:9', 'Mas vosotros sois linaje escogido, real sacerdocio, gente santa, pueblo adquirido, para que anunciéis las virtudes de aquel que os ha llamado de las tinieblas a su luz admirable.'), V('Jer 1:5', 'Antes que te formase en el vientre te conocí, y antes que salieses de la matriz te santifiqué.'), V('Jn 15:15', 'Ya no os llamaré siervos; mas os he llamado amigos.'), V('Fil 1:6', 'Estando confiado de esto, que el que comenzó en vosotros la buena obra, la perfeccionará hasta el día de Jesucristo.'), V('Mt 5:14', 'Vosotros sois la luz del mundo.')],
+        declaro: ['Soy nueva criatura: lo viejo pasó.', 'Soy escogido, amigo de Dios, luz donde estoy.', 'Dios terminará la obra que empezó en mí; yo pongo hoy mi parte.'],
+        oracion: [['Señor, las etiquetas con las que me defino son… (nómbralas)', 45], ['Tú dices otra cosa: nueva criatura, escogido, amigo, luz', 45], ['Elijo verme como tú me ves y vivir hoy desde ahí', 45], ['Dime quién soy y hacia dónde voy; muéstrame el siguiente paso', 45], ['Amén. «Soy una persona que…»: completa la frase y vive así hoy', 20]] },
+    ], mente: 'afirmacion' },
+  { k: 'paz', n: 'Paz', d: 'Ansiedad, prisa, la mente que no para, dificultad para dormir.', versos: [V('Fil 4:6-7', 'Por nada estéis afanosos; sino sean notorias vuestras peticiones delante de Dios en toda oración y ruego, con hacimiento de gracias. Y la paz de Dios, que sobrepuja todo entendimiento, guardará vuestros corazones y vuestros entendimientos en Cristo Jesús.'), V('Mt 6:34', 'Así que, no os congojéis por el día de mañana; que el día de mañana traerá su fatiga: basta al día su afán.'), V('Is 26:3', 'Tú le guardarás en completa paz, cuyo pensamiento en ti persevera; porque en ti se ha confiado.'), V('Sal 4:8', 'En paz me acostaré, y asimismo dormiré; porque solo tú, Jehová, me harás estar confiado.'), V('1P 5:7', 'Echando toda vuestra solicitud en él, porque él tiene cuidado de vosotros.')],
+    oracion: [['Señor, esto es lo que me tiene en vilo (una cosa, en una frase)', 45], ['Lo pongo delante de ti con petición y con gracias', 45], ['Tu paz guarda mi corazón y mi mente: respiro despacio, tres veces', 60], ['Basta a hoy su afán: suelto lo de mañana', 45], ['Amén. En paz me acostaré, en paz seguiré', 15]], mente: 'suspiro' },
+  { k: 'fortaleza', n: 'Fortaleza', d: 'Tentación, impulsos, pereza, un hábito que quieres romper o uno que quieres sostener.', versos: [V('1Co 10:13', 'No os ha tomado tentación, sino humana: mas fiel es Dios, que no os dejará ser tentados más de lo que podéis llevar; antes dará también juntamente con la tentación la salida, para que podáis aguantar.'), V('Ga 5:22-23', 'Mas el fruto del Espíritu es: caridad, gozo, paz, tolerancia, benignidad, bondad, fe, mansedumbre, templanza.'), V('Sal 119:11', 'En mi corazón he guardado tus dichos, para no pecar contra ti.'), V('Pr 25:28', 'Como ciudad derribada y sin muro, es el hombre cuyo espíritu no tiene rienda.'), V('Ro 12:2', 'Y no os conforméis a este siglo; mas reformaos por la renovación de vuestro entendimiento.'), V('Stg 4:7', 'Someteos pues a Dios; resistid al diablo, y de vosotros huirá.')],
+    oracion: [['Señor, mi lucha de hoy es… (nómbrala con verdad)', 45], ['Tú das la salida junto con la tentación: muéstramela', 45], ['Guardo tu palabra en el corazón: repite un versículo escudo', 45], ['Dame templanza para el próximo momento, no para toda la vida', 45], ['Amén. Si aparece, entonces… (di tu plan)', 20]], mente: 'tentacion' },
+  { k: 'direccion', n: 'Dirección', d: 'Una decisión, una encrucijada, no saber qué hacer.', versos: [V('Stg 1:5', 'Y si alguno de vosotros tiene falta de sabiduría, demándela a Dios, el cual da a todos abundantemente, y no zahiere; y le será dada.'), V('Sal 32:8', 'Te haré entender, y te enseñaré el camino en que debes andar: sobre ti fijaré mis ojos.'), V('Pr 16:9', 'El corazón del hombre piensa su camino: mas Jehová endereza sus pasos.'), V('Is 30:21', 'Entonces tus oídos oirán a tus espaldas palabra que diga: Este es el camino, andad por él.'), V('Sal 119:105', 'Lámpara es a mis pies tu palabra, y lumbrera a mi camino.')],
+    oracion: [['Señor, la decisión que tengo delante es…', 45], ['Pido sabiduría: tú la das sin reproche', 45], ['¿Qué opción se parece más a tu palabra y a tu amor? Escucha en silencio', 60], ['Si me equivoco, tú enderezas mis pasos: me quito el miedo a decidir', 45], ['Amén. Un paso que puedo dar hoy', 15]], mente: 'decision' },
+  { k: 'perdon', n: 'Perdón', d: 'Rencor que vuelve, culpa que pesa, una relación rota.', versos: [V('Mt 6:14', 'Porque si perdonareis a los hombres sus ofensas, os perdonará también a vosotros vuestro Padre celestial.'), V('Col 3:13', 'De la manera que Cristo os perdonó, así también hacedlo vosotros.'), V('Ef 4:32', 'Antes sed los unos con los otros benignos, misericordiosos, perdonándoos los unos a los otros, como también Dios os perdonó en Cristo.'), V('1Jn 1:9', 'Si confesamos nuestros pecados, él es fiel y justo para que nos perdone nuestros pecados, y nos limpie de toda maldad.'), V('Sal 103:12', 'Cuanto está lejos el oriente del occidente, hizo alejar de nosotros nuestras rebeliones.')],
+    oracion: [['Señor, lo que me cuesta perdonar (o perdonarme) es…', 45], ['Tú me perdonaste primero: recibo ese perdón ahora', 45], ['Elijo perdonar como fui perdonado; oro por esa persona', 60], ['Si vuelve el rencor, vuelvo a soltarlo en tus manos', 45], ['Amén. Mis rebeliones están lejos como el oriente del occidente', 15]], mente: 'perdon' },
+  { k: 'gratitud', n: 'Gratitud', d: 'Para ver lo bueno que ya hay, y para los días en que todo parece poco.', versos: [V('1Ts 5:16-18', 'Estad siempre gozosos. Orad sin cesar. Dad gracias en todo; porque esta es la voluntad de Dios para con vosotros en Cristo Jesús.'), V('Fil 4:4', 'Gozaos en el Señor siempre: otra vez os digo: Que os gocéis.'), V('Sal 118:24', 'Este es el día que hizo Jehová; nos gozaremos y alegraremos en él.'), V('Sal 100:4', 'Entrad por sus puertas con reconocimiento, por sus atrios con alabanza: alabadle, bendecid su nombre.'), V('Stg 1:17', 'Toda buena dádiva y todo don perfecto es de lo alto, que desciende del Padre de las luces.')],
+    oracion: [['Gracias, Señor, por tres cosas concretas de hoy (dilas)', 60], ['Gracias por una persona, por su nombre', 45], ['Gracias por algo difícil que me está enseñando', 45], ['Este es el día que tú hiciste: me alegro en él', 30], ['Amén', 10]], mente: 'gracias' },
+];
+const MENTE_EXTRA = [
+  { k: 'mejor_yo', tipo: 'mente', n: 'Mi mejor yo posible', d: 'Escribe 5 minutos cómo sería tu vida dentro de un año si todo saliera lo mejor posible en lo que depende de ti.', form: true, sci: 'Escribir sobre el «mejor yo posible» aumenta el optimismo y el ánimo en ensayos (King, 2001, PSPB; Meevissen et al., 2011, J. Behavior Therapy and Experimental Psychiatry).' },
+  { k: 'autocompasion', tipo: 'mente', n: 'Pausa de autocompasión', d: 'Tres frases para tratarte como tratarías a un amigo que sufre.', min: [3], pasos: [['Mano en el pecho. Reconoce: «Esto duele. Es un momento difícil»', 60], ['«Sufrir es parte de ser humano. No estoy solo en esto»', 60], ['«Que yo sea amable conmigo. Que me dé lo que necesito ahora»', 60]], sci: 'La autocompasión reduce ansiedad y depresión y sostiene mejor que la autoestima basada en logros (Neff, 2011; Ferrari et al., 2019, Mindfulness, metaanálisis).' },
+  { k: 'afirmacion', tipo: 'mente', n: 'Afirmar lo que valoro', d: 'Elige tu valor más importante y escribe por qué importa y cómo lo viviste esta semana.', form: true, sci: 'Afirmar los propios valores protege la autoestima bajo amenaza y mejora el rendimiento (Cohen y Sherman, 2014, Annual Review of Psychology). Las metas ligadas a la identidad se sostienen más (Oyserman, 2009).' },
+  { k: 'tentacion', tipo: 'mente', n: 'Plan contra la tentación', d: 'Un «si…, entonces…» para el momento exacto en que aparece el impulso.', form: true, sci: 'Las intenciones de implementación protegen las metas frente a tentaciones e impulsos (Gollwitzer y Sheeran, 2006).' },
+  { k: 'decision', tipo: 'mente', n: 'Decidir con distancia', d: '¿Qué le aconsejarías a un amigo en tu situación? Opciones, lo mejor y lo peor de cada una, y qué dice tu valor principal.', form: true, sci: 'Razonamos con más sabiduría sobre los problemas de otros que sobre los propios; tomar distancia lo corrige (Grossmann y Kross, 2014, Psychological Science).' },
+];
+PRACTICAS.push(...MENTE_EXTRA);
+function escenarioDe(k) { for (const e of ESCENARIOS) { if (e.k === k) return e; const s = (e.sub || []).find(x => x.k === k); if (s) return { ...s, padre: e }; } return null; }
+function escenarioSheet(k, subk = '') {
+  const E = escenarioDe(k); if (!E) return;
+  const S = E.sub ? (E.sub.find(x => x.k === subk) || E.sub[0]) : E, mente = prDe(E.mente || E.padre?.mente);
+  showSheet(`<h2>${esc(E.n)}${E.sub ? ` · ${esc(S.n)}` : ''}</h2><p class="note">${esc(S.d)}</p>
+    ${E.sub ? `<div class="chips" style="margin-bottom:14px">${E.sub.map(x => `<button class="chip${x.k === S.k ? ' on' : ''}" data-sub="${x.k}">${esc(x.n)}</button>`).join('')}</div>` : ''}
+    <h3 style="margin-top:4px">La Palabra</h3>
+    ${S.versos.map(([r, t]) => `<p style="margin:0 0 10px"><span style="font-size:1.02rem">«${esc(t)}»</span><br><a class="link" href="${YV(r)}" target="_blank" rel="noopener">${esc(refTxt(r))}</a></p>`).join('')}
+    ${S.declaro ? `<h3>Declaro</h3><ul class="pros">${S.declaro.map(t => `<li>${esc(t)}</li>`).join('')}</ul><p class="meta">Dilo en voz baja, despacio, una vez por frase. Afirmar quién eres cambia cómo actúas (Cohen y Sherman, 2014).</p>` : ''}
+    <div class="actions stack">
+      <button class="primary" id="es-orar">Orar con esto · ${Math.round(S.oracion.reduce((a, p) => a + p[1], 0) / 60)} min</button>
+      ${mente ? `<button class="outline" id="es-mente">Para la mente: ${esc(mente.n)}</button>` : ''}
+      <button class="link" id="es-close">Cerrar</button>
+    </div>
+    <p class="meta" style="text-align:left">Versículos de la Reina-Valera 1909 (dominio público); el enlace abre la RVR1960.</p>`);
+  $('#sheet-body').querySelectorAll('[data-sub]').forEach(b => b.onclick = () => escenarioSheet(k, b.dataset.sub));
+  $('#es-orar').onclick = () => { closeSheet(); practicaRun({ k: 'esc_' + S.k, tipo: 'espiritu', n: `Oración: ${S.n}`, pasos: S.oracion, min: [Math.max(1, Math.round(S.oracion.reduce((a, p) => a + p[1], 0) / 60))] }, Math.max(1, Math.round(S.oracion.reduce((a, p) => a + p[1], 0) / 60))); };
+  $('#es-mente')?.addEventListener('click', () => practicaSheet(mente));
+  $('#es-close').onclick = closeSheet;
+}
+function practicaFormExtra(pr) {
+  if (pr.k === 'mejor_yo') {
+    showSheet(`<h2>Mi mejor yo posible</h2><p class="sci">${esc(pr.sci)}</p>
+      <p class="note">Dentro de un año, si todo saliera lo mejor posible en lo que depende de ti: ¿cómo es tu día, tu trabajo, tus relaciones, tu fe? Escribe en presente, con detalle, 5 minutos sin parar.</p>
+      <textarea id="my-t" rows="8" style="min-height:180px;border:1px solid var(--line);border-radius:12px;padding:10px 12px"></textarea>
+      <div class="actions"><button class="link" id="my-cancel">Cerrar</button><button class="primary" id="my-ok">Guardar</button></div>`);
+    setTimeout(() => $('#my-t').focus(), 50);
+    $('#my-cancel').onclick = closeSheet;
+    $('#my-ok').onclick = () => { const t = $('#my-t').value.trim(); if (!t) { $('#my-t').focus(); return; } ES.diario.push({ id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: 'Mi mejor yo posible', txt: t, animo: 0, cambiado: Date.now() }); practicaRegistrar(pr, 5, true); closeSheet(); toast('Guardado en el Diario. Reléelo cuando falte esperanza.'); };
+    return true;
+  }
+  if (pr.k === 'afirmacion') {
+    const VAL = ['Mi fe', 'Mi familia', 'La honestidad', 'Servir a otros', 'Aprender', 'El trabajo bien hecho', 'La amistad', 'La libertad', 'La creatividad', 'La salud'];
+    showSheet(`<h2>Afirmar lo que valoro</h2><p class="sci">${esc(pr.sci)}</p>
+      <div class="field"><label>Mi valor más importante</label><div class="chips" id="af-v">${VAL.map(v => `<button class="chip" data-v="${v}">${v}</button>`).join('')}</div><input id="af-t" maxlength="60" placeholder="U otro" style="margin-top:8px"></div>
+      <div class="field"><label>Por qué importa para mí</label><input id="af-p" maxlength="200"></div>
+      <div class="field"><label>Una vez esta semana en que lo viví</label><input id="af-e" maxlength="200"></div>
+      <div class="field"><label>«Soy una persona que…»</label><input id="af-i" maxlength="120" placeholder="cumple lo que promete / cuida a los suyos / sirve con alegría"></div>
+      <div class="actions"><button class="link" id="af-cancel">Cerrar</button><button class="primary" id="af-ok">Guardar</button></div>`);
+    $('#af-v').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; $('#af-t').value = c.dataset.v; $('#af-v').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+    $('#af-cancel').onclick = closeSheet;
+    $('#af-ok').onclick = () => { const v = $('#af-t').value.trim(), i = $('#af-i').value.trim(); if (!v) { $('#af-t').focus(); return; }
+      ES.diario.push({ id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: 'Afirmar lo que valoro', txt: `Valor: ${v}\nPor qué: ${$('#af-p').value.trim()}\nLo viví: ${$('#af-e').value.trim()}${i ? `\nSoy una persona que ${i}` : ''}`, animo: 0, cambiado: Date.now() });
+      if (i) ES.identidad = i; practicaRegistrar(pr, 4, true); closeSheet(); };
+    return true;
+  }
+  if (pr.k === 'tentacion') {
+    const [vref, vtxt] = versiculoSemana();
+    showSheet(`<h2>Plan contra la tentación</h2><p class="sci">${esc(pr.sci)}</p>
+      <div class="field"><label>Si… (la situación exacta en que aparece)</label><input id="tt-si" maxlength="120" placeholder="Si estoy solo en casa a las 11 de la noche con el teléfono"></div>
+      <div class="field"><label>Entonces… (la acción concreta, en 10 segundos)</label><input id="tt-en" maxlength="120" placeholder="dejo el teléfono en la cocina y abro la Biblia / salgo a caminar"></div>
+      <div class="field"><label>Versículo escudo</label><input id="tt-v" maxlength="200" value="${esc(vtxt)} (${esc(refTxt(vref))})"></div>
+      <div class="actions"><button class="link" id="tt-cancel">Cerrar</button><button class="primary" id="tt-ok">Guardar</button></div>`);
+    $('#tt-cancel').onclick = closeSheet;
+    $('#tt-ok').onclick = () => { const si = $('#tt-si').value.trim(), en = $('#tt-en').value.trim(); if (!si || !en) { (si ? $('#tt-en') : $('#tt-si')).focus(); return; }
+      ES.planesTentacion = [...(ES.planesTentacion || []).slice(-9), { id: crypto.randomUUID(), si, en, v: $('#tt-v').value.trim(), d: today() }];
+      ES.diario.push({ id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: 'Plan contra la tentación', txt: `Si ${si}, entonces ${en}.\n${$('#tt-v').value.trim()}`, animo: 0, cambiado: Date.now() });
+      practicaRegistrar(pr, 3, true); closeSheet(); toast('Plan guardado. Repítelo una vez al día hasta que salga solo.'); };
+    return true;
+  }
+  if (pr.k === 'decision') {
+    showSheet(`<h2>Decidir con distancia</h2><p class="sci">${esc(pr.sci)}</p>
+      <div class="field"><label>La decisión</label><input id="dc-q" maxlength="160"></div>
+      <div class="field"><label>Opción A: lo mejor y lo peor que puede pasar</label><input id="dc-a" maxlength="200"></div>
+      <div class="field"><label>Opción B: lo mejor y lo peor que puede pasar</label><input id="dc-b" maxlength="200"></div>
+      <div class="field"><label>Si un amigo estuviera en mi lugar, le diría…</label><input id="dc-am" maxlength="200"></div>
+      <div class="field"><label>¿Qué opción se parece más a mi valor principal y a la Palabra?</label><input id="dc-v" maxlength="160"></div>
+      <div class="actions"><button class="link" id="dc-cancel">Cerrar</button><button class="primary" id="dc-ok">Guardar</button></div>`);
+    $('#dc-cancel').onclick = closeSheet;
+    $('#dc-ok').onclick = () => { const q = $('#dc-q').value.trim(); if (!q) { $('#dc-q').focus(); return; }
+      ES.diario.push({ id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: 'Decidir con distancia', txt: `Decisión: ${q}\nA: ${$('#dc-a').value.trim()}\nB: ${$('#dc-b').value.trim()}\nA un amigo le diría: ${$('#dc-am').value.trim()}\nMi valor y la Palabra: ${$('#dc-v').value.trim()}`, animo: 0, cambiado: Date.now() });
+      practicaRegistrar(pr, 5, true); closeSheet(); toast('Guardado en el Diario. Decide con eso, y si te equivocas, él endereza tus pasos.'); };
+    return true;
+  }
+  return false;
 }
 
 // ====================================================================
