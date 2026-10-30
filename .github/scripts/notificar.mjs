@@ -73,9 +73,12 @@ function avisos(st, tz, prefs, desde, hasta) {
       out.push({ title: 'Cierre del día', body: `${d.enfoque || 0} min de enfoque · ${d.iniciativas || 0} iniciativas · resististe ${(d.resistidas || 0) + (d.alternativas || 0)} veces.\n¿Tres cosas buenas de hoy?`, tag: 'noche', url: './?v=enfoque' });
     }
     if (prefs.semana !== false && w === 0 && en(fecha, '08:30')) out.push({ title: 'Nuevo comienzo: revisión semanal', body: 'Diez minutos: logros, siguientes pasos con día y hora, y a quién escribir.', tag: 'semana', url: './?v=enfoque' });
-    if (prefs.semana !== false && w === 2 && en(fecha, '12:00')) {
-      const I = E.iniciativas4?.items || [], falt = ['estudio', 'proyecto', 'laboral', 'social'].filter((k, i) => !I[i]?.hecho);
-      if (falt.length) out.push({ title: 'Tus 4 iniciativas de la semana', body: `Pendientes: ${falt.join(', ')}. Cada una vale 30 XP; las cuatro, +50.`, tag: 'ini4', url: './?v=enfoque' });
+    if (prefs.mediodia !== false && en(fecha, '16:00')) {
+      const I = E.iniciativas4?.dia === fecha ? E.iniciativas4.items || [] : [], min = E.minIni || 2, hechas = I.filter(x => x.hecho).length;
+      const minSoc = E.minSocial || 6, dias = E.dias || {}, wdl = wd(fecha), lunesK = new Date(Date.parse(fecha + 'T12:00Z') - wdl * 864e5).toISOString().slice(0, 10);
+      const socDias = Object.keys(dias).filter(k => k >= lunesK && k <= fecha && (dias[k].ini_social || 0) > 0).length, quedan = 7 - wdl - ((dias[fecha]?.ini_social || 0) > 0 ? 1 : 0);
+      if (socDias < minSoc && minSoc - socDias >= quedan && !((dias[fecha]?.ini_social || 0) > 0)) out.push({ title: `Social: ${socDias} de ${minSoc} días esta semana`, body: 'Hoy cuenta para llegar al mínimo: un mensaje, una llamada o un plan que propongas tú.', tag: 'social6', url: './?v=enfoque' });
+      if (hechas < min) out.push({ title: `Iniciativas: ${hechas} de ${min} hoy`, body: `Faltan ${min - hechas}. ${I.filter(x => x.t && !x.hecho).map(x => x.t).join(' · ') || 'Elige entre estudio, proyecto, laboral y social'}. Cada una vale 30 XP.`, tag: 'ini4', url: './?v=enfoque' });
     }
     if (prefs.semana !== false && w === 4 && en(fecha, '17:00')) out.push({ title: 'Gracias del viernes', body: 'Agradécele algo concreto a alguien. Le alegrará más de lo que imaginas.', tag: 'viernes', url: './?v=enfoque' });
   }

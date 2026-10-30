@@ -639,7 +639,9 @@ function normEnfoque(e) {
   for (const k of ['animo', 'buenas', 'misiones']) for (const x of e[k]) x.id ||= crypto.randomUUID();
   for (const p of e.personas) p.horas = +p.horas || 0;
   e.laboral ||= { semana: '', items: [] };   // (versión anterior: solo laboral)
-  e.iniciativas4 ||= { semana: '', items: [] };
+  e.iniciativas4 ||= { dia: '', items: [] };
+  e.minIni = [1, 2, 3, 4].includes(+e.minIni) ? +e.minIni : 2;
+  e.minSocial = [3, 4, 5, 6, 7].includes(+e.minSocial) ? +e.minSocial : 6;
   e.pacto ||= { semana: '', texto: '' };
   e.reto7 ||= { inicio: '' };
   e.retoInicio ||= hoy;
@@ -2977,9 +2979,9 @@ function renderIni() {
   const mi = misionHoy(), hecha = ES.misiones.some(x => x.d === today());
   rows.push(`<button class="row" data-man="mision"><span class="dot" style="--c:${hecha ? 'var(--empty)' : 'var(--green)'}"></span>
     <span class="t"><div style="${hecha ? 'text-decoration:line-through;color:var(--muted)' : ''}">${esc(mi.t)}</div><small>${reto7Dia() ? `Reto de desconocidos · día ${reto7Dia()} de 7` : 'Misión social de hoy'}</small></span><span class="tag">${hecha ? 'Hecha' : 'Misión'}</span></button>`);
-  const I4 = ini4Semana(), ih = I4.items.filter(x => x.hecho).length;
-  rows.push(`<button class="row" data-man="ini4"><span class="dot" style="--c:${ih === 4 ? 'var(--green)' : 'var(--text)'}"></span>
-    <span class="t"><div>Las 4 iniciativas de la semana</div><small>${INI4.map(([k, n], i) => `${n}${I4.items[i]?.hecho ? ' ✓' : ''}`).join(' · ')}</small></span><span class="tag">${ih} de 4</span></button>`);
+  const I4 = ini4Semana(), ih = I4.items.filter(x => x.hecho).length, ri = rachaIni();
+  rows.unshift(`<button class="row" data-man="ini4"><span class="dot" style="--c:${ih >= ES.minIni ? 'var(--green)' : 'var(--red)'}"></span>
+    <span class="t"><div>Las 4 iniciativas de hoy${ri > 1 ? ` · racha ${ri}` : ''}</div><small>${INI4.map(([k, n], i) => `${n}${I4.items[i]?.hecho ? ' ✓' : ''}`).join(' · ')}${ih < ES.minIni ? ` · faltan ${ES.minIni - ih} para el mínimo` : ''}${socialEnRiesgo() && !(dayOf().ini_social > 0) ? ` · <span class="red">social hoy (${socialDiasSemana()}/${ES.minSocial} esta semana)</span>` : ''}</small></span><span class="tag" style="${ih >= ES.minIni ? 'color:var(--green)' : ''}">${ih} de 4</span></button>`);
   for (const pl of prox.slice(0, 2)) rows.push(`<button class="row" data-plan="${esc(pl.id)}"><span class="dot" style="--c:var(--muted)"></span>
     <span class="t"><div>${esc(cap(pl.titulo))}${pl.con ? ' con ' + esc(pl.con) : ''}</div><small>${fmtFecha(pl.fecha)} · ${fmtHora(pl.hora)}</small></span><span class="tag">Plan</span></button>`);
   const hoyD = new Date(), nuevo = (wd(today()) === 0 || hoyD.getDate() === 1) && ES.revision !== today();
@@ -3311,7 +3313,7 @@ function revisionSemanal() {
     <h3>3. Prioridades</h3>
     <p class="meta">Ordena tus proyectos por prioridad: solo uno o dos en «Alta». ${prs.filter(p => p.prioridad === 1).length > 2 ? '<span class="amber">Ahora tienes ' + prs.filter(p => p.prioridad === 1).length + ' en alta: elige.</span>' : ''}</p>
     <h3>4. Las 4 iniciativas</h3>
-    <p class="meta">${ini4Semana().items.filter(x => x.hecho).length} de 4 hechas la semana pasada. Define las de esta semana: estudio, proyecto, laboral y social. <button class="link" id="rv-ini4">Definirlas</button></p>
+    <p class="meta">La semana pasada: ${ks.reduce((a, k) => a + (dayOf(k).ini4 || 0), 0)} iniciativas en 7 días (mínimo ${ES.minIni} al día = ${ES.minIni * 7}). Social: ${ks.filter(k => (dayOf(k).ini_social || 0) > 0).length} de 7 días (mínimo ${ES.minSocial}). Racha actual: ${rachaIni()} ${rachaIni() === 1 ? 'día' : 'días'}. <button class="link" id="rv-ini4">Las de hoy</button></p>
     <h3>5. Personas</h3>
     <p class="meta">${personasDue().length ? `Te toca escribir a ${personasDue().slice(0, 4).map(p => esc(p.nombre)).join(', ')}.` : 'Estás al día con tus círculos.'} Meta: ${ES.metaSemanal} iniciativas esta semana.</p>
     <h3>6. Pacto de la semana</h3>
@@ -3456,7 +3458,7 @@ function misionSheet() {
   $('#mi-reto')?.addEventListener('click', () => { ES.reto7 = { inicio: today() }; guardar(); renderE(); misionSheet(); });
   $('#mi-ok').onclick = closeSheet;
 }
-// ---------- Las 4 iniciativas de la semana: estudio, proyecto, laboral y social. Mismo peso, mismo XP (30).
+// ---------- Las 4 iniciativas del día: estudio, proyecto, laboral y social. Mismo peso, mismo XP (30). Mínimo 2 al día.
 // La proactividad nace de «puedo» (un primer paso pequeño), «quiero» (por qué importa) y «tengo energía» (Parker, Bindl y Strauss, 2010);
 // entrenar la iniciativa personal mejora resultados reales (Campos et al., 2017). Un plan con día y hora se cumple mucho más (Milkman et al., 2011).
 const INI4 = [
@@ -3466,8 +3468,19 @@ const INI4 = [
   ['social', 'Social', 'Un plan, una llamada o una conversación que propones tú', 'Con quién y para qué'],
 ];
 const XP_INI = 30;
+const iniHechasHoy = () => ini4Semana().items.filter(x => x.hecho).length;
+// Social: días de esta semana (lunes a hoy) con la iniciativa social hecha, y cuántos días quedan para llegar al mínimo semanal.
+const socialDiasSemana = () => semanaKeys().filter(k => (dayOf(k).ini_social || 0) > 0).length;
+const socialQuedan = () => 7 - wd(today()) - 1 + ((dayOf().ini_social || 0) > 0 ? 0 : 1);   // días que aún pueden contar (hoy incluido si no se hizo)
+const socialEnRiesgo = () => socialDiasSemana() < ES.minSocial && ES.minSocial - socialDiasSemana() >= socialQuedan();
+// Días seguidos (hasta ayer, más hoy si ya llegó) con al menos el mínimo de iniciativas.
+function rachaIni() { let n = iniHechasHoy() >= ES.minIni ? 1 : 0; for (let i = 1; i < 400; i++) { const k = dayKey(addDays(new Date(), -i)); if ((ES.iniHist?.[k] || (dayOf(k).ini4 ? [1] : [])).length >= ES.minIni || (dayOf(k).ini4 || 0) >= ES.minIni) n++; else break; } return n; }
 function ini4Semana() {
-  if (ES.iniciativas4.semana !== lunes()) ES.iniciativas4 = { semana: lunes(), items: INI4.map(([k]) => ({ k, t: '', por: '', paso: '', cuando: '', hora: '', hecho: false })) };
+  // Cada día empiezan de cero; lo de ayer se guarda en el historial (para la racha y para «Tus datos»).
+  if (ES.iniciativas4.dia !== today()) {
+    if (ES.iniciativas4.dia && ES.iniciativas4.items?.some(x => x.hecho)) { ES.iniHist ||= {}; ES.iniHist[ES.iniciativas4.dia] = ES.iniciativas4.items.filter(x => x.hecho).map(x => x.k); }
+    ES.iniciativas4 = { dia: today(), items: INI4.map(([k]) => ({ k, t: '', por: '', paso: '', cuando: '', hora: '', hecho: false })) };
+  }
   while (ES.iniciativas4.items.length < 4) ES.iniciativas4.items.push({ k: INI4[ES.iniciativas4.items.length][0], t: '', por: '', paso: '', cuando: '', hora: '', hecho: false });
   return ES.iniciativas4;
 }
@@ -3479,11 +3492,20 @@ function ini4Sugerencias(k) {
   if (k === 'estudio') return (p?.habits || []).filter(h => /leer|estudi|curso|aprend|practic|idioma|ingl/i.test(h.nombre)).slice(0, 2).map(h => h.nombre);
   return [];
 }
+// Premios por iniciativa: cada una, el mínimo del día y las cuatro.
+function iniPremios(I) {
+  const h = I.items.filter(y => y.hecho).length, ultima = I.items.find(y => y.hecho && !y.premiada);
+  if (ultima) { ultima.premiada = true; xpGanar(XP_INI, `Iniciativa de ${INI4.find(([k]) => k === ultima.k)[1].toLowerCase()}`); }
+  if (h >= ES.minIni && !I.minimo) { I.minimo = true; setTimeout(() => { xpGanar(40, `Mínimo del día: ${ES.minIni} iniciativas`); buzz([40, 60, 40]); }, 1200); }
+  if (h === 4 && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 4 iniciativas del día'), 2400); }
+  if (socialDiasSemana() >= ES.minSocial && !ES.socialBonus?.[lunes()]) { ES.socialBonus = { [lunes()]: true }; setTimeout(() => xpGanar(60, `Social ${ES.minSocial} días esta semana`), 3600); }
+}
 function ini4Sheet(abrir = -1) {
-  const I = ini4Semana(), hechas = I.items.filter(x => x.hecho).length;
-  showSheet(`<h2>Las 4 iniciativas de la semana</h2>
-    <p class="sci">Cuatro frentes, el mismo peso: estudio, proyecto, trabajo y social. Cada una vale ${XP_INI} XP y las cuatro juntas, +50. Escribe qué, por qué importa y el primer paso de 5 minutos; ponle día y hora y se cumple el doble (Milkman et al., 2011).</p>
-    <div class="meter"><span>Esta semana</span><b>${hechas} de 4</b></div><div class="meter-bar"><i style="width:${hechas * 25}%"></i></div>
+  const I = ini4Semana(), hechas = I.items.filter(x => x.hecho).length, r = rachaIni();
+  showSheet(`<h2>Las 4 iniciativas de hoy</h2>
+    <p class="sci">Cuatro frentes, el mismo peso: estudio, proyecto, trabajo y social. Mínimo ${ES.minIni} al día (+${XP_INI} XP cada una, +40 al llegar al mínimo, +50 más por las cuatro). Qué, por qué importa y el primer paso de 5 minutos; con hora se cumple el doble (Milkman et al., 2011).</p>
+    <div class="meter"><span>Hoy${r ? ` · racha de ${r} ${r === 1 ? 'día' : 'días'}` : ''}</span><b class="${hechas >= ES.minIni ? 'green' : ''}">${hechas} de 4 · mínimo ${ES.minIni}</b></div><div class="meter-bar"><i style="width:${hechas * 25}%;${hechas >= ES.minIni ? '' : 'background:var(--amber)'}"></i></div>
+    <div class="meter"><span>Social esta semana (mínimo ${ES.minSocial} días)</span><b class="${socialDiasSemana() >= ES.minSocial ? 'green' : socialEnRiesgo() ? 'red' : ''}">${socialDiasSemana()} de ${ES.minSocial}${socialEnRiesgo() && socialDiasSemana() < ES.minSocial ? ' · hoy cuenta' : ''}</b></div><div class="meter-bar"><i style="width:${Math.min(100, socialDiasSemana() / ES.minSocial * 100)}%;${socialEnRiesgo() && socialDiasSemana() < ES.minSocial ? 'background:var(--red)' : ''}"></i></div>
     ${I.items.map((x, i) => { const [k, n, d, ph] = INI4[i], sug = ini4Sugerencias(k).filter(t => t !== x.t), open = abrir === i || (abrir < 0 && !x.hecho && !x.t && i === I.items.findIndex(y => !y.hecho && !y.t));
       return `<div class="rows"><button class="row" data-open="${i}"><span class="box" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></span>
         <span class="t"><div>Iniciativa de ${n.toLowerCase()}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</div><small style="white-space:normal">${x.t ? esc(x.t) + (x.cuando ? ` · ${fmtFecha(x.cuando)}${x.hora ? ' ' + fmtHora(x.hora) : ''}` : '') : esc(d)}</small></span><span class="tag">${open ? '▾' : '›'}</span></button></div>
@@ -3492,9 +3514,9 @@ function ini4Sheet(abrir = -1) {
         <div class="field"><input data-f="t" data-i="${i}" maxlength="100" value="${esc(x.t)}" placeholder="${esc(ph)}"></div>
         <div class="field"><input data-f="por" data-i="${i}" maxlength="100" value="${esc(x.por)}" placeholder="¿Por qué importa?"></div>
         <div class="field"><input data-f="paso" data-i="${i}" maxlength="100" value="${esc(x.paso)}" placeholder="Primer paso de menos de 5 minutos"></div>
-        <div class="times"><div class="field"><label>Día</label><input data-f="cuando" data-i="${i}" type="date" value="${esc(x.cuando)}"></div><div class="field"><label>Hora</label><input data-f="hora" data-i="${i}" type="time" value="${esc(x.hora)}"></div></div>
+        <div class="field"><label>¿A qué hora hoy?</label><input data-f="hora" data-i="${i}" type="time" value="${esc(x.hora)}"></div>
         <div class="chips"><button class="chip${x.hecho ? ' on' : ''}" data-done="${i}">${x.hecho ? 'Hecha' : `Marcar hecha · +${XP_INI} XP`}</button>
-          ${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl('Iniciativa de ' + n.toLowerCase() + ': ' + x.t, x.cuando || dayKey(addDays(new Date(), 1)), x.hora || '09:00', 30)}">Agendar</a>` : ''}</div>
+          ${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl('Iniciativa de ' + n.toLowerCase() + ': ' + x.t, today(), x.hora || '18:00', 30)}">Agendar</a>` : ''}</div>
       </div>`; }).join('')}
     <div class="actions"><button class="primary" id="i4-ok">Guardar</button></div>`);
   const body = $('#sheet-body');
@@ -3503,7 +3525,7 @@ function ini4Sheet(abrir = -1) {
   body.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { body.querySelector(`[data-f="t"][data-i="${b.dataset.sug}"]`).value = b.dataset.t; });
   body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
     leer(); const i = +b.dataset.done, x = I.items[i]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1);
-    if (x.hecho) { xpGanar(XP_INI, `Iniciativa de ${INI4[i][1].toLowerCase()}`); if (I.items.every(y => y.hecho) && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 4 iniciativas de la semana'), 1200); } }
+    if (x.hecho) { bump('ini4'); if (x.k === 'social') bump('ini_social'); iniPremios(I); } else { bump('ini4', -1); if (x.k === 'social') bump('ini_social', -1); }
     guardar(); renderE(); ini4Sheet(i);
   });
   $('#i4-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
@@ -3539,8 +3561,9 @@ function intervenciones() {
     h >= 20 && !ES.buenas.some(x => x.d === today()) && { id: 'buenas', t: 'Antes del último scroll', p: 'Tres cosas buenas de hoy, en un minuto. Mejor cierre que el feed.', sci: 'Seligman et al. (2005)', b: 'Escribirlas', a: () => buenasSheet() },
     retoDia() === 21 && { id: 'reto21', t: '21 días con tu presupuesto', p: 'Tres semanas reduciendo redes: es el tiempo que mostró menos soledad y depresión. Mira tus datos.', sci: 'Hunt et al. (2018)', b: 'Ver tus datos', a: () => datosSheet() },
     h >= 10 && h < 20 && !ES.misiones.some(x => x.d === today()) && { id: 'mision', t: 'Misión social de hoy', p: misionHoy().t, sci: misionHoy().tipo === 'desconocido' ? 'Sandstrom, Boothby y Cooney (2022)' : 'Hall et al. (2023)', b: 'Ver misión', a: () => misionSheet() },
-    dia >= 2 && ini4Semana().items.filter(x => x.t).length < 4 && { id: 'ini4', t: 'Tus 4 iniciativas de la semana', p: `Faltan por definir ${4 - ini4Semana().items.filter(x => x.t).length}: ${INI4.filter((_, i) => !ini4Semana().items[i].t).map(([, n]) => n.toLowerCase()).join(', ')}. Cada una vale ${XP_INI} XP; las cuatro, +50.`, sci: 'Parker, Bindl y Strauss (2010); Milkman et al. (2011)', b: 'Definirlas', a: () => ini4Sheet() },
-    dia >= 4 && ini4Semana().items.some(x => x.t && !x.hecho) && { id: 'ini4b', t: 'Iniciativas pendientes esta semana', p: ini4Semana().items.filter(x => x.t && !x.hecho).map((x, _, __) => x.t).join(' · '), sci: 'Parker, Bindl y Strauss (2010)', b: 'Verlas', a: () => ini4Sheet() },
+    h >= 9 && ini4Semana().items.filter(x => x.t).length < ES.minIni && { id: 'ini4', t: `Tus ${ES.minIni} iniciativas de hoy`, p: `Elige al menos ${ES.minIni} de las cuatro (estudio, proyecto, laboral, social) y ponles hora. Cada una vale ${XP_INI} XP; el mínimo, +40.`, sci: 'Parker, Bindl y Strauss (2010); Milkman et al. (2011)', b: 'Elegirlas', a: () => ini4Sheet() },
+    h >= 12 && socialEnRiesgo() && !(dayOf().ini_social > 0) && { id: 'social6', t: `Social: ${socialDiasSemana()} de ${ES.minSocial} días esta semana`, p: 'Para llegar al mínimo, la iniciativa social de hoy cuenta. Un mensaje, una llamada o un plan que propongas tú.', sci: 'Hall et al. (2023); Liu et al. (2023)', b: 'Hacerla ahora', a: () => ini4Sheet(3) },
+    h >= 16 && iniHechasHoy() < ES.minIni && ini4Semana().items.some(x => x.t && !x.hecho) && { id: 'ini4b', t: `Te faltan ${ES.minIni - iniHechasHoy()} para el mínimo de hoy`, p: ini4Semana().items.filter(x => x.t && !x.hecho).map(x => x.t).join(' · '), sci: 'Parker, Bindl y Strauss (2010)', b: 'Verlas', a: () => ini4Sheet() },
     enVentana() && { id: 'ventana', t: 'Estás en tu ventana de revisión', p: `Revisa redes y mensajes con calma hasta las ${fmtHora(addMin(enVentana(), ES.ventanaMin))}. Fuera de ella, la espera es el doble.`, sci: 'Fitz et al. (2019)', b: '', a: null },
     top && top[1] >= 3 && { id: 'emo', t: `Lo que más te empuja al teléfono: ${top[0].toLowerCase()}`, p: EMO_TIP[top[0]], sci: 'Throuvala et al. (2020)', b: 'Ver tus datos', a: () => datosSheet() },
   ].filter(Boolean);
@@ -3570,7 +3593,7 @@ function datosSheet() {
       <dt>Puerta</dt><dd>Resististe ${sum('resistidas') + sum('alternativas')} veces · abriste ${sum('aperturas')} · ~${fmtMin(sum('distraccion'))} en distracciones</dd>
       <dt>Lo que te empuja</dt><dd>${emo.length ? emo.map(([k, v]) => `${esc(k)} (${v})`).join(' · ') : 'Aún sin datos: marca qué sientes en la puerta.'}</dd>
       <dt>Prueba de realidad (FOMO)</dt><dd>${tot ? `En ${si} de ${tot} ocasiones había algo importante (${Math.round(si / tot * 100)} %).` : 'Aún sin datos.'}</dd>
-      <dt>Iniciativas</dt><dd>${sum('iniciativas')} en total · ${sum('pasos')} pasos de proyecto</dd>
+      <dt>Iniciativas</dt><dd>${sum('iniciativas')} en total · ${sum('ini4')} de las 4 diarias · racha de ${rachaIni()} días con el mínimo (${ES.minIni}) · social ${socialDiasSemana()} de ${ES.minSocial} días esta semana · ${sum('pasos')} pasos de proyecto</dd>
       <dt>Predicciones sociales</dt><dd>${b ? sesgoTxt(b) : 'Aún sin datos: predice antes de escribir a alguien.'}</dd>
       <dt>Desconocidos</dt><dd>${xs.length ? `${xs.filter(x => x.abierto).length} de ${xs.length} estaban abiertos a hablar.` : 'Aún sin datos.'}</dd>
       <dt>Tiempo con personas</dt><dd>${amig.length ? amig.map(p => `${esc(p.nombre)} ${fmtHoras(p.horas)}`).join(' · ') : 'Aún sin datos.'}</dd>
@@ -3618,7 +3641,7 @@ const CIENCIA = [
   ['Misión social del día', 'Una conversación de calidad al día con un amigo mejora el bienestar de ese día; cara a cara rinde más.', 'Hall et al. (2023), Communication Research'],
   ['Horas juntos', 'Hacen falta unas 50 horas para una amistad casual, 90 para amigos y más de 200 para buenos amigos.', 'Hall (2019), J. Social and Personal Relationships'],
   ['36 preguntas', 'Preguntas de apertura creciente aumentan la cercanía entre personas que acaban de conocerse.', 'Aron et al. (1997), Personality and Social Psychology Bulletin'],
-  ['Las 4 iniciativas de la semana', 'Estudio, proyecto, laboral y social, con el mismo peso. La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios un 30 %.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
+  ['Las 4 iniciativas del día', 'Estudio, proyecto, laboral y social, con el mismo peso y un mínimo diario. La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios un 30 %.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
   ['Ánimo antes y después', 'Actuar según el plan y no según el ánimo (activación conductual) mejora el ánimo; registrarlo lo hace visible.', 'Ekers et al. (2014), PLOS ONE'],
   ['Surfear el impulso', 'Observar las ganas sin actuar y tener un plan «si…, entonces…» para ese momento reduce la conducta impulsiva.', 'Gollwitzer y Sheeran (2006); Throuvala et al. (2020)'],
   ['Tres cosas buenas', 'Escribir cada noche tres cosas buenas y por qué aumentó la felicidad durante seis meses.', 'Seligman, Steen, Park y Peterson (2005), American Psychologist'],
@@ -3673,6 +3696,10 @@ function settings() {
       <select id="s-wait">${[5, 10, 20, 30].map(n => `<option value="${n}" ${n === ES.espera ? 'selected' : ''}>${n} s</option>`).join('')}</select></div>
     <div class="set-row"><span>Presupuesto de distracción<small>Unos 30 min al día reducen el FOMO (Hunt et al., 2018)</small></span>
       <select id="s-bud">${[15, 30, 45, 60].map(n => `<option value="${n}" ${n === ES.presupuesto ? 'selected' : ''}>${n} min</option>`).join('')}</select></div>
+    <div class="set-row"><span>Iniciativas mínimas al día<small>De las cuatro: estudio, proyecto, laboral, social</small></span>
+      <select id="s-ini">${[1, 2, 3, 4].map(n => `<option value="${n}" ${n === ES.minIni ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <div class="set-row"><span>Social: días mínimos a la semana<small>La iniciativa social hecha</small></span>
+      <select id="s-soc">${[3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === ES.minSocial ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Meta de XP al día<small>Lo que cuenta como un buen día</small></span>
       <select id="s-xp">${[50, 100, 150, 200].map(n => `<option value="${n}" ${n === ES.metaXp ? 'selected' : ''}>${n} XP</option>`).join('')}</select></div>
     <div class="set-row"><span>Meta de iniciativas<small>Contactos, planes y pasos de proyecto por semana</small></span>
@@ -3708,7 +3735,7 @@ function settings() {
   $('#s-ok').onclick = () => {
     try { localStorage.setItem('habit-inicio', $('#s-ini').value); } catch {}
     ES.limite = +$('#s-lim').value; ES.espera = +$('#s-wait').value;
-    ES.presupuesto = +$('#s-bud').value; ES.metaSemanal = +$('#s-meta').value; ES.metaXp = +$('#s-xp').value; ES.ventanaMin = +$('#s-vmin').value;
+    ES.presupuesto = +$('#s-bud').value; ES.metaSemanal = +$('#s-meta').value; ES.metaXp = +$('#s-xp').value; ES.minIni = +$('#s-ini').value; ES.minSocial = +$('#s-soc').value; ES.ventanaMin = +$('#s-vmin').value;
     const vs = [$('#s-v1').value, $('#s-v2').value, $('#s-v3').value].filter(Boolean); if (vs.length) ES.ventanas = vs;
     const alts = $('#s-alts').value.split('\n').map(s => s.trim()).filter(Boolean);
     if (alts.length) ES.alternativas = alts;
@@ -3804,7 +3831,7 @@ Cómo trabajas:
 - Cuando la persona te pida algo concreto (crear una tarea, agendar, marcar algo como hecho), hazlo con las herramientas y confirma en una línea qué cambiaste.
 - Si propones cambios por iniciativa propia (por ejemplo, bloquear horas en el calendario o cambiar prioridades), descríbelos primero y espera un sí antes de hacerlos.
 - Lo importante antes que lo urgente: tres prioridades al día, la más difícil primero; cuando las tres están hechas se pueden añadir extras.
-- Cada semana hay 4 iniciativas con el mismo peso: estudio, proyecto, laboral y social (30 XP cada una). Ayuda a definirlas con qué, por qué y primer paso, y a ponerles día y hora.
+- Cada día hay 4 iniciativas con el mismo peso: estudio, proyecto, laboral y social (30 XP cada una), y la persona se comprometió a un mínimo diario (ver iniciativas_hoy.minimo_diario) y a hacer la social al menos iniciativas_hoy.social_minimo_semanal días por semana; si social_en_riesgo es true, la de hoy es la que toca. Ayuda a elegir cuáles hoy, con qué, por qué, primer paso y hora; si va tarde y faltan, recuérdalo con tacto.
 - Cada acción buena suma XP (prioridades, hábitos, tareas, enfoque, resistir las redes, escribir a alguien, pasos de proyecto…). Si la persona lo pregunta, cuéntale su nivel y cuánto falta; no inventes puntos.
 - Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
 - Si aparece malestar serio, sugiere con tacto hablar con un profesional; no eres terapeuta.
@@ -3836,9 +3863,9 @@ const IA_TOOLS = [
     titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
   iaTool('pizarra_agregar', 'Pone ideas como notas en una pizarra de la pestaña Ideas (la crea si no existe). Útil para lluvias de ideas, planes y mapas.', {
     pizarra: S('Nombre de la pizarra.'), notas: { type: 'array', items: { type: 'string' }, description: 'Textos breves, uno por nota (máximo 20).' } }),
-  iaTool('iniciativa_semana', 'Define o marca como hecha una de las 4 iniciativas de la semana (estudio, proyecto, laboral, social).', {
+  iaTool('iniciativa_dia', 'Define o marca como hecha una de las 4 iniciativas de hoy (estudio, proyecto, laboral, social). La persona debe hacer un mínimo al día.', {
     tipo: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social'] }, accion: { type: 'string', enum: ['definir', 'hecha'] },
-    que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), fecha: S('AAAA-MM-DD o vacío.'), hora: S('HH:MM en 24 h o vacío.') }),
+    que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), hora: S('HH:MM en 24 h o vacío.') }),
   iaTool('diario_escribir', 'Guarda una entrada en el Diario de la pestaña Ideas (por ejemplo, un resumen que la persona dictó o pidió guardar).', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
@@ -3860,7 +3887,7 @@ function iaEstado() {
     hoy: { enfoque_min: d.enfoque, aperturas_redes: d.aperturas, limite_aperturas: ES.limite, distraccion_min: d.distraccion, presupuesto_min: ES.presupuesto, resistio: d.resistidas + d.alternativas, iniciativas: d.iniciativas },
     ultimos_7_dias: { enfoque_min: sum('enfoque'), iniciativas: sum('iniciativas'), aperturas_redes: sum('aperturas'), distraccion_min: sum('distraccion'), pasos_proyecto: sum('pasos') },
     meta_iniciativas_semana: ES.metaSemanal, iniciativas_esta_semana: iniciativasSemana(),
-    iniciativas_semana: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, fecha: x.cuando, hora: x.hora, hecha: x.hecho })),
+    iniciativas_hoy: { minimo_diario: ES.minIni, hechas: iniHechasHoy(), racha_dias: rachaIni(), social_dias_esta_semana: socialDiasSemana(), social_minimo_semanal: ES.minSocial, social_en_riesgo: socialEnRiesgo(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
     ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
   };
@@ -3917,11 +3944,11 @@ async function iaEjecutar(nombre, a) {
       const ev = await gCalCrear(a); agendaCache.t = 0; renderAgenda();
       return { creado: ev.summary, inicio: ev.start?.dateTime || ev.start?.date, enlace: ev.htmlLink };
     }
-    case 'iniciativa_semana': {
+    case 'iniciativa_dia': {
       const I = ini4Semana(), i = INI4.findIndex(([k]) => k === a.tipo), x = I.items[i];
-      if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.fecha) x.cuando = a.fecha; if (a.hora) x.hora = a.hora; }
-      else if (!x.hecho) { x.hecho = true; bump('iniciativas'); xpGanar(XP_INI, `Iniciativa de ${a.tipo}`); if (I.items.every(y => y.hecho) && !I.bonus) { I.bonus = true; xpGanar(50, 'Las 4 iniciativas de la semana'); } }
-      guardar(); renderE(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_esta_semana: I.items.filter(y => y.hecho).length };
+      if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; }
+      else if (!x.hecho) { x.hecho = true; bump('iniciativas'); bump('ini4'); if (x.k === 'social') bump('ini_social'); iniPremios(I); }
+      guardar(); renderE(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
     }
     case 'diario_escribir': {
       const x = { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: a.pregunta || '', txt: String(a.texto).slice(0, 5000), animo: 0, cambiado: Date.now() };
@@ -3938,7 +3965,7 @@ async function iaEjecutar(nombre, a) {
   throw new Error('Herramienta desconocida.');
 }
 const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
-  crear_proyecto: 'Creó un proyecto', iniciativa_semana: 'Actualizó una iniciativa de la semana', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
+  crear_proyecto: 'Creó un proyecto', iniciativa_dia: 'Actualizó una iniciativa de hoy', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
 
 // Texto con **negritas** y saltos de línea, siempre escapado.
 const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
