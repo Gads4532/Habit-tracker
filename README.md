@@ -1,5 +1,6 @@
-# Habit Tracker
+# Organización Personal
 
+Antes «Habit Tracker» (la dirección y los datos no cambian). 
 Tracker de hábitos minimalista: rachas, rutinas, calendario con justificaciones y
 beneficios/contras por hábito. Un solo archivo, sin dependencias.
 
@@ -17,3 +18,15 @@ través de Supabase; `supabase.sql` prepara la tabla una sola vez.
 
 Desarrollada con Claude a partir de *Hábitos Atómicos* y otros libros; el banco de
 ideas vive en [Gads4532/Skills](https://github.com/Gads4532/Skills/tree/main/apps/habit-tracker).
+
+Desde 2.8.0 se llama **Organización Personal** (brevemente fue «Rumbo») y tiene un **Asistente** (pestaña propia) que usa la API de Claude con la clave
+de cada persona (solo en su teléfono): conversa, revisa el día y coordina la app con herramientas (prioridades,
+tareas, proyectos, personas, planes, sesiones de enfoque y Google Calendar). El SDK oficial
+(`@anthropic-ai/sdk` 0.134.0) va empaquetado en `vendor/` para que funcione sin CDN.
+**Google Calendar**: la pestaña Enfoque muestra la agenda de hoy, los planes se crean directamente en el
+calendario y el asistente puede ver y crear eventos (requiere activar la API de Google Calendar en el proyecto
+de Google Cloud).
+
+**Notion**, **XP** y **notificaciones** (2.9.0): el diario y las pizarras se envían a Notion a través de la función `supabase/functions/notion`; cada acción suma XP con niveles y meta diaria; y una tarea programada de GitHub (`.github/workflows/notificaciones.yml`) envía avisos push aunque la app esté cerrada (necesita `push.sql` en Supabase y los secretos `SUPABASE_SERVICE_KEY` y `VAPID_PRIVATE_KEY`). Detalles en `IDEAS.md`.
+
+**Bienestar** (pestaña): mente (mindfulness y herramientas cognitivas con evidencia) y espíritu (vida cristiana práctica) juntos, con prácticas guiadas de 1 a 15 minutos y escenarios (esperanza, consolación, confianza, paz, fortaleza, dirección, perdón, gratitud) que unen la Palabra, una oración guiada y una herramienta para la mente. **Ahora**: en Enfoque siempre hay una cosa siguiente con propósito, y el descanso también se elige (descanso con propósito). Detalles y fuentes en `IDEAS.md` y en la app («Por qué funciona»).
