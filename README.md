@@ -26,3 +26,5 @@ tareas, proyectos, personas, planes, sesiones de enfoque y Google Calendar). El 
 **Google Calendar**: la pestaña Enfoque muestra la agenda de hoy, los planes se crean directamente en el
 calendario y el asistente puede ver y crear eventos (requiere activar la API de Google Calendar en el proyecto
 de Google Cloud).
+
+**Notion**, **XP** y **notificaciones** (2.9.0): el diario y las pizarras se envían a Notion a través de la función `supabase/functions/notion`; cada acción suma XP con niveles y meta diaria; y una tarea programada de GitHub (`.github/workflows/notificaciones.yml`) envía avisos push aunque la app esté cerrada (necesita `push.sql` en Supabase y los secretos `SUPABASE_SERVICE_KEY` y `VAPID_PRIVATE_KEY`). Detalles en `IDEAS.md`.

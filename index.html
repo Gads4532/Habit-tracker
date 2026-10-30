@@ -642,6 +642,7 @@ function normEnfoque(e) {
   e.pacto ||= { semana: '', texto: '' };
   e.reto7 ||= { inicio: '' };
   e.retoInicio ||= hoy;
+  e.xp ||= { total: 0 }; e.xp.total = +e.xp.total || 0; e.metaXp = [50, 100, 150, 200].includes(+e.metaXp) ? +e.metaXp : 100;
   if (!Array.isArray(e.pizarras)) e.pizarras = [];
   for (const b of e.pizarras) { if (!Array.isArray(b.els)) b.els = []; b.nombre ||= 'Pizarra'; }
   if (!Array.isArray(e.diario)) e.diario = [];
@@ -718,7 +719,7 @@ function mergeStates(a, b) {
   out.enfoque = normEnfoque({ ...eO, ...eN, dias, personas: byId(eN.personas, eO.personas), proyectos: byId(eN.proyectos, eO.proyectos),
     planes: byId(eN.planes, eO.planes), apps: byId(eN.apps, eO.apps), predicciones: byId(eN.predicciones, eO.predicciones),
     animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones),
-    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario) });
+    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) } });
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
   return normalize(out);
@@ -1152,6 +1153,7 @@ function complete(h, value) {
   setMark(h, value);
   justDone = null;
   sparks(h);
+  window.xpGanar?.(value === 'min' ? 5 : 10, value === 'min' ? 'Versión de 2 minutos' : 'Hábito cumplido');
   setTimeout(() => celebrate(h), 350);
 }
 
@@ -1651,6 +1653,7 @@ function animateComplete(el, then) {
 }
 function completeTask(task) {
   task.hecha = true; task.hechaEn = Date.now(); justDoneTask = task.id; navigator.vibrate?.(10);
+  window.xpGanar?.(5, 'Tarea completada');
   if (!task.repite) return;
   const T = state.tareas;
   if (T.items.some(y => y.origen === task.id)) return;
@@ -2214,6 +2217,23 @@ const ENFOQUE_CSS = `
   .ring .count { font-size: 3.4rem; }
   .focus-what { font-size: 1.15rem; font-weight: 500; margin: 0; }
 
+  /* XP y nivel */
+  .xp { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; }
+  .xp .lv { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 1.05rem; background: var(--text); color: var(--bg); flex: none; }
+  .xp .t { flex: 1; min-width: 0; }
+  .xp .t b { display: block; font-weight: 600; }
+  .xp .t small { color: var(--muted); font-size: .8rem; }
+  .xp .bar { height: 6px; border-radius: 3px; background: var(--empty); margin-top: 6px; overflow: hidden; }
+  .xp .bar i { display: block; height: 100%; background: var(--text); border-radius: 3px; transition: width .6s var(--spring); }
+  .xp .hoy { flex: none; text-align: right; font-size: .8rem; color: var(--muted); }
+  .xp .hoy b { display: block; font-size: 1.05rem; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .xp .hoy b.ok { color: var(--green); }
+  #xp-pop { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 21; pointer-events: none;
+    background: var(--green); color: #fff; font-weight: 700; padding: 8px 16px; border-radius: 999px; font-size: .95rem; opacity: 0; }
+  #xp-pop.go { animation: xppop 1.6s var(--spring) both; }
+  @keyframes xppop { 0% { opacity: 0; transform: translate(-50%, 14px) scale(.8); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.08); } 75% { opacity: 1; transform: translate(-50%, -8px); } 100% { opacity: 0; transform: translate(-50%, -28px); } }
+  .lvl-big { font-size: 4rem; font-weight: 800; letter-spacing: -.04em; line-height: 1; margin: 6px 0; animation: xppop-in .8s var(--spring) both; }
+  @keyframes xppop-in { from { transform: scale(.3); opacity: 0; } }
   /* Plan de rescate */
   .sos { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; text-align: left; border: 1.5px solid var(--red); color: var(--red);
     border-radius: 14px; padding: 12px 14px; margin: 0 0 18px; }
@@ -2255,6 +2275,7 @@ const ENFOQUE_CSS = `
 `;
 const ENFOQUE_HTML = `
 
+  <div id="xp"></div>
   <button class="sos" id="sos"><b>¿Día sin rumbo?</b><span>Plan de rescate en 5 minutos</span></button>
   <div id="interv"></div>
   <section id="agenda-sec">
@@ -2316,6 +2337,7 @@ const ENFOQUE_HTML = `
 <div class="full" id="gate" hidden><div class="inner" id="gate-body"></div></div>
 <div class="full" id="focus" hidden><div class="inner" id="focus-body"></div></div>
 <div id="toast"></div>
+<div id="xp-pop"></div>
 
 `;
 const host = document.getElementById('view-enfoque');
@@ -2326,7 +2348,7 @@ root.innerHTML = `<style>${ENFOQUE_CSS}</style><div class="enf">${ENFOQUE_HTML}<
 const ovHost = document.createElement('div'); ovHost.id = 'view-overlays'; document.body.appendChild(ovHost);
 const ov = ovHost.attachShadow({ mode: 'open' });
 ov.innerHTML = `<style>${ENFOQUE_CSS}</style>`;
-for (const id of ['sheet', 'toast', 'gate', 'focus']) ov.appendChild(root.getElementById(id));
+for (const id of ['sheet', 'toast', 'gate', 'focus', 'xp-pop']) ov.appendChild(root.getElementById(id));
 const LOCAL_KEY = 'habit-enfoque-local';
 let local = {};
 try { local = JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch {}
@@ -2428,7 +2450,42 @@ function recordatorioHabito() {
 }
 
 // ---------- Pantalla principal
-function renderE() { renderInterv(); renderAgenda(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
+function renderE() { renderXp(); renderInterv(); renderAgenda(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
+// ---------- XP: cada acción que te acerca a lo que importa suma puntos; nunca se restan.
+// La gamificación mueve la motivación y la conducta con efectos pequeños a moderados (Sailer y Homner, 2020); por eso premia
+// lo que la evidencia dice que funciona y no castiga: sin rachas rotas ni puntos negativos.
+const NIVELES = ['Novato', 'Aprendiz', 'Constante', 'Enfocado', 'Con rumbo', 'Imparable', 'Maestro', 'Leyenda'];
+const xpParaNivel = L => 50 * (L - 1) * L;                   // 0, 100, 300, 600, 1000, 1500…
+const nivelDe = total => { let L = 1; while (xpParaNivel(L + 1) <= total) L++; return L; };
+const nivelNombre = L => L <= NIVELES.length ? NIVELES[L - 1] : `Leyenda ${L - NIVELES.length + 1}`;
+const xpHoy = (k = today()) => dayOf(k).xp || 0;
+function rachaXp() { let n = 0; for (let i = 0; i < 400; i++) { const k = dayKey(addDays(new Date(), -i)); if (xpHoy(k) >= ES.metaXp) n++; else if (i) break; } return n; }
+let xpPopT = 0;
+function xpGanar(cant, motivo) {
+  cant = Math.round(cant); if (!cant) return;
+  const antes = nivelDe(ES.xp.total), metaAntes = xpHoy() >= ES.metaXp;
+  ES.xp.total += cant; bump('xp', cant); guardar();
+  const el = $('#xp-pop'); if (el) { el.textContent = `+${cant} XP · ${motivo}`; el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); clearTimeout(xpPopT); xpPopT = setTimeout(() => el.classList.remove('go'), 1700); }
+  renderXp();
+  const ahora = nivelDe(ES.xp.total);
+  if (ahora > antes) setTimeout(() => subirNivel(ahora), 900);
+  else if (!metaAntes && xpHoy() >= ES.metaXp) { buzz([40, 60, 40]); setTimeout(() => toast(`Meta del día cumplida: ${ES.metaXp} XP. Racha de ${rachaXp()} ${rachaXp() === 1 ? 'día' : 'días'}.`), 900); }
+}
+window.xpGanar = xpGanar;
+function subirNivel(L) {
+  buzz([60, 80, 60, 80, 160]);
+  showSheet(`<div style="text-align:center"><p class="meta" style="margin:0">Subiste de nivel</p><div class="lvl-big">${L}</div><h2 style="margin:0">${esc(nivelNombre(L))}</h2>
+    <p class="note" style="margin-top:10px">${ES.xp.total} XP en total. Siguiente nivel a los ${xpParaNivel(L + 1)} XP.</p>
+    <div class="actions" style="justify-content:center"><button class="primary" id="lv-ok">Seguir</button></div></div>`);
+  $('#lv-ok').onclick = closeSheet;
+}
+function renderXp() {
+  const el = $('#xp'); if (!el) return;
+  const T = ES.xp.total, L = nivelDe(T), a = xpParaNivel(L), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
+  el.innerHTML = `<div class="xp"><div class="lv">${L}</div><div class="t"><b>${esc(nivelNombre(L))}</b><small>${T - a} / ${b - a} XP para el nivel ${L + 1}${r ? ` · racha ${r} ${r === 1 ? 'día' : 'días'}` : ''}</small>
+    <div class="bar"><i style="width:${Math.min(100, (T - a) / (b - a) * 100)}%"></i></div></div>
+    <div class="hoy"><b class="${hoy >= ES.metaXp ? 'ok' : ''}">${hoy} / ${ES.metaXp}</b>XP hoy</div></div>`;
+}
 function renderStats() {
   const d = dayOf(), over = d.aperturas > ES.limite;
   $('#stats').innerHTML = `
@@ -2515,7 +2572,7 @@ function alternativas(titulo, sub) {
   $('#alt-close').onclick = closeSheet;
   $('#sheet-body').querySelectorAll('[data-alt]').forEach(b => b.onclick = () => { bump('alternativas'); guardar(); closeSheet(); renderE(); buzz(20); toast('Bien elegido. Teléfono abajo y a ello.'); });
   $('#sheet-body').querySelectorAll('[data-alt-h]').forEach(b => b.onclick = () => {
-    bump('alternativas'); guardar(); renderE();
+    bump('alternativas'); guardar(); renderE(); xpGanar(10, 'Alternativa elegida');
     const h = p.habits.find(h => h.id === b.dataset.altH);
     habitSheet(h, true);
   });
@@ -2640,7 +2697,8 @@ function finishFocus(completa) {
   clearInterval(focusTick);
   const mins = completa ? s.min : Math.floor((Date.now() - s.inicio) / 60000);
   const k = dayKey(new Date(s.inicio));
-  bump('enfoque', mins, k); bump('interrupciones', s.ints, k); if (completa) bump('sesiones', 1, k); if (s.impulsos) bump('impulsos', s.impulsos, k);
+  bump('enfoque', mins, k); bump('interrupciones', s.ints, k); if (completa) bump('sesiones', 1, k);
+  if (mins) xpGanar(Math.min(90, mins) + (completa && !s.ints ? 20 : 0), completa && !s.ints ? 'Enfoque sin interrupciones' : 'Minutos de enfoque'); if (s.impulsos) bump('impulsos', s.impulsos, k);
   clearTimeout(avisoT);
   ES.sesion = null; guardar();
   $('#focus').hidden = true; renderE();
@@ -2683,7 +2741,7 @@ function appPicker() {
     <div class="rows">${ES.apps.map(a => `<button class="row" data-app="${esc(a.id)}"><span class="dot"></span><span class="t"><div>${esc(a.nombre)}</div></span><span class="tag">›</span></button>`).join('')}</div>
     ${ES.apps.length ? '' : `<p class="empty">Añade tus apps en Ajustes.</p>`}
     <div class="actions"><button class="link" id="ap-close">Mejor no</button></div>`);
-  $('#ap-close').onclick = () => { bump('resistidas'); guardar(); closeSheet(); renderE(); toast('Bien. Ese tiempo es tuyo.'); };
+  $('#ap-close').onclick = () => { bump('resistidas'); guardar(); closeSheet(); renderE(); xpGanar(15, 'Resististe'); toast('Bien. Ese tiempo es tuyo.'); };
   $('#sheet-body').querySelectorAll('[data-app]').forEach(b => b.onclick = () => { closeSheet(); openGate(ES.apps.find(a => a.id === b.dataset.app)); });
 }
 // Cada apertura del día duplica la espera: 10 s, 20 s, 40 s… hasta 3 minutos.
@@ -2777,7 +2835,7 @@ function gateChoice() {
 }
 function gateNo() {
   if (gate?.emo) bump('emo_' + gate.emo);
-  bump('resistidas'); guardar(); closeGate(); renderE(); buzz(20);
+  bump('resistidas'); guardar(); closeGate(); renderE(); buzz(20); xpGanar(15, 'Resististe');
   alternativas('Bien. Ese tiempo es tuyo', 'Úsalo en algo que sume:');
 }
 function closeGate() { if (gate) { clearInterval(gate.tick); clearInterval(gate.breath); } gate = null; $('#gate').hidden = true; }
@@ -2821,9 +2879,9 @@ function renderPrio() {
   const done = P.items.filter(x => x.hecho).length;
   $('#prio').innerHTML = P.items.length ? `<div class="rows">${P.items.map((x, i) => `<div class="row" style="${x.hecho ? 'opacity:.5' : ''}">
       <button class="box" data-pchk="${esc(x.id)}" aria-label="Hecha" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></button>
-      <button class="t" data-pgo="${esc(x.id)}" style="text-align:left"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div><small>${i === 0 ? 'La rana: primero, antes que todo' : x.origen || 'Prioridad'}</small></button>
+      <button class="t" data-pgo="${esc(x.id)}" style="text-align:left"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div><small>${i === 0 ? 'La rana: primero, antes que todo' : i >= 3 ? 'Extra · +30 XP' : x.origen || 'Prioridad'}</small></button>
       <span class="tag" style="font-weight:600;color:${i === 0 ? 'var(--red)' : 'var(--muted)'}">${i + 1}</span></div>`).join('')}</div>
-    <p class="more">${done} de ${P.items.length} hechas · <button class="link" id="prio-edit">Cambiar</button></p>`
+    <p class="more">${done} de ${P.items.length} hechas · <button class="link" id="prio-edit">${P.items.every(x => x.hecho) ? 'Añadir una extra' : 'Cambiar'}</button></p>`
     : `<button class="row" id="prio-edit" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--red)"></span><span class="t"><div>Elige tus prioridades de hoy</div><small>Tres como máximo. La más difícil va primero.</small></span><span class="tag">›</span></button>`;
 }
 $('#prio').addEventListener('click', e => {
@@ -2831,10 +2889,16 @@ $('#prio').addEventListener('click', e => {
   const chk = e.target.closest('[data-pchk]'), go = e.target.closest('[data-pgo]');
   if (e.target.closest('#prio-edit')) return prioForm();
   if (chk) {
-    const x = P.items.find(i => i.id === chk.dataset.pchk); x.hecho = !x.hecho;
+    const x = P.items.find(i => i.id === chk.dataset.pchk), idx = P.items.indexOf(x); x.hecho = !x.hecho;
     if (x.hecho) bump('iniciativas'); else bump('iniciativas', -1);
     guardar(); renderE();
-    if (x.hecho) { buzz(30); const pr = ES.proyectos.find(p => p.id === x.pro); if (pr && pr.paso === x.t) pasoHecho(pr); else toast(P.items.every(i => i.hecho) ? 'Prioridades cumplidas. Lo demás es extra.' : 'Hecha. Sigue con la siguiente.'); }
+    if (x.hecho) {
+      buzz(30);
+      xpGanar(idx === 0 ? 40 : idx >= 3 ? 30 : 25, idx === 0 ? 'La rana, primero' : idx >= 3 ? 'Prioridad extra' : 'Prioridad hecha');
+      const tres = P.items.slice(0, 3);
+      if (tres.length === 3 && tres.every(i => i.hecho) && !P.bonus) { P.bonus = true; setTimeout(() => xpGanar(50, 'Las tres prioridades del día'), 1200); }
+      const pr = ES.proyectos.find(p => p.id === x.pro); if (pr && pr.paso === x.t) pasoHecho(pr); else toast(P.items.every(i => i.hecho) ? 'Prioridades cumplidas. ¿Una extra? Vale +30 XP.' : 'Hecha. Sigue con la siguiente.');
+    }
   }
   if (go) { const x = P.items.find(i => i.id === go.dataset.pgo); if (x.per) personaSheet(ES.personas.find(p => p.id === x.per)); else focusForm(x.t, 25, x.pro || ''); }
 });
@@ -2850,16 +2914,18 @@ function prioCandidatos() {
 }
 function prioForm() {
   const P = ES.prioridades, cands = prioCandidatos().filter(c => !P.items.some(x => x.t === c.t));
+  // Tres como máximo; cuando las tres están hechas, se pueden añadir extras (una a una, cada una vale más XP).
+  const puede = P.items.length < 3 || P.items.every(x => x.hecho);
   showSheet(`<h2>Prioridades de hoy</h2>
     <p class="sci">Tendemos a elegir lo urgente aunque lo importante valga más (Zhu, Yang y Hsee, 2018). Elige lo que de verdad mueve tus proyectos y relaciones, y pon primero lo más difícil: empezar por ahí aumenta la sensación de capacidad (Habbert y Schroeder, 2020).</p>
     <div class="rows" id="pf-list">${P.items.map((x, i) => `<div class="row"><span class="tag" style="font-weight:600;width:14px">${i + 1}</span><span class="t"><div>${esc(x.t)}</div><small>${esc(x.origen || '')}</small></span>
       ${i ? `<button class="link" data-up="${i}" aria-label="Subir">↑</button>` : ''}<button class="x" data-del="${i}" aria-label="Quitar">×</button></div>`).join('')}</div>
-    ${P.items.length < 3 ? `
-      <div class="field" style="margin-top:14px"><label>Añadir (${P.items.length} de 3)</label>
+    ${puede ? `
+      <div class="field" style="margin-top:14px"><label>${P.items.length < 3 ? `Añadir (${P.items.length} de 3)` : 'Las tres están hechas: añade una extra (+30 XP)'}</label>
         <div style="display:flex;gap:10px"><input id="pf-t" maxlength="100" placeholder="Lo más importante de hoy"><button class="link" id="pf-add">Añadir</button></div></div>
       ${cands.length ? `<p class="meta" style="margin:4px 0 6px">Sugerencias</p><div class="rows">${cands.slice(0, 8).map((c, i) => `<button class="row" data-c="${i}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(c.t)}</div><small>${esc(c.origen)}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}` : `<p class="meta" style="margin-top:12px">Tres es el máximo: si todo es prioridad, nada lo es.</p>`}
     <div class="actions"><button class="primary" id="pf-ok">Listo</button></div>`);
-  const add = c => { if (P.items.length >= 3) return; P.items.push({ id: crypto.randomUUID(), hecho: false, ...c }); guardar(); renderPrio(); prioForm(); };
+  const add = c => { if (!(P.items.length < 3 || P.items.every(x => x.hecho))) return; P.items.push({ id: crypto.randomUUID(), hecho: false, ...c }); guardar(); renderPrio(); prioForm(); };
   $('#sheet-body').querySelectorAll('[data-c]').forEach(b => b.onclick = () => add(cands[+b.dataset.c]));
   $('#pf-add')?.addEventListener('click', () => { const t = $('#pf-t').value.trim(); if (t) add({ t, origen: 'Prioridad' }); else $('#pf-t').focus(); });
   $('#pf-t')?.addEventListener('keydown', e => { if (e.key === 'Enter') $('#pf-add').click(); });
@@ -2943,7 +3009,7 @@ function registrar(p, tipo) {
   const t = today(), repetido = p.historial.some(h => h.d === t && h.tipo === tipo);
   p.ultimo = t;
   if (p.pred && !p.pred.enviado) p.pred.enviado = true;
-  if (!repetido) { p.historial.push({ d: t, tipo }); p.historial = p.historial.slice(-30); bump('iniciativas'); }
+  if (!repetido) { p.historial.push({ d: t, tipo }); p.historial = p.historial.slice(-30); bump('iniciativas'); xpGanar(tipo === 'Gracias' ? 25 : 20, `${tipo} con ${p.nombre}`); }
   guardar(); renderE();
 }
 function personasManager() {
@@ -3054,7 +3120,7 @@ function planForm(con = '') {
     if (!titulo) { $('#pl-t').focus(); return; }
     if (!fecha) { $('#pl-f').focus(); return; }
     const pl = { id: crypto.randomUUID(), titulo, con: $('#pl-c').value.trim(), fecha, hora, hecho: false };
-    ES.planes.push(pl);
+    ES.planes.push(pl); xpGanar(25, 'Plan propuesto');
     const per = ES.personas.find(p => p.nombre.toLowerCase() === pl.con.toLowerCase());
     if (per) registrar(per, 'Plan'); else { bump('iniciativas'); guardar(); renderE(); }
     planSheet(pl, true);
@@ -3182,7 +3248,7 @@ function pasoHecho(pr) {
   $('#ph-s').focus();
   $('#ph-cancel').onclick = () => proyectoSheet(pr);
   $('#ph-ok').onclick = () => {
-    pr.pasos.push({ t: pr.paso, d: today() }); pr.pasos = pr.pasos.slice(-200);
+    pr.pasos.push({ t: pr.paso, d: today() }); pr.pasos = pr.pasos.slice(-200); xpGanar(30, 'Paso de proyecto');
     pr.paso = $('#ph-s').value.trim(); Object.assign(pr, leerPaso()); pr.nota = '';
     bump('pasos'); bump('iniciativas'); guardar(); renderE(); buzz([30, 60, 30]);
     proyectoSheet(pr); toast('Avance registrado.');
@@ -3313,7 +3379,7 @@ function rescate(paso = 1) {
         const T = HT().tareas, lista = T.listas.find(l => l.id === T.activa) || T.listas[0];
         for (const t of resc.lista.filter(t => t !== resc.una)) if (!T.items.some(x => !x.hecha && x.titulo === t)) T.items.push({ id: crypto.randomUUID(), lista: lista.id, titulo: t, detalle: '', fecha: '', hecha: false, creado: Date.now(), repite: '', dias: [] });
       }
-      bump('rescates'); guardar(); renderE(); rescate(5);
+      bump('rescates'); guardar(); renderE(); xpGanar(20, 'Plan de rescate'); rescate(5);
     };
     return;
   }
@@ -3380,7 +3446,7 @@ function misionSheet() {
   $('#mi-pred')?.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; pred = +c.dataset.v; $('#mi-pred').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
   $('#mi-res')?.addEventListener('click', e => {
     const c = e.target.closest('.chip'); if (!c) return;
-    ES.misiones.push({ id: crypto.randomUUID(), d: today(), t: mi.t, tipo: mi.tipo, pred, abierto: c.dataset.r === '1' }); ES.misiones = ES.misiones.slice(-200);
+    ES.misiones.push({ id: crypto.randomUUID(), d: today(), t: mi.t, tipo: mi.tipo, pred, abierto: c.dataset.r === '1' }); ES.misiones = ES.misiones.slice(-200); xpGanar(25, 'Misión social');
     bump('iniciativas'); guardar(); renderE(); buzz(30); misionSheet();
   });
   $('#mi-reto')?.addEventListener('click', () => { ES.reto7 = { inicio: today() }; guardar(); renderE(); misionSheet(); });
@@ -3405,7 +3471,7 @@ function laboralSheet() {
   const body = $('#sheet-body');
   const leer = () => body.querySelectorAll('[data-f]').forEach(inp => { L.items[+inp.dataset.i][inp.dataset.f] = inp.value.trim(); });
   body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
-    leer(); const x = L.items[+b.dataset.done]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1); guardar(); renderE(); laboralSheet();
+    leer(); const x = L.items[+b.dataset.done]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1); if (x.hecho) xpGanar(30, 'Iniciativa laboral'); guardar(); renderE(); laboralSheet();
   });
   $('#lb-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
 }
@@ -3419,7 +3485,7 @@ function buenasSheet() {
   $('#bn-cancel').onclick = closeSheet;
   $('#bn-ok').onclick = () => {
     const items = [0, 1, 2].map(i => $('#bn-' + i).value.trim()).filter(Boolean); if (!items.length) { $('#bn-0').focus(); return; }
-    if (hoyB) hoyB.items = items; else ES.buenas.push({ id: crypto.randomUUID(), d: today(), items }); ES.buenas = ES.buenas.slice(-120);
+    if (hoyB) hoyB.items = items; else { ES.buenas.push({ id: crypto.randomUUID(), d: today(), items }); xpGanar(10, 'Tres cosas buenas'); } ES.buenas = ES.buenas.slice(-120);
     guardar(); closeSheet(); renderE(); toast('Guardado. Buen cierre del día.');
   };
 }
@@ -3464,6 +3530,7 @@ function datosSheet() {
   showSheet(`<h2>Tus datos</h2>
     <p class="note">Lo que la app ha registrado (últimos 180 días). Medir es la mitad del cambio (Harkin et al., 2016).</p>
     <dl class="woop">
+      <dt>Nivel</dt><dd>${nivelDe(ES.xp.total)} · ${esc(nivelNombre(nivelDe(ES.xp.total)))} · ${ES.xp.total} XP en total · ${sum('xp')} en 180 días · racha de ${rachaXp()} días con meta</dd>
       <dt>Enfoque</dt><dd>${fmtMin(sum('enfoque'))} en ${sum('sesiones')} sesiones completas · ${sum('interrupciones')} interrupciones · ${sum('impulsos')} impulsos surfeados</dd>
       <dt>Ánimo</dt><dd>${animoTxt() || 'Aún sin datos: marca tu ánimo al empezar una sesión.'}</dd>
       <dt>Puerta</dt><dd>Resististe ${sum('resistidas') + sum('alternativas')} veces · abriste ${sum('aperturas')} · ~${fmtMin(sum('distraccion'))} en distracciones</dd>
@@ -3507,6 +3574,7 @@ const CIENCIA = [
   ['Preguntas profundas', 'Las conversaciones profundas son menos incómodas y más cercanas de lo esperado; hacer preguntas de seguimiento aumenta el agrado.', 'Kardas, Kumar y Epley (2022), JPSP; Huang et al. (2017), JPSP; Gable et al. (2004), JPSP'],
   ['Plan «si…, entonces…»', 'Las intenciones de implementación tienen un efecto medio-alto sobre el logro de metas (d ≈ 0,65).', 'Gollwitzer y Sheeran (2006), Advances in Experimental Social Psychology'],
   ['WOOP en cada proyecto', 'Contrastar el deseo con el obstáculo interno y planear cómo superarlo mejora el logro frente a solo soñar con la meta.', 'Oettingen (2014), Rethinking Positive Thinking; Wang et al. (2021), Frontiers in Psychology'],
+  ['XP y niveles', 'La gamificación mejora la motivación y la conducta con efectos pequeños a moderados; funciona mejor cuando premia la conducta que importa y no castiga. Aquí nunca se restan puntos ni se «rompen» rachas con culpa.', 'Sailer y Homner (2020), Educational Psychology Review'],
   ['Plan de rescate', 'Cuando el día no tiene rumbo: un minuto de suspiros cíclicos (dos inhalaciones y una exhalación larga) calma rápido; escribir lo pendiente reduce los pensamientos intrusivos; elegir una sola cosa y un primer paso de 2 minutos hace fácil empezar.', 'Balban et al. (2023), Cell Reports Medicine; Masicampo y Baumeister (2011), JPSP'],
   ['Intervención del momento', 'Un solo mensaje elegido por la hora, el día y tus datos: prioridades por la mañana, revisión los lunes, gratitud los viernes, tres cosas buenas por la noche.', 'Combina las fuentes de esta lista; el principio es «la señal correcta en el momento correcto» (Gollwitzer y Sheeran, 2006)'],
   ['Qué sientes en la puerta', 'Ejercicios breves de conciencia emocional redujeron la distracción por el móvil; el efecto pasó por reconocer la emoción.', 'Throuvala et al. (2020), IJERPH'],
@@ -3571,6 +3639,8 @@ function settings() {
       <select id="s-wait">${[5, 10, 20, 30].map(n => `<option value="${n}" ${n === ES.espera ? 'selected' : ''}>${n} s</option>`).join('')}</select></div>
     <div class="set-row"><span>Presupuesto de distracción<small>Unos 30 min al día reducen el FOMO (Hunt et al., 2018)</small></span>
       <select id="s-bud">${[15, 30, 45, 60].map(n => `<option value="${n}" ${n === ES.presupuesto ? 'selected' : ''}>${n} min</option>`).join('')}</select></div>
+    <div class="set-row"><span>Meta de XP al día<small>Lo que cuenta como un buen día</small></span>
+      <select id="s-xp">${[50, 100, 150, 200].map(n => `<option value="${n}" ${n === ES.metaXp ? 'selected' : ''}>${n} XP</option>`).join('')}</select></div>
     <div class="set-row"><span>Meta de iniciativas<small>Contactos, planes y pasos de proyecto por semana</small></span>
       <select id="s-meta">${Array.from({ length: 14 }, (_, i) => i + 1).map(n => `<option ${n === ES.metaSemanal ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <h3>Ventanas de revisión</h3>
@@ -3604,7 +3674,7 @@ function settings() {
   $('#s-ok').onclick = () => {
     try { localStorage.setItem('habit-inicio', $('#s-ini').value); } catch {}
     ES.limite = +$('#s-lim').value; ES.espera = +$('#s-wait').value;
-    ES.presupuesto = +$('#s-bud').value; ES.metaSemanal = +$('#s-meta').value; ES.ventanaMin = +$('#s-vmin').value;
+    ES.presupuesto = +$('#s-bud').value; ES.metaSemanal = +$('#s-meta').value; ES.metaXp = +$('#s-xp').value; ES.ventanaMin = +$('#s-vmin').value;
     const vs = [$('#s-v1').value, $('#s-v2').value, $('#s-v3').value].filter(Boolean); if (vs.length) ES.ventanas = vs;
     const alts = $('#s-alts').value.split('\n').map(s => s.trim()).filter(Boolean);
     if (alts.length) ES.alternativas = alts;
@@ -3699,7 +3769,8 @@ Cómo trabajas:
 - Antes de aconsejar o planificar, mira el estado real con ver_estado (y calendario_ver cuando importen las horas). No inventes datos.
 - Cuando la persona te pida algo concreto (crear una tarea, agendar, marcar algo como hecho), hazlo con las herramientas y confirma en una línea qué cambiaste.
 - Si propones cambios por iniciativa propia (por ejemplo, bloquear horas en el calendario o cambiar prioridades), descríbelos primero y espera un sí antes de hacerlos.
-- Lo importante antes que lo urgente: como máximo tres prioridades al día, la más difícil primero.
+- Lo importante antes que lo urgente: tres prioridades al día, la más difícil primero; cuando las tres están hechas se pueden añadir extras.
+- Cada acción buena suma XP (prioridades, hábitos, tareas, enfoque, resistir las redes, escribir a alguien, pasos de proyecto…). Si la persona lo pregunta, cuéntale su nivel y cuánto falta; no inventes puntos.
 - Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
 - Si aparece malestar serio, sugiere con tacto hablar con un profesional; no eres terapeuta.
 - Horas en formato de 12 horas con AM/PM; fechas como «jueves 30 de octubre».
@@ -3740,6 +3811,7 @@ function iaEstado() {
   const ks = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), i - 6))), sum = f => ks.reduce((a, k) => a + (dayOf(k)[f] || 0), 0);
   return {
     nombre: HT().nombre || '',
+    xp: { nivel: nivelDe(ES.xp.total), titulo: nivelNombre(nivelDe(ES.xp.total)), total: ES.xp.total, hoy: xpHoy(), meta_diaria: ES.metaXp, racha_dias: rachaXp() },
     prioridades_hoy: ES.prioridades.items.map((x, i) => ({ numero: i + 1, texto: x.t, hecha: !!x.hecho })),
     habitos_pendientes_hoy: p.habits.map(h => ({ nombre: h.nombre, version_2_min: h.minima || '', hora: (h.horas || [])[0] || '' })),
     tareas_pendientes: [...p.due, ...p.sinFecha.slice(0, 20)].map(x => ({ id: x.id, titulo: x.titulo, fecha: x.fecha || '', vencida: !!x.fecha && x.fecha < today() })),
@@ -3763,7 +3835,7 @@ async function iaEjecutar(nombre, a) {
     case 'ver_estado': return iaEstado();
     case 'gestionar_prioridad': {
       const P = ES.prioridades;
-      if (a.accion === 'agregar') { if (P.items.length >= 3) throw new Error('Ya hay tres prioridades hoy; pregunta cuál quitar.'); P.items.push({ id: crypto.randomUUID(), t: a.texto, hecho: false, origen: 'Asistente' }); }
+      if (a.accion === 'agregar') { if (!(P.items.length < 3 || P.items.every(x => x.hecho))) throw new Error('Ya hay tres prioridades pendientes; se pueden añadir extras cuando las tres estén hechas.'); P.items.push({ id: crypto.randomUUID(), t: a.texto, hecho: false, origen: 'Asistente' }); }
       else { const x = P.items[a.numero - 1]; if (!x) throw new Error(`No existe la prioridad ${a.numero}.`); if (a.accion === 'quitar') P.items.splice(a.numero - 1, 1); else if (!x.hecho) { x.hecho = true; bump('iniciativas'); } }
       guardar(); renderE(); return { prioridades_hoy: P.items.map((x, i) => `${i + 1}. ${x.t}${x.hecho ? ' (hecha)' : ''}`) };
     }
@@ -4314,7 +4386,7 @@ function djEditor(x = null) {
   q('#dj-pregs').addEventListener('click', e => { const c = e.target.closest('[data-p]'); if (!c) return; djEdit.preg = c.dataset.p === 'Libre' ? '' : c.dataset.p;
     q('#dj-preg').textContent = djEdit.preg || 'Escribe lo que quieras'; q('#dj-pregs').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b === c)); });
   q('#dj-an').addEventListener('click', e => { const c = e.target.closest('[data-v]'); if (!c) return; djEdit.animo = djEdit.animo === +c.dataset.v ? 0 : +c.dataset.v; q('#dj-an').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', +b.dataset.v === djEdit.animo)); });
-  const guardarEntrada = () => { leer(); if (!djEdit.txt) return false; if (!ES.diario.includes(djEdit)) ES.diario.push(djEdit); djEdit.cambiado = Date.now(); guardar(); return true; };
+  const guardarEntrada = () => { leer(); if (!djEdit.txt) return false; if (!ES.diario.includes(djEdit)) { ES.diario.push(djEdit); xpGanar(10, 'Diario'); } djEdit.cambiado = Date.now(); guardar(); return true; };
   q('#dj-ok').onclick = () => { if (!guardarEntrada()) { q('#dj-txt').focus(); return; } djEdit = null; renderPizarras(); };
   q('#dj-notion').onclick = () => { if (!guardarEntrada()) { q('#dj-txt').focus(); return; } djEnviar([djEdit], `Diario · ${cap(djFecha(djEdit.d))}`); };
   q('#dj-back').onclick = () => { if (q('#dj-txt').value.trim() && !ES.diario.includes(djEdit)) guardarEntrada(); djEdit = null; renderPizarras(); };
