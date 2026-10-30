@@ -1,7 +1,7 @@
 {
-  "name": "Rumbo",
-  "short_name": "Rumbo",
-  "description": "Rumbo: menos teléfono y más de lo que importa. Enfoque, asistente con IA, hábitos, tareas y calendario.",
+  "name": "Organización Personal",
+  "short_name": "Organización",
+  "description": "Organización Personal: menos teléfono y más de lo que importa. Enfoque, asistente con IA, hábitos, tareas y calendario.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

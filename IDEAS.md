@@ -148,10 +148,17 @@ Google Tasks, usando un ID de cliente OAuth propio (Google Cloud, tipo «Aplicac
 cambio se sincroniza solo. Regla de conflicto: si la tarea cambió aquí desde la última sincronización, sube; si no,
 manda Google. Las repeticiones de la app llegan a Google como tareas sueltas (la API no permite crear repeticiones).
 
-## Rumbo 2.8.0: asistente con Claude y Google Calendar
+## Organización Personal 2.8.0: asistente con Claude y Google Calendar
 
-- **Nombre**: la app pasa a llamarse **Rumbo** (Habit Tracker es ahora la pestaña Hábitos). URL, claves de almacenamiento y datos no cambian.
+- **Nombre**: la app pasa a llamarse **Organización Personal** (Habit Tracker es ahora la pestaña Hábitos). URL, claves de almacenamiento y datos no cambian.
 - **Asistente** (pestaña propia): chat con Claude Opus 5.5 por defecto (Sonnet 5.5 y Haiku 5.5 elegibles), con la clave de la API de cada persona guardada solo en su teléfono. Streaming, esfuerzo `medium`, caché automática de prompts y reintento automático con otro modelo si el filtro declina (`fallbacks: "default"`).
   Herramientas: `ver_estado`, `gestionar_prioridad`, `crear_tarea`, `completar_tarea`, `proyecto_paso`, `crear_proyecto`, `registrar_contacto`, `crear_plan`, `calendario_ver`, `calendario_crear`, `iniciar_enfoque`. Hace lo que se le pide; lo que propone por su cuenta lo pregunta antes.
   La conversación vive en el teléfono (`rumbo-chat`), solo se añade al final y, si una vuelta falla, se deshace entera.
 - **Google Calendar**: mismo permiso que Google Tasks con el alcance `calendar.events`. Agenda de hoy en Enfoque, «Crear en mi Google Calendar» en los planes y herramientas del asistente.
+
+## 2.9.0: notificaciones, Ideas (diario y pizarras), plan de rescate
+
+- **Notificaciones push** sin abrir la app: `.github/workflows/notificaciones.yml` corre `notificar.mjs` cada 15 minutos; lee `push_subs` (`push.sql`) y `estados`, calcula los avisos en la zona horaria de cada teléfono y los envía con Web Push (claves VAPID; la privada y la clave de servicio de Supabase van en los secretos del repositorio). Avisos: resumen de la mañana, hora de cada hábito, una hora antes de cada plan, paso de proyecto a su hora, prioridad al mediodía, cierre del día, lunes y viernes. Se eligen en Ajustes de Enfoque → Notificaciones.
+- **Ideas** (pestaña): **diario** con pregunta guía, ánimo y «Enviar a Notion» (menú de compartir o copia en Markdown, con las tres cosas buenas del día); **pizarras** en SVG con notas, texto, lápiz, flechas, zonas, zoom y plantillas (lluvia de ideas, mapa de mi vida, importante/urgente, semana, proyecto). El asistente puede escribir notas en una pizarra (`pizarra_agregar`).
+- **Plan de rescate** («¿Día sin rumbo?»): un minuto de suspiros cíclicos (Balban et al. 2023), vaciar la cabeza por escrito (Masicampo y Baumeister 2011), elegir una sola cosa, primer paso de 2 minutos; el resto va a Tareas y la elegida pasa a prioridad 1. Aparece también como intervención cuando a las 11 no hay prioridades ni enfoque.
+- **Barra de cinco pestañas**: Enfoque, Asistente, Hábitos, Tareas, Ideas. Calendario y Análisis se abren desde Hábitos.

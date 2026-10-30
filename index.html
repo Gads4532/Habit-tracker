@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Rumbo</title>
+<title>Organización Personal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -391,7 +391,9 @@
   </header>
   <div id="view-enfoque" hidden></div>
   <div id="view-ia" hidden></div>
+  <div id="view-pizarra" hidden></div>
   <div id="view-hoy">
+    <p class="note" style="margin-top:-12px"><button class="link" data-subvista="cal">Calendario de hábitos</button> · <button class="link" data-subvista="analisis">Análisis</button></p>
     <p class="note bad" id="nocloud" hidden>Tus datos están solo en este teléfono. <button class="link" id="nocloud-go">Crea una cuenta</button> para guardarlos en línea.</p>
     <p class="note" id="notice" hidden></p>
     <div id="list"></div>
@@ -426,10 +428,13 @@
   <button class="tab" data-view="tareas">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h10M4 17h7"/><path d="M15.5 16.5l2 2L21.5 14"/></svg>Tareas
   </button>
-  <button class="tab" data-view="cal">
+  <button class="tab" data-view="pizarra">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="13" rx="2.5"/><path d="M7 9.5h5M7 12.5h8M9 21l3-4 3 4"/></svg>Ideas
+  </button>
+  <button class="tab" data-view="cal" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendario
   </button>
-  <button class="tab" data-view="analisis">
+  <button class="tab" data-view="analisis" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M6 15l4-5 3 3 5-7"/></svg>Análisis
   </button>
 </nav>
@@ -500,7 +505,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -637,13 +642,16 @@ function normEnfoque(e) {
   e.pacto ||= { semana: '', texto: '' };
   e.reto7 ||= { inicio: '' };
   e.retoInicio ||= hoy;
+  if (!Array.isArray(e.pizarras)) e.pizarras = [];
+  for (const b of e.pizarras) { if (!Array.isArray(b.els)) b.els = []; b.nombre ||= 'Pizarra'; }
+  if (!Array.isArray(e.diario)) e.diario = [];
   if (!e.prioridades || e.prioridades.fecha !== hoy) e.prioridades = { fecha: hoy, items: [] };
   e.bienvenida = !!e.bienvenida;
   return e;
 }
 // Saludo según la hora, con el nombre de la persona.
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
-const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { ia: 'Asistente', cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : { ia: 'Asistente', pizarra: 'Ideas', cal: 'Calendario', tareas: 'Tareas', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -707,7 +715,8 @@ function mergeStates(a, b) {
   }
   out.enfoque = normEnfoque({ ...eO, ...eN, dias, personas: byId(eN.personas, eO.personas), proyectos: byId(eN.proyectos, eO.proyectos),
     planes: byId(eN.planes, eO.planes), apps: byId(eN.apps, eO.apps), predicciones: byId(eN.predicciones, eO.predicciones),
-    animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones) });
+    animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones),
+    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario) });
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
   return normalize(out);
@@ -1423,7 +1432,7 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -1714,8 +1723,8 @@ document.querySelector('.tabs').addEventListener('click', e => {
   const b = e.target.closest('.tab');
   if (!b) return;
   view = b.dataset.view;
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
-  for (const v of ['enfoque', 'ia', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
+  for (const v of ['enfoque', 'ia', 'pizarra', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   renderTitle();
   renderAll();
   scrollTo(0, 0);
@@ -1725,6 +1734,8 @@ document.querySelector('.tabs').addEventListener('click', e => {
 });
 
 $('#title').addEventListener('click', () => { if (view === 'hoy' || view === 'enfoque') nameForm(); });
+// Calendario y Análisis de hábitos se abren desde la pestaña Hábitos (la barra queda en cinco pestañas).
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-subvista]'); if (b) document.querySelector(`.tabs .tab[data-view="${b.dataset.subvista}"]`)?.click(); });
 
 let editing = null;
 const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean);
@@ -2200,6 +2211,11 @@ const ENFOQUE_CSS = `
   .ring .count { font-size: 3.4rem; }
   .focus-what { font-size: 1.15rem; font-weight: 500; margin: 0; }
 
+  /* Plan de rescate */
+  .sos { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; text-align: left; border: 1.5px solid var(--red); color: var(--red);
+    border-radius: 14px; padding: 12px 14px; margin: 0 0 18px; }
+  .sos b { font-weight: 600; } .sos span { font-size: .85rem; }
+  .paso { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 6px; }
   /* Intervención del momento */
   .interv { background: var(--soft); border-radius: 18px; padding: 16px 16px 14px; margin: 0 0 28px; animation: up .5s var(--spring); }
   .interv b { display: block; font-size: 1.02rem; margin-bottom: 4px; }
@@ -2236,6 +2252,7 @@ const ENFOQUE_CSS = `
 `;
 const ENFOQUE_HTML = `
 
+  <button class="sos" id="sos"><b>¿Día sin rumbo?</b><span>Plan de rescate en 5 minutos</span></button>
   <div id="interv"></div>
   <section id="agenda-sec">
     <h3 style="margin-top:0">Agenda de hoy</h3>
@@ -2337,7 +2354,7 @@ const PREGUNTAS = ['¿Qué es lo que más te ilusiona ahora mismo?', '¿Qué apr
 // Configuración del teléfono (Olson et al., 2022): pequeños cambios que bajan el uso problemático.
 const CONFIG = [
   ['inicio', 'Quitar las redes de la pantalla de inicio', 'Mantén pulsado el icono → Quitar (no desinstalar).'],
-  ['enfoque', 'Poner Rumbo donde estaban', 'Que el pulgar encuentre la pregunta en vez del feed.'],
+  ['enfoque', 'Poner Organización Personal donde estaban', 'Que el pulgar encuentre la pregunta en vez del feed.'],
   ['notif', 'Silenciar las notificaciones de redes', 'Ajustes → Notificaciones. Deja solo llamadas y mensajes de personas. No apagues todo: eso aumenta el FOMO.'],
   ['grises', 'Pantalla en escala de grises', 'Ajustes → Bienestar digital → Modo descanso, o Accesibilidad → Corrección de color.'],
   ['dormir', 'Cargar el teléfono fuera del dormitorio', 'Un despertador barato evita la primera y la última revisión del día.'],
@@ -3232,6 +3249,83 @@ function revisionSemanal() {
   $('#rv-ok').onclick = () => { pacto(); closeSheet(); renderE(); };
 }
 
+// ---------- Plan de rescate: cuando el día no tiene rumbo. Calmar el cuerpo, vaciar la cabeza, elegir una sola cosa y empezar pequeño.
+let resc = null;
+function rescate(paso = 1) {
+  if (paso === 1) resc = { lista: [], una: '', primer: '' };
+  const pie = n => `<p class="paso">Paso ${n} de 5</p>`;
+  if (paso === 1) {
+    showSheet(`${pie(1)}<h2>Primero, el cuerpo</h2>
+      <p class="note">Dos inhalaciones cortas por la nariz y una exhalación larga por la boca, durante un minuto. Suspirar así calma más rápido que otras respiraciones (Balban et al., 2023).</p>
+      <div style="display:flex;justify-content:center"><div class="breath"><span id="rs-br">Inhala, inhala…</span></div></div>
+      <div class="actions"><button class="link" id="rs-skip">Saltar</button><button class="primary" id="rs-next">Ya estoy más tranquilo</button></div>`);
+    let f = 0; const t = setInterval(() => { const el = $('#rs-br'); if (!el) return clearInterval(t); el.textContent = (f = 1 - f) ? 'Exhala lento…' : 'Inhala, inhala…'; }, 4000);
+    $('#rs-skip').onclick = $('#rs-next').onclick = () => { clearInterval(t); rescate(2); };
+    return;
+  }
+  if (paso === 2) {
+    showSheet(`${pie(2)}<h2>Saca todo de tu cabeza</h2>
+      <p class="note">Escribe todo lo que te ronda, una cosa por línea, sin ordenar. Dejar por escrito lo pendiente baja el ruido mental (Masicampo y Baumeister, 2011).</p>
+      <textarea id="rs-txt" rows="8" style="min-height:180px;border:1px solid var(--line);border-radius:12px;padding:10px 12px" placeholder="Pagar la luz\nResponder a Ana\nTerminar la portada\n…"></textarea>
+      <div class="actions"><button class="link" id="rs-back">Atrás</button><button class="primary" id="rs-next">Siguiente</button></div>`);
+    $('#rs-txt').value = resc.lista.join('\n'); setTimeout(() => $('#rs-txt').focus(), 50);
+    $('#rs-back').onclick = () => rescate(1);
+    $('#rs-next').onclick = () => { resc.lista = $('#rs-txt').value.split('\n').map(x => x.trim()).filter(Boolean); rescate(3); };
+    return;
+  }
+  if (paso === 3) {
+    const p = pendientes(), extra = [...ES.prioridades.items.filter(x => !x.hecho).map(x => x.t), ...p.due.map(x => x.titulo)].filter(t => !resc.lista.includes(t));
+    const opciones = [...resc.lista, ...extra].slice(0, 14);
+    showSheet(`${pie(3)}<h2>Elige una sola cosa</h2>
+      <p class="note">¿Cuál, si la hicieras hoy, haría todo lo demás más fácil o menos urgente? Solo una. El resto puede esperar.</p>
+      ${opciones.length ? `<div class="rows" id="rs-ops">${opciones.map((t, i) => `<button class="row" data-i="${i}"><span class="box"></span><span class="t"><div>${esc(t)}</div></span></button>`).join('')}</div>` : ''}
+      <div class="field" style="margin-top:12px"><label>${opciones.length ? 'U otra:' : 'La cosa más importante hoy'}</label><input id="rs-una" maxlength="100" value="${esc(resc.una)}"></div>
+      <div class="actions"><button class="link" id="rs-back">Atrás</button><button class="primary" id="rs-next">Esta</button></div>`);
+    $('#rs-ops')?.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b) return; $('#rs-una').value = opciones[+b.dataset.i];
+      $('#rs-ops').querySelectorAll('.box').forEach(x => { const on = x.closest('[data-i]') === b; x.style.background = on ? 'var(--text)' : ''; x.style.borderColor = on ? 'var(--text)' : ''; }); });
+    $('#rs-back').onclick = () => rescate(2);
+    $('#rs-next').onclick = () => { resc.una = $('#rs-una').value.trim(); if (!resc.una) { $('#rs-una').focus(); return; } rescate(4); };
+    return;
+  }
+  if (paso === 4) {
+    showSheet(`${pie(4)}<h2>El primer paso, en 2 minutos</h2>
+      <p class="note">«${esc(resc.una)}». ¿Cuál es la acción física más pequeña para empezar? Abrir el archivo, escribir el título, marcar el número.</p>
+      <div class="field"><input id="rs-primer" maxlength="100" value="${esc(resc.primer)}" placeholder="Abrir el documento y escribir el título"></div>
+      ${resc.lista.length > 1 ? `<label style="display:flex;gap:8px;align-items:center;font-size:.9rem;margin:0 0 6px"><input type="checkbox" id="rs-tareas" checked style="width:auto"> Guardar el resto de la lista en Tareas, para que deje de dar vueltas</label>` : ''}
+      <div class="actions"><button class="link" id="rs-back">Atrás</button><button class="primary" id="rs-next">Listo</button></div>`);
+    setTimeout(() => $('#rs-primer').focus(), 50);
+    $('#rs-back').onclick = () => rescate(3);
+    $('#rs-next').onclick = () => {
+      resc.primer = $('#rs-primer').value.trim() || resc.una;
+      // La cosa elegida pasa a ser la prioridad 1 de hoy.
+      const P = ES.prioridades; P.items = P.items.filter(x => x.t !== resc.una);
+      P.items.unshift({ id: crypto.randomUUID(), t: resc.una, hecho: false, origen: 'Plan de rescate' }); P.items = P.items.slice(0, 3);
+      if ($('#rs-tareas')?.checked) {
+        const T = HT().tareas, lista = T.listas.find(l => l.id === T.activa) || T.listas[0];
+        for (const t of resc.lista.filter(t => t !== resc.una)) if (!T.items.some(x => !x.hecha && x.titulo === t)) T.items.push({ id: crypto.randomUUID(), lista: lista.id, titulo: t, detalle: '', fecha: '', hecha: false, creado: Date.now(), repite: '', dias: [] });
+      }
+      bump('rescates'); guardar(); renderE(); rescate(5);
+    };
+    return;
+  }
+  showSheet(`${pie(5)}<h2>Empieza ya</h2>
+    <p class="note">Tu prioridad 1 de hoy: <b style="color:var(--text)">${esc(resc.una)}</b>. Empieza por: ${esc(resc.primer)}. Lo demás quedó anotado.</p>
+    <div class="actions stack">
+      <button class="primary" id="rs-2">Empezar 2 minutos</button>
+      <button class="outline" id="rs-25">Una sesión de 25 minutos</button>
+      ${iaCfg().key ? '<button class="outline" id="rs-ia">Pedir al Asistente que ordene el resto del día</button>' : ''}
+      <button class="link" id="rs-close">Cerrar</button>
+    </div>`);
+  $('#rs-2').onclick = () => { closeSheet(); startFocus(resc.primer, 2); };
+  $('#rs-25').onclick = () => { closeSheet(); startFocus(resc.una, 25); };
+  $('#rs-ia')?.addEventListener('click', () => {
+    closeSheet(); irA('ia');
+    iaEnviar(`Mi día va sin rumbo. Ya elegí mi prioridad 1: «${resc.una}» (empiezo por: ${resc.primer}). Esto es todo lo que tengo en la cabeza:\n${resc.lista.map(t => '- ' + t).join('\n') || '(nada más)'}\nAyúdame a ordenar el resto del día con horas realistas según mi calendario. Propón el plan y espera mi sí antes de agendar nada.`);
+  });
+  $('#rs-close').onclick = closeSheet;
+}
+$('#sos').onclick = () => rescate();
+
 // ---------- Emociones detrás del impulso (Throuvala et al., 2020): nombrarlas ayuda a regularlas.
 const EMOCIONES = ['Aburrimiento', 'Ansiedad', 'Soledad', 'Cansancio', 'Curiosidad', 'Evitar algo'];
 const EMO_TIP = {
@@ -3327,6 +3421,8 @@ function intervenciones() {
   const graciasSemana = ES.personas.some(p => p.historial.some(x => x.tipo === 'Gracias' && x.d >= lunes()));
   const top = emociones()[0];
   return [
+    !avCfg().on && 'PushManager' in window && { id: 'avisos', t: 'Que la app te avise', p: 'Activa las notificaciones: el resumen de la mañana, la hora de tus hábitos y tus planes te llegan sin abrir la app.', sci: 'Señal en el momento correcto (Gollwitzer y Sheeran, 2006)', b: 'Activar', a: () => avisosSheet() },
+    h >= 11 && !P.items.length && !d.enfoque && { id: 'rumbo', t: '¿El día va sin rumbo?', p: 'Pasa. En 5 minutos: respiras, sacas todo de la cabeza, eliges una sola cosa y empiezas por 2 minutos.', sci: 'Masicampo y Baumeister (2011); Balban et al. (2023)', b: 'Plan de rescate', a: () => rescate() },
     h < 13 && !P.items.length && { id: 'prio', t: 'Empieza por lo importante', p: 'Elige tus tres prioridades de hoy antes de abrir nada más. La más difícil, primero.', sci: 'Zhu, Yang y Hsee (2018); Habbert y Schroeder (2020)', b: 'Elegir prioridades', a: () => prioForm() },
     (dia === 0 || new Date().getDate() === 1) && ES.revision !== today() && { id: 'rev', t: 'Nuevo comienzo', p: 'Un lunes o un mes nuevo es el mejor momento para retomar lo que dejaste. Diez minutos de revisión.', sci: 'Dai, Milkman y Riis (2014)', b: 'Hacer la revisión', a: () => revisionSemanal() },
     d.distraccion >= ES.presupuesto && { id: 'pres', t: 'Ya usaste tu presupuesto de hoy', p: `Llevas ${d.distraccion} min en distracciones. Lo que queda del día es tuyo: una alternativa que sume.`, sci: 'Hunt et al. (2018)', b: 'Ver alternativas', a: () => alternativas('Lo que queda del día es tuyo', 'Elige una:') },
@@ -3402,6 +3498,7 @@ const CIENCIA = [
   ['Preguntas profundas', 'Las conversaciones profundas son menos incómodas y más cercanas de lo esperado; hacer preguntas de seguimiento aumenta el agrado.', 'Kardas, Kumar y Epley (2022), JPSP; Huang et al. (2017), JPSP; Gable et al. (2004), JPSP'],
   ['Plan «si…, entonces…»', 'Las intenciones de implementación tienen un efecto medio-alto sobre el logro de metas (d ≈ 0,65).', 'Gollwitzer y Sheeran (2006), Advances in Experimental Social Psychology'],
   ['WOOP en cada proyecto', 'Contrastar el deseo con el obstáculo interno y planear cómo superarlo mejora el logro frente a solo soñar con la meta.', 'Oettingen (2014), Rethinking Positive Thinking; Wang et al. (2021), Frontiers in Psychology'],
+  ['Plan de rescate', 'Cuando el día no tiene rumbo: un minuto de suspiros cíclicos (dos inhalaciones y una exhalación larga) calma rápido; escribir lo pendiente reduce los pensamientos intrusivos; elegir una sola cosa y un primer paso de 2 minutos hace fácil empezar.', 'Balban et al. (2023), Cell Reports Medicine; Masicampo y Baumeister (2011), JPSP'],
   ['Intervención del momento', 'Un solo mensaje elegido por la hora, el día y tus datos: prioridades por la mañana, revisión los lunes, gratitud los viernes, tres cosas buenas por la noche.', 'Combina las fuentes de esta lista; el principio es «la señal correcta en el momento correcto» (Gollwitzer y Sheeran, 2006)'],
   ['Qué sientes en la puerta', 'Ejercicios breves de conciencia emocional redujeron la distracción por el móvil; el efecto pasó por reconocer la emoción.', 'Throuvala et al. (2020), IJERPH'],
   ['Escala de grises', 'Poner la pantalla en grises redujo el tiempo de pantalla de inmediato (no el bienestar).', 'Zimmermann y Sobolev (2023), Cyberpsychology, Behavior, and Social Networking'],
@@ -3479,6 +3576,7 @@ function settings() {
     <h3>Alternativas</h3>
     <div class="field"><textarea id="s-alts">${esc(ES.alternativas.join('\n'))}</textarea><p class="meta" style="margin-top:6px">Una por línea.</p></div>
     <div class="set-row"><span>Configura tu teléfono<small>${CONFIG.filter(c => ES.config[c[0]]).length} de ${CONFIG.length} hechos</small></span><button class="link" id="s-conf">Ver</button></div>
+    <div class="set-row"><span>Notificaciones<small>${avCfg().on ? 'Activadas' : 'Para no tener que abrir la app'}</small></span><button class="link" id="s-av">Configurar</button></div>
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
       <select id="s-ini"><option value="enfoque">Enfoque</option><option value="hoy" ${localStorage.getItem('habit-inicio') === 'hoy' ? 'selected' : ''}>Hábitos</option></select></div>
     <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
@@ -3493,6 +3591,7 @@ function settings() {
   };
   $('#s-help').onclick = welcome;
   $('#s-conf').onclick = configSheet;
+  $('#s-av').onclick = avisosSheet;
   $('#s-ok').onclick = () => {
     try { localStorage.setItem('habit-inicio', $('#s-ini').value); } catch {}
     ES.limite = +$('#s-lim').value; ES.espera = +$('#s-wait').value;
@@ -3510,9 +3609,9 @@ function welcome() {
   showSheet(`<h2>Menos teléfono, más de lo que importa</h2>
     <p class="note">Enfoque es la pestaña que se pone entre tú y las apps que te roban tiempo. Tres pasos, una sola vez:</p>
     <ol class="pros" style="padding-left:20px">
-      <li style="margin-bottom:8px"><b>Instala Rumbo</b> en la pantalla de inicio (Chrome → ⋮ → «Instalar aplicación»). Se abre en esta pestaña.</li>
+      <li style="margin-bottom:8px"><b>Instala Organización Personal</b> en la pantalla de inicio (Chrome → ⋮ → «Instalar aplicación»). Se abre en esta pestaña.</li>
       <li style="margin-bottom:8px"><b>Quita Instagram, TikTok y demás de la pantalla de inicio</b>: mantén pulsado el icono → «Quitar» (no desinstalar). Siguen en el cajón de apps, pero ya no a un toque.</li>
-      <li><b>Pon Rumbo en su lugar.</b> Cuando el pulgar vaya solo a ese rincón, abrirás esta pregunta en vez del feed.</li>
+      <li><b>Pon Organización Personal en su lugar.</b> Cuando el pulgar vaya solo a ese rincón, abrirás esta pregunta en vez del feed.</li>
     </ol>
     <p class="note">Después, añade a las personas con las que quieres mantener el contacto y tus proyectos en «Tomar la iniciativa»: cada día verás a quién escribir y el siguiente paso.</p>
     <p class="note">Para un tope estricto, combínalo con Bienestar digital de Android: Ajustes → Bienestar digital → Temporizadores de apps.</p>
@@ -3533,6 +3632,8 @@ async function cargarAgenda(force = false) {
   try {
     const desde = new Date(); desde.setHours(0, 0, 0, 0); const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 1);
     agendaCache = { d: today(), t: Date.now(), items: await gCalEventos(desde, hasta), err: '' };
+    const ag = { fecha: today(), items: agendaCache.items.slice(0, 8).map(ev => ({ t: ev.titulo, h: ev.todoElDia ? '' : hhmm(new Date(ev.inicio)) })) };
+    if (JSON.stringify(ag) !== JSON.stringify(ES.agendaHoy || null)) { ES.agendaHoy = ag; guardar(); }
   } catch (e) { agendaCache = { d: today(), t: Date.now(), items: null, err: e.message }; }
   renderAgenda();
 }
@@ -3583,7 +3684,7 @@ function iaNuevoDia() { if (iaMsgs.length && iaDia !== today() && !iaOcupado) { 
 const iaGuardarChat = () => { try { localStorage.setItem(IA_CHAT, JSON.stringify({ dia: iaDia || today(), msgs: iaMsgs })); } catch {} };
 let iaOcupado = false, iaVivo = '', iaPasos = [], Anthropic = null;
 
-const IA_SYSTEM = `Eres el asistente de Rumbo, una app personal para usar menos el teléfono, erradicar el FOMO, cumplir hábitos y tareas, y tomar la iniciativa en proyectos, conversaciones, reuniones y planes. Hablas en español, de tú, con un registro claro y cercano, sin relleno. Respuestas breves (normalmente de 2 a 6 líneas); usa listas solo cuando ayuden.
+const IA_SYSTEM = `Eres el asistente de Organización Personal, una app personal para usar menos el teléfono, erradicar el FOMO, cumplir hábitos y tareas, y tomar la iniciativa en proyectos, conversaciones, reuniones y planes. Hablas en español, de tú, con un registro claro y cercano, sin relleno. Respuestas breves (normalmente de 2 a 6 líneas); usa listas solo cuando ayuden.
 
 Cómo trabajas:
 - Antes de aconsejar o planificar, mira el estado real con ver_estado (y calendario_ver cuando importen las horas). No inventes datos.
@@ -3618,6 +3719,8 @@ const IA_TOOLS = [
   iaTool('calendario_ver', 'Lista los eventos del Google Calendar principal entre dos fechas (incluidas).', { desde: S('AAAA-MM-DD.'), hasta: S('AAAA-MM-DD.') }),
   iaTool('calendario_crear', 'Crea un evento en el Google Calendar principal. Úsalo solo si la persona lo pidió o aceptó.', {
     titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
+  iaTool('pizarra_agregar', 'Pone ideas como notas en una pizarra de la pestaña Ideas (la crea si no existe). Útil para lluvias de ideas, planes y mapas.', {
+    pizarra: S('Nombre de la pizarra.'), notas: { type: 'array', items: { type: 'string' }, description: 'Textos breves, uno por nota (máximo 20).' } }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
 ];
@@ -3639,7 +3742,7 @@ function iaEstado() {
     meta_iniciativas_semana: ES.metaSemanal, iniciativas_esta_semana: iniciativasSemana(),
     iniciativa_laboral: laboralSemana().items.map(x => ({ tipo: x.k, que: x.t, hecho: x.hecho })),
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
-    ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(),
+    ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
   };
 }
 const buscar = (lista, txt, campo) => { const q = String(txt || '').trim().toLowerCase(); return lista.find(x => x.id === txt) || lista.find(x => String(x[campo]).toLowerCase() === q) || lista.find(x => String(x[campo]).toLowerCase().includes(q)); };
@@ -3694,6 +3797,10 @@ async function iaEjecutar(nombre, a) {
       const ev = await gCalCrear(a); agendaCache.t = 0; renderAgenda();
       return { creado: ev.summary, inicio: ev.start?.dateTime || ev.start?.date, enlace: ev.htmlLink };
     }
+    case 'pizarra_agregar': {
+      const b = pzAgregarNotas(a.pizarra, a.notas.slice(0, 20).map(t => String(t).slice(0, 200)));
+      return { pizarra: b.nombre, notas_añadidas: Math.min(20, a.notas.length), nota: 'Está en la pestaña Ideas.' };
+    }
     case 'iniciar_enfoque': {
       const min = Math.max(5, Math.min(120, a.minutos | 0)); irA('enfoque'); startFocus(a.que, min); return { iniciada: `${min} min en «${a.que}»` };
     }
@@ -3701,7 +3808,7 @@ async function iaEjecutar(nombre, a) {
   throw new Error('Herramienta desconocida.');
 }
 const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
-  crear_proyecto: 'Creó un proyecto', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
+  crear_proyecto: 'Creó un proyecto', pizarra_agregar: 'Escribió en una pizarra', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
 
 // Texto con **negritas** y saltos de línea, siempre escapado.
 const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
@@ -3728,7 +3835,7 @@ function renderIA() {
       <ol class="pros" style="padding-left:20px">
         <li style="margin-bottom:6px">Entra en <a href="https://platform.claude.com" target="_blank" rel="noopener">platform.claude.com</a> con tu correo. Es la consola para desarrolladores, distinta de la suscripción a claude.ai.</li>
         <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">Settings → Billing</a>, añade saldo. Se paga por uso: con 5 $ puedes empezar.</li>
-        <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Settings → API keys</a>, toca «Create key», llámala «Rumbo» y cópiala. Empieza por <b>sk-ant-api</b>.</li>
+        <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Settings → API keys</a>, toca «Create key», llámala «Organización Personal» y cópiala. Empieza por <b>sk-ant-api</b>.</li>
         <li>Pégala aquí abajo. Se guarda solo en este teléfono. No la pegues en chats ni la compartas: quien la tenga puede gastar tu saldo.</li>
       </ol>
       <div class="field"><label>Clave de la API de Claude</label><input id="ia-k" type="password" autocomplete="off" placeholder="sk-ant-api…"></div>
@@ -3849,6 +3956,335 @@ iaR.appendChild(iaStyle); iaR.appendChild(iaW);
 window.renderIA = () => renderIA();
 
 
+// ====================================================================
+// Pizarras: notas, texto, dibujo a mano y flechas para organizar ideas. Se guardan en la cuenta.
+// ====================================================================
+const PZ_NOTAS = ['#ffe066', '#b2f2bb', '#a5d8ff', '#fcc2d7', '#e9ecef'];
+const PZ_TINTA = ['currentColor', '#e03131', '#1c7ed6', '#2f9e44', '#f08c00'];
+const PZ_MODOS = [['mover', 'Mover'], ['nota', 'Nota'], ['texto', 'Texto'], ['lapiz', 'Lápiz'], ['flecha', 'Flecha'], ['borrar', 'Borrar']];
+const pzNid = () => crypto.randomUUID().slice(0, 8);
+const pzNota = (x, y, txt, c = 0, w = 170, h = 110) => ({ id: pzNid(), t: 'nota', x, y, w, h, txt, c });
+const pzZona = (x, y, w, h, txt, c) => ({ id: pzNid(), t: 'zona', x, y, w, h, txt, c });
+const pzFlecha = (x1, y1, x2, y2, c = 0) => ({ id: pzNid(), t: 'flecha', x1, y1, x2, y2, c });
+const PZ_PLANTILLAS = {
+  blanco: ['Pizarra en blanco', () => []],
+  ideas: ['Lluvia de ideas', () => [pzNota(-85, -55, 'Tema central', 0), ...['Idea', 'Idea', 'Idea', 'Idea'].map((t, i) => pzNota([-330, 160, -330, 160][i], [-230, -230, 120, 120][i], t, 4))]],
+  vida: ['Mapa de mi vida', () => {
+    const areas = ['Salud y energía', 'Relaciones', 'Trabajo y proyectos', 'Dinero', 'Aprendizaje', 'Descanso y ocio'], els = [pzNota(-85, -55, 'Mi vida: ¿qué quiero en 1 año?', 0)];
+    areas.forEach((a, i) => { const ang = i / areas.length * Math.PI * 2 - Math.PI / 2, x = Math.cos(ang) * 330, y = Math.sin(ang) * 240;
+      els.push(pzFlecha(Math.cos(ang) * 100, Math.sin(ang) * 70, x - Math.cos(ang) * 70, y - Math.sin(ang) * 50, 0), pzNota(x - 85, y - 55, `${a}\n· Ahora:\n· Quiero:`, 1 + i % 4)); });
+    return els; }],
+  matriz: ['Importante / urgente', () => [pzZona(-420, -300, 400, 280, 'Importante y urgente: hazlo hoy', 1), pzZona(20, -300, 400, 280, 'Importante, no urgente: agéndalo', 2),
+    pzZona(-420, 20, 400, 280, 'Urgente, no importante: acórtalo o delega', 4), pzZona(20, 20, 400, 280, 'Ni lo uno ni lo otro: suéltalo', 3)]],
+  semana: ['Mi semana', () => ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => pzZona(-700 + i * 200, -260, 190, 520, d, i % 5))],
+  proyecto: ['Proyecto', () => [pzZona(-640, -260, 410, 520, 'Por hacer', 4), pzZona(-205, -260, 410, 520, 'Haciendo', 0), pzZona(230, -260, 410, 520, 'Hecho', 1)]],
+};
+let pzId = null, pzVista = { x: 0, y: 0, k: 1 }, pzModo = 'mover', pzColor = 0, pzHist = [], pzSaveT = 0, pzEdit = null;
+const pz = () => ES.pizarras.find(b => b.id === pzId);
+function pzGuardar() { const b = pz(); if (b) b.cambiado = Date.now(); clearTimeout(pzSaveT); pzSaveT = setTimeout(guardar, 700); }
+function pzPush() { const b = pz(); if (!b) return; pzHist.push(JSON.stringify(b.els)); if (pzHist.length > 40) pzHist.shift(); }
+const pzLineas = t => esc(t).split('\n');
+function pzEl(e) {
+  if (e.t === 'zona') return `<g data-id="${e.id}"><rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" rx="16" fill="${PZ_NOTAS[e.c] || PZ_NOTAS[4]}" fill-opacity=".35" stroke="${PZ_NOTAS[e.c] || PZ_NOTAS[4]}" stroke-width="2"/>
+    <text x="${e.x + 14}" y="${e.y + 30}" class="zt">${pzLineas(e.txt).map((l, i) => `<tspan x="${e.x + 14}" dy="${i ? 22 : 0}">${l}</tspan>`).join('')}</text></g>`;
+  if (e.t === 'nota') return `<g data-id="${e.id}"><rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" rx="10" fill="${PZ_NOTAS[e.c] || PZ_NOTAS[0]}" class="nr"/>
+    <foreignObject x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}"><div xmlns="http://www.w3.org/1999/xhtml" class="nt">${esc(e.txt)}</div></foreignObject></g>`;
+  if (e.t === 'texto') return `<g data-id="${e.id}"><text x="${e.x}" y="${e.y}" class="tx" fill="${PZ_TINTA[e.c] || PZ_TINTA[0]}">${pzLineas(e.txt).map((l, i) => `<tspan x="${e.x}" dy="${i ? 26 : 0}">${l}</tspan>`).join('')}</text></g>`;
+  if (e.t === 'trazo') { const p = e.p; let d = `M${p[0]} ${p[1]}`; for (let i = 2; i < p.length; i += 2) d += `L${p[i]} ${p[i + 1]}`;
+    return `<g data-id="${e.id}"><path d="${d}" fill="none" stroke="${PZ_TINTA[e.c] || PZ_TINTA[0]}" stroke-width="${e.g || 3}" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="transparent" stroke-width="18"/></g>`; }
+  if (e.t === 'flecha') { const a = Math.atan2(e.y2 - e.y1, e.x2 - e.x1), L = 14, col = PZ_TINTA[e.c] || PZ_TINTA[0];
+    const h1 = `${e.x2 - L * Math.cos(a - .45)},${e.y2 - L * Math.sin(a - .45)}`, h2 = `${e.x2 - L * Math.cos(a + .45)},${e.y2 - L * Math.sin(a + .45)}`;
+    return `<g data-id="${e.id}"><line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" stroke="${col}" stroke-width="3" stroke-linecap="round"/><polyline points="${h1} ${e.x2},${e.y2} ${h2}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" stroke="transparent" stroke-width="18"/></g>`; }
+  return '';
+}
+function pzPintar() {
+  const g = pzW.querySelector('#pz-g'), b = pz(); if (!g || !b) return;
+  g.setAttribute('transform', `translate(${pzVista.x} ${pzVista.y}) scale(${pzVista.k})`);
+  g.innerHTML = b.els.map(pzEl).join('');
+}
+let pzRaf = 0; const pzPintarPronto = () => { if (!pzRaf) pzRaf = requestAnimationFrame(() => { pzRaf = 0; pzPintar(); }); };
+function pzCentrar() {
+  const b = pz(), svg = pzW.querySelector('#pz-svg'); if (!b || !svg) return;
+  const r = svg.getBoundingClientRect(); let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const e of b.els) { const xs = e.t === 'trazo' ? e.p.filter((_, i) => i % 2 === 0) : e.t === 'flecha' ? [e.x1, e.x2] : [e.x, e.x + (e.w || 120)], ys = e.t === 'trazo' ? e.p.filter((_, i) => i % 2) : e.t === 'flecha' ? [e.y1, e.y2] : [e.y - (e.t === 'texto' ? 24 : 0), e.y + (e.h || 10)];
+    x0 = Math.min(x0, ...xs); x1 = Math.max(x1, ...xs); y0 = Math.min(y0, ...ys); y1 = Math.max(y1, ...ys); }
+  if (!isFinite(x0)) { pzVista = { x: r.width / 2, y: r.height / 2, k: 1 }; return pzPintar(); }
+  const k = Math.max(.2, Math.min(1.5, Math.min((r.width - 40) / (x1 - x0 || 1), (r.height - 40) / (y1 - y0 || 1))));
+  pzVista = { k, x: r.width / 2 - (x0 + x1) / 2 * k, y: r.height / 2 - (y0 + y1) / 2 * k }; pzPintar();
+}
+function renderPizarras() {
+  if (djEdit) return djEditor(djEdit);
+  if (pzId && pz()) return pzEditor();
+  pzId = null;
+  const L = [...ES.pizarras].sort((a, c) => (c.cambiado || 0) - (a.cambiado || 0));
+  pzW.innerHTML = `<div class="enf">
+    ${djLista()}
+    <h3>Pizarras</h3>
+    <p class="note" style="margin-bottom:8px">Ordena ideas con notas, texto, dibujos y flechas. Se guardan en tu cuenta.</p>
+    ${L.length ? `<div class="rows">${L.map(b => `<button class="row" data-b="${b.id}"><span class="dot" style="--c:${PZ_NOTAS[0]}"></span><span class="t"><div>${esc(b.nombre)}</div>
+      <small>${b.els.length} ${b.els.length === 1 ? 'elemento' : 'elementos'}${b.cambiado ? ' · ' + new Date(b.cambiado).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : ''}</small></span><span class="tag">›</span></button>`).join('')}</div>` : ''}
+    <h3>Nueva pizarra</h3>
+    <div class="chips" id="pz-new">${Object.entries(PZ_PLANTILLAS).map(([k, [n]]) => `<button class="chip" data-p="${k}">${n}</button>`).join('')}</div>
+    <p class="meta" style="margin-top:14px">Consejo: pídele al Asistente «pon en una pizarra las ideas para…» y las acomoda como notas.</p></div>`;
+  pzW.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { pzId = b.dataset.b; pzHist = []; pzEditor(true); });
+  pzW.querySelector('#dj-new').onclick = () => djEditor();
+  pzW.querySelectorAll('[data-dj]').forEach(b => b.onclick = () => djEditor(ES.diario.find(x => x.id === b.dataset.dj)));
+  pzW.querySelector('#dj-sem')?.addEventListener('click', () => { const desde = dayKey(addDays(new Date(), -6)); const l = ES.diario.filter(x => x.d >= desde).sort((a, b) => (a.d + a.h) < (b.d + b.h) ? -1 : 1);
+    djEnviar(l, `Diario · semana del ${new Date(desde + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' })}`); });
+  pzW.querySelector('#pz-new').addEventListener('click', e => {
+    const c = e.target.closest('[data-p]'); if (!c) return; const [n, f] = PZ_PLANTILLAS[c.dataset.p];
+    const b = { id: crypto.randomUUID(), nombre: n, els: f(), cambiado: Date.now() }; ES.pizarras.push(b); guardar();
+    pzId = b.id; pzHist = []; pzEditor(true);
+  });
+}
+function pzEditor(centrar = false) {
+  const b = pz();
+  pzW.innerHTML = `<div class="pz">
+    <div class="pz-bar">
+      <button class="link" id="pz-back">‹ Pizarras</button><button class="pz-name" id="pz-name">${esc(b.nombre)}</button>
+      <span class="pz-r"><button class="link" id="pz-undo">Deshacer</button> · <button class="link" id="pz-fit">Centrar</button> · <button class="link red" id="pz-del">Borrar</button></span>
+    </div>
+    <div class="pz-tools">${PZ_MODOS.map(([k, n]) => `<button class="chip${k === pzModo ? ' on' : ''}" data-m="${k}">${n}</button>`).join('')}
+      <span class="pz-cols">${PZ_NOTAS.map((c, i) => `<button class="pz-col${i === pzColor ? ' on' : ''}" data-c="${i}" style="background:${pzModo === 'nota' ? c : PZ_TINTA[i] === 'currentColor' ? 'var(--text)' : PZ_TINTA[i]}" aria-label="Color ${i + 1}"></button>`).join('')}</span></div>
+    <svg id="pz-svg" class="pz-svg m-${pzModo}"><g id="pz-g"></g></svg>
+    <p class="pz-hint">${{ mover: 'Arrastra para moverte o mover elementos · toca una nota para escribir · pellizca para acercar', nota: 'Toca donde quieras una nota', texto: 'Toca donde quieras escribir', lapiz: 'Dibuja con el dedo', flecha: 'Arrastra de un punto a otro', borrar: 'Toca o pasa el dedo por lo que quieras borrar' }[pzModo]}</p>
+    <div class="pz-edit" id="pz-edit" hidden><textarea id="pz-txt" rows="4"></textarea>
+      <div class="actions" style="margin-top:10px"><button class="link red" id="pz-edel">Eliminar</button><button class="link" id="pz-ecan">Cancelar</button><button class="primary" id="pz-eok">Listo</button></div></div>
+  </div>`;
+  const q = s => pzW.querySelector(s), svg = q('#pz-svg');
+  q('#pz-back').onclick = () => { pzId = null; guardar(); renderPizarras(); };
+  q('#pz-name').onclick = () => pzEditar({ t: 'nombre', txt: b.nombre });
+  q('#pz-undo').onclick = () => { const s = pzHist.pop(); if (s) { b.els = JSON.parse(s); pzGuardar(); pzPintar(); } };
+  q('#pz-fit').onclick = pzCentrar;
+  q('#pz-del').onclick = () => { if (!confirm(`¿Borrar la pizarra «${b.nombre}»?`)) return; forget(b.id); ES.pizarras = ES.pizarras.filter(x => x !== b); pzId = null; guardar(); renderPizarras(); };
+  q('.pz-tools').addEventListener('click', e => {
+    const m = e.target.closest('[data-m]'), c = e.target.closest('[data-c]');
+    if (m) { pzModo = m.dataset.m; pzEditor(); } if (c) { pzColor = +c.dataset.c; pzEditor(); }
+  });
+  q('#pz-ecan').onclick = () => { pzEdit = null; q('#pz-edit').hidden = true; };
+  q('#pz-eok').onclick = () => {
+    const t = q('#pz-txt').value.trim(), e = pzEdit; pzEdit = null; q('#pz-edit').hidden = true; if (!e) return;
+    if (e.t === 'nombre') { if (t) { b.nombre = t; pzGuardar(); q('#pz-name').textContent = t; } return; }
+    pzPush(); if (!t && e.nuevo) { b.els = b.els.filter(x => x !== e); } else { e.txt = t || e.txt; delete e.nuevo; if (e.t === 'nota') e.h = Math.max(110, 34 + Math.ceil(e.txt.length / 18) * 20 + (e.txt.split('\n').length - 1) * 20); }
+    pzGuardar(); pzPintar();
+  };
+  q('#pz-edel').onclick = () => { const e = pzEdit; pzEdit = null; q('#pz-edit').hidden = true; if (e && e.t !== 'nombre') { pzPush(); b.els = b.els.filter(x => x !== e); pzGuardar(); pzPintar(); } };
+  pzEventos(svg);
+  if (centrar) requestAnimationFrame(pzCentrar); else pzPintar();
+}
+function pzEditar(e) {
+  pzEdit = e; const box = pzW.querySelector('#pz-edit'), ta = pzW.querySelector('#pz-txt');
+  box.hidden = false; ta.value = e.nuevo ? '' : e.txt; ta.placeholder = e.t === 'nombre' ? 'Nombre de la pizarra' : 'Escribe…';
+  pzW.querySelector('#pz-edel').hidden = e.t === 'nombre'; setTimeout(() => ta.focus(), 50);
+}
+function pzEventos(svg) {
+  const ptrs = new Map(); let op = null, pinch = null;
+  const mundo = (cx, cy) => { const r = svg.getBoundingClientRect(); return [Math.round((cx - r.left - pzVista.x) / pzVista.k), Math.round((cy - r.top - pzVista.y) / pzVista.k)]; };
+  const idEn = (cx, cy) => { const el = pzR.elementFromPoint(cx, cy); return el?.closest?.('[data-id]')?.dataset.id; };
+  svg.addEventListener('pointerdown', ev => {
+    svg.setPointerCapture(ev.pointerId); ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    const b = pz();
+    if (ptrs.size === 2) {
+      if (op?.cur && op.nuevo) b.els = b.els.filter(x => x !== op.cur);   // un segundo dedo cancela el trazo
+      const [a, c] = [...ptrs.values()], mid = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
+      pinch = { d: Math.hypot(a[0] - c[0], a[1] - c[1]), k: pzVista.k, w: mundo(...mid) }; op = null; return;
+    }
+    const [x, y] = mundo(ev.clientX, ev.clientY), id = ev.target.closest?.('[data-id]')?.dataset.id, el = b.els.find(e => e.id === id);
+    op = { sx: ev.clientX, sy: ev.clientY, x, y, movido: false, el, vx: pzVista.x, vy: pzVista.y };
+    if (pzModo === 'lapiz') { pzPush(); op.cur = { id: pzNid(), t: 'trazo', p: [x, y], c: pzColor, g: 3 }; op.nuevo = true; b.els.push(op.cur); }
+    if (pzModo === 'flecha') { pzPush(); op.cur = pzFlecha(x, y, x, y, pzColor); op.nuevo = true; b.els.push(op.cur); }
+    if (pzModo === 'borrar' && el) { pzPush(); b.els = b.els.filter(e => e !== el); pzGuardar(); pzPintar(); }
+  });
+  svg.addEventListener('pointermove', ev => {
+    if (!ptrs.has(ev.pointerId)) return; ptrs.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    const b = pz();
+    if (pinch && ptrs.size === 2) {
+      const [a, c] = [...ptrs.values()], d = Math.hypot(a[0] - c[0], a[1] - c[1]), mid = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2], r = svg.getBoundingClientRect();
+      pzVista.k = Math.max(.2, Math.min(4, pinch.k * d / (pinch.d || 1)));
+      pzVista.x = mid[0] - r.left - pinch.w[0] * pzVista.k; pzVista.y = mid[1] - r.top - pinch.w[1] * pzVista.k; return pzPintarPronto();
+    }
+    if (!op) return;
+    if (Math.hypot(ev.clientX - op.sx, ev.clientY - op.sy) > 6) op.movido = true;
+    const [x, y] = mundo(ev.clientX, ev.clientY);
+    if (pzModo === 'lapiz' && op.cur) { const p = op.cur.p; if (Math.hypot(x - p[p.length - 2], y - p[p.length - 1]) >= 3 / pzVista.k) p.push(x, y); }
+    else if (pzModo === 'flecha' && op.cur) { op.cur.x2 = x; op.cur.y2 = y; }
+    else if (pzModo === 'borrar') { const id = idEn(ev.clientX, ev.clientY); if (id) { b.els = b.els.filter(e => e.id !== id); pzGuardar(); } }
+    else if (pzModo === 'mover' && op.movido) {
+      if (op.el) { if (!op.empujado) { pzPush(); op.empujado = true; } const dx = x - op.x, dy = y - op.y; op.x = x; op.y = y; const e = op.el;
+        if (e.t === 'trazo') e.p = e.p.map((v, i) => v + (i % 2 ? dy : dx)); else if (e.t === 'flecha') { e.x1 += dx; e.x2 += dx; e.y1 += dy; e.y2 += dy; } else { e.x += dx; e.y += dy; } }
+      else { pzVista.x = op.vx + ev.clientX - op.sx; pzVista.y = op.vy + ev.clientY - op.sy; }
+    }
+    pzPintarPronto();
+  });
+  const fin = ev => {
+    ptrs.delete(ev.pointerId); if (ptrs.size < 2) pinch = null;
+    if (!op || ptrs.size) return;
+    const b = pz(), o = op; op = null;
+    if (pzModo === 'lapiz' && o.cur && o.cur.p.length < 4) b.els = b.els.filter(x => x !== o.cur);
+    if (pzModo === 'flecha' && o.cur && Math.hypot(o.cur.x2 - o.cur.x1, o.cur.y2 - o.cur.y1) < 12) b.els = b.els.filter(x => x !== o.cur);
+    if (!o.movido && (pzModo === 'nota' || pzModo === 'texto')) {
+      pzPush(); const e = pzModo === 'nota' ? pzNota(o.x - 85, o.y - 55, '', pzColor) : { id: pzNid(), t: 'texto', x: o.x, y: o.y, txt: '', c: pzColor };
+      e.nuevo = true; b.els.push(e); pzPintar(); pzEditar(e);
+    }
+    if (!o.movido && pzModo === 'mover' && o.el && ['nota', 'texto', 'zona'].includes(o.el.t)) pzEditar(o.el);
+    pzGuardar(); pzPintar();
+  };
+  svg.addEventListener('pointerup', fin); svg.addEventListener('pointercancel', fin);
+  svg.addEventListener('wheel', ev => { ev.preventDefault(); const r = svg.getBoundingClientRect(), w = mundo(ev.clientX, ev.clientY);
+    pzVista.k = Math.max(.2, Math.min(4, pzVista.k * (ev.deltaY < 0 ? 1.1 : 1 / 1.1))); pzVista.x = ev.clientX - r.left - w[0] * pzVista.k; pzVista.y = ev.clientY - r.top - w[1] * pzVista.k; pzPintarPronto(); }, { passive: false });
+}
+// Para el Asistente: añade notas a una pizarra (la crea si no existe), debajo de lo que ya hay.
+function pzAgregarNotas(nombre, notas) {
+  let b = ES.pizarras.find(x => x.nombre.toLowerCase() === String(nombre).toLowerCase());
+  if (!b) { b = { id: crypto.randomUUID(), nombre, els: [], cambiado: Date.now() }; ES.pizarras.push(b); }
+  const yBase = b.els.reduce((m, e) => Math.max(m, e.t === 'trazo' ? Math.max(...e.p.filter((_, i) => i % 2)) : e.t === 'flecha' ? Math.max(e.y1, e.y2) : e.y + (e.h || 30)), -200) + 40;
+  notas.forEach((t, i) => b.els.push(pzNota(-370 + (i % 4) * 190, yBase + Math.floor(i / 4) * 140, t, (i % 4) + 1)));
+  b.cambiado = Date.now(); guardar(); return b;
+}
+const pzHost = document.getElementById('view-pizarra');
+const pzR = pzHost.attachShadow({ mode: 'open' });
+const pzStyle = document.createElement('style');
+pzStyle.textContent = ENFOQUE_CSS + `
+  .pz { position: fixed; left: 0; right: 0; top: 0; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); z-index: 6; background: var(--bg); display: flex; flex-direction: column; }
+  .pz-bar { display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 6px; font-size: .9rem; }
+  .pz-name { font-weight: 600; flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; }
+  .pz-r { flex: none; color: var(--muted); }
+  .pz-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 8px; align-items: center; border-bottom: 1px solid var(--line); }
+  .pz-tools .chip { padding: 5px 11px; font-size: .85rem; }
+  .pz-cols { display: flex; gap: 6px; margin-left: auto; }
+  .pz-col { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; }
+  .pz-col.on { border-color: var(--text); box-shadow: inset 0 0 0 2px var(--bg); }
+  .pz-svg { flex: 1; width: 100%; touch-action: none; display: block; color: var(--text);
+    background-image: radial-gradient(circle, var(--line) 1px, transparent 1.2px); background-size: 22px 22px; }
+  .pz-svg.m-mover { cursor: grab; } .pz-svg.m-lapiz, .pz-svg.m-flecha { cursor: crosshair; }
+  .nr { filter: drop-shadow(0 1px 2px rgb(0 0 0 / .18)); }
+  .nt { box-sizing: border-box; width: 100%; height: 100%; padding: 10px 12px; font: 15px/1.35 var(--font); color: #222; white-space: pre-wrap; overflow: hidden; overflow-wrap: anywhere; }
+  .tx { font: 600 22px var(--font); }
+  .zt { font: 600 16px var(--font); fill: var(--text); }
+  .pz-hint { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: .75rem; color: var(--muted); pointer-events: none; margin: 0; }
+  .pz-edit { position: absolute; left: 12px; right: 12px; bottom: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; padding: 12px; box-shadow: 0 8px 30px rgb(0 0 0 / .18); }
+  .pz-edit textarea { min-height: 90px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }`;
+const pzW = document.createElement('div');
+pzR.append(pzStyle, pzW);
+window.renderPizarras = () => renderPizarras();
+
+// ====================================================================
+// Diario: escribir con una pregunta guía y enviarlo a Notion (menú de compartir o copiar con formato).
+// Escribir sobre lo vivido ordena las ideas y ayuda a procesarlas (Pennebaker); las tres cosas buenas de la noche aparecen aquí también.
+// ====================================================================
+const DIARIO_PREGUNTAS = ['¿Qué salió bien hoy y por qué?', '¿Qué me preocupa? ¿Qué parte está en mis manos?', '¿Qué aprendí hoy?', '¿Qué haría distinto mañana?',
+  '¿A quién le agradezco algo y por qué?', '¿En qué gasté mi tiempo y en qué quiero gastarlo?', '¿Qué conversación o plan estoy evitando proponer?', '¿Qué decisión tengo pendiente y cuál es el primer paso?'];
+let djEdit = null;
+const djFecha = d => new Date(d + 'T12:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+function djMarkdown(lista) {
+  return lista.map(x => {
+    const buenas = ES.buenas.find(b => b.d === x.d);
+    return `## ${cap(djFecha(x.d))}${x.h ? ' · ' + fmtHora(x.h) : ''}\n${x.animo ? `**Ánimo:** ${x.animo}/5\n` : ''}${x.preg ? `**${x.preg}**\n` : ''}\n${x.txt}\n${buenas ? `\n**Tres cosas buenas:**\n${buenas.items.map(i => '- ' + i).join('\n')}\n` : ''}`;
+  }).join('\n---\n\n');
+}
+async function djEnviar(lista, titulo) {
+  const texto = `# ${titulo}\n\n${djMarkdown(lista)}`;
+  if (navigator.share) { try { await navigator.share({ title: titulo, text: texto }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(texto); toastIdeas('Copiado. Pégalo en una página de Notion: mantiene el formato.'); }
+  catch { toastIdeas('No se pudo copiar automáticamente.'); }
+}
+function toastIdeas(t) { const el = pzW.querySelector('#dj-toast'); if (el) { el.textContent = t; el.hidden = false; setTimeout(() => { el.hidden = true; }, 3500); } }
+function djEditor(x = null) {
+  const nueva = !x, preg = x?.preg ?? DIARIO_PREGUNTAS[(new Date().getDate() + new Date().getMonth()) % DIARIO_PREGUNTAS.length];
+  djEdit = x || { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg, txt: '', animo: 0 };
+  pzW.innerHTML = `<div class="enf">
+    <p class="meta" style="margin:0"><button class="link" id="dj-back">‹ Ideas</button></p>
+    <h2 style="margin-top:10px">${cap(djFecha(djEdit.d))}</h2>
+    <div class="chips" id="dj-pregs" style="margin:10px 0">${['Libre', ...DIARIO_PREGUNTAS].map(p => `<button class="chip${(p === 'Libre' ? '' : p) === djEdit.preg ? ' on' : ''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+    <p style="font-weight:500;margin:0 0 6px" id="dj-preg">${esc(djEdit.preg || 'Escribe lo que quieras')}</p>
+    <textarea id="dj-txt" rows="10" placeholder="Escribe sin pensar demasiado. Nadie más lo lee." style="min-height:220px;border:1px solid var(--line);border-radius:12px;padding:10px 12px">${esc(djEdit.txt)}</textarea>
+    <div class="field" style="margin-top:14px"><label>Ánimo (opcional)</label><div class="chips" id="dj-an">${[1, 2, 3, 4, 5].map(n => `<button class="chip${djEdit.animo === n ? ' on' : ''}" data-v="${n}">${n}</button>`).join('')}</div></div>
+    <p class="meta" id="dj-toast" hidden></p>
+    <div class="actions">${nueva ? '' : '<button class="link red" id="dj-del">Eliminar</button>'}<button class="link" id="dj-notion">Enviar a Notion</button><button class="primary" id="dj-ok">Guardar</button></div></div>`;
+  const q = s => pzW.querySelector(s);
+  const leer = () => { djEdit.txt = q('#dj-txt').value.trim(); };
+  q('#dj-pregs').addEventListener('click', e => { const c = e.target.closest('[data-p]'); if (!c) return; djEdit.preg = c.dataset.p === 'Libre' ? '' : c.dataset.p;
+    q('#dj-preg').textContent = djEdit.preg || 'Escribe lo que quieras'; q('#dj-pregs').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b === c)); });
+  q('#dj-an').addEventListener('click', e => { const c = e.target.closest('[data-v]'); if (!c) return; djEdit.animo = djEdit.animo === +c.dataset.v ? 0 : +c.dataset.v; q('#dj-an').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', +b.dataset.v === djEdit.animo)); });
+  const guardarEntrada = () => { leer(); if (!djEdit.txt) return false; if (!ES.diario.includes(djEdit)) ES.diario.push(djEdit); djEdit.cambiado = Date.now(); guardar(); return true; };
+  q('#dj-ok').onclick = () => { if (!guardarEntrada()) { q('#dj-txt').focus(); return; } djEdit = null; renderPizarras(); };
+  q('#dj-notion').onclick = () => { if (!guardarEntrada()) { q('#dj-txt').focus(); return; } djEnviar([djEdit], `Diario · ${cap(djFecha(djEdit.d))}`); };
+  q('#dj-back').onclick = () => { if (q('#dj-txt').value.trim() && !ES.diario.includes(djEdit)) guardarEntrada(); djEdit = null; renderPizarras(); };
+  q('#dj-del')?.addEventListener('click', () => { if (!confirm('¿Eliminar esta entrada?')) return; forget(djEdit.id); ES.diario = ES.diario.filter(e => e !== djEdit); guardar(); djEdit = null; renderPizarras(); });
+  setTimeout(() => q('#dj-txt').focus(), 50);
+}
+function djLista() {
+  const L = [...ES.diario].sort((a, b) => (b.d + b.h) < (a.d + a.h) ? -1 : 1);
+  return `<h3 style="margin-top:0">Diario</h3>
+    <button class="row" id="dj-new"><span class="dot" style="--c:var(--text)"></span><span class="t"><div>Escribir hoy</div><small>${esc(DIARIO_PREGUNTAS[(new Date().getDate() + new Date().getMonth()) % DIARIO_PREGUNTAS.length])}</small></span><span class="tag">›</span></button>
+    ${L.length ? `<div class="rows">${L.slice(0, 6).map(x => `<button class="row" data-dj="${x.id}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(x.txt.split('\n')[0].slice(0, 70))}</div>
+      <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))}${x.animo ? ' · ánimo ' + x.animo : ''}</small></span></button>`).join('')}</div>
+      <p class="more">${L.length > 6 ? `${L.length} entradas · ` : ''}<button class="link" id="dj-sem">Enviar la última semana a Notion</button></p><p class="meta" id="dj-toast" hidden></p>` : ''}`;
+}
+
+// ====================================================================
+// Notificaciones: llegan aunque la app esté cerrada. El teléfono se suscribe aquí (Web Push) y la
+// tarea programada de GitHub (.github/workflows/notificaciones.yml) las envía con los datos de la cuenta.
+// ====================================================================
+const VAPID_PUBLIC = 'BCkSUFWA-q7GyyocviKZMTzTPNMvWGUNO-G_js0Y9zvBo5DtHoALCHHQIu5SoWc9ML1xaIO9JdPiP_DNG_FMito';
+const AV_KEY = 'rumbo-avisos';
+const AVISOS = [['manana', 'Resumen de la mañana', 'Prioridades, agenda, planes, hábitos, tareas y a quién escribir'], ['habitos', 'Hora de cada hábito', 'A la hora que pusiste en cada hábito, si aún no lo hiciste'],
+  ['planes', 'Una hora antes de cada plan', 'Con una idea para la conversación'], ['proyectos', 'Paso de proyecto', 'A la hora que fijaste para el siguiente paso'],
+  ['mediodia', 'Prioridad al mediodía', 'A la 1:00 PM, si tu prioridad sigue pendiente'], ['noche', 'Cierre del día', 'A las 9:00 PM: tu día en números y tres cosas buenas'], ['semana', 'Lunes y viernes', 'Revisión semanal y gracias del viernes']];
+const avCfg = () => { try { return JSON.parse(localStorage.getItem(AV_KEY)) || {}; } catch { return {}; } };
+const avSetCfg = c => { try { localStorage.setItem(AV_KEY, JSON.stringify(c)); } catch {} };
+const b64u = t => { const b = atob((t + '='.repeat((4 - t.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+async function avSuscribir(prefs) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Este navegador no admite notificaciones. Abre la app instalada desde Chrome.');
+  if (!auth) throw new Error('Las notificaciones usan tu cuenta para saber qué avisarte. Crea una cuenta o inicia sesión en la pestaña Hábitos.');
+  const permiso = await Notification.requestPermission();
+  if (permiso !== 'granted') throw new Error('No diste permiso. Actívalo en Ajustes del teléfono → Aplicaciones → Organización Personal (o Chrome) → Notificaciones.');
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUBLIC) });
+  const j = sub.toJSON();
+  if (!(await ensureToken())) throw new Error('Tu sesión caducó: vuelve a entrar en tu cuenta.');
+  try {
+    await supa('/rest/v1/push_subs', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' },
+      body: { endpoint: j.endpoint, user_id: auth.uid, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, prefs } });
+  } catch (e) { throw new Error(e.code === '42P01' || e.status === 404 ? 'Falta preparar la base de datos: pega push.sql en Supabase → SQL Editor.' : 'No se pudo guardar en tu cuenta: ' + e.message); }
+}
+async function avDesuscribir() {
+  const reg = await navigator.serviceWorker?.ready, sub = await reg?.pushManager.getSubscription();
+  if (sub) { try { if (await ensureToken()) await supa(`/rest/v1/push_subs?endpoint=eq.${encodeURIComponent(sub.endpoint)}`, { method: 'DELETE' }); } catch {} await sub.unsubscribe(); }
+}
+function avisosSheet() {
+  const c = avCfg(), prefs = { hora: '07:30', ...c.prefs };
+  showSheet(`<h2>Notificaciones</h2>
+    <p class="note">La app te avisa aunque no la abras: lo importante te llega en una notificación y solo entras si quieres actuar.</p>
+    <div class="set-row"><span>Activadas<small>${c.on ? 'En este teléfono' : 'Necesita tu cuenta (pestaña Hábitos)'}</small></span>
+      <button class="${c.on ? 'link' : 'primary'}" id="av-on">${c.on ? 'Desactivar' : 'Activar'}</button></div>
+    <div class="set-row"><span>Hora del resumen de la mañana</span><input id="av-hora" type="time" value="${esc(prefs.hora)}" style="width:auto"></div>
+    <div class="rows">${AVISOS.map(([k, t, d]) => `<button class="row" data-k="${k}"><span class="box" style="${prefs[k] !== false ? 'background:var(--green);border-color:var(--green)' : ''}"></span>
+      <span class="t"><div>${esc(t)}</div><small style="white-space:normal">${esc(d)}</small></span></button>`).join('')}</div>
+    <p class="meta" style="margin-top:12px">Pueden llegar con unos minutos de retraso. Usan los datos sincronizados en tu cuenta y tu agenda de hoy si conectaste Google Calendar.</p>
+    <p class="meta red" id="av-err"></p>
+    <div class="actions">${c.on ? '<button class="link" id="av-test">Probar</button>' : ''}<button class="primary" id="av-ok">Listo</button></div>`);
+  const guardarPrefs = async () => { prefs.hora = $('#av-hora').value || '07:30'; avSetCfg({ ...avCfg(), prefs }); if (avCfg().on) { try { await avSuscribir(prefs); } catch (e) { $('#av-err').textContent = e.message; } } };
+  $('#sheet-body').querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+    prefs[b.dataset.k] = prefs[b.dataset.k] === false; const x = b.querySelector('.box');
+    x.style.background = prefs[b.dataset.k] ? 'var(--green)' : ''; x.style.borderColor = prefs[b.dataset.k] ? 'var(--green)' : '';
+  });
+  $('#av-on').onclick = async e => {
+    e.target.disabled = true; $('#av-err').textContent = '';
+    try {
+      if (avCfg().on) { await avDesuscribir(); avSetCfg({ ...avCfg(), on: false }); }
+      else { prefs.hora = $('#av-hora').value || '07:30'; await avSuscribir(prefs); avSetCfg({ ...avCfg(), on: true, prefs }); toast('Notificaciones activadas.'); }
+      avisosSheet(); renderE();
+    } catch (err) { $('#av-err').textContent = err.message; e.target.disabled = false; }
+  };
+  $('#av-test')?.addEventListener('click', async () => {
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification('Organización Personal', { body: 'Así te llegarán los avisos. Puedes cerrar la app tranquilo.', icon: 'icon-192.png', badge: 'icon-192.png', tag: 'prueba' });
+  });
+  $('#av-ok').onclick = async () => { await guardarPrefs(); closeSheet(); };
+}
+
 // ---------- Arranque
 window.renderEnfoque = () => renderE();
 window.enfoqueArranque = () => {
@@ -3865,6 +4301,10 @@ render();
 // La app abre en Enfoque (la pregunta antes del feed), salvo que en este teléfono se elija Hábitos.
 if (localStorage.getItem('habit-inicio') !== 'hoy') document.querySelector('.tabs .tab[data-view="enfoque"]').click();
 window.enfoqueArranque();
+// Al tocar una notificación se abre la pestaña que indica (?v=...).
+const abrirVista = url => { const v = new URL(url, location.href).searchParams.get('v'); if (v) document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click(); };
+abrirVista(location.href);
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.abrir) abrirVista(e.data.abrir); });
 setSync('local');
 renderAccount();
 connectCloud();
