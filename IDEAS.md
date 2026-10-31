@@ -235,3 +235,19 @@ Investigación con informes por área (neurociencia de la recompensa, gratificac
 - **Veces que volviste**, en Análisis: lo que predice llegar no es no fallar, es volver.
 - **Por qué funciona**: siete entradas nuevas con su cita.
 
+
+## 2.11.1: correcciones de la segunda revisión
+
+Una segunda revisión adversarial de 2.10.0 y 2.11.0 encontró 20 fallos, todos reproducidos y corregidos, con pruebas automáticas nuevas para cada uno (navegador y avisos).
+
+- **La agenda lee de la fuente.** Si editas la iniciativa, la tarea, el hábito, la prioridad o el plan, la Agenda, «Ahora» y los avisos muestran el texto y la hora nuevos (antes guardaban una copia que quedaba vieja).
+- **El plan de la víspera no se pierde con dos dispositivos.** Si otro teléfono abre el día con la agenda vacía, el plan que dejaste anoche se conserva y se aplica; y si terminas «Organizar mañana» pasada la medianoche, ese plan pasa a ser la agenda de hoy.
+- **Otra iniciativa empieza de cero.** Al cambiar la iniciativa del día (de la lista, con el asistente o desde la agenda), no hereda el objetivo, la señal de hecho ni el primer paso de la anterior: así no suma avance a un objetivo ajeno.
+- **Los objetivos de las tareas cuentan siempre.** Una tarea ligada a un objetivo suma al completarla en Tareas, en la Agenda o con el asistente, y resta si se desmarca, sin contar dos veces.
+- **Horas que respetan lo elegido.** La iniciativa que cambias con su hora en el Paso 3 conserva esa hora, y un hábito de las 11 PM no se queda sin hora.
+- **«Estoy procrastinando → Ponle hora hoy»** abre «Organizar mi día» sin perder lo que marcas.
+- **Avisos más fieles.** El servidor no avisa de lo que borraste o vaciaste, usa el texto y la hora actuales, toma la rana elegida anoche como prioridad del día y avisa de un hábito puesto en la agenda un día que no le toca.
+- **Journaling a Notion, sin duplicados ni pérdidas.** Las entradas enviadas desde la 2.9 (que podían compartir la página semanal) ya no aparecen como pendientes ni sobrescriben esa página: si las editas, van como página nueva. Al actualizar, primero se añade lo nuevo y después se archiva lo viejo, así que un fallo a mitad nunca deja la página vacía; Notion se reintenta solo cuando pide esperar, y un fallo pasajero ya no crea una segunda página. Lo que escribes durante un envío queda pendiente (no como enviado), y la versión ordenada que llega en pleno envío sale sola después. Con dos dispositivos, el enlace con Notion no se pierde.
+- **«Tal cual» llega tal cual.** El texto propio va como texto plano: los asteriscos y guiones no se convierten en cursivas ni viñetas, y los cortes de 2000 caracteres no parten un emoji.
+- **Ordenar con el asistente, también las entradas largas.** Va en streaming y con margen amplio; si una entrada es demasiado larga o el asistente no puede procesarla, lo dice claro.
+- **Más seguro.** El ánimo y los avances se normalizan y se escapan, los enlaces solo se abren si son https, y una entrada eliminada mientras se ordena no vuelve. «Desde Notion» (iniciativas) solo necesita el secreto de la integración.

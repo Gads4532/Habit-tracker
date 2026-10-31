@@ -33,10 +33,18 @@ const hora12 = hm => { if (!/^\d\d:\d\d$/.test(hm || '')) return ''; let [h, m] 
 const menos = (hm, min) => { const t = +hm.slice(0, 2) * 60 + +hm.slice(3) - min; return t < 0 ? '' : `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
 
 // ---------- Qué avisar
-const agendaDe = (E, fecha) => E.agendaHoy?.fecha === fecha ? { items: E.agendaHoy.items || [], organizado: !!E.agendaHoy.organizado } : E.agendaPlan?.fecha === fecha ? { items: E.agendaPlan.items || [], organizado: true } : { items: [], organizado: false };
+const agendaDe = (E, fecha) => {
+  const A = E.agendaHoy?.fecha === fecha ? E.agendaHoy : null, P = E.agendaPlan?.fecha === fecha ? E.agendaPlan : null;
+  const deA = (A?.items || []).map(it => ({ ...it, enFuente: true }));
+  if (!P || A?.organizado) return { items: deA, organizado: !!A?.organizado };
+  const clave = it => it.tipo + ':' + (it.tipo === 'libre' ? it.id : it.ref), ya = new Set((P.items || []).map(clave));
+  return { items: [...(P.items || []).map(it => ({ ...it, enFuente: !['ini', 'prio'].includes(it.tipo) })), ...deA.filter(it => !ya.has(clave(it)))], organizado: true };
+};
+// Prioridades de un día: las del teléfono si son de ese día; si no, la rana que se eligió la víspera.
+const prioDe = (E, fecha) => E.prioridades?.fecha === fecha ? E.prioridades.items || [] : E.agendaPlan?.fecha === fecha && E.agendaPlan.rana?.t ? [{ id: E.agendaPlan.rana.id, t: E.agendaPlan.rana.t, hecho: false }] : null;
 function resumen(st, fecha) {
   const E = st.enfoque || {}, w = wd(fecha), L = [];
-  const P = E.prioridades?.fecha === fecha ? E.prioridades.items || [] : [];
+  const P = prioDe(E, fecha) || [];
   L.push(P.length ? `Prioridades: ${P.map((x, i) => `${i + 1}. ${x.t}`).join(' · ')}` : 'Elige tus 3 prioridades: la más difícil primero.');
   const ag = agendaDe(E, fecha).items.filter(e => e.t).sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : 1);
   if (ag.length) L.push(`Agenda: ${ag.slice(0, 4).map(e => `${e.h ? hora12(e.h) + ' ' : ''}${e.t}`).join(' · ')}${ag.length > 4 ? '…' : ''}`);
@@ -63,13 +71,21 @@ function avisos(st, tz, prefs, desde, hasta) {
     if (prefs.agenda !== false) {
       // Agenda del día: 10 minutos antes de cada cosa con hora que siga pendiente. Planes y eventos tienen su propio aviso,
       // y un hábito agendado a su hora de siempre ya recibe el de hábitos: no se duplican.
-      const A = agendaDe(E, fecha), I4 = E.iniciativas4?.dia === fecha ? E.iniciativas4.items || [] : [];
-      const hechoAg = it => it.tipo === 'habito' ? ['full', 'min'].includes(st.log?.[it.ref]?.[fecha]) : it.tipo === 'tarea' ? !!(st.tareas?.items || []).find(x => x.id === it.ref)?.hecha
-        : it.tipo === 'ini' ? !!I4.find(x => x.k === it.ref)?.hecho : it.tipo === 'prio' ? !!(E.prioridades?.fecha === fecha ? E.prioridades.items || [] : []).find(x => x.id === it.ref)?.hecho : !!it.hecho;
-      const avisoHabito = it => it.tipo === 'habito' && prefs.habitos !== false && ((st.habits || []).find(h => h.id === it.ref)?.horas || []).includes(it.h);
+      const A = agendaDe(E, fecha), I4 = E.iniciativas4?.dia === fecha ? E.iniciativas4.items || [] : [], PR = E.prioridades?.fecha === fecha ? E.prioridades.items || [] : [];
+      // La fuente de cada cosa: si se borró o se vació, no se avisa; el texto y la hora salen de ahí (si la editaste, el aviso la sigue).
+      const fuente = it => !it.enFuente ? null : it.tipo === 'habito' ? (st.habits || []).find(h => h.id === it.ref) : it.tipo === 'tarea' ? (st.tareas?.items || []).find(x => x.id === it.ref)
+        : it.tipo === 'ini' ? I4.find(x => x.k === it.ref && x.t) : it.tipo === 'prio' ? PR.find(x => x.id === it.ref) : it;
+      const vivo = it => !it.enFuente || !!fuente(it);
+      const texto = it => { const f = fuente(it); return (it.tipo === 'tarea' ? f?.titulo : it.tipo === 'habito' ? f?.nombre : ['ini', 'prio'].includes(it.tipo) ? f?.t : '') || it.t; };
+      const horaDe = it => { const f = fuente(it); return it.tipo === 'ini' && f ? f.hora || '' : it.tipo === 'tarea' && f?.hora ? f.hora : it.h; };
+      const hechoAg = it => { const f = fuente(it); return it.tipo === 'habito' ? ['full', 'min'].includes(st.log?.[it.ref]?.[fecha]) : it.tipo === 'tarea' ? !!f?.hecha : ['ini', 'prio'].includes(it.tipo) ? !!f?.hecho : !!it.hecho; };
+      // Se omite solo si el hábito de verdad avisa a esa hora ese día (las mismas condiciones que el aviso de hábitos).
+      const avisoHabito = it => { if (it.tipo !== 'habito' || prefs.habitos === false) return false; const h = (st.habits || []).find(x => x.id === it.ref);
+        return !!h && !h.rutina && !(h.creado && h.creado > fecha) && (h.dias?.length ? h.dias : [0, 1, 2, 3, 4, 5, 6]).includes(w) && !st.log?.[h.id]?.[fecha] && (h.horas || []).includes(horaDe(it)); };
       const etq = { habito: 'Hábito', tarea: 'Tarea', ini: 'Iniciativa', prio: 'Prioridad', libre: 'Agenda' };
-      for (const it of A.items) if (it.h && !['evento', 'plan'].includes(it.tipo) && !avisoHabito(it) && !hechoAg(it) && en(fecha, menos(it.h, 10)))
-        out.push({ title: `En 10 min: ${it.t}`, body: `${etq[it.tipo] || 'Agenda'}${it.min ? ' · ' + it.min + ' min' : ''}. Si son las ${hora12(it.h)}, entonces empiezo: teléfono boca abajo.`, tag: 'ag-' + it.id, url: './?v=agenda' });
+      // Un hábito al que le quitaste el aviso (ya confías en la señal) tampoco avisa desde la agenda.
+      for (const it of A.items) { const h = horaDe(it); if (h && !['evento', 'plan'].includes(it.tipo) && vivo(it) && !(it.tipo === 'habito' && fuente(it)?.sinAviso) && !avisoHabito(it) && !hechoAg(it) && en(fecha, menos(h, 10)))
+        out.push({ title: `En 10 min: ${texto(it)}`, body: `${etq[it.tipo] || 'Agenda'}${it.min ? ' · ' + it.min + ' min' : ''}. Si son las ${hora12(h)}, entonces empiezo: teléfono boca abajo.`, tag: 'ag-' + it.id, url: './?v=agenda' }); }
       if (en(fecha, '09:30') && !A.organizado) out.push({ title: 'Tu día aún no tiene agenda', body: 'Dos minutos: hábitos, tareas e iniciativas con hora. Tan fácil que sería ridículo no hacerlo.', tag: 'agenda', url: './?v=agenda' });
     }
     if (prefs.planes !== false) for (const p of E.planes || []) if (!p.hecho && p.fecha === fecha && en(fecha, menos(p.hora || '', 60)))
@@ -77,7 +93,7 @@ function avisos(st, tz, prefs, desde, hasta) {
     if (prefs.proyectos !== false) for (const pr of E.proyectos || []) if (!pr.archivado && pr.paso && pr.cuando === fecha && en(fecha, pr.hora))
       out.push({ title: `Ahora: ${pr.paso}`, body: `${pr.nombre}${pr.donde ? ' · ' + pr.donde : ''}. Si cuesta, empieza por 2 minutos${pr.minima ? ': ' + pr.minima : ''}.`, tag: 'r-' + pr.id, url: './?v=enfoque' });
     if (prefs.mediodia !== false && en(fecha, '13:00')) {
-      const P = E.prioridades?.fecha === fecha ? E.prioridades.items || [] : null, x = P?.find(i => !i.hecho);
+      const P = prioDe(E, fecha), x = P?.find(i => !i.hecho);
       if (!P || !P.length) out.push({ title: 'Aún no eliges tus prioridades', body: 'Tres como máximo, la más difícil primero. Te toma un minuto.', tag: 'mediodia', url: './?v=enfoque' });
       else if (x) out.push({ title: 'Tu prioridad sigue pendiente', body: `${x.t}. ¿25 minutos ahora, con el teléfono boca abajo?`, tag: 'mediodia', url: './?v=enfoque' });
     }

@@ -519,7 +519,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.11.0';
+const APP_VERSION = '2.11.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -664,7 +664,14 @@ function normEnfoque(e) {
   if (!Array.isArray(e.pizarras)) e.pizarras = [];
   for (const b of e.pizarras) { if (!Array.isArray(b.els)) b.els = []; b.nombre ||= 'Pizarra'; }
   if (!Array.isArray(e.diario)) e.diario = [];
-  for (const x of e.diario) { x.tipo ||= 'diario'; delete x.enviando; delete x.ordenando; }
+  e.diario = e.diario.filter(x => x && typeof x === 'object');
+  for (const x of e.diario) {
+    x.tipo ||= 'diario'; delete x.enviando; delete x.ordenando;
+    x.txt = typeof x.txt === 'string' ? x.txt : String(x.txt ?? ''); x.animo = [1, 2, 3, 4, 5].includes(+x.animo) ? +x.animo : 0;
+    // Enlaces de la 2.9 (sin hash): podían ser la página semanal que compartían varias entradas. No se reemplazan;
+    // si la entrada se edita después, va como página nueva al destino actual.
+    if (!x.notion || typeof x.notion !== 'object' || !x.notion.id) delete x.notion; else if (x.notion.hash === undefined && !x.notion.legado) x.notion.legado = Date.now();
+  }
   for (const k of ['practicas', 'estado']) { if (!Array.isArray(e[k])) e[k] = []; for (const x of e[k]) x.id ||= crypto.randomUUID(); }
   if (!e.prioridades || e.prioridades.fecha !== hoy) e.prioridades = { fecha: hoy, items: [] };
   // Agenda del día (hábitos, tareas, iniciativas, prioridades, planes y eventos con hora), historial de agendas y objetivos SMART.
@@ -673,12 +680,13 @@ function normEnfoque(e) {
   for (const it of e.agendaHoy.items) { it.id ||= crypto.randomUUID(); it.tipo ||= 'evento'; it.t ||= ''; it.h ||= ''; it.min = +it.min || 0; if (it.ref === undefined) it.ref = it.tipo === 'evento' ? it.t + it.h : ''; it.hecho = !!it.hecho; }
   if (!Array.isArray(e.agendaHoy.ocultos)) e.agendaHoy.ocultos = [];
   if (!e.agendaHist || typeof e.agendaHist !== 'object') e.agendaHist = {};
-  // Plan de mañana (organizado la noche antes): se descarta si ya pasó o si ya se convirtió en la agenda de ese día.
-  if (e.agendaPlan && (typeof e.agendaPlan !== 'object' || !Array.isArray(e.agendaPlan.items) || !e.agendaPlan.fecha || e.agendaPlan.fecha < hoy || e.agendaPlan.fecha === e.agendaHoy.fecha)) e.agendaPlan = null;
+  // Plan de mañana (organizado la noche antes): se descarta si ya pasó o si la agenda de ese día ya salió de él o ya se organizó.
+  // Si otro teléfono abrió el día con la agenda vacía, el plan se conserva y agenda() lo aplica.
+  if (e.agendaPlan && (typeof e.agendaPlan !== 'object' || !Array.isArray(e.agendaPlan.items) || !e.agendaPlan.fecha || e.agendaPlan.fecha < hoy || (e.agendaPlan.fecha === e.agendaHoy.fecha && (e.agendaHoy.anoche || e.agendaHoy.organizado)))) e.agendaPlan = null;
   if (e.agendaPlan) { if (!e.agendaPlan.ini || typeof e.agendaPlan.ini !== 'object') e.agendaPlan.ini = {}; for (const it of e.agendaPlan.items) { it.id ||= crypto.randomUUID(); it.h ||= ''; it.min = +it.min || 0; } }
   e.agendaPlan ??= null;
   if (!Array.isArray(e.objetivos)) e.objetivos = [];
-  for (const o of e.objetivos) { o.id ||= crypto.randomUUID(); o.t ||= ''; o.metrica ||= ''; o.meta = +o.meta || 1; o.actual = +o.actual || 0; o.unidad ||= 'veces'; o.area ||= 'otro'; o.porque ||= ''; o.paso ||= ''; o.fecha ||= ''; o.creado ||= hoy; o.hecho = !!o.hecho; if (!Array.isArray(o.avances)) o.avances = []; }
+  for (const o of e.objetivos) { o.id ||= crypto.randomUUID(); o.t ||= ''; o.metrica ||= ''; o.meta = +o.meta || 1; o.actual = +o.actual || 0; o.unidad ||= 'veces'; o.area ||= 'otro'; o.porque ||= ''; o.paso ||= ''; o.fecha ||= ''; o.creado ||= hoy; o.hecho = !!o.hecho; if (!Array.isArray(o.avances)) o.avances = []; for (const a of o.avances) a.n = +a.n || 0; }
   e.bienvenida = !!e.bienvenida;
   return e;
 }
@@ -752,7 +760,10 @@ function mergeStates(a, b) {
     planes: byId(eN.planes, eO.planes), apps: byId(eN.apps, eO.apps), predicciones: byId(eN.predicciones, eO.predicciones),
     animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones),
     catalogoIni: Object.fromEntries(['estudio', 'proyecto', 'laboral', 'social', 'espiritual'].map(k => [k, byId(eN.catalogoIni?.[k] || [], eO.catalogoIni?.[k] || [])])),
-    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) },
+    pizarras: byId(eN.pizarras, eO.pizarras), diario: ((x, y) => { const m = new Map(y.map(i => [i.id, i]));
+      for (const i of x) { const o = m.get(i.id); if (!o) { m.set(i.id, i); continue; } const gana = (+i.cambiado || 0) >= (+o.cambiado || 0) ? i : o, otro = gana === i ? o : i;
+        m.set(i.id, (+otro.notion?.en || 0) > (+gana.notion?.en || 0) ? { ...gana, notion: otro.notion } : gana); }
+      return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) },
     objetivos: byId(eN.objetivos || [], eO.objetivos || []), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) },
     // La agenda del día: si es el mismo día, unión de ítems; si no, la del día más reciente.
     agendaHoy: ((x, y) => { x ||= { fecha: '', items: [] }; y ||= { fecha: '', items: [] }; if (x.fecha !== y.fecha) return x.fecha > y.fecha ? x : y;
@@ -1704,6 +1715,7 @@ function animateComplete(el, then) {
 }
 function completeTask(task) {
   task.hecha = true; task.hechaEn = Date.now(); justDoneTask = task.id; navigator.vibrate?.(10);
+  window.objAvanceTarea?.(task, true);
   window.xpGanar?.(5, 'Tarea completada'); window.xpSorpresa?.();
   if (!task.repite) return;
   const T = state.tareas;
@@ -1712,6 +1724,7 @@ function completeTask(task) {
 }
 function uncompleteTask(task) {
   task.hecha = false; task.hechaEn = 0;
+  window.objAvanceTarea?.(task, false);
   const T = state.tareas, hija = T.items.find(y => y.origen === task.id && !y.hecha);
   if (hija) { T.items = T.items.filter(y => y !== hija); forget(hija.id); }   // la siguiente vuelve a ser esta
 }
@@ -3635,6 +3648,8 @@ const INI_CAT = {
 };
 function iniAplicar(i, o) {
   const I = ini4Semana(), x = I.items[i];
+  // Si es otra iniciativa, no hereda el para qué, el primer paso, la señal de hecho ni el objetivo de la anterior (solo la hora y los minutos).
+  if (o.t && o.t !== x.t) Object.assign(x, { por: '', paso: '', donde: '', obst: '', plan: '', exito: EXITO_DEF[x.k] || '', obj: '' });
   Object.assign(x, { t: o.t || x.t, por: o.por || x.por, paso: o.paso || x.paso, hora: o.hora || x.hora, donde: o.donde || x.donde || '', obst: o.obst || x.obst || '', plan: o.plan || x.plan || '', exito: o.exito || x.exito || '', min: o.min || x.min || 0, obj: o.obj || x.obj || '' });
   guardar(); renderE(); ini4Sheet(i);
 }
@@ -3660,7 +3675,7 @@ function iniCrear(i, base = {}) {
 }
 // Traer iniciativas desde una página de Notion: cada viñeta, número, casilla o párrafo corto se convierte en una opción.
 async function iniDesdeNotion(i) {
-  if (!ntOk()) return notionSheet();
+  if (!ntCfg().token) return notionSheet();
   const [k, n] = INI4[i];
   showSheet(`<h2>Desde Notion</h2><p class="note">Elige la página con tus ideas de ${n.toLowerCase()}. Cada línea de la página será una opción.</p><p class="meta" id="in-msg">Buscando páginas…</p><div id="in-list"></div><div class="actions"><button class="link" id="in-back">Volver</button></div>`);
   $('#in-back').onclick = () => ini4Sheet(i);
@@ -4197,7 +4212,7 @@ async function iaEjecutar(nombre, a) {
     }
     case 'iniciativa_dia': {
       const I = ini4Semana(), i = INI4.findIndex(([k]) => k === a.tipo), x = I.items[i];
-      if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; if (a.obstaculo) x.obst = a.obstaculo; if (a.plan) x.plan = a.plan; if (a.exito) x.exito = a.exito;
+      if (a.accion === 'definir') { if (a.que && a.que !== x.t) Object.assign(x, { t: a.que, por: '', paso: '', obst: '', plan: '', obj: '', exito: EXITO_DEF[a.tipo] || '' }); if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; if (a.obstaculo) x.obst = a.obstaculo; if (a.plan) x.plan = a.plan; if (a.exito) x.exito = a.exito;
         if (a.guardar_en_mis_iniciativas && x.t && !ES.catalogoIni[a.tipo].some(o => o.t === x.t)) ES.catalogoIni[a.tipo].push({ id: crypto.randomUUID(), t: x.t, por: x.por, paso: x.paso, hora: x.hora, obst: x.obst, plan: x.plan, exito: x.exito, origen: 'Asistente', veces: 1 }); }
       else if (!x.hecho) iniMarcar(i, true);
       guardar(); renderE(); if (view === 'agenda') renderAg(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
@@ -4608,16 +4623,25 @@ const NT_KEY = 'rumbo-notion';
 const ntCfg = () => { try { return JSON.parse(localStorage.getItem(NT_KEY)) || {}; } catch { return {}; } };
 const ntSetCfg = c => { try { localStorage.setItem(NT_KEY, JSON.stringify(c)); } catch {} };
 const ntOk = () => !!(ntCfg().token && ntCfg().pageId);
-async function notion(path, method = 'GET', body) {
+// Notion admite unas 3 peticiones por segundo: ante un 429 se espera y se reintenta (hasta 3 veces). Ante un fallo pasajero
+// (red, 409 o 5xx) solo se reintenta lo que no duplica nada al repetirse (idem: leer, cambiar propiedades, archivar).
+// Los errores llevan status y code, para distinguir «ya no existe» de un fallo pasajero.
+async function notion(path, method = 'GET', body, idem = method === 'GET') {
   if (!auth) throw new Error('Notion usa tu cuenta para el puente: inicia sesión en la pestaña Hábitos.');
-  if (!(await ensureToken())) throw new Error('Tu sesión caducó: vuelve a entrar en tu cuenta.');
-  const r = await fetch(`${SUPA_URL}/functions/v1/notion`, { method, headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + auth.access_token, 'Content-Type': 'application/json', 'x-notion-token': ntCfg().token || '', 'x-notion-path': path }, body: body === undefined ? undefined : JSON.stringify(body) });
-  const text = await r.text(); let d = null; try { d = JSON.parse(text); } catch {}
-  if (r.status === 404 && !d?.object) throw new Error('Falta desplegar la función «notion» en Supabase (está en supabase/functions/notion del repositorio).');
-  if (!r.ok) throw new Error(d?.message || d?.error || `Notion respondió ${r.status}.`);
-  return d;
+  const espera = ms => new Promise(res => setTimeout(res, ms));
+  for (let intento = 0; ; intento++) {
+    if (!(await ensureToken())) throw new Error('Tu sesión caducó: vuelve a entrar en tu cuenta.');
+    let r;
+    try { r = await fetch(`${SUPA_URL}/functions/v1/notion`, { method, headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + auth.access_token, 'Content-Type': 'application/json', 'x-notion-token': ntCfg().token || '', 'x-notion-path': path }, body: body === undefined ? undefined : JSON.stringify(body) }); }
+    catch { if (idem && intento < 2) { await espera(1000 * 2 ** intento); continue; } throw Object.assign(new Error('Sin conexión con Notion. Revisa la red e inténtalo de nuevo.'), { status: 0, code: 'red' }); }
+    const text = await r.text(); let d = null; try { d = JSON.parse(text); } catch {}
+    if ((r.status === 429 || (idem && (r.status === 409 || r.status >= 500))) && intento < 3) { const ra = +r.headers.get('retry-after'); await espera(ra > 0 ? Math.min(ra, 20) * 1000 : 800 * 2 ** intento); continue; }
+    if (r.status === 404 && !d?.object) throw Object.assign(new Error('Falta desplegar la función «notion» en Supabase (está en supabase/functions/notion del repositorio).'), { status: 404, code: 'sin_funcion' });
+    if (!r.ok) throw Object.assign(new Error(d?.message || d?.error || `Notion respondió ${r.status}.`), { status: r.status, code: d?.code || '' });
+    return d;
+  }
 }
-const ntRt = t => [{ type: 'text', text: { content: String(t).slice(0, 2000) } }];
+const ntRt = t => [{ type: 'text', text: { content: String(t).slice(0, 2000).replace(/[\uD800-\uDBFF]$/, '') } }];
 const ntBloque = (tipo, t) => ({ object: 'block', type: tipo, [tipo]: { rich_text: ntRt(t) } });
 // Crea una página hija de la página elegida; Notion admite 100 bloques por petición, el resto se añade después.
 async function ntCrearPagina(titulo, bloques, parentId = ntCfg().pageId) {
@@ -4672,11 +4696,13 @@ const jrFechaCorta = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/
 const jrTitulo = x => `Journaling${x.tipo === 'trabajo' ? ' de trabajo' : ''} ${jrFechaCorta(x.d)}`;
 const ntDiarioOk = () => !!(ntCfg().token && ntCfg().diario?.id);
 // Estados de espera solo en memoria: si la app se cierra a medias, nada queda bloqueado.
-const jrEnviando = new Set(), jrOrdenando = new Set();
-// Texto con **negritas** y *cursivas* a rich_text de Notion, en trozos de hasta 2000 caracteres (el límite de Notion por trozo).
+const jrEnviando = new Set(), jrOrdenando = new Set(), jrReenviar = new Set();
+// Cortes de hasta 2000 caracteres (el límite de Notion por trozo) sin partir un emoji en dos.
+const ntCortar = (t, max = 2000) => { const out = []; for (let i = 0; i < t.length;) { let j = Math.min(i + max, t.length); if (j < t.length && /[\uD800-\uDBFF]/.test(t[j - 1])) j--; out.push(t.slice(i, j)); i = j; } return out.length ? out : ['']; };
+// Texto con **negritas** y *cursivas* a rich_text de Notion (solo para lo que escribe el asistente), en trozos de hasta 2000 caracteres.
 function ntRtMd(t) {
   const out = [], re = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g; let last = 0, m; t = String(t ?? '');
-  const push = (c, ann) => { for (const p of (c.length ? c.match(/[\s\S]{1,2000}/g) : [''])) out.push({ type: 'text', text: { content: p }, ...(ann ? { annotations: ann } : {}) }); };
+  const push = (c, ann) => { for (const p of ntCortar(c)) out.push({ type: 'text', text: { content: p }, ...(ann ? { annotations: ann } : {}) }); };
   while ((m = re.exec(t))) { if (m.index > last) push(t.slice(last, m.index)); push(m[0].replace(/^\*+|\*+$/g, ''), m[0].startsWith('**') ? { bold: true } : { italic: true }); last = m.index + m[0].length; }
   if (last < t.length || !out.length) push(t.slice(last));
   return out;
@@ -4688,7 +4714,7 @@ function jrTrocear(t, max = 1800) {
   const piezas = [];
   for (const linea of String(t).split('\n')) {
     let l = linea;
-    while (l.length > max) { let c = l.lastIndexOf('. ', max); if (c < max / 2) c = l.lastIndexOf(' ', max); if (c < max / 2) c = max - 1; piezas.push(l.slice(0, c + 1)); l = l.slice(c + 1).replace(/^ /, ''); }
+    while (l.length > max) { let c = l.lastIndexOf('. ', max); if (c < max / 2) c = l.lastIndexOf(' ', max); if (c < max / 2) { c = max - 1; if (/[\uD800-\uDBFF]/.test(l[c])) c--; } piezas.push(l.slice(0, c + 1)); l = l.slice(c + 1).replace(/^ /, ''); }
     piezas.push(l);
   }
   const out = []; let cur = null;
@@ -4707,6 +4733,19 @@ function ntBloquesTexto(t) {
   }
   return out;
 }
+// «Tal cual» va como texto plano: ni asteriscos ni guiones se interpretan, y se respetan los saltos de línea.
+function ntBloquesPlano(t) {
+  const out = [];
+  for (const p of String(t || '').split(/\n{2,}/)) {
+    if (!p.trim()) continue;
+    for (const trozo of jrTrocear(p.replace(/^\n+|\s+$/g, ''))) out.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: ntCortar(trozo).map(c => ({ type: 'text', text: { content: c } })) } });
+  }
+  return out;
+}
+const ntUrl = u => /^https:\/\//.test(u || '') ? u : '';
+// «Ya no existe» es solo un 404 de Notion: un fallo pasajero (red, límite, servidor) no debe crear otra página.
+const ntNoExiste = e => e?.code === 'object_not_found' || (e?.status === 404 && e?.code !== 'sin_funcion');
+const sinGuiones = id => String(id || '').replace(/-/g, '');
 // Lee una base de datos de Notion y reconoce sus propiedades: título, fecha, tipo (con la opción «Diario») y estado («Completado»).
 async function ntLeerBase(id) {
   const db = await notion(`databases/${id}`);
@@ -4727,33 +4766,42 @@ function jrProps(x, titulo = jrTitulo(x), tipoNotion = jrTipo(x.tipo)[2]) {
   if (P.estado) props[P.estado] = { select: { name: 'Completado' } };
   return props;
 }
-async function jrCrearEnNotion(x, bloques, titulo = jrTitulo(x), tipoNotion = jrTipo(x.tipo)[2]) {
+// alCrear(pg) se llama en cuanto la página existe: si después falla el resto del contenido, el reintento completa esa misma página.
+async function jrCrearEnNotion(x, bloques, titulo = jrTitulo(x), tipoNotion = jrTipo(x.tipo)[2], alCrear) {
   const D = ntCfg().diario; if (!D?.id) throw new Error('Elige el destino del Journaling en Notion.');
   const pg = await notion('pages', 'POST', { parent: D.db ? { database_id: D.id } : { page_id: D.id }, properties: jrProps(x, titulo, tipoNotion), children: bloques.slice(0, 100) });
+  alCrear?.(pg);
   for (let i = 100; i < bloques.length; i += 100) await notion(`blocks/${pg.id}/children`, 'PATCH', { children: bloques.slice(i, i + 100) });
   return pg;
 }
 // Actualizar la misma página (misma URL): propiedades y contenido. Si se editó en Notion después del envío, se pregunta antes.
-async function jrReemplazarEnNotion(x, bloques, silencioso) {
-  let pg; try { pg = await notion(`pages/${x.notion.id}`); } catch { return null; }   // ya no existe: se crea otra
+// Solo se reemplaza una página que es de esta entrada y está en el destino actual; si no, se crea una nueva en el destino.
+async function jrReemplazarEnNotion(x, bloques, silencioso, anotar) {
+  let pg; try { pg = await notion(`pages/${x.notion.id}`); } catch (e) { if (ntNoExiste(e)) return null; throw e; }
   if (pg.archived || pg.in_trash) return null;
+  const padre = pg.parent?.database_id || pg.parent?.page_id || '';
+  if (padre && sinGuiones(padre) !== sinGuiones(ntCfg().diario?.id)) return null;
+  if (ES.diario.some(e => e.id !== x.id && sinGuiones(e.notion?.id) === sinGuiones(pg.id))) return null;
   const editada = Date.parse(pg.last_edited_time || 0) > (x.notion.en || 0) + 120000;
   if (editada) {
     if (silencioso) throw new Error('Esta entrada se editó en Notion. Toca «Guardar» para decidir si reemplazarla.');
     if (!confirm('Esta entrada se editó en Notion después de enviarla. ¿Reemplazar su contenido con la versión de la app?')) return 'cancelado';
   }
-  await notion(`pages/${pg.id}`, 'PATCH', { properties: jrProps(x) });
-  const viejos = []; let cursor = '';
-  do { const q = await notion(`blocks/${pg.id}/children?page_size=100${cursor ? '&start_cursor=' + cursor : ''}`); viejos.push(...(q.results || []).map(b => b.id)); cursor = q.has_more ? q.next_cursor : ''; } while (cursor);
-  for (let i = 0; i < viejos.length; i += 3) await Promise.all(viejos.slice(i, i + 3).map(id => notion(`blocks/${id}`, 'PATCH', { archived: true })));
-  for (let i = 0; i < bloques.length; i += 100) await notion(`blocks/${pg.id}/children`, 'PATCH', { children: bloques.slice(i, i + 100) });
+  try {
+    await notion(`pages/${pg.id}`, 'PATCH', { properties: jrProps(x) }, true);
+    const viejos = []; let cursor = '';
+    do { const q = await notion(`blocks/${pg.id}/children?page_size=100${cursor ? '&start_cursor=' + cursor : ''}`); viejos.push(...(q.results || []).map(b => b.id)); cursor = q.has_more ? q.next_cursor : ''; } while (cursor);
+    // Primero lo nuevo y después se archiva lo viejo, de uno en uno: si algo falla a mitad, sobra contenido, pero la página nunca queda vacía.
+    for (let i = 0; i < bloques.length; i += 100) await notion(`blocks/${pg.id}/children`, 'PATCH', { children: bloques.slice(i, i + 100) });
+    for (const id of viejos) await notion(`blocks/${id}`, 'PATCH', { archived: true }, true);
+  } catch (e) { anotar({ ...x.notion, en: Date.now(), hash: null }); throw e; }   // esos cambios los hizo la app: no cuentan como edición en Notion
   return pg;
 }
 function jrBloques(x) {
   const out = [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: `(${jrFechaCorta(x.d)} — ${new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'long' })})` }, annotations: { italic: true } }] } }];
   if (x.preg) out.push(...ntBloquesMd('quote', x.preg));
   out.push(...ntBloquesMd('heading_2', x.orden?.corregido && !jrOrdenVieja(x) ? '📝 Tal cual (corregido)' : '📝 Tal cual'));
-  out.push(...ntBloquesTexto(x.orden?.corregido && !jrOrdenVieja(x) ? x.orden.corregido : x.txt));
+  out.push(...ntBloquesPlano(x.orden?.corregido && !jrOrdenVieja(x) ? x.orden.corregido : x.txt));
   if (x.animo) out.push(...ntBloquesMd('paragraph', `Ánimo: ${x.animo}/5`));
   if (x.orden?.secciones?.length && !jrOrdenVieja(x)) {
     out.push({ object: 'block', type: 'divider', divider: {} }, ...ntBloquesMd('heading_2', x.tipo === 'trabajo' ? '🗂️ Análisis del trabajo' : '🗂️ Versión ordenada'));
@@ -4766,23 +4814,37 @@ function jrBloques(x) {
 }
 const jrHashTxt = t => { let h = 0; for (const c of String(t || '').trim()) h = (h * 31 + c.charCodeAt(0)) | 0; return h; };
 const jrHash = x => JSON.stringify([x.txt?.trim(), x.preg, x.animo, x.tipo, x.d, x.orden?.en || 0]);
-const jrPendiente = x => !!x.notion && x.notion.hash !== jrHash(x);
+// Los enlaces de la 2.9 (legado) cuentan como enviados mientras la entrada no se edite; si se edita, va como página nueva.
+const jrPendiente = x => !!x.notion && (x.notion.legado ? (+x.cambiado || 0) > x.notion.legado : x.notion.hash !== jrHash(x));
 const jrOrdenVieja = x => !!x.orden && x.orden.base !== undefined && x.orden.base !== jrHashTxt(x.txt);
+const jrBorrada = x => HT().borrados.includes(x.id);
 // Enviar o actualizar (la misma página si ya existe).
 async function jrEnviar(x, silencioso = false) {
   if (!ntDiarioOk()) { if (!silencioso) notionSheet('diario'); return false; }
-  if (jrEnviando.has(x.id)) return false;
+  if (jrBorrada(x)) return false;
+  if (jrEnviando.has(x.id)) { jrReenviar.add(x.id); return false; }   // al terminar el envío en curso sale otro con lo último
   jrEnviando.add(x.id); jrRefrescar(x);
+  // La foto se toma al empezar: lo que cambie mientras tanto queda pendiente, nunca como enviado.
+  const h0 = jrHash(x), bloques = jrBloques(x);
+  // La sincronización pudo cambiar el objeto mientras tanto: el resultado se anota en la copia viva y en esta.
+  const vivas = () => [...new Set([x, ES.diario.find(e => e.id === x.id)].filter(Boolean))];
+  const anotar = nt => { for (const o of vivas()) o.notion = { ...nt }; };
+  const fin = (ok, error) => {
+    jrEnviando.delete(x.id);
+    for (const o of vivas()) { if (error) o.notionError = error; else delete o.notionError; }
+    guardar(); jrRefrescar(x);
+    const otra = jrReenviar.delete(x.id), cur = ES.diario.find(e => e.id === x.id);
+    if (ok && otra && cur && jrHash(cur) !== h0) setTimeout(() => jrEnviar(cur, true), 0);
+    return ok;
+  };
   try {
-    const bloques = jrBloques(x);
-    let pg = x.notion?.id ? await jrReemplazarEnNotion(x, bloques, silencioso) : null;
-    if (pg === 'cancelado') { jrEnviando.delete(x.id); jrRefrescar(x); return false; }
-    if (!pg) pg = await jrCrearEnNotion(x, bloques);
-    x.notion = { id: pg.id, url: pg.url || x.notion?.url || '', en: Date.now(), hash: jrHash(x) }; delete x.notionError;
-    jrEnviando.delete(x.id); guardar(); jrRefrescar(x);
+    let pg = x.notion?.id && !x.notion.legado ? await jrReemplazarEnNotion(x, bloques, silencioso, anotar) : null;
+    if (pg === 'cancelado') { jrEnviando.delete(x.id); jrReenviar.delete(x.id); jrRefrescar(x); return false; }
+    if (!pg) pg = await jrCrearEnNotion(x, bloques, undefined, undefined, p => { anotar({ id: p.id, url: ntUrl(p.url), en: Date.now(), hash: null }); guardar(); });
+    anotar({ id: pg.id, url: ntUrl(pg.url) || ntUrl(x.notion?.url), en: Date.now(), hash: h0 });
     if (!silencioso) toast('Listo: está en tu Journaling de Notion.');
-    return true;
-  } catch (e) { jrEnviando.delete(x.id); x.notionError = e.message; guardar(); jrRefrescar(x); if (!silencioso) toast(e.message); return false; }
+    return fin(true);
+  } catch (e) { if (!silencioso) toast(e.message); return fin(false, e.message); }
 }
 // La semana entera en una sola entrada «Semanal».
 async function jrEnviarSemana() {
@@ -4814,12 +4876,16 @@ Nunca midas la jornada por horas ni escribas «estuve X horas»: la vara es lo a
   general: `${JR_SISTEMA_BASE}
 "secciones", en este orden: "Volcado del día" (lo vivido, ordenado, en 1 a 3 párrafos con su voz); entre 1 y 3 bloques por área de vida que aparezcan, titulados "Bloque de …" (por ejemplo "Bloque de universidad / trabajo", "Bloque personal / social", "Bloque de fe", "Bloque de deporte"), cada uno en viñetas; y al final "Lo que aprendí hoy": cada aprendizaje en **negrita** con su explicación y, entre paréntesis y en cursiva, el principio general que deja.`,
 };
-async function iaTexto(sistema, texto, maxTokens = 8000) {
+// En streaming y con margen amplio: el razonamiento del modelo cuenta dentro de max_tokens, y corregir más ordenar es una salida larga.
+async function iaTexto(sistema, texto, maxTokens = 32000) {
   const c = iaCfg(); if (!c.key) throw new Error('Conecta el asistente (pestaña Asistente) para ordenar el texto.');
   Anthropic ||= (await import('./vendor/anthropic-sdk-0.134.0.mjs')).default;
   const client = new Anthropic({ apiKey: c.key, dangerouslyAllowBrowser: true }), modelo = c.modelo || 'claude-opus-5-5';
-  const msg = await client.messages.create({ model: modelo, max_tokens: maxTokens, system: sistema, messages: [{ role: 'user', content: texto }] });
+  const msg = await client.beta.messages.stream({ model: modelo, max_tokens: maxTokens, system: sistema, messages: [{ role: 'user', content: texto }], output_config: { effort: 'low' },
+    ...(modelo === 'claude-haiku-5-5' ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }) }).finalMessage();
   iaSumarGasto(modelo, msg.usage || {});
+  if (msg.stop_reason === 'refusal') throw new Error('El asistente no pudo procesar este texto. Puedes enviarlo tal cual.');
+  if (msg.stop_reason === 'max_tokens') throw new Error('La entrada es demasiado larga para ordenarla de una vez. Envíala tal cual o divídela en dos.');
   return msg.content.filter(b => b.type === 'text').map(b => b.text).join('');
 }
 async function jrOrdenar(x) {
@@ -4828,9 +4894,10 @@ async function jrOrdenar(x) {
   const base = x.txt.trim();
   try {
     const raw = await iaTexto(JR_SISTEMA[x.tipo === 'trabajo' ? 'trabajo' : 'general'], `Fecha del día vivido: ${jrFechaCorta(x.d)}.${x.preg ? ` Pregunta guía: ${x.preg}.` : ''}\n\nTexto:\n${base}`);
+    if (jrBorrada(x)) { jrOrdenando.delete(x.id); return; }   // se eliminó mientras se ordenaba: no vuelve
     const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); const j = JSON.parse(raw.slice(a, b + 1));
     x.orden = { corregido: String(j.corregido || base), secciones: (j.secciones || []).filter(s => s && s.titulo).map(s => ({ titulo: String(s.titulo).slice(0, 80), contenido: String(s.contenido || '').slice(0, 12000) })).slice(0, 8), preguntas: (j.preguntas || []).map(String).slice(0, 4), en: Date.now(), base: jrHashTxt(base) };
-    jrOrdenando.delete(x.id); x.cambiado = Date.now(); jrGuardarEntrada(x); jrRefrescar(x, true); toast('Versión ordenada lista.');
+    jrOrdenando.delete(x.id); if (!jrGuardarEntrada(x)) return; jrRefrescar(x, true); toast('Versión ordenada lista.');
     if (ntDiarioOk() && !jrOrdenVieja(x)) jrEnviar(x, true);
   } catch (e) { jrOrdenando.delete(x.id); jrRefrescar(x); toast(/JSON/i.test(e.message) ? 'El asistente respondió en un formato inesperado. Inténtalo de nuevo.' : e.message); }
 }
@@ -4852,11 +4919,14 @@ function jrHtmlOrden(o) {
 }
 // Lo que hay en el cuadro de texto pasa a la entrada antes de cualquier re-pintado: nunca se pierde lo tecleado.
 function jrCapturar() { const ta = jrW.querySelector('#jr-txt'); if (jrEdit && ta) jrEdit.txt = ta.value; }
-// Guarda (o reemplaza, si la nube cambió el objeto) la entrada en ES.diario.
+// Guarda (o reemplaza, si la nube cambió el objeto) la entrada en ES.diario. Una entrada eliminada no vuelve,
+// y si la copia viva tiene un enlace con Notion más reciente, se conserva.
 function jrGuardarEntrada(x) {
-  const i = ES.diario.findIndex(e => e.id === x.id);
+  if (jrBorrada(x)) return false;
+  const i = ES.diario.findIndex(e => e.id === x.id), cur = ES.diario[i];
+  if (cur && cur !== x && (+cur.notion?.en || 0) > (+x.notion?.en || 0)) x.notion = cur.notion;
   if (i >= 0) ES.diario[i] = x; else { ES.diario.push(x); xpGanar(10, 'Journaling'); }
-  x.cambiado = Date.now(); guardar();
+  x.cambiado = Date.now(); guardar(); return true;
 }
 // Actualiza en su sitio el estado, los botones y la versión ordenada del editor abierto, sin tocar el cuadro de texto.
 function jrRefrescar(x, verOrden = false) {
@@ -4868,7 +4938,8 @@ function jrRefrescar(x, verOrden = false) {
   const ok = q('#jr-ok'); if (ok) { ok.disabled = jrEnviando.has(x.id); ok.textContent = ntDiarioOk() ? (x.notion ? 'Guardar y actualizar en Notion' : 'Guardar y enviar a Notion') : 'Guardar'; }
   q('#jr-orden-box').innerHTML = x.orden ? `<p class="meta" style="margin:0">Versión ordenada${x.orden.en ? ' · ' + new Date(x.orden.en).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}${jrOrdenVieja(x) ? ' · <span class="amber">el texto cambió después: vuelve a ordenar para incluirlo</span>' : ''} <button class="link" id="jr-quitar-orden">Quitar</button></p>${jrHtmlOrden(x.orden)}` : '';
   q('#jr-quitar-orden')?.addEventListener('click', () => { jrCapturar(); delete x.orden; jrGuardarEntrada(x); jrRefrescar(x); });
-  const abrir = q('#jr-abrir'); if (abrir) { abrir.hidden = !x.notion?.url; if (x.notion?.url) abrir.href = x.notion.url; }
+  const abrir = q('#jr-abrir'), url = ntUrl(x.notion?.url); if (abrir) { abrir.hidden = !url; if (url) abrir.href = url; }
+  const del = q('#jr-del'); if (del) del.hidden = jrOrdenando.has(x.id) || jrEnviando.has(x.id);
   if (verOrden) q('#jr-orden-box').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function renderJournal() {
@@ -4882,7 +4953,7 @@ function renderJournal() {
     ${pend ? `<p class="more"><button class="link" id="jr-reintentar">Enviar ${pend === 1 ? 'la pendiente' : 'las ' + pend + ' pendientes'}</button></p>` : ''}
     <h3>Entradas</h3>
     ${L.length ? `<div class="rows">${L.slice(0, 30).map(x => `<button class="row" data-jr="${esc(x.id)}"><span class="dot" style="--c:${x.notion && !jrPendiente(x) ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${esc(x.txt.split('\n')[0].slice(0, 70) || '(vacía)')}</div>
-      <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(jrTipo(x.tipo)[1])}${x.animo ? ' · ánimo ' + x.animo : ''}${x.orden ? ' · ordenada' : ''}${jrEstado(x) ? ' · ' + esc(jrEstado(x)) : ''}</small></span></button>`).join('')}</div>
+      <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(jrTipo(x.tipo)[1])}${x.animo ? ' · ánimo ' + esc(x.animo) : ''}${x.orden ? ' · ordenada' : ''}${jrEstado(x) ? ' · ' + esc(jrEstado(x)) : ''}</small></span></button>`).join('')}</div>
       <p class="more">${L.length} ${L.length === 1 ? 'entrada' : 'entradas'} · <button class="link" id="jr-sem">Enviar la última semana como entrada semanal</button></p>` : '<p class="empty">Aún no hay entradas. Dos minutos al final del día bastan: qué pasó, qué aprendiste, qué harías distinto.</p>'}
     <p class="sci" style="margin-top:18px">Escribir sobre lo vivido, sobre todo lo que pesa, mejora el ánimo y la salud con efectos pequeños pero consistentes (Pennebaker y Chung, 2011; Frattaroli, 2006). Lo que más rinde: nombrar lo aprendido y el siguiente paso.</p>`;
   jrW.querySelector('#jr-new').onclick = () => jrEditor(null);
@@ -4925,9 +4996,13 @@ function jrEditor(x = null, enfocar = true) {
   q('#jr-pregs').addEventListener('click', e => { const c = e.target.closest('[data-p]'); if (!c) return; x0.preg = c.dataset.p === 'Libre' ? '' : c.dataset.p; q('#jr-preg').textContent = x0.preg || 'Escribe lo que quieras'; q('#jr-pregs').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b === c)); });
   q('#jr-an').addEventListener('click', e => { const c = e.target.closest('[data-v]'); if (!c) return; x0.animo = x0.animo === +c.dataset.v ? 0 : +c.dataset.v; q('#jr-an').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', +b.dataset.v === x0.animo)); });
   q('#jr-txt').addEventListener('input', () => { jrCapturar(); if (x0.orden) jrRefrescar(x0); });
-  const guardarEntrada = () => { jrCapturar(); x0.txt = x0.txt.trim(); if (!x0.txt) return false; jrGuardarEntrada(x0); return true; };
-  q('#jr-ok').onclick = async () => { if (!guardarEntrada()) { q('#jr-txt').focus(); return; } if (ntDiarioOk() && (!x0.notion || jrPendiente(x0))) { if (await jrEnviar(x0)) { jrEdit = null; renderJournal(); } } else { jrEdit = null; renderJournal(); toast('Guardada.'); } };
-  q('#jr-ordenar')?.addEventListener('click', () => { if (!guardarEntrada()) { q('#jr-txt').focus(); return; } jrOrdenar(x0); });
+  const guardarEntrada = () => {
+    jrCapturar(); x0.txt = x0.txt.trim(); if (!x0.txt) { q('#jr-txt')?.focus(); return false; }
+    if (!jrGuardarEntrada(x0)) { toast('Esta entrada se eliminó de la app.'); jrEdit = null; renderJournal(); return false; }
+    return true;
+  };
+  q('#jr-ok').onclick = async () => { if (!guardarEntrada()) return; if (ntDiarioOk() && (!x0.notion || jrPendiente(x0))) { if (await jrEnviar(x0) && jrEdit === x0) { jrEdit = null; renderJournal(); } } else { jrEdit = null; renderJournal(); toast('Guardada.'); } };
+  q('#jr-ordenar')?.addEventListener('click', () => { if (!guardarEntrada()) return; jrOrdenar(x0); });
   q('#jr-conectar')?.addEventListener('click', () => { jrCapturar(); notionSheet('diario'); });
   q('#jr-back').onclick = () => { if (q('#jr-txt').value.trim()) guardarEntrada(); jrEdit = null; renderJournal(); };
   q('#jr-del')?.addEventListener('click', () => { if (!confirm('¿Eliminar esta entrada de la app? En Notion se conserva.')) return; forget(x0.id); ES.diario = ES.diario.filter(e => e.id !== x0.id); guardar(); jrEdit = null; renderJournal(); });
@@ -5512,23 +5587,27 @@ function iniPropuesta(k) {
 
 // ---------- Datos: la agenda de hoy y, de noche, el plan de mañana.
 function agenda() {
-  const A = ES.agendaHoy;
-  if (A.fecha !== today()) {
+  if (ES.agendaHoy.fecha !== today()) {
+    const A = ES.agendaHoy;
     ini4Semana();   // primero se archivan las iniciativas de ayer (para el historial)
     if (A.fecha && A.items.length) { const H = { ...(ES.agendaHist || {}) }; H[A.fecha] = A.items.map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: agHecho(it, A.fecha) })); ES.agendaHist = H; }
-    const P = ES.agendaPlan;
-    if (P?.fecha === today()) {
-      // Lo organizado anoche pasa a ser la agenda de hoy, con sus iniciativas y la rana.
-      ES.agendaHoy = { fecha: today(), items: P.items.map(it => ({ ...it, hecho: false })), organizado: P.organizado || Date.now(), completa: false, ocultos: [], anoche: true };
-      const I = ini4Semana();
-      for (const [k, o] of Object.entries(P.ini || {})) { const x = I.items[iniIdx(k)]; if (x && !x.t && !x.hecho) Object.assign(x, { t: o.t, exito: o.exito || EXITO_DEF[k], hora: o.h || '', por: o.por || '', paso: o.paso || '', min: o.min || AG_MIN.ini, obj: o.obj || '' }); }
-      if (P.rana?.t) { if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] }; if (!ES.prioridades.items.some(x => x.id === P.rana.id)) ES.prioridades.items.unshift({ id: P.rana.id, t: P.rana.t, hecho: false, origen: 'Elegida anoche' }); }
-      if (!dayOf().agenda) bump('agenda');
-      ES.agendaPlan = null; guardar();
-    } else ES.agendaHoy = { fecha: today(), items: [], organizado: 0, completa: false, ocultos: [] };
+    ES.agendaHoy = { fecha: today(), items: [], organizado: 0, completa: false, ocultos: [] };
   }
+  // Lo organizado la víspera (en este teléfono o en otro) pasa a ser la agenda de hoy mientras hoy no se haya organizado.
+  if (ES.agendaPlan?.fecha === today() && !ES.agendaHoy.organizado) agAplicarPlan(ES.agendaHoy, ES.agendaPlan);
   ES.agendaHoy.ocultos ||= [];
   return ES.agendaHoy;
+}
+// El plan entra con sus iniciativas y la rana; lo que ya hubiera en la agenda de hoy (eventos, algo añadido suelto) se queda.
+function agAplicarPlan(A, P) {
+  const clave = it => it.tipo + ':' + (it.tipo === 'libre' ? it.id : it.ref), ya = new Set(A.items.map(clave));
+  A.items = [...P.items.filter(it => !ya.has(clave(it))).map(it => ({ ...it, hecho: false })), ...A.items];
+  Object.assign(A, { organizado: P.organizado || Date.now(), completa: false, anoche: true });
+  const I = ini4Semana();
+  for (const [k, o] of Object.entries(P.ini || {})) { const x = I.items[iniIdx(k)]; if (x && !x.t && !x.hecho) Object.assign(x, { t: o.t, exito: o.exito || EXITO_DEF[k], hora: o.h || '', por: o.por || '', paso: o.paso || '', min: o.min || AG_MIN.ini, obj: o.obj || '' }); }
+  if (P.rana?.t) { if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] }; if (!ES.prioridades.items.some(x => x.id === P.rana.id)) ES.prioridades.items.unshift({ id: P.rana.id, t: P.rana.t, hecho: false, origen: 'Elegida anoche' }); }
+  if (!dayOf().agenda) bump('agenda');
+  ES.agendaPlan = null; guardar();
 }
 const planManana = () => ES.agendaPlan?.fecha === diaManana() ? ES.agendaPlan : null;
 const agFuente = it => {
@@ -5550,7 +5629,22 @@ function agHecho(it, k = today()) {
   if (it.tipo === 'ini' || it.tipo === 'prio' || it.tipo === 'plan') return f ? !!f.hecho : !!it.hecho;
   return !!it.hecho;
 }
-const agItems = () => agenda().items.filter(agVivo);
+// El texto (y la hora, si la fuente la tiene) se lee de la fuente: si editas la iniciativa, la tarea, el hábito o el plan, la agenda lo sigue.
+function agSync(A) {
+  const s = HT(), I = ini4Semana().items; let cambio = false;
+  for (const it of A.items) {
+    let t = '', h = null;
+    if (it.tipo === 'ini') { const x = I.find(y => y.k === it.ref); if (x?.t) { t = x.t; h = x.hora || ''; } }
+    else if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x) { t = x.titulo; if (x.hora) h = x.hora; } }
+    else if (it.tipo === 'habito') { const x = s.habits.find(y => y.id === it.ref); if (x) t = x.nombre; }
+    else if (it.tipo === 'prio') { const x = ES.prioridades.items.find(y => y.id === it.ref); if (x) t = x.t; }
+    else if (it.tipo === 'plan') { const x = ES.planes.find(y => y.id === it.ref); if (x) { t = `${cap(x.titulo)}${x.con ? ' con ' + x.con : ''}`; h = x.hora || ''; } }
+    if (t && t !== it.t) { it.t = t; cambio = true; }
+    if (h !== null && h !== it.h) { it.h = h; cambio = true; }
+  }
+  return cambio;
+}
+const agItems = () => { const A = agenda(); if (agSync(A)) guardar(); return A.items.filter(agVivo); };
 const agPorId = id => agenda().items.find(x => x.id === id);
 const agOrden = (a, b) => (a.h && b.h) ? toMin(a.h) - toMin(b.h) : a.h ? -1 : b.h ? 1 : 0;
 const agEtiqueta = it => it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : it.tipo === 'libre' && it.cat ? `Extra de ${iniNombre(it.cat).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda';
@@ -5616,14 +5710,17 @@ function prioMarcar(id, hecho) {
 function agMarcar(it, hecho = !agHecho(it)) {
   const f = agFuente(it);
   if (it.tipo === 'habito') { if (!f) return; if (hecho) complete(f, 'full'); else setMark(f, ''); }
-  else if (it.tipo === 'tarea') { if (!f) return; if (hecho) completeTask(f); else uncompleteTask(f); save(); if (view === 'tareas') renderTareas(); gAuto(); }
+  else if (it.tipo === 'tarea') { if (!f) return; if (it.obj && !f.obj) f.obj = it.obj; if (hecho) completeTask(f); else uncompleteTask(f); save(); if (view === 'tareas') renderTareas(); gAuto(); }
   else if (it.tipo === 'ini') iniMarcar(iniIdx(it.ref), hecho);
   else if (it.tipo === 'prio') prioMarcar(it.ref, hecho);
   else if (it.tipo === 'plan') { if (f) { f.hecho = hecho; if (hecho) f.resultado = 'si'; } }
   else { it.hecho = hecho; if (hecho && it.tipo === 'libre' && !it.premiado) { it.premiado = true; xpGanar(10, 'Agenda cumplida'); } }
-  if (it.obj && ['tarea', 'libre'].includes(it.tipo)) objAvance(it.obj, hecho ? 1 : -1, it.t, 'it:' + it.id);
+  if (it.obj && it.tipo === 'libre') objAvance(it.obj, hecho ? 1 : -1, it.t, 'it:' + it.id);   // las tareas suman desde completeTask, se marquen donde se marquen
   guardar(); renderE(); renderAg(); agCompleta();
 }
+// Una tarea ligada a un objetivo suma al completarse (en Tareas, en la Agenda o con el asistente) y resta si se desmarca.
+// Cada tarea repetida es otra tarea (otro id), así que basta con su id para no contar dos veces.
+window.objAvanceTarea = (x, hecho) => { if (x?.obj && ES.objetivos.some(o => o.id === x.obj)) objAvance(x.obj, hecho ? 1 : -1, x.titulo, 'tarea:' + x.id); };
 // Agenda completa: el premio es una vez al día, aunque luego se reorganice.
 function agCompleta() {
   const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento');
@@ -5759,7 +5856,8 @@ function iniElegir(k, cb, base = {}, ctx = {}) {
 // ---------- Organizar mi día (o mañana): cuatro pasos con todo preseleccionado.
 // El estado del flujo vive solo mientras la hoja está abierta: al cerrarla se descarta y la próxima vez empieza de cero.
 let org = null;
-sheet.addEventListener('close', () => { org = null; });
+// El evento llega después de cerrar: si para entonces la hoja ya se volvió a abrir con el flujo, no se descarta.
+sheet.addEventListener('close', () => { if (!sheet.open) org = null; });
 function orgInit(dest = today()) {
   const s = HT(), M = dest !== today(), P = M ? planManana() : null, A = M ? null : agenda();
   const base = M ? (P?.items || []) : A.items, sel = new Map(base.map(it => [it.tipo + ':' + it.ref, it]));
@@ -5861,7 +5959,7 @@ function organizarDia(paso = 1, sigue = false) {
       const b = e.target.closest('[data-ion],[data-iel]'); if (!b || b.disabled) return;
       const k = b.dataset.ion || b.dataset.iel, o = org.ini[k];
       if (b.dataset.ion && o) { o.on = !o.on; return organizarDia(3, true); }
-      iniElegir(k, r => { if (r) org.ini[k] = { ...r, on: true }; organizarDia(3, true); }, o || {}, { manana: M });
+      iniElegir(k, r => { if (r) { org.ini[k] = { ...r, on: true }; if (r.h) org.auto.delete('ini:' + k); } organizarDia(3, true); }, o || {}, { manana: M });
     });
     $('#og-back').onclick = () => organizarDia(2, true);
     $('#og-next').onclick = () => { orgAutoHoras(false); organizarDia(4, true); };
@@ -5913,7 +6011,8 @@ function orgAutoHoras(todas) {
   const libreDesde = (ini, dur) => { let v = 0; while (v++ < 120) { const c = ocup.find(([a, b]) => ini < b && ini + dur > a); if (!c) return ini; ini = Math.ceil((c[1] + 5) / 5) * 5; } return ini; };
   const poner = (e, ini) => { const dur = e.min || 30; if (ini + dur > fin) { orgSetHora(e.key, ''); return false; } orgSetHora(e.key, minToHm(ini)); ocup.push([ini, ini + dur]); return true; };
   const movible = e => !e.fijo && !e.hecho && (todas || !e.h || org.auto.has(e.key) || pasada(e));
-  for (const e of L.filter(e => !e.fijo && !e.hecho && e.h && !movible(e)).sort((a, b) => toMin(a.h) - toMin(b.h))) poner(e, libreDesde(toMin(e.h), e.min || 30));
+  // Una hora elegida que choca pasa al siguiente hueco; si ese hueco ya no cabe antes de las 11 PM, se queda en su hora (el tope es solo para las automáticas).
+  for (const e of L.filter(e => !e.fijo && !e.hecho && e.h && !movible(e)).sort((a, b) => toMin(a.h) - toMin(b.h))) { const dur = e.min || 30, ini = libreDesde(toMin(e.h), dur); if (ini + dur > fin) ocup.push([toMin(e.h), toMin(e.h) + dur]); else poner(e, ini); }
   const orden = { prio: 0, ini: 1, tarea: 2, habito: 3, libre: 4 };
   let cursor = Math.ceil((org.manana ? 7 * 60 : Math.max(now + 5, 7 * 60)) / 5) * 5;
   for (const e of L.filter(movible).sort((a, b) => (orden[a.tipo] ?? 9) - (orden[b.tipo] ?? 9))) {
@@ -5922,6 +6021,8 @@ function orgAutoHoras(todas) {
   }
 }
 function orgGuardar() {
+  // Pasó la medianoche con el flujo abierto: el día de hoy se arma de nuevo; un plan para mañana que ya es hoy se aplica al guardarlo.
+  if (org.dest < today()) { toast('Cambió el día: lo armo de nuevo para hoy.'); orgInit(today()); return organizarDia(1, true); }
   const s = HT(), M = org.manana, D = org.dest, items = [], planIni = {};
   const A = M ? null : agenda(), baseItems = M ? (planManana()?.items || []) : A.items;
   const prev = new Map(baseItems.map(it => [it.tipo + ':' + it.ref, it]));
@@ -5931,7 +6032,7 @@ function orgGuardar() {
   if (!M) {
     const I = ini4Semana();
     for (const [k, o] of Object.entries(org.ini)) { const x = I.items[iniIdx(k)]; if (!x || !o) continue;
-      if (x.hecho) { mk('ini', k, x.t, o.h || x.hora, x.min || AG_MIN.ini, { obj: x.obj || '' }); continue; }   // la hecha se queda tal cual
+      if (x.hecho) { x.hora = o.h || x.hora || ''; mk('ini', k, x.t, x.hora, x.min || AG_MIN.ini, { obj: x.obj || '' }); continue; }   // la hecha se queda tal cual (solo cambia su hora)
       if (o.on) { Object.assign(x, { t: o.t, exito: o.exito || EXITO_DEF[k], hora: o.h || '', por: o.por || '', paso: o.paso || '', min: o.min || AG_MIN.ini, obj: o.obj || '' }); mk('ini', k, x.t, x.hora, x.min, { obj: x.obj }); }
       else if (x.t === o.t) Object.assign(x, { t: '', hora: '', exito: '', por: '', paso: '' });
     }
@@ -5942,9 +6043,12 @@ function orgGuardar() {
   for (const it of org.libres) items.push(it);
   if (M) {
     ES.agendaPlan = { fecha: D, items, ini: planIni, rana: org.rana?.t ? { id: org.rana.id, t: org.rana.t } : null, organizado: Date.now() };
-    const primera = !dayOf().planManana; if (primera) bump('planManana');
+    // Si ya es ese día (pasó la medianoche), el plan es la agenda de hoy: agenda() lo aplica al pintar y cuenta como día organizado.
+    const yaEsHoy = D === today(), clave = yaEsHoy ? 'agenda' : 'planManana', primera = !dayOf()[clave];
+    if (primera && !yaEsHoy) bump('planManana');
+    if (yaEsHoy && ES.agendaHoy.fecha === D) ES.agendaHoy.organizado = 0;   // se suma a lo que ya hubiera hoy
     org = null; guardar(); closeSheet(); renderE(); renderAg(); irA('agenda');
-    if (primera) xpGanar(20, 'Mañana organizado'); else toast('Plan de mañana actualizado.');
+    if (primera) xpGanar(20, yaEsHoy ? 'Día organizado' : 'Mañana organizado'); else toast(yaEsHoy ? 'Agenda actualizada.' : 'Plan de mañana actualizado.');
     return;
   }
   for (const it of A.items.filter(i => i.tipo === 'evento')) items.push(it);
@@ -5999,7 +6103,7 @@ function agItemSheet(it0) {
     ${!fijo && it.tipo !== 'habito' ? `<div class="field"><label>M · Hecha cuando</label><input id="ai-ex" maxlength="100" value="${esc(src().exito || '')}" placeholder="Enviada · 10 ejercicios resueltos · mensaje enviado"></div>
       <div class="field"><label>R · Para qué</label><input id="ai-por" maxlength="100" value="${esc(src().por || '')}" placeholder="Qué acerca, o a qué objetivo suma"></div>` : ''}
     ${it.tipo === 'habito' ? `<div class="field"><label>M · Versión de 2 minutos</label><input id="ai-minima" maxlength="60" value="${esc(f.minima || '')}" placeholder="Leer 1 página"></div>` : ''}
-    ${it.tipo === 'evento' && it.enlace ? `<p class="meta"><a href="${esc(it.enlace)}" target="_blank" rel="noopener">Abrir en Google Calendar</a></p>` : ''}
+    ${it.tipo === 'evento' && /^https:\/\//.test(it.enlace || '') ? `<p class="meta"><a href="${esc(it.enlace)}" target="_blank" rel="noopener">Abrir en Google Calendar</a></p>` : ''}
     <div class="field"><label>T · Hora</label>${fijo ? `<p class="meta" style="margin:0">${it.h ? fmtHora(it.h) : 'Todo el día'} (fija)</p>` : horaInput('ai-h', it.h) + franjaChips('ai-h', it.h)}</div>
     ${conObj ? (objs.length ? `<div class="field"><label>R · Suma a un objetivo</label><select id="ai-obj"><option value="">Ninguno</option>${objs.map(o => `<option value="${esc(o.id)}" ${src().obj === o.id ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>` : '<p class="meta"><button class="link" id="ai-obj-new">+ Crear un objetivo SMART para ligar esto</button></p>') : ''}
     <div class="actions stack" style="margin-top:4px">
@@ -6068,7 +6172,7 @@ function objetivoSheet(o) {
     <p class="meta">${o.porque ? 'Por qué: ' + esc(o.porque) : ''}${o.paso ? `${o.porque ? ' · ' : ''}Ritmo: ${esc(o.paso)}` : ''}</p>
     ${!o.hecho ? `<p class="meta">${esc(objRitmo(o))}${o.fecha ? ` · fecha límite ${fechaLarga(o.fecha)}` : ''}</p>` : `<p class="meta green">Cumplido el ${fechaLarga(o.hechoEn || today())}.</p>`}
     ${ligadas.length ? `<p class="meta">Iniciativas que suman: ${ligadas.map(x => esc(x.t)).join(' · ')}</p>` : ''}
-    ${o.avances.length ? `<p class="meta">Últimos avances: ${o.avances.slice(-5).reverse().map(a => `${fmtFecha(a.d)} ${a.n > 0 ? '+' : ''}${a.n}${a.nota ? ' ' + esc(a.nota) : ''}`).join(' · ')}</p>` : ''}
+    ${o.avances.length ? `<p class="meta">Últimos avances: ${o.avances.slice(-5).reverse().map(a => `${fmtFecha(a.d)} ${+a.n > 0 ? '+' : ''}${esc(+a.n || 0)}${a.nota ? ' ' + esc(a.nota) : ''}`).join(' · ')}</p>` : ''}
     ${o.hecho ? '' : `<div class="field" style="margin-top:14px"><label>Registrar avance</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="chip" id="ob-1">+1 ${esc(o.unidad)}</button><input id="ob-n" type="number" inputmode="decimal" step="any" placeholder="Cantidad" style="max-width:110px"><input id="ob-nota" maxlength="80" placeholder="Nota (opcional)" style="flex:1;min-width:120px"><button class="link" id="ob-add">Sumar</button></div></div>`}
     <div class="actions">${o.hecho ? '' : '<button class="link" id="ob-done">Darlo por cumplido</button>'}<button class="link" id="ob-edit">Editar</button><button class="link" id="ob-close">Cerrar</button></div>`);
   $('#ob-1')?.addEventListener('click', () => { objAvance(o.id, 1); objetivoSheet(o); renderAg(); });
@@ -6130,7 +6234,7 @@ function agendaAsistente(a) {
     else if (it.tipo === 'iniciativa') {
       const k = INI4.some(([x]) => x === it.categoria) ? it.categoria : 'proyecto', o = { t: texto, exito: it.hecho_cuando || EXITO_DEF[k], h, min: min || AG_MIN.ini, por: it.para_que || '', paso: '', obj: '' };
       if (M) { base.ini[k] = o; poner('ini', k, o.t, h, o.min); }
-      else { const x = ini4Semana().items[iniIdx(k)]; if (x.hecho) poner('libre', '', texto, h, o.min, { exito: o.exito, cat: k }); else { Object.assign(x, { t: o.t, hora: h, exito: o.exito, min: o.min, por: o.por || x.por || '' }); poner('ini', k, x.t, x.hora, x.min); } }
+      else { const x = ini4Semana().items[iniIdx(k)]; if (x.hecho) poner('libre', '', texto, h, o.min, { exito: o.exito, cat: k }); else { const otra = x.t !== o.t; Object.assign(x, { t: o.t, hora: h, exito: o.exito, min: o.min, por: o.por || (otra ? '' : x.por) || '', ...(otra ? { paso: '', obj: '', donde: '', obst: '', plan: '' } : {}) }); poner('ini', k, x.t, x.hora, x.min); } }
     }
     else poner('libre', '', texto, h, min || AG_MIN.libre, { exito: it.hecho_cuando || '', por: it.para_que || '' });
   }
@@ -6250,7 +6354,8 @@ function procrastinoSheet() {
     $('#pc-2b')?.addEventListener('click', () => { closeSheet(); startFocus(t, 2); });
     $('#pc-x2').onclick = closeSheet;
   };
-  $('#pc-hora').onclick = () => { const it = t && agItems().find(x => x.t === t); if (it) agItemSheet(it); else { closeSheet(); irA('agenda'); organizarDia(); } };
+  // Sin cerrar antes: showSheet reutiliza la hoja abierta, y cerrarla descartaría el flujo que se abre.
+  $('#pc-hora').onclick = () => { const it = t && agItems().find(x => x.t === t); if (it) agItemSheet(it); else { irA('agenda'); organizarDia(); } };
   $('#pc-tel').onclick = () => { closeSheet(); focusForm(t, 25); };
   $('#pc-x').onclick = closeSheet;
 }
