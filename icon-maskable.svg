@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb000"/><stop offset="1" stop-color="#ff6a00"/></linearGradient></defs>
+  <rect width="24" height="24" fill="url(#g)"/>
+  <!-- Zona segura: la llama al 78 % para que sobreviva al recorte circular de Android -->
+  <g transform="translate(2.64 2.64) scale(0.78)">
+    <path fill="#fff" d="M12 3.4c.9 3.1 5 5.3 5 10.1a5 5 0 0 1-10 0c0-2.4 1.2-4 2.5-5.1.1 1.9.9 3 1.8 3.3-.5-3 .1-5.8.7-8.3z"/>
+    <path fill="none" stroke="#ff6a00" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M9.6 14.2l1.7 1.7 3.4-3.6"/>
+  </g>
+</svg>
