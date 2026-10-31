@@ -433,7 +433,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="13" rx="2.5"/><path d="M7 9.5h5M7 12.5h8M9 21l3-4 3 4"/></svg>Ideas
   </button>
   <button class="tab" data-view="bienestar">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-5-3-8-6.5-8-10.5A4.5 4.5 0 0 1 12 8a4.5 4.5 0 0 1 8 2.5C20 14.5 17 18 12 21z"/><path d="M12 8v13"/></svg>Bienestar
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Bienestar
   </button>
   <button class="tab" data-view="cal" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendario
@@ -509,7 +509,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.9.0';
+const APP_VERSION = '2.9.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3993,6 +3993,18 @@ const fmtUsd = n => n < 0.01 ? (n > 0 ? '< 0,01 $' : '0 $') : n.toFixed(2).repla
 const iaGastoTxt = () => { const g = iaGasto(), mes = today().slice(0, 7); return { hoy: g[today()] || 0, mes: Object.entries(g).filter(([d]) => d.startsWith(mes)).reduce((a, [, v]) => a + v, 0) }; };
 const iaCfg = () => { try { return JSON.parse(localStorage.getItem(IA_KEY)) || {}; } catch { return {}; } };
 const iaSetCfg = c => { try { localStorage.setItem(IA_KEY, JSON.stringify(c)); } catch {} };
+const iaClaveValida = k => /^sk-ant-[A-Za-z0-9_-]{20,}$/.test(k);
+// Enlace de un toque: abrir la app con #clave=sk-ant-… guarda la clave en este teléfono y la borra de la barra de direcciones.
+// Va en el fragmento (#), no en ?clave=, para que la clave nunca viaje al servidor ni quede en registros.
+window.iaDesdeEnlace = () => {
+  const m = location.hash.match(/[#&]clave=([^&]+)/); if (!m) return false;
+  history.replaceState(null, '', location.pathname + location.search);
+  let k = ''; try { k = decodeURIComponent(m[1]).trim(); } catch { k = ''; }
+  if (!iaClaveValida(k)) { toast('El enlace no trae una clave válida.'); return false; }
+  iaSetCfg({ ...iaCfg(), key: k }); toast('Clave del asistente guardada en este teléfono.');
+  document.querySelector('.tabs .tab[data-view="ia"]')?.click();
+  return true;
+};
 let iaMsgs = [], iaDia = '';
 try { const c = JSON.parse(localStorage.getItem(IA_CHAT)); if (Array.isArray(c)) iaMsgs = c; else if (c) { iaMsgs = c.msgs || []; iaDia = c.dia || ''; } } catch {}
 // Cada día empieza una conversación nueva: cada mensaje reenvía todo lo anterior y el asistente ve tus datos de hoy igual.
@@ -4177,10 +4189,10 @@ function renderIA() {
       <ol class="pros" style="padding-left:20px">
         <li style="margin-bottom:6px">Entra en <a href="https://platform.claude.com" target="_blank" rel="noopener">platform.claude.com</a> con tu correo. Es la consola para desarrolladores, distinta de la suscripción a claude.ai.</li>
         <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/billing" target="_blank" rel="noopener">Settings → Billing</a>, añade saldo. Se paga por uso: con 5 $ puedes empezar.</li>
-        <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Settings → API keys</a>, toca «Create key», llámala «Organización Personal» y cópiala. Empieza por <b>sk-ant-api</b>.</li>
+        <li style="margin-bottom:6px">En <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">Settings → API keys</a>, toca «Create key», llámala «Organización Personal» y cópiala. Empieza por <b>sk-ant-</b>.</li>
         <li>Pégala aquí abajo. Se guarda solo en este teléfono. No la pegues en chats ni la compartas: quien la tenga puede gastar tu saldo.</li>
       </ol>
-      <div class="field"><label>Clave de la API de Claude</label><input id="ia-k" type="password" autocomplete="off" placeholder="sk-ant-api…"></div>
+      <div class="field"><label>Clave de la API de Claude</label><input id="ia-k" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
       <div class="field"><label>Modelo (se puede cambiar luego en Ajustes)</label>
         <div class="rows" id="ia-mods">${Object.keys(IA_MODELOS).map(k => `<button class="row" data-m="${k}"><span class="box" style="${k === m0 ? 'background:var(--text);border-color:var(--text)' : ''}"></span>
           <span class="t"><div>${esc(IA_MODELOS[k])}</div><small>${IA_COSTO_TXT[k]}</small></span></button>`).join('')}</div></div>
@@ -4194,8 +4206,7 @@ function renderIA() {
     });
     iaW.querySelector('#ia-ok').onclick = () => {
       const k = iaW.querySelector('#ia-k').value.trim();
-      if (!k.startsWith('sk-ant-')) { iaW.querySelector('#ia-err').textContent = 'Pega la clave completa; empieza por sk-ant-api.'; iaW.querySelector('#ia-k').focus(); return; }
-      if (!k.startsWith('sk-ant-api')) { iaW.querySelector('#ia-err').textContent = 'Esa no parece una clave de la API. Créala en platform.claude.com → Settings → API keys: empieza por sk-ant-api.'; return; }
+      if (!iaClaveValida(k)) { iaW.querySelector('#ia-err').textContent = 'Pega la clave completa: empieza por sk-ant- y es larga. Se crea en platform.claude.com → Settings → API keys.'; iaW.querySelector('#ia-k').focus(); return; }
       iaSetCfg({ ...c, key: k, modelo: mod }); renderIA();
     };
     return;
@@ -5094,6 +5105,7 @@ if (localStorage.getItem('habit-inicio') !== 'hoy') document.querySelector('.tab
 window.enfoqueArranque();
 // Al tocar una notificación se abre la pestaña que indica (?v=...).
 const abrirVista = url => { const v = new URL(url, location.href).searchParams.get('v'); if (v) document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click(); };
+window.iaDesdeEnlace?.();
 abrirVista(location.href);
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.abrir) abrirVista(e.data.abrir); });
 setSync('local');
