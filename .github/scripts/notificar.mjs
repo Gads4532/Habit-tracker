@@ -33,12 +33,13 @@ const hora12 = hm => { if (!/^\d\d:\d\d$/.test(hm || '')) return ''; let [h, m] 
 const menos = (hm, min) => { const t = +hm.slice(0, 2) * 60 + +hm.slice(3) - min; return t < 0 ? '' : `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
 
 // ---------- Qué avisar
+const agendaDe = (E, fecha) => E.agendaHoy?.fecha === fecha ? { items: E.agendaHoy.items || [], organizado: !!E.agendaHoy.organizado } : E.agendaPlan?.fecha === fecha ? { items: E.agendaPlan.items || [], organizado: true } : { items: [], organizado: false };
 function resumen(st, fecha) {
   const E = st.enfoque || {}, w = wd(fecha), L = [];
   const P = E.prioridades?.fecha === fecha ? E.prioridades.items || [] : [];
   L.push(P.length ? `Prioridades: ${P.map((x, i) => `${i + 1}. ${x.t}`).join(' · ')}` : 'Elige tus 3 prioridades: la más difícil primero.');
-  const ag = E.agendaHoy?.fecha === fecha ? E.agendaHoy.items || [] : [];
-  if (ag.length) L.push(`Agenda: ${ag.slice(0, 3).map(e => `${e.h ? hora12(e.h) + ' ' : ''}${e.t}`).join(' · ')}`);
+  const ag = agendaDe(E, fecha).items.filter(e => e.t).sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : 1);
+  if (ag.length) L.push(`Agenda: ${ag.slice(0, 4).map(e => `${e.h ? hora12(e.h) + ' ' : ''}${e.t}`).join(' · ')}${ag.length > 4 ? '…' : ''}`);
   const pl = (E.planes || []).filter(p => !p.hecho && p.fecha === fecha);
   if (pl.length) L.push(`Planes: ${pl.map(p => `${p.titulo}${p.con ? ' con ' + p.con : ''} ${hora12(p.hora)}`).join(' · ')}`);
   const hab = (st.habits || []).filter(h => !h.rutina && (!h.creado || h.creado <= fecha) && (h.dias?.length ? h.dias : [0, 1, 2, 3, 4, 5, 6]).includes(w));
@@ -59,6 +60,18 @@ function avisos(st, tz, prefs, desde, hasta) {
       if (h.rutina || (h.creado && h.creado > fecha) || !(h.dias?.length ? h.dias : [0, 1, 2, 3, 4, 5, 6]).includes(w) || st.log?.[h.id]?.[fecha]) continue;
       for (const hm of h.horas || []) if (en(fecha, hm)) out.push({ title: `Hora de: ${h.nombre}`, body: h.minima ? `Si hoy cuesta, la versión de 2 minutos: ${h.minima}.` : h.identidad ? `Soy una persona que ${h.identidad}.` : 'Márcalo en la app cuando lo hagas.', tag: 'h-' + h.id, url: './?v=hoy' });
     }
+    if (prefs.agenda !== false) {
+      // Agenda del día: 10 minutos antes de cada cosa con hora que siga pendiente. Planes y eventos tienen su propio aviso,
+      // y un hábito agendado a su hora de siempre ya recibe el de hábitos: no se duplican.
+      const A = agendaDe(E, fecha), I4 = E.iniciativas4?.dia === fecha ? E.iniciativas4.items || [] : [];
+      const hechoAg = it => it.tipo === 'habito' ? ['full', 'min'].includes(st.log?.[it.ref]?.[fecha]) : it.tipo === 'tarea' ? !!(st.tareas?.items || []).find(x => x.id === it.ref)?.hecha
+        : it.tipo === 'ini' ? !!I4.find(x => x.k === it.ref)?.hecho : it.tipo === 'prio' ? !!(E.prioridades?.fecha === fecha ? E.prioridades.items || [] : []).find(x => x.id === it.ref)?.hecho : !!it.hecho;
+      const avisoHabito = it => it.tipo === 'habito' && prefs.habitos !== false && ((st.habits || []).find(h => h.id === it.ref)?.horas || []).includes(it.h);
+      const etq = { habito: 'Hábito', tarea: 'Tarea', ini: 'Iniciativa', prio: 'Prioridad', libre: 'Agenda' };
+      for (const it of A.items) if (it.h && !['evento', 'plan'].includes(it.tipo) && !avisoHabito(it) && !hechoAg(it) && en(fecha, menos(it.h, 10)))
+        out.push({ title: `En 10 min: ${it.t}`, body: `${etq[it.tipo] || 'Agenda'}${it.min ? ' · ' + it.min + ' min' : ''}. Si son las ${hora12(it.h)}, entonces empiezo: teléfono boca abajo.`, tag: 'ag-' + it.id, url: './?v=agenda' });
+      if (en(fecha, '09:30') && !A.organizado) out.push({ title: 'Tu día aún no tiene agenda', body: 'Dos minutos: hábitos, tareas e iniciativas con hora. Tan fácil que sería ridículo no hacerlo.', tag: 'agenda', url: './?v=agenda' });
+    }
     if (prefs.planes !== false) for (const p of E.planes || []) if (!p.hecho && p.fecha === fecha && en(fecha, menos(p.hora || '', 60)))
       out.push({ title: `En 1 hora: ${p.titulo}${p.con ? ' con ' + p.con : ''}`, body: 'Lleva una pregunta pensada y escucha sin mirar el teléfono.', tag: 'p-' + p.id, url: './?v=enfoque' });
     if (prefs.proyectos !== false) for (const pr of E.proyectos || []) if (!pr.archivado && pr.paso && pr.cuando === fecha && en(fecha, pr.hora))
@@ -71,7 +84,8 @@ function avisos(st, tz, prefs, desde, hasta) {
     if (prefs.noche !== false && en(fecha, '20:00') && !((E.dias?.[fecha]?.ini_esp || 0) > 0)) out.push({ title: 'Tu momento espiritual de hoy', body: 'Todos los días: unos minutos de oración, silencio, gratitud o servicio. Hoy aún no está.', tag: 'esp', url: './?v=enfoque' });
     if (prefs.noche !== false && en(fecha, '21:00')) {
       const d = E.dias?.[fecha] || {};
-      out.push({ title: 'Cierre del día', body: `${d.enfoque || 0} min de enfoque · ${d.iniciativas || 0} iniciativas · resististe ${(d.resistidas || 0) + (d.alternativas || 0)} veces.\n¿Tres cosas buenas de hoy?`, tag: 'noche', url: './?v=enfoque' });
+      const manana = new Date(Date.parse(fecha + 'T12:00Z') + 864e5).toISOString().slice(0, 10), sinPlan = prefs.agenda !== false && E.agendaPlan?.fecha !== manana;
+      out.push({ title: 'Cierre del día', body: `${d.enfoque || 0} min de enfoque · ${d.iniciativas || 0} iniciativas · resististe ${(d.resistidas || 0) + (d.alternativas || 0)} veces.\n¿Tres cosas buenas de hoy?${sinPlan ? ' Y deja mañana organizado: 2 minutos.' : ''}`, tag: 'noche', url: sinPlan ? './?v=agenda' : './?v=enfoque' });
     }
     if (prefs.semana !== false && w === 0 && en(fecha, '08:30')) out.push({ title: 'Nuevo comienzo: revisión semanal', body: 'Diez minutos: logros, siguientes pasos con día y hora, y a quién escribir.', tag: 'semana', url: './?v=enfoque' });
     if (prefs.mediodia !== false && en(fecha, '16:00')) {
@@ -80,16 +94,6 @@ function avisos(st, tz, prefs, desde, hasta) {
       const socDias = Object.keys(dias).filter(k => k >= lunesK && k <= fecha && (dias[k].ini_social || 0) > 0).length, quedan = 7 - wdl - ((dias[fecha]?.ini_social || 0) > 0 ? 1 : 0);
       if (socDias < minSoc && minSoc - socDias >= quedan && !((dias[fecha]?.ini_social || 0) > 0)) out.push({ title: `Social: ${socDias} de ${minSoc} días esta semana`, body: 'Hoy cuenta para llegar al mínimo: un mensaje, una llamada o un plan que propongas tú.', tag: 'social6', url: './?v=enfoque' });
       if (hechas < min) out.push({ title: `Iniciativas: ${hechas} de ${min} hoy`, body: `Faltan ${min - hechas}. ${I.filter(x => x.t && !x.hecho).map(x => x.t).join(' · ') || 'Elige entre estudio, proyecto, laboral y social'}. Cada una vale 30 XP.`, tag: 'ini4', url: './?v=enfoque' });
-    }
-    if (prefs.agenda !== false) {
-      // Agenda del día: 10 minutos antes de cada cosa con hora que siga pendiente (planes y eventos tienen sus propios avisos).
-      const ag = E.agendaHoy?.fecha === fecha ? E.agendaHoy.items || [] : [], I4 = E.iniciativas4?.dia === fecha ? E.iniciativas4.items || [] : [];
-      const hechoAg = it => it.tipo === 'habito' ? ['full', 'min'].includes(st.log?.[it.ref]?.[fecha]) : it.tipo === 'tarea' ? !!(st.tareas?.items || []).find(x => x.id === it.ref)?.hecha
-        : it.tipo === 'ini' ? !!I4.find(x => x.k === it.ref)?.hecho : it.tipo === 'prio' ? !!(E.prioridades?.fecha === fecha ? E.prioridades.items || [] : []).find(x => x.id === it.ref)?.hecho : !!it.hecho;
-      const etq = { habito: 'Hábito', tarea: 'Tarea', ini: 'Iniciativa', prio: 'Prioridad', libre: 'Agenda' };
-      for (const it of ag) if (it.h && !['evento', 'plan'].includes(it.tipo) && !hechoAg(it) && en(fecha, menos(it.h, 10)))
-        out.push({ title: `En 10 min: ${it.t}`, body: `${etq[it.tipo] || 'Agenda'}${it.min ? ' · ' + it.min + ' min' : ''}. Si son las ${hora12(it.h)}, entonces empiezo: teléfono boca abajo.`, tag: 'ag-' + it.id, url: './?v=agenda' });
-      if (en(fecha, '09:30') && !(E.agendaHoy?.fecha === fecha && E.agendaHoy.organizado)) out.push({ title: 'Tu día aún no tiene agenda', body: 'Dos minutos: hábitos, tareas e iniciativas con hora. Tan fácil que sería ridículo no hacerlo.', tag: 'agenda', url: './?v=agenda' });
     }
     if (prefs.semana !== false && w === 4 && en(fecha, '17:00')) out.push({ title: 'Gracias del viernes', body: 'Agradécele algo concreto a alguien. Le alegrará más de lo que imaginas.', tag: 'viernes', url: './?v=enfoque' });
   }
