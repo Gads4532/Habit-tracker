@@ -494,6 +494,8 @@
     <input name="lugar" placeholder="En el sofá">
     <label>Después de…</label>
     <input name="despuesDe" placeholder="Cenar">
+    <label>Lo que disfruto al hacerlo</label>
+    <input name="disfrute" placeholder="El café de la mañana · mi música · el aire fresco">
     <label>Mi recompensa</label>
     <input name="recompensa" placeholder="Un capítulo de mi serie">
     <label>Mi celebración</label>
@@ -517,7 +519,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.10.0';
+const APP_VERSION = '2.11.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -556,13 +558,13 @@ const flame = (off = false) => {
 };
 // Mensaje según la racha: cada día es un voto por quien quieres ser.
 function motivation(n) {
-  if (n >= 66) return 'Hábito consolidado. Esto ya es quien eres.';
-  if (n >= 30) return 'Un mes de votos seguidos. Imparable.';
-  if (n >= 14) return 'Dos semanas. Ya no lo piensas, lo haces.';
-  if (n >= 7) return '¡Una semana entera! La cadena es tuya.';
-  if (n >= 3) return '¡Vas encendido! No rompas la cadena.';
-  if (n === 2) return 'Dos días. Ya es una cadena.';
-  return 'Primer voto. Así empieza todo.';
+  if (n >= 66) return 'Hábito consolidado: ya te sale solo.';
+  if (n >= 30) return 'Un mes cumpliéndolo: el plan funciona.';
+  if (n >= 14) return 'Dos semanas seguidas: ya es parte de tu día.';
+  if (n >= 7) return 'Una semana entera cumpliéndolo.';
+  if (n >= 3) return `${n} días seguidos: la señal y la hora funcionan.`;
+  if (n === 2) return 'Dos días seguidos.';
+  return 'Hecho. Así empieza.';
 }
 function globalStats() {
   const hs = state.habits.filter(h => !h.rutina);
@@ -994,7 +996,7 @@ function stats(h) {
   while (dayKey(yd) >= h.creado && !isSched(h, dayKey(yd))) yd = addDays(yd, -1);
   const yesterday = dayKey(yd);
   const missedYesterday = h.creado <= yesterday && isSched(h, yesterday) && !isDone(h, yesterday) && !isJust(h, yesterday);
-  return { age, done, streak, missedYesterday };
+  return { age, done, streak, missedYesterday, yesterday };
 }
 
 const list = items => `<ul>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`;
@@ -1099,6 +1101,7 @@ function habitHTML(h) {
     detail = `<div class="detail">
       <div class="chain" aria-label="Últimos 14 días">${chain}</div>
       <p class="intent">${intent}</p>
+      ${h.disfrute ? `<p class="meta">Lo que disfrutas: ${esc(h.disfrute)}</p>` : ''}
       <p class="meta">${modeLine ? modeLine + ' · ' : ''}${s.done} votos · ${esc(h.identidad)}${tip ? ' · ' + tip : ''}</p>
       ${benefitsHTML(h)}${consHTML(h)}
       <div class="actions">
@@ -1119,7 +1122,7 @@ function habitHTML(h) {
       </button>
       <span class="streak${s.streak ? ' on' : ''}" title="Racha">${flame(!s.streak)}${s.streak}</span>
     </div>
-    ${warn ? `<p class="warn">Ayer no se realizó. Que no pase dos veces: ${esc(h.minima)}.</p>` : ''}
+    ${warn ? `<p class="warn">Ayer no salió. Hoy, volver vale +15 XP${h.minima ? `: ${esc(h.minima)} cuenta` : ''}.${JUST_PER_MONTH - justUsed(h, s.yesterday.slice(0, 7)) > 0 ? ` <button class="link" data-act="repair" data-id="${h.id}" data-day="${s.yesterday}">Reparar la racha</button>` : ''}</p>` : ''}
     ${detail}
   </section>`;
 }
@@ -1188,18 +1191,24 @@ function sparks(h) {
 }
 
 function complete(h, value) {
+  // Volver el día después de un fallo es lo que más sostiene un hábito (Milkman et al., 2021, Nature): +15 XP, una vez al día.
+  const volvio = stats(h).missedYesterday, primera = h.xpDia !== today();
   justDone = h.id;
   setMark(h, value);
   justDone = null;
   sparks(h);
-  window.xpGanar?.(value === 'min' ? 5 : 10, value === 'min' ? 'Versión de 2 minutos' : 'Hábito cumplido');
-  setTimeout(() => celebrate(h), 350);
+  if (primera) {
+    h.xpDia = today();
+    window.xpGanar?.(value === 'min' ? 5 : 10, value === 'min' ? 'Versión de 2 minutos' : 'Hábito cumplido');
+    if (volvio) setTimeout(() => window.xpGanar?.(15, 'Volviste'), 900); else window.xpSorpresa?.();
+  }
+  setTimeout(() => celebrate(h, volvio), 350);
 }
 
 const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3L12.5 5"/></svg>';
 
 // Al cumplir, la recompensa: el fuego se enciende, la racha sube y se marca el día en la semana.
-function celebrate(h) {
+function celebrate(h, volvio = false) {
   const n = stats(h).streak;
   const monday = addDays(new Date(), -((new Date().getDay() + 6) % 7));
   const week = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => {
@@ -1212,8 +1221,9 @@ function celebrate(h) {
     <div class="roll" aria-label="${n}"><div class="roll-inner"><span>${Math.max(0, n - 1)}</span><span>${n}</span></div></div>
     <p class="cele-label">${n === 1 ? 'día de racha' : 'días de racha'}</p>
     <div class="week">${week}</div>
-    <p class="motivation">${motivation(n)}</p>
+    <p class="motivation">${volvio ? 'Volviste. Eso es lo que forma el hábito.' : motivation(n)}</p>
     <p class="meta">${esc(h.celebracion || '¡Así se hace!')} +1 voto · ${esc(h.identidad)}</p>
+    ${h.disfrute ? `<p class="meta" style="margin:10px 0 0">Lo que disfrutas: <b>${esc(h.disfrute)}</b></p>` : ''}
     <div class="cele-benefits">${benefitsHTML(h)}
       ${h.recompensa ? `<p class="meta" style="margin-top:12px">Te has ganado: <b>${esc(h.recompensa)}</b></p>` : ''}</div>
     <button class="cele-go" id="cele-go">Continuar</button>
@@ -1289,6 +1299,7 @@ $('#list').addEventListener('click', e => {
       // Antes de saltarlo, la consecuencia, dicha en voz alta.
       showMsg(`<h2>¿Hoy no?</h2>
         ${consHTML(h)}
+        <p class="meta" style="margin-top:12px">Un día no cambia la curva del hábito (Lally et al., 2010). Si hoy no, perdónate: mañana, volver vale +15 XP.</p>
         <p class="meta" style="margin-top:16px">La versión mínima cuenta: <b>${esc(h.minima)}</b></p>
         <input id="motivo" class="reason" placeholder="¿Por qué no? (opcional, para tu análisis)" maxlength="140" value="${esc(state.motivos[h.id]?.[today()] || '')}">
         <div class="dialog-actions">
@@ -1305,6 +1316,7 @@ $('#list').addEventListener('click', e => {
     case 'toggle': open.has(h.id) ? open.delete(h.id) : open.add(h.id); render(); break;
     case 'clave': h.clave = !h.clave; save(); render(); break;
     case 'edit': openForm(h); break;
+    case 'repair': justifyForm(h.id, btn.dataset.day); break;
     case 'add-in': openForm(null, { padre: h.id }); break;
   }
 });
@@ -1692,7 +1704,7 @@ function animateComplete(el, then) {
 }
 function completeTask(task) {
   task.hecha = true; task.hechaEn = Date.now(); justDoneTask = task.id; navigator.vibrate?.(10);
-  window.xpGanar?.(5, 'Tarea completada');
+  window.xpGanar?.(5, 'Tarea completada'); window.xpSorpresa?.();
   if (!task.repite) return;
   const T = state.tareas;
   if (T.items.some(y => y.origen === task.id)) return;
@@ -1785,7 +1797,7 @@ document.addEventListener('click', e => { const b = e.target.closest?.('[data-su
 let editing = null;
 const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean);
 const ROUTINE_FIELDS = ['nombre', 'icono', 'color'];
-const FIELDS = ['nombre', 'icono', 'color', 'padre', 'identidad', 'minima', 'modo', 'meta', 'lugar', 'despuesDe', 'recompensa', 'celebracion'];
+const FIELDS = ['nombre', 'icono', 'color', 'padre', 'identidad', 'minima', 'modo', 'meta', 'lugar', 'despuesDe', 'disfrute', 'recompensa', 'celebracion'];
 let formHoras = [];
 function renderHoras() {
   $('#hours-list').innerHTML = formHoras.map(h => `<span class="hour-chip">${fmtHora(h)}<button type="button" data-rm-hora="${h}" aria-label="Quitar">×</button></span>`).join('');
@@ -1987,6 +1999,7 @@ function renderAnalisis() {
   const rate = rateOf(rows), done = rows.filter(r => r.st === 'done').length;
   const best = Math.max(0, ...sel.map(bestStreak));
   const votes = sel.reduce((n, h) => n + stats(h).done, 0);
+  const vueltas = sel.reduce((n, h) => { let prev = null, c = 0; for (let d = new Date(Math.max(Date.parse(h.creado + 'T12:00'), Date.parse((from === '0000-00-00' ? h.creado : from) + 'T12:00'))); dayKey(d) <= today(); d = addDays(d, 1)) { const k = dayKey(d); if (!isSched(h, k)) continue; if (prev && !isDone(h, prev) && !isJust(h, prev) && isDone(h, k)) c++; prev = k; } return n + c; }, 0);
 
   // Semana a semana (lunes a domingo).
   const weeks = new Map();
@@ -2030,7 +2043,9 @@ function renderAnalisis() {
       <div><b>${done}</b><span>días hechos</span></div>
       <div><b>${best}</b><span>mejor racha</span></div>
       <div><b>${votes}</b><span>votos</span></div>
+      <div><b>${vueltas}</b><span>veces que volviste</span></div>
     </div>
+    ${vueltas ? '<p class="meta">Lo que predice llegar no es no fallar: es volver.</p>' : ''}
     ${rows.length ? `
     <section class="ana"><h3>Acierto por semana</h3>${wk.length ? barsSVG(wk, 'w') : '<p class="meta">Aún no hay semanas completas.</p>'}</section>
     <section class="ana"><h3>Días hechos acumulados</h3>${cumS.length > 1 ? lineSVG(cumS, 'c') : '<p class="meta">Marca al menos dos días.</p>'}</section>
@@ -2531,8 +2546,8 @@ function renderAhora() {
   const el = $('#ahora'); if (!el) return;
   const a = ahoraSugerido();
   el.innerHTML = `<div class="ahora"><p class="k">Ahora</p><b>${esc(a.t)}</b>${a.p ? `<p>${esc(a.p)}</p>` : `<p>${esc(a.k)}</p>`}
-    <div class="row-b"><button class="primary" id="ah-go">${esc(a.b)}</button>${a.descanso ? '' : '<button class="link" id="ah-rest">Descansar con propósito</button>'}</div></div>`;
-  $('#ah-go').onclick = a.a; $('#ah-rest')?.addEventListener('click', descansoForm);
+    <div class="row-b"><button class="primary" id="ah-go">${esc(a.b)}</button>${a.descanso ? '' : '<button class="link" id="ah-proc">Estoy procrastinando</button><button class="link" id="ah-rest">Descansar con propósito</button>'}</div></div>`;
+  $('#ah-go').onclick = a.a; $('#ah-rest')?.addEventListener('click', descansoForm); $('#ah-proc')?.addEventListener('click', procrastinoSheet);
 }
 function renderE() { renderXp(); renderAhora(); renderInterv(); renderAgenda(); renderPrio(); renderStats(); renderIni(); renderPend(); renderWeek(); }
 // ---------- XP: cada acción que te acerca a lo que importa suma puntos; nunca se restan.
@@ -2566,7 +2581,7 @@ function subirNivel(L) {
 function renderXp() {
   const el = $('#xp'); if (!el) return;
   const T = ES.xp.total, L = nivelDe(T), a = xpParaNivel(L), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
-  el.innerHTML = `<div class="xp"><div class="lv">${L}</div><div class="t"><b>${esc(nivelNombre(L))}</b><small>${T - a} / ${b - a} XP para el nivel ${L + 1}${r ? ` · racha ${r} ${r === 1 ? 'día' : 'días'}` : ''}</small>
+  el.innerHTML = `<div class="xp"><div class="lv">${L}</div><div class="t"><b>${esc(nivelNombre(L))}</b><small>${esc(llevasFaltan(T - a, b - a, 'XP', `para el nivel ${L + 1}`))}${r ? ` · racha ${r} ${r === 1 ? 'día' : 'días'}` : ''}</small>
     <div class="bar"><i style="width:${Math.min(100, (T - a) / (b - a) * 100)}%"></i></div></div>
     <div class="hoy"><b class="${hoy >= ES.metaXp ? 'ok' : ''}">${hoy} / ${ES.metaXp}</b>XP hoy</div></div>`;
   const card = el.querySelector('.xp'); card.style.cursor = 'pointer'; card.title = 'Cómo se gana XP'; card.onclick = () => xpSheet();
@@ -2710,7 +2725,7 @@ function focusForm(que = '', min = 25, pro = '') {
       <datalist id="f-sug">${[...new Set(sug)].map(s => `<option value="${esc(s)}">`).join('')}</datalist></div>
     <div class="field"><label>Duración</label><div class="chips" id="f-min">${opts.map(m => `<button class="chip${m === min ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
     <div class="field"><label>¿Cómo está tu ánimo ahora? (1–5, opcional)</label><div class="chips" id="f-animo">${[1, 2, 3, 4, 5].map(n => `<button class="chip" data-v="${n}">${n}</button>`).join('')}</div></div>
-    <p class="note">Al empezar, bloquea el teléfono y déjalo boca abajo. Si lo vuelves a abrir antes de tiempo, cuenta como interrupción.</p>
+    <p class="note">Al empezar, bloquea el teléfono y déjalo boca abajo. Si lo vuelves a abrir antes de tiempo, cuenta como interrupción. Al terminar: 1 XP por minuto, +20 si no lo interrumpes.</p>
     <div class="actions"><button class="link" id="f-cancel">Cancelar</button><button class="primary" id="f-go">Empezar</button></div>`);
   let chosen = min, animo = 0;
   $('#f-animo').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; animo = +c.dataset.v; $('#f-animo').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
@@ -3602,6 +3617,9 @@ function ini4Sugerencias(k) {
 function iniPremios(I) {
   const h = I.items.filter(y => y.hecho).length, ultima = I.items.find(y => y.hecho && !y.premiada);
   if (ultima) { ultima.premiada = true; xpGanar(XP_INI, `Iniciativa de ${INI4.find(([k]) => k === ultima.k)[1].toLowerCase()}`); }
+  // Volver a tomar la iniciativa después de un día sin llegar al mínimo vale +15 (Milkman et al., 2021).
+  const ayerIni = dayKey(addDays(new Date(), -1));
+  if (h === 1 && !I.vuelta && Object.keys(ES.iniHist || {}).length && (ES.iniHist?.[ayerIni] || []).length < ES.minIni) { I.vuelta = true; setTimeout(() => xpGanar(15, 'Volviste a tomar la iniciativa'), 800); }
   if (h >= ES.minIni && !I.minimo) { I.minimo = true; setTimeout(() => { xpGanar(40, `Mínimo del día: ${ES.minIni} iniciativas`); buzz([40, 60, 40]); }, 1200); }
   if (h === N_INI && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 5 iniciativas del día'), 2400); }
   if (I.items[4]?.hecho && !I.espBonus) { I.espBonus = true; const r = rachaEsp(); if (r && r % 7 === 0) setTimeout(() => xpGanar(40, `Espiritual ${r} días seguidos`), 3000); }
@@ -3718,7 +3736,7 @@ function buenasSheet() {
   $('#bn-ok').onclick = () => {
     const items = [0, 1, 2].map(i => $('#bn-' + i).value.trim()).filter(Boolean); if (!items.length) { $('#bn-0').focus(); return; }
     if (hoyB) hoyB.items = items; else { ES.buenas.push({ id: crypto.randomUUID(), d: today(), items }); xpGanar(10, 'Tres cosas buenas'); } ES.buenas = ES.buenas.slice(-120);
-    guardar(); closeSheet(); renderE(); toast('Guardado. Buen cierre del día.');
+    guardar(); renderE(); cierreFinal(items);
   };
 }
 // ---------- Intervención del momento: un solo mensaje, elegido por la hora, el día y tus datos.
@@ -3795,6 +3813,13 @@ function configSheet() {
 
 // ---------- Por qué funciona: cada herramienta con su fuente
 const CIENCIA = [
+  ['Volver vale más que no fallar', 'En un megaestudio con 61 293 personas y 54 intervenciones, lo que más aumentó las visitas al gimnasio fue premiar el regreso después de faltar. Por eso volver tras un fallo vale +15 XP y la racha se puede reparar.', 'Milkman et al. (2021), Nature'],
+  ['Lo que disfrutas, ahora', 'Las recompensas inmediatas predicen la persistencia mejor que los beneficios a largo plazo: elegir la versión que disfrutas hace que se mantenga. Cada hábito guarda «lo que disfruto al hacerlo» y lo muestra al cumplirlo.', 'Woolley y Fishbach (2017), Personality and Social Psychology Bulletin'],
+  ['Sorpresa acotada', 'La dopamina responde al error de predicción: lo inesperado se registra más que lo seguro, y la incertidumbre leve motiva a seguir. En la app es pequeña, sin aviso, nunca resta ni se compra, y como mucho dos veces al día.', 'Schultz, Dayan y Montague (1997), Science; Shen, Fishbach y Hsee (2015), Journal of Consumer Research'],
+  ['Elogiar la acción, no el rasgo', 'Elogiar el esfuerzo y la estrategia sostiene la motivación tras un tropiezo; elogiar la inteligencia o el carácter la debilita. Las celebraciones nombran lo que hiciste.', 'Mueller y Dweck (1998), Journal of Personality and Social Psychology'],
+  ['Llevas y te faltan', 'Al principio motiva ver lo avanzado; pasada la mitad, lo que falta. Las barras de nivel y de objetivos cambian de texto en la mitad.', 'Koo y Fishbach (2012), Journal of Consumer Research'],
+  ['Terminar con lo mejor', 'Recordamos una experiencia por su momento más intenso y por su final. El cierre del día termina con lo mejor que te pasó, no con lo pendiente.', 'Kahneman, Fredrickson, Schreiber y Redelmeier (1993), Psychological Science'],
+  ['Procrastinar no es pereza', 'Es evitar una emoción incómoda. Lo que más ayuda: hacer el paso más pequeño, recordar para qué y alejar la tentación.', 'Steel (2007), Psychological Bulletin; Sirois y Pychyl (2013), Social and Personality Psychology Compass'],
   ['Metas SMART (teoría de metas)', 'Las metas específicas y difíciles rinden más que «hazlo lo mejor que puedas» en más de 400 estudios con unas 40 000 personas; el efecto crece con retroalimentación y compromiso. Por eso todo en la app pide qué, cuánto, cuándo y para qué.', 'Locke y Latham (2002), American Psychologist; Doran (1981), Management Review'],
   ['Registrar el avance', 'Medir y anotar el progreso con frecuencia aumenta el logro de metas (d = 0,40 en 138 estudios); más aún si se registra y se hace público. Los objetivos de la Agenda guardan cada avance.', 'Harkin et al. (2016), Psychological Bulletin'],
   ['Organizar el día la víspera o a primera hora', 'Decidir de antemano cuándo y dónde se hará cada cosa (si…, entonces…) aumenta el cumplimiento con efecto medio-grande (d = 0,65) en 94 estudios; la agenda con hora es ese plan para todo el día.', 'Gollwitzer y Sheeran (2006), Advances in Experimental Social Psychology'],
@@ -4045,6 +4070,7 @@ Cómo trabajas:
 - Todo lo que propongas o crees debe ser SMART: específico (verbo + qué + con quién), medible (una señal de hecho que se pueda ver), alcanzable (menos de 90 minutos y un primer paso de 2 minutos), relevante (para qué, o ligado a un objetivo) y con tiempo (hora de hoy o fecha). Si la persona te da algo vago, devuélvelo en forma SMART en una línea y confirma.
 - La pestaña Agenda junta en una lista con hora los hábitos, tareas, iniciativas, prioridades, planes y eventos del día. Para organizar el día usa agenda_organizar (crea las tareas o hábitos que falten); de noche puedes dejar organizado el día siguiente con dia = manana (planificar la víspera ayuda mucho a cumplir). Para verla, agenda_ver. Si pasan las 10 y el día no está organizado, propón hacerlo en dos minutos; después de las 8 PM, propón dejar mañana organizado.
 - Hay objetivos SMART de semanas o meses (en agenda_ver; objetivo_crear y objetivo_avance). Liga iniciativas y tareas a un objetivo cuando encajen y registra avances cuando la persona los cuente.
+- Elogia acciones concretas («tres días seguidos con el plan de las 7»), no rasgos («eres disciplinado»). No uses «debes» ni «tienes que»: da la razón de la persona y ofrece opciones. Si ayer falló algo, recuérdale con tacto que volver hoy cuenta más que no haber fallado.
 - Horas en formato de 12 horas con AM/PM; fechas como «jueves 30 de octubre».
 - Cada mensaje de la persona empieza con la fecha y la hora actuales entre corchetes: úsalas como referencia para «hoy», «mañana» o «esta tarde».`;
 
@@ -5573,7 +5599,7 @@ function iniMarcar(i, hecho) {
   if (x.k === 'social') bump('ini_social', hecho ? 1 : -1); if (x.k === 'espiritual') bump('ini_esp', hecho ? 1 : -1);
   const ref = `ini:${x.k}:${today()}`;
   if (hecho) {
-    iniPremios(I); if (x.obj) objAvance(x.obj, 1, x.t, ref);
+    iniPremios(I); window.xpSorpresa(); if (x.obj) objAvance(x.obj, 1, x.t, ref);
     if (smartTodo(smartDe({ ...x, tipo: 'ini', h: x.hora })) && !x.smartBonus) { x.smartBonus = true; setTimeout(() => xpGanar(10, 'Iniciativa SMART completa'), 700); }
   } else if (x.obj) objAvance(x.obj, -1, '', ref);
 }
@@ -6037,7 +6063,7 @@ function objetivoSheet(o) {
   const d = objDias(o), pct = objPct(o);
   const ligadas = [...ES.catalogoIni.estudio, ...ES.catalogoIni.proyecto, ...ES.catalogoIni.laboral, ...ES.catalogoIni.social, ...ES.catalogoIni.espiritual].filter(x => x.obj === o.id);
   showSheet(`<p class="paso">${esc(OBJ_AREAS[o.area] || 'Objetivo')}${o.hecho ? ' · cumplido' : d !== null ? ` · ${d < 0 ? `venció hace ${-d} días` : d === 0 ? 'vence hoy' : `quedan ${d} días`}` : ''}</p><h2>${esc(o.t)}</h2>
-    <div class="meter"><span>${esc(o.metrica)}</span><b class="${o.hecho ? 'green' : ''}">${o.actual} de ${o.meta} ${esc(o.unidad)} · ${pct} %</b></div><div class="meter-bar"><i style="width:${pct}%"></i></div>
+    <div class="meter"><span>${esc(o.metrica)}</span><b class="${o.hecho ? 'green' : ''}">${o.hecho ? `${o.actual} de ${o.meta} ${esc(o.unidad)}` : esc(llevasFaltan(o.actual, o.meta, o.unidad, 'para la meta'))} · ${pct} %</b></div><div class="meter-bar"><i style="width:${pct}%"></i></div>
     <p class="meta">${smartLinea(objSmart(o))}</p>
     <p class="meta">${o.porque ? 'Por qué: ' + esc(o.porque) : ''}${o.paso ? `${o.porque ? ' · ' : ''}Ritmo: ${esc(o.paso)}` : ''}</p>
     ${!o.hecho ? `<p class="meta">${esc(objRitmo(o))}${o.fecha ? ` · fecha límite ${fechaLarga(o.fecha)}` : ''}</p>` : `<p class="meta green">Cumplido el ${fechaLarga(o.hechoEn || today())}.</p>`}
@@ -6053,7 +6079,7 @@ function objetivoSheet(o) {
 }
 
 // ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (un número, hoy, antes de dormir).
-const xpTabla = () => [['Hábito cumplido', 10], ['Versión de 2 minutos', 5], ['Tarea completada', 5], ['Prioridad hecha', 25], ['La rana (prioridad 1)', 40], ['Las tres prioridades', 50], ['Prioridad extra', 30],
+const xpTabla = () => [['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Tarea completada', 5], ['Prioridad hecha', 25], ['La rana (prioridad 1)', 40], ['Las tres prioridades', 50], ['Prioridad extra', 30],
   ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Mínimo de ${ES.minIni} iniciativas en el día`, 40], ['Las 5 iniciativas', 50], [`Social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30; +10 completo'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
@@ -6171,6 +6197,74 @@ window.renderAgendaTab = () => renderAg();
 window.organizarDia = () => organizarDia();
 window.organizarManana = () => organizarManana();
 window.agendaResumen = () => ({ organizado: !!agenda().organizado, items: agItems().sort(agOrden).map(it => ({ id: it.id, tipo: agEtiqueta(it), texto: it.t, hora: it.h || '', minutos: it.min || 0, hecha: agHecho(it) })), ...(planManana() ? { manana: agendaPlanResumen() } : {}) });
+
+// ====================================================================
+// Gratificación con evidencia (2.11.0). Lo que hace que valga la pena volver, sin trucos de casino:
+// - Volver tras un fallo vale más: la intervención ganadora del megaestudio de Penn (Milkman et al., 2021, Nature).
+// - Recompensa inmediata: lo que disfrutas al hacerlo, visible en el momento (Woolley y Fishbach, 2017).
+// - Sorpresa acotada: a veces, sin aviso, unos XP extra; nunca resta, nunca se compra, como mucho dos al día
+//   (Schultz, Dayan y Montague, 1997; Shen, Fishbach y Hsee, 2015). Lo inesperado no erosiona la motivación propia (Deci et al., 1999).
+// - Elogio de la acción, no del rasgo (Mueller y Dweck, 1998); cierre del día con lo mejor (regla pico-final, Kahneman et al., 1993).
+// - «Llevas» por debajo de la mitad y «te faltan» por encima (Koo y Fishbach, 2012).
+// - Procrastinar es regular una emoción, no pereza (Sirois y Pychyl, 2013): achicar el paso y quitar la tentación (Steel, 2007).
+// ====================================================================
+window.xpSorpresa = () => {
+  if ((dayOf().sorpresas || 0) >= 2 || Math.random() > 1 / 6) return;
+  bump('sorpresas'); setTimeout(() => xpGanar(10, '¡Sorpresa!'), 1400);
+};
+// Texto de progreso según el tramo: lo que llevas si aún no vas por la mitad; lo que falta si ya pasaste.
+const llevasFaltan = (hecho, total, unidad, meta) => hecho / Math.max(1, total) < .5 ? `Llevas ${hecho} de ${total} ${unidad}` : `Te faltan ${Math.max(0, +(total - hecho).toFixed(2))} ${unidad}${meta ? ' ' + meta : ''}`;
+// ---------- Estoy procrastinando: cuatro salidas, una sola elección.
+function porQueDe(t) {
+  const it = agItems().find(x => x.t === t), src = it ? agSmartSrc(it) : {};
+  const prio = ES.prioridades.items.find(x => x.t === t), pr = prio?.pro ? ES.proyectos.find(p => p.id === prio.pro) : null;
+  const hab = HT().habits.find(h => h.nombre === t);
+  const obj = ES.objetivos.find(o => o.id === (src.obj || prio?.obj));
+  return [src.por, src.exito && `Hecho cuando: ${src.exito}`, pr?.deseo && `${pr.nombre}: ${pr.deseo}`, pr?.resultado, hab?.disfrute && `Lo que disfrutas: ${hab.disfrute}`, ...(hab?.beneficios || []).slice(0, 2), obj && `Suma a «${obj.t}» (${obj.actual} de ${obj.meta} ${obj.unidad})`].filter(Boolean);
+}
+// Lo concreto que se está evitando: lo de la agenda para esta hora, la siguiente prioridad, un hábito o una tarea de hoy.
+function loEvitado() {
+  const ag = agendaAhora() || agItems().filter(it => !agHecho(it) && it.tipo !== 'evento').sort(agOrden)[0];
+  if (ag) return ag.t;
+  const prio = ES.prioridades.items.find(x => !x.hecho); if (prio) return prio.t;
+  const p = pendientes(); return p.habits[0]?.nombre || p.due[0]?.titulo || '';
+}
+function procrastinoSheet() {
+  const t = loEvitado();
+  showSheet(`<h2>Estoy procrastinando</h2>
+    <p class="sci">Procrastinar no es pereza: es evitar una emoción incómoda (Sirois y Pychyl, 2013). Lo que más ayuda es achicar el paso, recordar para qué y quitar la tentación (Steel, 2007). Elige una:</p>
+    <div class="actions stack" style="margin-top:0">
+      ${t ? `<button class="primary" id="pc-2">Hazlo más pequeño: 2 minutos de «${esc(t)}»</button>` : ''}
+      <button class="outline" id="pc-por">Recuérdame para qué</button>
+      <button class="outline" id="pc-hora">Ponle hora hoy</button>
+      <button class="outline" id="pc-tel">Quita el teléfono: 25 minutos de enfoque</button>
+      <button class="link" id="pc-x">Cerrar</button></div>`);
+  $('#pc-2')?.addEventListener('click', () => { closeSheet(); startFocus(t, 2); });
+  $('#pc-por').onclick = () => {
+    const razones = t ? porQueDe(t) : [], objs = objetivosActivos().slice(0, 3);
+    showSheet(`<h2>Para qué</h2>${t ? `<p class="note">«${esc(t)}»</p>` : ''}
+      ${razones.length ? `<ul class="pros">${razones.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : '<p class="note">Aún no le pusiste un para qué. Escríbelo en una línea: lo que cambia si lo haces hoy.</p>'}
+      ${objs.length ? `<h3>Tus objetivos</h3><ul class="pros">${objs.map(o => `<li>${esc(o.t)} · ${esc(llevasFaltan(o.actual, o.meta, o.unidad))}</li>`).join('')}</ul>` : ''}
+      <p class="meta">Imagina el final del día con esto hecho. Ahora, solo el primer paso.</p>
+      <div class="actions stack">${t ? '<button class="primary" id="pc-2b">Empezar 2 minutos</button>' : ''}<button class="link" id="pc-x2">Cerrar</button></div>`);
+    $('#pc-2b')?.addEventListener('click', () => { closeSheet(); startFocus(t, 2); });
+    $('#pc-x2').onclick = closeSheet;
+  };
+  $('#pc-hora').onclick = () => { const it = t && agItems().find(x => x.t === t); if (it) agItemSheet(it); else { closeSheet(); irA('agenda'); organizarDia(); } };
+  $('#pc-tel').onclick = () => { closeSheet(); focusForm(t, 25); };
+  $('#pc-x').onclick = closeSheet;
+}
+// ---------- Cierre pico-final: termina el día con lo mejor, no con lo pendiente.
+function cierreFinal(items) {
+  const P = planManana();
+  showSheet(`<div style="text-align:center"><p class="meta" style="margin:0">Lo mejor de hoy</p>
+    <h2 style="margin:10px 0 12px;font-size:1.5rem">${esc(items[0])}</h2>
+    ${items.length > 1 ? `<p class="meta">${items.slice(1).map(esc).join(' · ')}</p>` : ''}
+    <p class="note">Buenas noches${nombre() ? ', ' + esc(nombre()) : ''}.${P ? ' Mañana ya está organizado.' : ''}</p>
+    <div class="actions stack" style="align-items:center">${P ? '' : '<button class="primary" id="cf-man">Dejar mañana organizado · 2 min</button>'}<button class="${P ? 'primary' : 'link'}" id="cf-ok">Cerrar</button></div></div>`);
+  $('#cf-man')?.addEventListener('click', organizarManana);
+  $('#cf-ok').onclick = closeSheet;
+}
 
 // ====================================================================
 // Notificaciones: llegan aunque la app esté cerrada. El teléfono se suscribe aquí (Web Push) y la

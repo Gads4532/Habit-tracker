@@ -58,7 +58,7 @@ function avisos(st, tz, prefs, desde, hasta) {
     if (prefs.manana !== false && en(fecha, prefs.hora || '07:30')) out.push(resumen(st, fecha));
     if (prefs.habitos !== false) for (const h of st.habits || []) {
       if (h.rutina || (h.creado && h.creado > fecha) || !(h.dias?.length ? h.dias : [0, 1, 2, 3, 4, 5, 6]).includes(w) || st.log?.[h.id]?.[fecha]) continue;
-      for (const hm of h.horas || []) if (en(fecha, hm)) out.push({ title: `Hora de: ${h.nombre}`, body: h.minima ? `Si hoy cuesta, la versión de 2 minutos: ${h.minima}.` : h.identidad ? `Soy una persona que ${h.identidad}.` : 'Márcalo en la app cuando lo hagas.', tag: 'h-' + h.id, url: './?v=hoy' });
+      for (const hm of h.horas || []) if (en(fecha, hm)) out.push({ title: `Hora de: ${h.nombre}`, body: `${h.disfrute ? `Lo que disfrutas: ${h.disfrute}. ` : ''}${h.minima ? `Si hoy cuesta, la versión de 2 minutos: ${h.minima}.` : h.identidad ? `Soy una persona que ${h.identidad}.` : 'Márcalo en la app cuando lo hagas.'}`, tag: 'h-' + h.id, url: './?v=hoy' });
     }
     if (prefs.agenda !== false) {
       // Agenda del día: 10 minutos antes de cada cosa con hora que siga pendiente. Planes y eventos tienen su propio aviso,

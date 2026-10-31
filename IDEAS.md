@@ -217,3 +217,21 @@ Prácticas guiadas de 1 a 15 minutos con pantalla propia (pasos con tiempo o pat
 - **Avisos.** Preferencia «Agenda del día»: 10 minutos antes de cada cosa con hora que siga pendiente («Si son las 3:30 PM, entonces empiezo»), sin duplicar el aviso de un hábito que ya tiene el suyo a esa hora, y a las 9:30 si el día no está organizado. El cierre de las 9 PM propone dejar mañana organizado si aún no lo está.
 - **Datos.** `agendaHoy` (día, ítems, eventos ocultos, organizado), `agendaPlan` (mañana), `agendaHist` (21 días) y `objetivos` dentro de `state.enfoque`; fusión entre dispositivos por id y, en el mismo día, un solo ítem por tipo y referencia; ítems quitados con lápida. «Ir a…» funciona también dentro de las hojas.
 - **Evidencia.** Locke y Latham (2002) y Doran (1981) para metas específicas; Gollwitzer y Sheeran (2006) para hora y lugar; Harkin et al. (2016) para registrar el avance; Pennebaker y Chung (2011) y Frattaroli (2006) para escribir sobre lo vivido.
+
+## 2.11.0: gratificación con evidencia (neurociencia, psicología y libros de hábitos)
+
+Investigación con informes por área (neurociencia de la recompensa, gratificación instantánea y autocontrol, hábitos y libros como Hábitos atómicos y Tiny Habits, motivación), con citas y verificación. Lo que se aplicó, con la evidencia más sólida y sin diseño de casino:
+
+- **Volver vale más que no fallar.** Hacer un hábito el día después de no hacerlo suma +15 XP «Volviste», y la celebración lo nombra («Volviste. Eso es lo que forma el hábito.»). Igual con las iniciativas: la primera del día después de no llegar al mínimo, +15. Es la intervención ganadora del megaestudio de Penn con 61 293 personas (Milkman et al., 2021, Nature). El aviso del día siguiente dice «Ayer no salió. Hoy, volver vale +15 XP», y el «Hoy no» recuerda que un día no cambia la curva (Lally et al., 2010).
+- **Reparar la racha.** En el aviso de «ayer no salió», un toque usa una de las dos justificaciones del mes para que la racha no se rompa (las rachas rotas expulsan: Silverman y Barasch, 2023).
+- **Lo que disfrutas al hacerlo.** Campo nuevo en cada hábito; se ve en la ficha, en la celebración (antes que los beneficios a largo plazo) y en el aviso de la hora. Las recompensas inmediatas predicen la persistencia (Woolley y Fishbach, 2017).
+- **Sorpresa acotada.** A veces, sin aviso, +10 XP al cumplir un hábito, una tarea o una iniciativa: probabilidad 1 de 6, como mucho dos al día, nunca resta, nunca se compra (error de predicción: Schultz, Dayan y Montague, 1997; incertidumbre leve: Shen, Fishbach y Hsee, 2015; lo inesperado no erosiona la motivación propia: Deci, Koestner y Ryan, 1999).
+- **XP honesto.** El XP de cada hábito se gana una vez al día (deshacer y volver a marcar no suma de nuevo).
+- **Elogio de la acción, no del rasgo.** Los mensajes de racha nombran lo hecho («3 días seguidos: la señal y la hora funcionan») y ya no presionan con «no rompas la cadena» (Mueller y Dweck, 1998). El asistente también: sin «debes», con razones y opciones.
+- **Llevas y te faltan.** La barra de nivel y la de los objetivos dicen «Llevas X de Y» hasta la mitad y «Te faltan Z» después (Koo y Fishbach, 2012).
+- **Estoy procrastinando.** En la tarjeta Ahora: cuatro salidas (hazlo más pequeño, recuérdame para qué, ponle hora, quita el teléfono), apuntando a lo concreto que se está evitando (Steel, 2007; Sirois y Pychyl, 2013).
+- **Terminar con lo mejor.** Al guardar las tres cosas buenas, el día cierra con la mejor en grande, «Buenas noches» y, si falta, «Dejar mañana organizado» (regla pico-final: Kahneman et al., 1993).
+- **Recompensa anunciada antes de empezar** en las sesiones de enfoque (1 XP por minuto, +20 sin interrupciones).
+- **Veces que volviste**, en Análisis: lo que predice llegar no es no fallar, es volver.
+- **Por qué funciona**: siete entradas nuevas con su cita.
+
