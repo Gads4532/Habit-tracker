@@ -196,3 +196,9 @@ Prácticas guiadas de 1 a 15 minutos con pantalla propia (pasos con tiempo o pat
 - **«Ahora»** en Enfoque: siempre una cosa siguiente con propósito (prioridad → iniciativa con hora → mínimo de iniciativas → espiritual → social en riesgo → hábito → tarea → prioridades → tres cosas buenas → descanso con propósito). Es imposible quedarse sin saber qué hacer, y la alternativa al scroll es siempre un descanso elegido.
 - **Descansar con propósito**: quinta respuesta a «¿Para qué tomaste el teléfono?» y botón en «Ahora»: tipo (siesta, caminar, respirar, no hacer nada sin pantalla, música, estirar, comer sin pantalla, leer por placer) y tiempo; corre como sesión, registra `descanso` y da XP (Albulescu 2022; Kaplan 1995).
 - **Iniciativa espiritual**: quinta iniciativa, diaria, con catálogo cristiano; racha propia y bonus cada 7 días; aviso a las 7 PM en la app y a las 8 PM por push si falta.
+
+## 2.9.1: clave del asistente por enlace, corazón en Bienestar
+
+- **Clave por enlace de un toque.** Abrir la app con `#clave=sk-ant-…` guarda la clave del asistente en ese teléfono y la borra de la barra de direcciones. Va en el fragmento (`#`), que el navegador nunca envía al servidor, así que no queda en registros de GitHub Pages. Sirve para pasar la clave desde un chat privado sin escribirla a mano.
+- **Formato de clave.** La consola de Claude emite claves `sk-ant-api…` y también `sk-ant-usr…`; la app acepta cualquier clave `sk-ant-` larga en vez de exigir `sk-ant-api`.
+- **Pestaña Bienestar:** corazón sencillo, sin la línea central.
