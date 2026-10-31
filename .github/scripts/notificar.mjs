@@ -81,9 +81,19 @@ function avisos(st, tz, prefs, desde, hasta) {
       if (socDias < minSoc && minSoc - socDias >= quedan && !((dias[fecha]?.ini_social || 0) > 0)) out.push({ title: `Social: ${socDias} de ${minSoc} días esta semana`, body: 'Hoy cuenta para llegar al mínimo: un mensaje, una llamada o un plan que propongas tú.', tag: 'social6', url: './?v=enfoque' });
       if (hechas < min) out.push({ title: `Iniciativas: ${hechas} de ${min} hoy`, body: `Faltan ${min - hechas}. ${I.filter(x => x.t && !x.hecho).map(x => x.t).join(' · ') || 'Elige entre estudio, proyecto, laboral y social'}. Cada una vale 30 XP.`, tag: 'ini4', url: './?v=enfoque' });
     }
+    if (prefs.agenda !== false) {
+      // Agenda del día: 10 minutos antes de cada cosa con hora que siga pendiente (planes y eventos tienen sus propios avisos).
+      const ag = E.agendaHoy?.fecha === fecha ? E.agendaHoy.items || [] : [], I4 = E.iniciativas4?.dia === fecha ? E.iniciativas4.items || [] : [];
+      const hechoAg = it => it.tipo === 'habito' ? ['full', 'min'].includes(st.log?.[it.ref]?.[fecha]) : it.tipo === 'tarea' ? !!(st.tareas?.items || []).find(x => x.id === it.ref)?.hecha
+        : it.tipo === 'ini' ? !!I4.find(x => x.k === it.ref)?.hecho : it.tipo === 'prio' ? !!(E.prioridades?.fecha === fecha ? E.prioridades.items || [] : []).find(x => x.id === it.ref)?.hecho : !!it.hecho;
+      const etq = { habito: 'Hábito', tarea: 'Tarea', ini: 'Iniciativa', prio: 'Prioridad', libre: 'Agenda' };
+      for (const it of ag) if (it.h && !['evento', 'plan'].includes(it.tipo) && !hechoAg(it) && en(fecha, menos(it.h, 10)))
+        out.push({ title: `En 10 min: ${it.t}`, body: `${etq[it.tipo] || 'Agenda'}${it.min ? ' · ' + it.min + ' min' : ''}. Si son las ${hora12(it.h)}, entonces empiezo: teléfono boca abajo.`, tag: 'ag-' + it.id, url: './?v=agenda' });
+      if (en(fecha, '09:30') && !(E.agendaHoy?.fecha === fecha && E.agendaHoy.organizado)) out.push({ title: 'Tu día aún no tiene agenda', body: 'Dos minutos: hábitos, tareas e iniciativas con hora. Tan fácil que sería ridículo no hacerlo.', tag: 'agenda', url: './?v=agenda' });
+    }
     if (prefs.semana !== false && w === 4 && en(fecha, '17:00')) out.push({ title: 'Gracias del viernes', body: 'Agradécele algo concreto a alguien. Le alegrará más de lo que imaginas.', tag: 'viernes', url: './?v=enfoque' });
   }
-  return out.slice(0, 4);
+  return out.slice(0, 5);
 }
 
 // ---------- Pasada

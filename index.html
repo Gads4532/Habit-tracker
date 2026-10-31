@@ -337,8 +337,8 @@
   /* Barra inferior: Hoy | Calendario */
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; gap: 0;
     padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
-    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--bg); border-top: 1px solid var(--line); z-index: 5; }
-  .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .68rem; color: var(--muted); min-width: 0; }
+    padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); background: var(--bg); border-top: 1px solid var(--line); z-index: 5; }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: clamp(.56rem, 2.75vw, .66rem); color: var(--muted); min-width: 0; flex: 1 1 0; padding: 0 1px; white-space: nowrap; letter-spacing: -.01em; }
   .tab svg { width: 22px; height: 22px; }
   .tab.on { color: var(--text); }
   /* Calendario */
@@ -393,6 +393,8 @@
   <div id="view-ia" hidden></div>
   <div id="view-pizarra" hidden></div>
   <div id="view-bienestar" hidden></div>
+  <div id="view-agenda" hidden></div>
+  <div id="view-journal" hidden></div>
   <div id="view-hoy">
     <p class="note" style="margin-top:-12px"><button class="link" data-subvista="cal">Calendario de hábitos</button> · <button class="link" data-subvista="analisis">Análisis</button></p>
     <p class="note bad" id="nocloud" hidden>Tus datos están solo en este teléfono. <button class="link" id="nocloud-go">Crea una cuenta</button> para guardarlos en línea.</p>
@@ -420,6 +422,9 @@
   <button class="tab" data-view="enfoque">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/></svg>Enfoque
   </button>
+  <button class="tab" data-view="agenda">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg>Agenda
+  </button>
   <button class="tab" data-view="ia">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18.5l-1.5 3 4-1.6A9 9 0 1 0 5 18.5z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>Asistente
   </button>
@@ -428,6 +433,9 @@
   </button>
   <button class="tab" data-view="tareas">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h10M4 17h7"/><path d="M15.5 16.5l2 2L21.5 14"/></svg>Tareas
+  </button>
+  <button class="tab" data-view="journal">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H17a2 2 0 0 1 2 2v15H8.5a2 2 0 0 1-2-2z"/><path d="M6.5 3.5v15M10 8.5h5.5M10 12h5.5"/></svg>Journal
   </button>
   <button class="tab" data-view="pizarra">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="13" rx="2.5"/><path d="M7 9.5h5M7 12.5h8M9 21l3-4 3 4"/></svg>Ideas
@@ -509,7 +517,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.9.1';
+const APP_VERSION = '2.10.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -654,8 +662,16 @@ function normEnfoque(e) {
   if (!Array.isArray(e.pizarras)) e.pizarras = [];
   for (const b of e.pizarras) { if (!Array.isArray(b.els)) b.els = []; b.nombre ||= 'Pizarra'; }
   if (!Array.isArray(e.diario)) e.diario = [];
+  for (const x of e.diario) { x.tipo ||= 'diario'; }
   for (const k of ['practicas', 'estado']) { if (!Array.isArray(e[k])) e[k] = []; for (const x of e[k]) x.id ||= crypto.randomUUID(); }
   if (!e.prioridades || e.prioridades.fecha !== hoy) e.prioridades = { fecha: hoy, items: [] };
+  // Agenda del día (hábitos, tareas, iniciativas, prioridades, planes y eventos con hora), historial de agendas y objetivos SMART.
+  if (!e.agendaHoy || typeof e.agendaHoy !== 'object') e.agendaHoy = { fecha: '', items: [] };
+  if (!Array.isArray(e.agendaHoy.items)) e.agendaHoy.items = [];
+  for (const it of e.agendaHoy.items) { it.id ||= crypto.randomUUID(); it.tipo ||= 'evento'; it.t ||= ''; it.h ||= ''; it.min = +it.min || 0; if (it.ref === undefined) it.ref = it.tipo === 'evento' ? it.t + it.h : ''; it.hecho = !!it.hecho; }
+  if (!e.agendaHist || typeof e.agendaHist !== 'object') e.agendaHist = {};
+  if (!Array.isArray(e.objetivos)) e.objetivos = [];
+  for (const o of e.objetivos) { o.id ||= crypto.randomUUID(); o.t ||= ''; o.metrica ||= ''; o.meta = +o.meta || 1; o.actual = +o.actual || 0; o.unidad ||= 'veces'; o.area ||= 'otro'; o.porque ||= ''; o.paso ||= ''; o.fecha ||= ''; o.creado ||= hoy; o.hecho = !!o.hecho; if (!Array.isArray(o.avances)) o.avances = []; }
   e.bienvenida = !!e.bienvenida;
   return e;
 }
@@ -663,7 +679,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { ia: 'Asistente', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { ia: 'Asistente', agenda: 'Agenda', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -729,7 +745,10 @@ function mergeStates(a, b) {
     planes: byId(eN.planes, eO.planes), apps: byId(eN.apps, eO.apps), predicciones: byId(eN.predicciones, eO.predicciones),
     animo: byId(eN.animo, eO.animo), buenas: byId(eN.buenas, eO.buenas), misiones: byId(eN.misiones, eO.misiones),
     catalogoIni: Object.fromEntries(['estudio', 'proyecto', 'laboral', 'social', 'espiritual'].map(k => [k, byId(eN.catalogoIni?.[k] || [], eO.catalogoIni?.[k] || [])])),
-    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) } });
+    pizarras: byId(eN.pizarras, eO.pizarras), diario: byId(eN.diario, eO.diario), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) },
+    objetivos: byId(eN.objetivos || [], eO.objetivos || []), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) },
+    // La agenda del día: si es el mismo día, unión de ítems; si no, la del día más reciente.
+    agendaHoy: ((x, y) => { x ||= { fecha: '', items: [] }; y ||= { fecha: '', items: [] }; if (x.fecha !== y.fecha) return x.fecha > y.fecha ? x : y; return { ...y, ...x, items: byId(x.items || [], y.items || []) }; })(eN.agendaHoy, eO.agendaHoy) });
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
   return normalize(out);
@@ -1446,7 +1465,7 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function renderAll() { render(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'agenda') window.renderAgendaTab?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -1530,7 +1549,7 @@ async function gCalFetch(url, opt = {}) {
 async function gCalEventos(desde, hasta) {
   const q = new URLSearchParams({ timeMin: desde.toISOString(), timeMax: hasta.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '100' });
   const r = await gCalFetch(`${CAL_API}?${q}`);
-  return (r.items || []).filter(e => e.status !== 'cancelled').map(e => ({ titulo: e.summary || '(Sin título)', inicio: e.start?.dateTime || e.start?.date, fin: e.end?.dateTime || e.end?.date,
+  return (r.items || []).filter(e => e.status !== 'cancelled').map(e => ({ id: e.id || '', titulo: e.summary || '(Sin título)', inicio: e.start?.dateTime || e.start?.date, fin: e.end?.dateTime || e.end?.date,
     todoElDia: !e.start?.dateTime, lugar: e.location || '', enlace: e.htmlLink || '' }));
 }
 function gCalCrear(a) {
@@ -1740,7 +1759,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   if (!b) return;
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
-  for (const v of ['enfoque', 'ia', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  for (const v of ['enfoque', 'agenda', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   renderTitle();
   renderAll();
   scrollTo(0, 0);
@@ -2270,6 +2289,8 @@ const ENFOQUE_CSS = `
   .meter-bar { height: 6px; border-radius: 3px; background: var(--empty); margin: 6px 0 12px; overflow: hidden; }
   .meter-bar i { display: block; height: 100%; background: var(--green); border-radius: 3px; transition: width .6s var(--spring); }
   .sci { font-size: .82rem; color: var(--muted); border-left: 2px solid var(--accent); padding: 2px 0 2px 10px; margin: 0 0 16px; }
+  .smart { display: inline-flex; gap: 1px; vertical-align: middle; margin-left: 2px; } .smart i { font-style: normal; font-size: .6rem; font-weight: 700; width: 11px; text-align: center; color: var(--empty); line-height: 1; } .smart i.on { color: var(--green); }
+  .ag-time { width: auto; min-width: 0; max-width: 112px; flex: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 2px 0; font-size: .88rem; background: transparent; color: var(--text); }
   .btn { display: block; text-align: center; text-decoration: none; }
   .woop { margin: 4px 0 14px; font-size: .9rem; }
   .woop dt { color: var(--muted); font-size: .78rem; margin-top: 8px; }
@@ -2294,7 +2315,7 @@ const ENFOQUE_HTML = `
 
   <div id="xp"></div>
   <div id="ahora"></div>
-  <button class="sos" id="sos"><b>¿Día sin rumbo?</b><span>Plan de rescate en 5 minutos</span></button>
+  <button class="sos" id="sos"><b>¿Día sin rumbo?</b><span>Agenda en 2 min · rescate en 5</span></button>
   <div id="interv"></div>
   <section id="agenda-sec">
     <h3 style="margin-top:0">Agenda de hoy</h3>
@@ -2385,6 +2406,8 @@ function guardar() {
   // Solo se guardan los últimos 180 días.
   const cut = dayKey(addDays(new Date(), -180));
   for (const k of Object.keys(state.enfoque.dias)) if (k < cut) delete state.enfoque.dias[k];
+  const cutA = dayKey(addDays(new Date(), -21));
+  for (const k of Object.keys(state.enfoque.agendaHist || {})) if (k < cutA) delete state.enfoque.agendaHist[k];
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {}
   save();
 }
@@ -2475,6 +2498,8 @@ function recordatorioHabito() {
 // Siempre hay una cosa siguiente con propósito; si todo está hecho, la siguiente es descansar bien.
 function ahoraSugerido() {
   const h = new Date().getHours(), P = ES.prioridades.items, p = pendientes(), I = ini4Semana().items, nowM = nowMin();
+  const agN = agendaAhora();
+  if (agN) return { k: `Agenda · ${fmtHora(agN.h)}`, t: agN.t, p: `${agEtiqueta(agN)}${agN.min ? ` · ${fmtMin(agN.min)}` : ''}. Lo que decidiste para esta hora: si son las ${fmtHora(agN.h)}, entonces empiezo.`, b: 'Empezar', a: () => agItemSheet(agN) };
   const x = P.find(i => !i.hecho);
   if (x) return { k: 'Tu prioridad ahora', t: x.t, p: P.indexOf(x) === 0 ? 'La rana: primero, antes que todo.' : 'Una sola cosa, 25 minutos, teléfono boca abajo.', b: 'Empezar 25 min', a: () => x.per ? personaSheet(ES.personas.find(q => q.id === x.per)) : focusForm(x.t, 25, x.pro || '') };
   const conHora = I.map((it, i) => ({ it, i })).filter(({ it }) => it.t && !it.hecho && it.hora).sort((a, b) => toMin(a.it.hora) - toMin(b.it.hora)).find(({ it }) => toMin(it.hora) <= nowM + 60);
@@ -2533,6 +2558,7 @@ function renderXp() {
   el.innerHTML = `<div class="xp"><div class="lv">${L}</div><div class="t"><b>${esc(nivelNombre(L))}</b><small>${T - a} / ${b - a} XP para el nivel ${L + 1}${r ? ` · racha ${r} ${r === 1 ? 'día' : 'días'}` : ''}</small>
     <div class="bar"><i style="width:${Math.min(100, (T - a) / (b - a) * 100)}%"></i></div></div>
     <div class="hoy"><b class="${hoy >= ES.metaXp ? 'ok' : ''}">${hoy} / ${ES.metaXp}</b>XP hoy</div></div>`;
+  const card = el.querySelector('.xp'); card.style.cursor = 'pointer'; card.title = 'Cómo se gana XP'; card.onclick = () => xpSheet();
 }
 function renderStats() {
   const d = dayOf(), over = d.aperturas > ES.limite;
@@ -2963,16 +2989,8 @@ $('#prio').addEventListener('click', e => {
   const chk = e.target.closest('[data-pchk]'), go = e.target.closest('[data-pgo]');
   if (e.target.closest('#prio-edit')) return prioForm();
   if (chk) {
-    const x = P.items.find(i => i.id === chk.dataset.pchk), idx = P.items.indexOf(x); x.hecho = !x.hecho;
-    if (x.hecho) bump('iniciativas'); else bump('iniciativas', -1);
-    guardar(); renderE();
-    if (x.hecho) {
-      buzz(30);
-      xpGanar(idx === 0 ? 40 : idx >= 3 ? 30 : 25, idx === 0 ? 'La rana, primero' : idx >= 3 ? 'Prioridad extra' : 'Prioridad hecha');
-      const tres = P.items.slice(0, 3);
-      if (tres.length === 3 && tres.every(i => i.hecho) && !P.bonus) { P.bonus = true; setTimeout(() => xpGanar(50, 'Las tres prioridades del día'), 1200); }
-      const pr = ES.proyectos.find(p => p.id === x.pro); if (pr && pr.paso === x.t) pasoHecho(pr); else toast(P.items.every(i => i.hecho) ? 'Prioridades cumplidas. ¿Una extra? Vale +30 XP.' : 'Hecha. Sigue con la siguiente.');
-    }
+    const x = P.items.find(i => i.id === chk.dataset.pchk); prioMarcar(x.id, !x.hecho); guardar(); renderE(); if (view === 'agenda') renderAg();
+    if (x.hecho && !(ES.proyectos.find(p => p.id === x.pro)?.paso === x.t)) toast(P.items.every(i => i.hecho) ? 'Prioridades cumplidas. ¿Una extra? Vale +30 XP.' : 'Hecha. Sigue con la siguiente.');
   }
   if (go) { const x = P.items.find(i => i.id === go.dataset.pgo); if (x.per) personaSheet(ES.personas.find(p => p.id === x.per)); else focusForm(x.t, 25, x.pro || ''); }
 });
@@ -3410,8 +3428,9 @@ function rescate(paso = 1) {
     showSheet(`${pie(1)}<h2>Primero, el cuerpo</h2>
       <p class="note">Dos inhalaciones cortas por la nariz y una exhalación larga por la boca, durante un minuto. Suspirar así calma más rápido que otras respiraciones (Balban et al., 2023).</p>
       <div style="display:flex;justify-content:center"><div class="breath"><span id="rs-br">Inhala, inhala…</span></div></div>
-      <div class="actions"><button class="link" id="rs-skip">Saltar</button><button class="primary" id="rs-next">Ya estoy más tranquilo</button></div>`);
+      <div class="actions"><button class="link" id="rs-breve">Solo agendar · 2 min</button><button class="link" id="rs-skip">Saltar</button><button class="primary" id="rs-next">Ya estoy más tranquilo</button></div>`);
     let f = 0; const t = setInterval(() => { const el = $('#rs-br'); if (!el) return clearInterval(t); el.textContent = (f = 1 - f) ? 'Exhala lento…' : 'Inhala, inhala…'; }, 4000);
+    $('#rs-breve').onclick = () => { clearInterval(t); organizarDia(); };
     $('#rs-skip').onclick = $('#rs-next').onclick = () => { clearInterval(t); rescate(2); };
     return;
   }
@@ -3476,7 +3495,7 @@ function rescate(paso = 1) {
   });
   $('#rs-close').onclick = closeSheet;
 }
-$('#sos').onclick = () => rescate();
+$('#sos').onclick = () => sosSheet();
 
 // ---------- Emociones detrás del impulso (Throuvala et al., 2020): nombrarlas ayuda a regularlas.
 const EMOCIONES = ['Aburrimiento', 'Ansiedad', 'Soledad', 'Cansancio', 'Curiosidad', 'Evitar algo'];
@@ -3587,7 +3606,7 @@ const INI_CAT = {
 };
 function iniAplicar(i, o) {
   const I = ini4Semana(), x = I.items[i];
-  Object.assign(x, { t: o.t || x.t, por: o.por || x.por, paso: o.paso || x.paso, hora: o.hora || x.hora, donde: o.donde || x.donde || '', obst: o.obst || x.obst || '', plan: o.plan || x.plan || '', exito: o.exito || x.exito || '' });
+  Object.assign(x, { t: o.t || x.t, por: o.por || x.por, paso: o.paso || x.paso, hora: o.hora || x.hora, donde: o.donde || x.donde || '', obst: o.obst || x.obst || '', plan: o.plan || x.plan || '', exito: o.exito || x.exito || '', min: o.min || x.min || 0, obj: o.obj || x.obj || '' });
   guardar(); renderE(); ini4Sheet(i);
 }
 function iniCatalogo(i) {
@@ -3608,23 +3627,7 @@ function iniCatalogo(i) {
 // Crear una iniciativa propia con la estructura que la asegura: acción concreta, por qué, primer paso, cuándo y dónde,
 // obstáculo con plan «si…, entonces…» (Gollwitzer y Sheeran, 2006) y señal de hecha (Locke y Latham, 2002).
 function iniCrear(i, base = {}) {
-  const [k, n] = INI4[i];
-  showSheet(`<h2>Mi iniciativa de ${n.toLowerCase()}</h2>
-    <p class="sci">Lo que la hace cumplible: una acción concreta (un verbo), un primer paso de 5 minutos, hora y lugar, el obstáculo probable con su plan y una señal clara de que quedó hecha.</p>
-    <div class="field"><label>Qué (acción concreta)</label><input id="ic-t" maxlength="100" value="${esc(base.t || '')}" placeholder="${esc(INI4[i][3])}"></div>
-    <div class="field"><label>Por qué importa</label><input id="ic-por" maxlength="120" value="${esc(base.por || '')}" placeholder="Qué cambia en mi vida si lo hago"></div>
-    <div class="field"><label>Primer paso (menos de 5 minutos)</label><input id="ic-paso" maxlength="100" value="${esc(base.paso || '')}" placeholder="Abrir el documento, marcar el número…"></div>
-    <div class="times"><div class="field"><label>Hora habitual</label><input id="ic-hora" type="time" value="${esc(base.hora || '')}"></div><div class="field"><label>Dónde</label><input id="ic-donde" maxlength="60" value="${esc(base.donde || '')}" placeholder="Lugar"></div></div>
-    <div class="field"><label>Obstáculo probable</label><input id="ic-obst" maxlength="100" value="${esc(base.obst || '')}" placeholder="Me da pereza, me distraigo, no sé por dónde empezar"></div>
-    <div class="field"><label>Si aparece, entonces…</label><input id="ic-plan" maxlength="100" value="${esc(base.plan || '')}" placeholder="Hago solo el primer paso y vuelvo a decidir"></div>
-    <div class="field"><label>Sabré que está hecha cuando…</label><input id="ic-exito" maxlength="100" value="${esc(base.exito || '')}" placeholder="El mensaje esté enviado / las 20 páginas leídas"></div>
-    <div class="actions"><button class="link" id="ic-cancel">Cancelar</button><button class="primary" id="ic-save">Guardar y usar hoy</button></div>`);
-  $('#ic-cancel').onclick = () => ini4Sheet(i);
-  $('#ic-save').onclick = () => {
-    const o = { id: crypto.randomUUID(), t: $('#ic-t').value.trim(), por: $('#ic-por').value.trim(), paso: $('#ic-paso').value.trim(), hora: $('#ic-hora').value, donde: $('#ic-donde').value.trim(), obst: $('#ic-obst').value.trim(), plan: $('#ic-plan').value.trim(), exito: $('#ic-exito').value.trim(), origen: base.origen || 'Mía', veces: 1 };
-    if (!o.t) { $('#ic-t').focus(); return; }
-    ES.catalogoIni[k].push(o); guardar(); iniAplicar(i, o); toast('Guardada en «Mis iniciativas».');
-  };
+  iniCrearSmart(INI4[i][0], o => { if (!o) return ini4Sheet(i); iniAplicar(i, { t: o.t, por: o.por, paso: o.paso, hora: o.h, exito: o.exito, min: o.min, obj: o.obj }); }, base);
 }
 // Traer iniciativas desde una página de Notion: cada viñeta, número, casilla o párrafo corto se convierte en una opción.
 async function iniDesdeNotion(i) {
@@ -3690,11 +3693,7 @@ function ini4Sheet(abrir = -1) {
   body.querySelector('[data-bw]')?.addEventListener('click', () => { leer(); guardar(); closeSheet(); irA('bienestar'); });
   body.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => { leer(); guardar(); iniCrear(+b.dataset.crear); });
   body.querySelectorAll('[data-notion]').forEach(b => b.onclick = () => { leer(); guardar(); iniDesdeNotion(+b.dataset.notion); });
-  body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
-    leer(); const i = +b.dataset.done, x = I.items[i]; x.hecho = !x.hecho; bump('iniciativas', x.hecho ? 1 : -1);
-    if (x.hecho) { bump('ini4'); if (x.k === 'social') bump('ini_social'); if (x.k === 'espiritual') bump('ini_esp'); iniPremios(I); } else { bump('ini4', -1); if (x.k === 'social') bump('ini_social', -1); if (x.k === 'espiritual') bump('ini_esp', -1); }
-    guardar(); renderE(); ini4Sheet(i);
-  });
+  body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { leer(); const i = +b.dataset.done; iniMarcar(i, !I.items[i].hecho); guardar(); renderE(); if (view === 'agenda') renderAg(); ini4Sheet(i); });
   $('#i4-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
 }
 // ---------- Tres cosas buenas (Seligman et al., 2005): al cerrar el día, en vez de un último scroll.
@@ -3719,7 +3718,7 @@ function intervenciones() {
   const top = emociones()[0];
   return [
     !avCfg().on && 'PushManager' in window && { id: 'avisos', t: 'Que la app te avise', p: 'Activa las notificaciones: el resumen de la mañana, la hora de tus hábitos y tus planes te llegan sin abrir la app.', sci: 'Señal en el momento correcto (Gollwitzer y Sheeran, 2006)', b: 'Activar', a: () => avisosSheet() },
-    h >= 11 && !P.items.length && !d.enfoque && { id: 'rumbo', t: '¿El día va sin rumbo?', p: 'Pasa. En 5 minutos: respiras, sacas todo de la cabeza, eliges una sola cosa y empiezas por 2 minutos.', sci: 'Masicampo y Baumeister (2011); Balban et al. (2023)', b: 'Plan de rescate', a: () => rescate() },
+    h >= 11 && !P.items.length && !d.enfoque && { id: 'rumbo', t: '¿El día va sin rumbo?', p: 'Pasa. En 5 minutos: respiras, sacas todo de la cabeza, eliges una sola cosa y empiezas por 2 minutos.', sci: 'Masicampo y Baumeister (2011); Balban et al. (2023)', b: 'Plan de rescate', a: () => sosSheet() },
     h < 13 && !P.items.length && { id: 'prio', t: 'Empieza por lo importante', p: 'Elige tus tres prioridades de hoy antes de abrir nada más. La más difícil, primero.', sci: 'Zhu, Yang y Hsee (2018); Habbert y Schroeder (2020)', b: 'Elegir prioridades', a: () => prioForm() },
     (dia === 0 || new Date().getDate() === 1) && ES.revision !== today() && { id: 'rev', t: 'Nuevo comienzo', p: 'Un lunes o un mes nuevo es el mejor momento para retomar lo que dejaste. Diez minutos de revisión.', sci: 'Dai, Milkman y Riis (2014)', b: 'Hacer la revisión', a: () => revisionSemanal() },
     d.distraccion >= ES.presupuesto && { id: 'pres', t: 'Ya usaste tu presupuesto de hoy', p: `Llevas ${d.distraccion} min en distracciones. Lo que queda del día es tuyo: una alternativa que sume.`, sci: 'Hunt et al. (2018)', b: 'Ver alternativas', a: () => alternativas('Lo que queda del día es tuyo', 'Elige una:') },
@@ -3785,6 +3784,9 @@ function configSheet() {
 
 // ---------- Por qué funciona: cada herramienta con su fuente
 const CIENCIA = [
+  ['Metas SMART (teoría de metas)', 'Las metas específicas y difíciles rinden más que «hazlo lo mejor que puedas» en más de 400 estudios con unas 40 000 personas; el efecto crece con retroalimentación y compromiso. Por eso todo en la app pide qué, cuánto, cuándo y para qué.', 'Locke y Latham (2002), American Psychologist; Doran (1981), Management Review'],
+  ['Registrar el avance', 'Medir y anotar el progreso con frecuencia aumenta el logro de metas (d = 0,40 en 138 estudios); más aún si se registra y se hace público. Los objetivos de la Agenda guardan cada avance.', 'Harkin et al. (2016), Psychological Bulletin'],
+  ['Organizar el día la víspera o a primera hora', 'Decidir de antemano cuándo y dónde se hará cada cosa (si…, entonces…) aumenta el cumplimiento con efecto medio-grande (d = 0,65) en 94 estudios; la agenda con hora es ese plan para todo el día.', 'Gollwitzer y Sheeran (2006), Advances in Experimental Social Psychology'],
   ['Puerta con espera y «Mejor no»', 'Una pausa breve con opción visible de no abrir redujo las aperturas un 57 % en 6 semanas; un 36 % de los intentos se abandonaba. El botón de abandonar fue lo más eficaz.', 'Grüning, Riedel y Lorenz-Spreen (2023), PNAS. Nota: el primer autor trabaja en la app one sec.'],
   ['Presupuesto diario de 30 minutos', 'Limitar redes a ~30 min al día durante 3 semanas redujo soledad y síntomas depresivos. Un meta-análisis de 32 ensayos halla un efecto pequeño (g = 0,17), igual reduciendo que dejándolas del todo, y solo con una semana o más.', 'Hunt et al. (2018), J. Social and Clinical Psychology; Burnell et al. (2025), SSM – Mental Health'],
   ['Tres ventanas de revisión', 'Recibir las notificaciones en 3 lotes al día mejoró atención y control y bajó el estrés; apagarlas todas aumentó la ansiedad y el FOMO.', 'Fitz et al. (2019), Computers in Human Behavior; Kushlev y Dunn (2015), Computers in Human Behavior'],
@@ -3948,25 +3950,27 @@ async function cargarAgenda(force = false) {
   try {
     const desde = new Date(); desde.setHours(0, 0, 0, 0); const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 1);
     agendaCache = { d: today(), t: Date.now(), items: await gCalEventos(desde, hasta), err: '' };
-    const ag = { fecha: today(), items: agendaCache.items.slice(0, 8).map(ev => ({ t: ev.titulo, h: ev.todoElDia ? '' : hhmm(new Date(ev.inicio)) })) };
-    if (JSON.stringify(ag) !== JSON.stringify(ES.agendaHoy || null)) { ES.agendaHoy = ag; guardar(); }
+    if (agSyncEventos(agendaCache.items)) guardar();
   } catch (e) { agendaCache = { d: today(), t: Date.now(), items: null, err: e.message }; }
-  renderAgenda();
+  renderAgenda(); if (view === 'agenda') renderAg();
 }
 const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const fmtEvHora = ev => ev.todoElDia ? 'Todo el día' : fmtHora(hhmm(new Date(ev.inicio)));
 function renderAgenda() {
   const el = $('#agenda'); if (!el) return;
-  if (!gCalOk()) {
-    el.innerHTML = `<button class="row" id="ag-con"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>Conectar Google Calendar</div><small>Para ver tu día aquí y que el asistente pueda agendar</small></span><span class="tag">›</span></button>`;
-    $('#ag-con').onclick = async () => { try { await gToken(true, true); cargarAgenda(true); } catch (e) { toast(e.message); } };
+  cargarAgenda();
+  const its = agItems(), pend = its.filter(it => !agHecho(it)).sort(agOrden), hechas = its.length - pend.length;
+  const fila = it => `<button class="row" data-ag="${it.id}"><span class="dot" style="--c:${it.tipo === 'evento' ? 'var(--muted)' : 'var(--accent)'}"></span><span class="t"><div>${esc(it.t)}</div><small>${esc(agEtiqueta(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''}</small></span><span class="tag">${it.h ? fmtHora(it.h) : '—'}</span></button>`;
+  if (!its.length) {
+    el.innerHTML = `<button class="row" id="ag-go"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Organiza tu día en 2 minutos</div><small>Hábitos, tareas e iniciativas con hora. Tan fácil que sería ridículo no hacerlo.</small></span><span class="tag">›</span></button>
+      ${gCalOk() ? '' : `<p class="more"><button class="link" id="ag-con">Conectar Google Calendar</button> para ver aquí también tus eventos</p>`}`;
+    $('#ag-go').onclick = () => organizarDia();
+    $('#ag-con')?.addEventListener('click', async () => { try { await gToken(true, true); cargarAgenda(true); } catch (e) { toast(e.message); } });
     return;
   }
-  if (agendaCache.d !== today() || !agendaCache.items) { el.innerHTML = `<p class="empty">${agendaCache.err ? esc(agendaCache.err) : 'Cargando…'}</p>`; cargarAgenda(); return; }
-  const evs = agendaCache.items;
-  el.innerHTML = evs.length ? `<div class="rows">${evs.map(ev => `<a class="row" style="text-decoration:none;${!ev.todoElDia && Date.parse(ev.fin) < Date.now() ? 'opacity:.45' : ''}" href="${esc(ev.enlace)}" target="_blank" rel="noopener">
-      <span class="dot" style="--c:var(--text)"></span><span class="t"><div>${esc(ev.titulo)}</div>${ev.lugar ? `<small>${esc(ev.lugar)}</small>` : ''}</span><span class="tag">${fmtEvHora(ev)}</span></a>`).join('')}</div>`
-    : `<p class="empty">Nada en el calendario hoy. Buen día para bloquear tiempo para tu prioridad.</p>`;
+  el.innerHTML = `${pend.length ? `<div class="rows">${pend.slice(0, 4).map(fila).join('')}</div>` : `<p class="empty">Todo lo de la agenda está hecho. Descansa con propósito.</p>`}
+    <p class="more">${hechas} de ${its.length} hechas${pend.length > 4 ? ` · y ${pend.length - 4} más` : ''} · <button class="link" data-goview="agenda">Ver la agenda</button></p>`;
+  el.querySelectorAll('[data-ag]').forEach(b => b.onclick = () => agItemSheet(agItems().find(x => x.id === b.dataset.ag)));
 }
 
 // ====================================================================
@@ -4025,6 +4029,9 @@ Cómo trabajas:
 - Cada acción buena suma XP (prioridades, hábitos, tareas, enfoque, resistir las redes, escribir a alguien, pasos de proyecto…). Si la persona lo pregunta, cuéntale su nivel y cuánto falta; no inventes puntos.
 - Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
 - Si aparece malestar serio, sugiere con tacto hablar con un profesional; no eres terapeuta.
+- Todo lo que propongas o crees debe ser SMART: específico (verbo + qué + con quién), medible (una señal de hecho que se pueda ver), alcanzable (menos de 90 minutos y un primer paso de 2 minutos), relevante (para qué, o ligado a un objetivo) y con tiempo (hora de hoy o fecha). Si la persona te da algo vago, devuélvelo en forma SMART en una línea y confirma.
+- La pestaña Agenda junta en una lista con hora los hábitos, tareas, iniciativas, prioridades, planes y eventos del día. Para organizar el día usa agenda_organizar (crea las tareas o hábitos que falten); para verla, agenda_ver. Si pasan las 10 y el día no está organizado, propón hacerlo en dos minutos.
+- Hay objetivos SMART de semanas o meses (en agenda_ver; objetivo_crear y objetivo_avance). Liga iniciativas y tareas a un objetivo cuando encajen y registra avances cuando la persona los cuente.
 - Horas en formato de 12 horas con AM/PM; fechas como «jueves 30 de octubre».
 - Cada mensaje de la persona empieza con la fecha y la hora actuales entre corchetes: úsalas como referencia para «hoy», «mañana» o «esta tarde».`;
 
@@ -4058,9 +4065,17 @@ const IA_TOOLS = [
     que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), hora: S('HH:MM en 24 h o vacío.'),
     obstaculo: S('Obstáculo probable o vacío.'), plan: S('Si aparece el obstáculo, entonces… (o vacío).'), exito: S('Sabré que está hecha cuando… (o vacío).'), guardar_en_mis_iniciativas: { type: 'boolean', description: 'true para guardarla también como opción reutilizable.' } }),
   iaTool('bienestar_abrir', 'Abre en la pestaña Bienestar una práctica guiada o un escenario. Prácticas: suspiro, atencion, caja, cuerpo, stop, desfusion, reestructurar, preocupacion, animo, autocompasion, mejor_yo, afirmacion, tentacion, decision, oracion_m, lectio, examen, intercesion, perdon, gracias, versiculo, servicio, noche. Escenarios (Palabra + oración + herramienta): general, esperanza, consuelo, autoridad, autoestima, identidad, paz, fortaleza, direccion, gratitud.', { clave: S('Clave de la práctica o del escenario.') }),
-  iaTool('diario_escribir', 'Guarda una entrada en el Diario de la pestaña Ideas (por ejemplo, un resumen que la persona dictó o pidió guardar).', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
+  iaTool('diario_escribir', 'Guarda una entrada en la pestaña Journaling (por ejemplo, un resumen que la persona dictó o pidió guardar); si Notion está conectado, se envía sola a su base de Journaling.', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
+  iaTool('agenda_ver', 'Devuelve la agenda de hoy (hábitos, tareas, iniciativas, prioridades, planes y eventos con hora, y si están hechos) y los objetivos SMART activos con su avance.', {}),
+  iaTool('agenda_organizar', 'Pone cosas en la agenda de hoy con hora y minutos. Crea la tarea o el hábito si no existe. Úsalo solo si la persona lo pidió o aceptó.', {
+    items: { type: 'array', description: 'Cosas a agendar (máximo 15).', items: { type: 'object', properties: { tipo: { type: 'string', enum: ['habito', 'tarea', 'iniciativa', 'otro'] }, texto: S('Qué (verbo + qué). Para hábitos y tareas que ya existen, su nombre tal cual.'), hora: S('HH:MM en 24 h o vacío.'), minutos: { type: 'integer', description: 'Duración estimada en minutos (5 a 180).' }, categoria: S('Para iniciativas: estudio, proyecto, laboral, social o espiritual; vacío en otro caso.'), hecho_cuando: S('Señal medible de hecho, o vacío.') }, required: ['tipo', 'texto', 'hora', 'minutos', 'categoria', 'hecho_cuando'], additionalProperties: false } },
+    reemplazar: { type: 'boolean', description: 'true para quitar de la agenda lo que no esté en esta lista (prioridades, planes y eventos se mantienen).' } }),
+  iaTool('objetivo_crear', 'Crea un objetivo SMART de semanas o meses, con métrica, número meta, unidad y fecha límite.', {
+    que: S('Qué quiere lograr (verbo + qué).'), metrica: S('Cómo se mide.'), meta: { type: 'number', description: 'Número meta (mayor que 0).' }, unidad: S('Unidad: lecciones, libros, $, sesiones…'), fecha_limite: S('AAAA-MM-DD.'),
+    area: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social', 'espiritual', 'salud', 'finanzas', 'orden', 'otro'] }, por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso o rutina semanal, o vacío.') }),
+  iaTool('objetivo_avance', 'Registra un avance en un objetivo activo (por su nombre o id).', { objetivo: S('Nombre o id del objetivo.'), cantidad: { type: 'number', description: 'Cuánto avanzó, en su unidad.' }, nota: S('Nota breve o vacío.') }),
 ];
 
 function iaEstado() {
@@ -4085,6 +4100,7 @@ function iaEstado() {
     iniciativas_hoy: { minimo_diario: ES.minIni, hechas: iniHechasHoy(), racha_dias: rachaIni(), espiritual_hecha_hoy: espHoy(), espiritual_racha: rachaEsp(), social_dias_esta_semana: socialDiasSemana(), social_minimo_semanal: ES.minSocial, social_en_riesgo: socialEnRiesgo(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
     ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
+    agenda_hoy: window.agendaResumen(), objetivos: objetivosActivos().map(o => ({ id: o.id, que: o.t, metrica: o.metrica, avance: `${o.actual} de ${o.meta} ${o.unidad}`, fecha_limite: o.fecha, area: o.area })),
   };
 }
 const buscar = (lista, txt, campo) => { const q = String(txt || '').trim().toLowerCase(); return lista.find(x => x.id === txt) || lista.find(x => String(x[campo]).toLowerCase() === q) || lista.find(x => String(x[campo]).toLowerCase().includes(q)); };
@@ -4096,7 +4112,7 @@ async function iaEjecutar(nombre, a) {
     case 'gestionar_prioridad': {
       const P = ES.prioridades;
       if (a.accion === 'agregar') { if (!(P.items.length < 3 || P.items.every(x => x.hecho))) throw new Error('Ya hay tres prioridades pendientes; se pueden añadir extras cuando las tres estén hechas.'); P.items.push({ id: crypto.randomUUID(), t: a.texto, hecho: false, origen: 'Asistente' }); }
-      else { const x = P.items[a.numero - 1]; if (!x) throw new Error(`No existe la prioridad ${a.numero}.`); if (a.accion === 'quitar') P.items.splice(a.numero - 1, 1); else if (!x.hecho) { x.hecho = true; bump('iniciativas'); } }
+      else { const x = P.items[a.numero - 1]; if (!x) throw new Error(`No existe la prioridad ${a.numero}.`); if (a.accion === 'quitar') P.items.splice(a.numero - 1, 1); else if (!x.hecho) prioMarcar(x.id, true); }
       guardar(); renderE(); return { prioridades_hoy: P.items.map((x, i) => `${i + 1}. ${x.t}${x.hecho ? ' (hecha)' : ''}`) };
     }
     case 'crear_tarea': {
@@ -4143,13 +4159,13 @@ async function iaEjecutar(nombre, a) {
       const I = ini4Semana(), i = INI4.findIndex(([k]) => k === a.tipo), x = I.items[i];
       if (a.accion === 'definir') { if (a.que) x.t = a.que; if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; if (a.obstaculo) x.obst = a.obstaculo; if (a.plan) x.plan = a.plan; if (a.exito) x.exito = a.exito;
         if (a.guardar_en_mis_iniciativas && x.t && !ES.catalogoIni[a.tipo].some(o => o.t === x.t)) ES.catalogoIni[a.tipo].push({ id: crypto.randomUUID(), t: x.t, por: x.por, paso: x.paso, hora: x.hora, obst: x.obst, plan: x.plan, exito: x.exito, origen: 'Asistente', veces: 1 }); }
-      else if (!x.hecho) { x.hecho = true; bump('iniciativas'); bump('ini4'); if (x.k === 'social') bump('ini_social'); if (x.k === 'espiritual') bump('ini_esp'); iniPremios(I); }
-      guardar(); renderE(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
+      else if (!x.hecho) iniMarcar(i, true);
+      guardar(); renderE(); if (view === 'agenda') renderAg(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
     }
     case 'bienestar_abrir': { if (!window.practicaIniciar(a.clave)) throw new Error('No existe esa clave.'); return { abierto: a.clave }; }
     case 'diario_escribir': {
-      const x = { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: a.pregunta || '', txt: String(a.texto).slice(0, 5000), animo: 0, cambiado: Date.now() };
-      ES.diario.push(x); guardar(); return { guardado: true, nota: 'Está en Ideas → Diario' + (ntOk() ? '; desde ahí se envía a Notion.' : '.') };
+      const x = { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: a.pregunta || '', txt: String(a.texto).slice(0, 5000), animo: 0, tipo: 'diario', cambiado: Date.now() };
+      ES.diario.push(x); guardar(); window.jrEnviarAuto?.(x); if (view === 'journal') renderJournal(); return { guardado: true, nota: 'Está en la pestaña Journaling' + (ntDiarioOk() ? ' y se envía a tu Notion.' : '.') };
     }
     case 'pizarra_agregar': {
       const b = pzAgregarNotas(a.pizarra, a.notas.slice(0, 20).map(t => String(t).slice(0, 200)));
@@ -4158,11 +4174,36 @@ async function iaEjecutar(nombre, a) {
     case 'iniciar_enfoque': {
       const min = Math.max(5, Math.min(120, a.minutos | 0)); irA('enfoque'); startFocus(a.que, min); return { iniciada: `${min} min en «${a.que}»` };
     }
+    case 'agenda_ver': return { ...window.agendaResumen(), objetivos: objetivosActivos().map(o => ({ id: o.id, que: o.t, metrica: o.metrica, avance: `${o.actual} de ${o.meta} ${o.unidad}`, fecha_limite: o.fecha, area: o.area, ritmo: objRitmo(o) })) };
+    case 'agenda_organizar': {
+      const A = agenda(), s = HT(), puestos = [];
+      const poner = (tipo, ref, t, h, min, extra = {}) => { let p = A.items.find(i => i.tipo === tipo && i.ref === ref); if (!p) { p = { id: crypto.randomUUID(), tipo, ref, hecho: false }; A.items.push(p); } Object.assign(p, { t, h: h || '', min: min || AG_MIN[tipo], ...extra }); puestos.push(p); };
+      for (const it of (a.items || []).slice(0, 15)) {
+        const h = /^\d\d:\d\d$/.test(it.hora || '') ? it.hora : '', min = it.minutos > 0 ? Math.max(5, Math.min(180, it.minutos | 0)) : 0;
+        if (it.tipo === 'habito') { let hb = buscar(s.habits.filter(x => !x.rutina), it.texto, 'nombre'); if (!hb) hb = agCrearHabito({ nombre: it.texto, hora: h }); poner('habito', hb.id, hb.nombre, h, min || AG_MIN.habito); }
+        else if (it.tipo === 'tarea') { let x = buscar(s.tareas.items.filter(y => !y.hecha), it.texto, 'titulo'); if (!x) x = agCrearTarea({ titulo: it.texto, hora: h }); else if (h) { x.hora = h; save(); } poner('tarea', x.id, x.titulo, h, min || x.min || AG_MIN.tarea); }
+        else if (it.tipo === 'iniciativa') { const k = INI4.some(([x]) => x === it.categoria) ? it.categoria : 'proyecto', x = ini4Semana().items[iniIdx(k)]; if (!x.hecho) Object.assign(x, { t: it.texto, hora: h, exito: it.hecho_cuando || x.exito || '', min: min || AG_MIN.ini }); poner('ini', k, x.t, x.hora, x.min); }
+        else poner('libre', '', it.texto, h, min || AG_MIN.libre, { exito: it.hecho_cuando || '' });
+      }
+      if (a.reemplazar) { const fijos = ['prio', 'plan', 'evento']; for (const it of A.items) if (!puestos.includes(it) && !fijos.includes(it.tipo)) forget(it.id); A.items = A.items.filter(it => puestos.includes(it) || fijos.includes(it.tipo)); }
+      for (const x of ES.prioridades.items.filter(p => !p.hecho)) if (!A.items.some(i => i.tipo === 'prio' && i.ref === x.id)) A.items.push({ id: crypto.randomUUID(), tipo: 'prio', ref: x.id, t: x.t, h: '', min: AG_MIN.prio, hecho: false });
+      if (!A.organizado) { A.organizado = Date.now(); if (!dayOf().agenda) { bump('agenda'); xpGanar(20, 'Día organizado'); } }
+      guardar(); renderE(); if (view === 'agenda') renderAg(); return window.agendaResumen();
+    }
+    case 'objetivo_crear': {
+      if (!(a.meta > 0) || !/^\d{4}-\d\d-\d\d$/.test(a.fecha_limite)) throw new Error('Hace falta un número meta mayor que 0 y una fecha límite AAAA-MM-DD.');
+      const o = { id: crypto.randomUUID(), creado: today(), t: a.que, metrica: a.metrica, meta: +a.meta, unidad: a.unidad || 'veces', area: OBJ_AREAS[a.area] ? a.area : 'otro', porque: a.por_que || '', paso: a.primer_paso || '', fecha: a.fecha_limite, actual: 0, avances: [], hecho: false };
+      ES.objetivos.push(o); xpGanar(15, 'Objetivo SMART'); guardar(); if (view === 'agenda') renderAg(); return { creado: o.t, meta: `${o.meta} ${o.unidad}`, fecha_limite: o.fecha };
+    }
+    case 'objetivo_avance': {
+      const o = buscar(objetivosActivos(), a.objetivo, 't'); if (!o) throw new Error(`No encontré ese objetivo activo. Objetivos: ${nombresDe(objetivosActivos(), 't')}.`);
+      objAvance(o.id, +a.cantidad || 1, a.nota || ''); if (view === 'agenda') renderAg(); return { objetivo: o.t, avance: `${o.actual} de ${o.meta} ${o.unidad}`, cumplido: !!o.hecho };
+    }
   }
   throw new Error('Herramienta desconocida.');
 }
 const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
-  crear_proyecto: 'Creó un proyecto', bienestar_abrir: 'Abrió una práctica de Bienestar', iniciativa_dia: 'Actualizó una iniciativa de hoy', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque' };
+  crear_proyecto: 'Creó un proyecto', bienestar_abrir: 'Abrió una práctica de Bienestar', iniciativa_dia: 'Actualizó una iniciativa de hoy', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque', agenda_ver: 'Miró tu agenda', agenda_organizar: 'Organizó tu agenda', objetivo_crear: 'Creó un objetivo SMART', objetivo_avance: 'Registró un avance' };
 
 // Texto con **negritas** y saltos de línea, siempre escapado.
 const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
@@ -4367,12 +4408,11 @@ function pzCentrar() {
   pzVista = { k, x: r.width / 2 - (x0 + x1) / 2 * k, y: r.height / 2 - (y0 + y1) / 2 * k }; pzPintar();
 }
 function renderPizarras() {
-  if (djEdit) return djEditor(djEdit);
   if (pzId && pz()) return pzEditor();
   pzId = null;
   const L = [...ES.pizarras].sort((a, c) => (c.cambiado || 0) - (a.cambiado || 0));
   pzW.innerHTML = `<div class="enf">
-    ${djLista()}
+    <button class="row" id="pz-jr" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--text)"></span><span class="t"><div>Journaling</div><small>Tiene su propia pestaña: cada entrada va directo a tu Notion</small></span><span class="tag">›</span></button>
     <button class="row" id="nt-row" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:${ntOk() ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${ntOk() ? 'Notion conectado' : 'Conectar Notion'}</div><small>${ntOk() ? `Destino: ${esc(ntCfg().pageTitle || '')}` : 'Para enviar el diario y las pizarras directo'}</small></span><span class="tag">›</span></button>
     <h3>Pizarras</h3>
     <p class="note" style="margin-bottom:8px">Ordena ideas con notas, texto, dibujos y flechas. Se guardan en tu cuenta.</p>
@@ -4382,11 +4422,8 @@ function renderPizarras() {
     <div class="chips" id="pz-new">${Object.entries(PZ_PLANTILLAS).map(([k, [n]]) => `<button class="chip" data-p="${k}">${n}</button>`).join('')}</div>
     <p class="meta" style="margin-top:14px">Consejo: pídele al Asistente «pon en una pizarra las ideas para…» y las acomoda como notas.</p></div>`;
   pzW.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { pzId = b.dataset.b; pzHist = []; pzEditor(true); });
-  pzW.querySelector('#dj-new').onclick = () => djEditor();
-  pzW.querySelector('#nt-row').onclick = notionSheet;
-  pzW.querySelectorAll('[data-dj]').forEach(b => b.onclick = () => djEditor(ES.diario.find(x => x.id === b.dataset.dj)));
-  pzW.querySelector('#dj-sem')?.addEventListener('click', () => { const desde = dayKey(addDays(new Date(), -6)); const l = ES.diario.filter(x => x.d >= desde).sort((a, b) => (a.d + a.h) < (b.d + b.h) ? -1 : 1);
-    djEnviar(l, `Diario · semana del ${new Date(desde + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' })}`); });
+  pzW.querySelector('#pz-jr').onclick = () => irA('journal');
+  pzW.querySelector('#nt-row').onclick = () => notionSheet('pizarras');
   pzW.querySelector('#pz-new').addEventListener('click', e => {
     const c = e.target.closest('[data-p]'); if (!c) return; const [n, f] = PZ_PLANTILLAS[c.dataset.p];
     const b = { id: crypto.randomUUID(), nombre: n, els: f(), cambiado: Date.now() }; ES.pizarras.push(b); guardar();
@@ -4557,8 +4594,8 @@ async function notion(path, method = 'GET', body) {
 const ntRt = t => [{ type: 'text', text: { content: String(t).slice(0, 2000) } }];
 const ntBloque = (tipo, t) => ({ object: 'block', type: tipo, [tipo]: { rich_text: ntRt(t) } });
 // Crea una página hija de la página elegida; Notion admite 100 bloques por petición, el resto se añade después.
-async function ntCrearPagina(titulo, bloques) {
-  const pg = await notion('pages', 'POST', { parent: { page_id: ntCfg().pageId }, properties: { title: { title: ntRt(titulo) } }, children: bloques.slice(0, 100) });
+async function ntCrearPagina(titulo, bloques, parentId = ntCfg().pageId) {
+  const pg = await notion('pages', 'POST', { parent: { page_id: parentId }, properties: { title: { title: ntRt(titulo) } }, children: bloques.slice(0, 100) });
   for (let i = 100; i < bloques.length; i += 100) await notion(`blocks/${pg.id}/children`, 'PATCH', { children: bloques.slice(i, i + 100) });
   return pg;
 }
@@ -4573,18 +4610,6 @@ function djBloques(lista) {
     if (buenas) { out.push(ntBloque('heading_3', 'Tres cosas buenas')); for (const i of buenas.items) out.push(ntBloque('bulleted_list_item', i)); }
   }
   return out;
-}
-async function djEnviar(lista, titulo) {
-  if (ntOk()) {
-    toastIdeas('Enviando a Notion…');
-    try { const pg = await ntCrearPagina(titulo, djBloques(lista)); for (const x of lista) x.notion = { id: pg.id, url: pg.url }; guardar(); toastIdeas('Listo: está en Notion.'); renderPizarras(); }
-    catch (e) { toastIdeas(e.message); }
-    return;
-  }
-  const texto = `# ${titulo}\n\n${djMarkdown(lista)}`;
-  if (navigator.share) { try { await navigator.share({ title: titulo, text: texto }); return; } catch (e) { if (e.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(texto); toastIdeas('Copiado. Pégalo en una página de Notion. Para enviarlo directo, conecta Notion.'); }
-  catch { toastIdeas('No se pudo copiar automáticamente.'); }
 }
 // Pizarra → página de Notion: las zonas son encabezados con sus notas como viñetas; el resto, viñetas y párrafos.
 function pzBloques(b) {
@@ -4606,68 +4631,268 @@ async function pzEnviarNotion(b, btn) {
   catch (e) { toast(e.message); }
   if (btn) btn.disabled = false;
 }
-function notionSheet() {
+function toastIdeas(t) { const el = pzW.querySelector('#dj-toast'); if (el) { el.textContent = t; el.hidden = false; setTimeout(() => { el.hidden = true; }, 3500); } }
+// ====================================================================
+// Journaling: pestaña propia. Se escribe aquí y va directo a la base «📓 Journaling» de Notion con el formato de siempre:
+// «📝 Tal cual (corregido)» y, con el asistente conectado, la versión ordenada (lo aprendido primero, eficiencia, avances y
+// próximos pasos en el diario de trabajo; volcado del día, bloques, aprendizajes y preguntas en el resto).
+// Escribir sobre lo vivido ordena las ideas y ayuda a procesarlas (Pennebaker y Chung, 2011).
+// ====================================================================
+// [clave en la app, etiqueta, opción «Tipo» en Notion]
+const JR_TIPOS = [['diario', 'Diario', 'Diario'], ['trabajo', 'Trabajo', 'Diario'], ['matutino', 'Matutino', 'Matutino'], ['nocturno', 'Nocturno', 'Nocturno'], ['reflexion', 'Reflexión', 'Reflexión'], ['semanal', 'Semanal', 'Semanal'], ['deporte', 'Deporte', 'Deporte'], ['ingles', 'Inglés', 'Inglés'], ['general', 'General', 'General']];
+const jrTipo = k => JR_TIPOS.find(t => t[0] === k) || JR_TIPOS[0];
+const jrFechaCorta = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+const jrTitulo = x => `Journaling${x.tipo === 'trabajo' ? ' de trabajo' : x.tipo && x.tipo !== 'diario' ? ' ' + jrTipo(x.tipo)[1].toLowerCase() : ''} ${jrFechaCorta(x.d)}`;
+const ntDiarioOk = () => !!(ntCfg().token && ntCfg().diario?.id);
+// Texto con **negritas** y *cursivas* a rich_text de Notion.
+function ntRtMd(t) {
+  const out = [], re = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g; let last = 0, m; t = String(t ?? '');
+  while ((m = re.exec(t))) {
+    if (m.index > last) out.push({ type: 'text', text: { content: t.slice(last, m.index) } });
+    const bold = m[0].startsWith('**'); out.push({ type: 'text', text: { content: m[0].replace(/^\*+|\*+$/g, '') }, annotations: bold ? { bold: true } : { italic: true } });
+    last = m.index + m[0].length;
+  }
+  if (last < t.length || !out.length) out.push({ type: 'text', text: { content: t.slice(last) } });
+  return out.map(r => ({ ...r, text: { content: r.text.content.slice(0, 2000) } }));
+}
+const ntBloqueMd = (tipo, t) => ({ object: 'block', type: tipo, [tipo]: { rich_text: ntRtMd(t) } });
+// Un texto con párrafos (líneas en blanco) y viñetas («- ») a bloques.
+function ntBloquesTexto(t) {
+  const out = [];
+  for (const p of String(t || '').split(/\n{2,}/)) {
+    const lineas = p.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lineas.every(l => /^[-•*] /.test(l))) for (const l of lineas) out.push(ntBloqueMd('bulleted_list_item', l.replace(/^[-•*] /, '')));
+    else if (lineas.length) out.push(ntBloqueMd('paragraph', lineas.join('\n')));
+  }
+  return out;
+}
+// Lee una base de datos de Notion y reconoce sus propiedades: título, fecha, tipo (con la opción «Diario») y estado («Completado»).
+async function ntLeerBase(id) {
+  const db = await notion(`databases/${id}`);
+  const props = Object.entries(db.properties || {});
+  const title = props.find(([, p]) => p.type === 'title')?.[0] || 'Name';
+  const fecha = (props.find(([n, p]) => p.type === 'date' && /fecha|date/i.test(n)) || props.find(([, p]) => p.type === 'date'))?.[0] || '';
+  const sel = (nombre, opcion) => props.find(([n, p]) => p.type === 'select' && (n.toLowerCase() === nombre || (p.select?.options || []).some(o => o.name === opcion)))?.[0] || '';
+  const tipo = sel('tipo', 'Diario'), estado = sel('estado', 'Completado');
+  return { id, t: (db.title || []).map(x => x.plain_text).join('') || 'Base de datos', db: true, props: { title, fecha, tipo, estado, opciones: tipo ? (db.properties[tipo].select?.options || []).map(o => o.name) : [] } };
+}
+// Crea la entrada en el destino del Journaling: una fila de la base (con sus propiedades) o una página hija.
+async function jrCrearEnNotion(x, bloques, titulo = jrTitulo(x), tipoNotion = jrTipo(x.tipo)[2]) {
+  const D = ntCfg().diario; if (!D?.id) throw new Error('Elige el destino del Journaling en Notion.');
+  if (!D.db) return ntCrearPagina(titulo, bloques, D.id);
+  const P = D.props || {}, props = { [P.title || 'Name']: { title: ntRt(titulo) } };
+  if (P.fecha) props[P.fecha] = { date: { start: x.d } };
+  if (P.tipo && (!P.opciones?.length || P.opciones.includes(tipoNotion))) props[P.tipo] = { select: { name: tipoNotion } };
+  if (P.estado) props[P.estado] = { select: { name: 'Completado' } };
+  const pg = await notion('pages', 'POST', { parent: { database_id: D.id }, properties: props, children: bloques.slice(0, 100) });
+  for (let i = 100; i < bloques.length; i += 100) await notion(`blocks/${pg.id}/children`, 'PATCH', { children: bloques.slice(i, i + 100) });
+  return pg;
+}
+function jrBloques(x) {
+  const out = [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: `(${jrFechaCorta(x.d)} — ${new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'long' })}${x.h ? ', ' + fmtHora(x.h) : ''})` }, annotations: { italic: true } }] } }];
+  if (x.preg) out.push(ntBloqueMd('quote', x.preg));
+  out.push(ntBloqueMd('heading_2', x.orden?.corregido ? '📝 Tal cual (corregido)' : '📝 Tal cual'));
+  out.push(...ntBloquesTexto(x.orden?.corregido || x.txt));
+  if (x.animo) out.push(ntBloqueMd('paragraph', `Ánimo: ${x.animo}/5`));
+  if (x.orden?.secciones?.length) {
+    out.push({ object: 'block', type: 'divider', divider: {} }, ntBloqueMd('heading_2', x.tipo === 'trabajo' ? '🗂️ Análisis del trabajo' : '🗂️ Versión ordenada'));
+    for (const s of x.orden.secciones) { out.push(ntBloqueMd('heading_3', s.titulo)); out.push(...ntBloquesTexto(s.contenido)); }
+    if (x.orden.preguntas?.length) { out.push(ntBloqueMd('heading_3', 'Preguntas para cerrar')); for (const q of x.orden.preguntas) out.push(ntBloqueMd('bulleted_list_item', q)); }
+  }
+  const buenas = ES.buenas.find(b => b.d === x.d);
+  if (buenas) { out.push(ntBloqueMd('heading_3', 'Tres cosas buenas')); for (const i of buenas.items) out.push(ntBloqueMd('bulleted_list_item', i)); }
+  return out;
+}
+// Enviar (o reenviar: la versión anterior se archiva en Notion y se crea la nueva).
+async function jrEnviar(x, silencioso = false) {
+  if (!ntDiarioOk()) { if (!silencioso) notionSheet('diario'); return false; }
+  if (x.enviando) return false; x.enviando = true; renderJournal();
+  try {
+    if (x.notion?.id) { try { await notion(`pages/${x.notion.id}`, 'PATCH', { archived: true }); } catch {} }
+    const pg = await jrCrearEnNotion(x, jrBloques(x));
+    x.notion = { id: pg.id, url: pg.url, en: Date.now(), hash: jrHash(x) }; x.enviando = false; guardar(); renderJournal();
+    if (!silencioso) toast('Listo: está en tu Journaling de Notion.');
+    return true;
+  } catch (e) { x.enviando = false; x.notionError = e.message; renderJournal(); if (!silencioso) toast(e.message); return false; }
+}
+const jrHash = x => JSON.stringify([x.txt, x.preg, x.animo, x.tipo, x.orden ? 1 : 0, x.d]);
+const jrPendiente = x => x.notion && x.notion.hash !== jrHash(x);
+// La semana entera en una sola entrada «Semanal».
+async function jrEnviarSemana() {
+  if (!ntDiarioOk()) return notionSheet('diario');
+  const desde = dayKey(addDays(new Date(), -6)), L = ES.diario.filter(x => x.d >= desde).sort((a, b) => (a.d + a.h) < (b.d + b.h) ? -1 : 1);
+  if (!L.length) return toast('No hay entradas esta semana.');
+  const bloques = [];
+  for (const x of L) { bloques.push(ntBloqueMd('heading_2', `${cap(djFecha(x.d))}${x.h ? ' · ' + fmtHora(x.h) : ''}`)); bloques.push(...jrBloques(x).slice(1)); }
+  toast('Enviando la semana…');
+  try { const pg = await jrCrearEnNotion({ d: today(), tipo: 'semanal' }, bloques, `Journaling semanal ${jrFechaCorta(desde)} – ${jrFechaCorta(today())}`, 'Semanal'); toast('Listo: la semana está en Notion.'); window.open?.(pg.url, '_blank', 'noopener'); }
+  catch (e) { toast(e.message); }
+}
+// ---------- Ordenar con el asistente: corrige la ortografía sin tocar la voz y arma la versión ordenada en el formato de tus entradas.
+const JR_SISTEMA_BASE = `Eres el editor del journaling personal de la persona. Responde SOLO con JSON válido (sin texto antes ni después) con esta forma:
+{"corregido": string, "secciones": [{"titulo": string, "contenido": string}], "preguntas": [string]}
+Reglas generales:
+- "corregido": su relato palabra por palabra, con SOLO corrección ortográfica y de acentos. Conserva su voz, su orden y sus expresiones. No resumas ni reescribas. Mantén los saltos de línea.
+- En "contenido": párrafos separados por una línea en blanco; viñetas que empiezan por "- "; negritas con **texto**; cursivas con *texto*. Español, primera persona cuando hable de sí.
+- Sin nombres propios innecesarios en el análisis: habla de roles o del hecho, salvo que el nombre sea imprescindible.
+- "preguntas": 2 o 3 preguntas breves para cerrar el día.`;
+const JR_SISTEMA = {
+  trabajo: `${JR_SISTEMA_BASE}
+Este es el diario de TRABAJO. "secciones" lleva exactamente estos cuatro títulos, en este orden:
+1) "🎯 Lo que aprendí hoy": lo más importante, va primero. Cada aprendizaje en **negrita** con su explicación y, entre paréntesis, su disparador (de dónde salió). Incluye lo técnico (herramientas, métodos, datos) y lo de proceso o criterio (cómo se decidió, qué enfoque funcionó). Si no hubo aprendizaje técnico, busca el de criterio: siempre se aprende algo.
+2) "⚙️ Análisis de eficiencia": qué fluyó y qué frenó; dónde se pudo hacer lo mismo con menos (menos pasos, menos reproceso, mejor herramienta, mejor orden). Nombra la decisión o el trade-off. Pregunta guía: ¿cómo se haría más eficiente la próxima vez?
+3) "🧱 Qué avancé / entregables": lo concreto que quedó hecho, en viñetas breves orientadas a resultado. Sin narrar el tiempo que tomó.
+4) "▶️ Próximos pasos": acciones concretas que salen del día; si es una tarea, con fecha y hora («pronto» no cuenta).
+Nunca midas la jornada por horas ni escribas «estuve X horas»: la vara es lo aprendido y lo avanzado.`,
+  general: `${JR_SISTEMA_BASE}
+"secciones", en este orden: "Volcado del día" (lo vivido, ordenado, en 1 a 3 párrafos con su voz); entre 1 y 3 bloques por área de vida que aparezcan, titulados "Bloque de …" (por ejemplo "Bloque de universidad / trabajo", "Bloque personal / social", "Bloque de fe", "Bloque de deporte"), cada uno en viñetas; y al final "Lo que aprendí hoy": cada aprendizaje en **negrita** con su explicación y, entre paréntesis y en cursiva, el principio general que deja.`,
+};
+async function iaTexto(sistema, texto, maxTokens = 6000) {
+  const c = iaCfg(); if (!c.key) throw new Error('Conecta el asistente (pestaña Asistente) para ordenar el texto.');
+  Anthropic ||= (await import('./vendor/anthropic-sdk-0.134.0.mjs')).default;
+  const client = new Anthropic({ apiKey: c.key, dangerouslyAllowBrowser: true }), modelo = c.modelo || 'claude-opus-5-5';
+  const msg = await client.messages.create({ model: modelo, max_tokens: maxTokens, system: sistema, messages: [{ role: 'user', content: texto }] });
+  iaSumarGasto(modelo, msg.usage || {});
+  return msg.content.filter(b => b.type === 'text').map(b => b.text).join('');
+}
+async function jrOrdenar(x) {
+  if (!x.txt.trim()) return toast('Escribe algo primero.');
+  if (x.ordenando) return; x.ordenando = true; renderJournal();
+  try {
+    const raw = await iaTexto(JR_SISTEMA[x.tipo === 'trabajo' ? 'trabajo' : 'general'], `Fecha: ${jrFechaCorta(x.d)}.${x.preg ? ` Pregunta guía: ${x.preg}.` : ''}\n\nTexto:\n${x.txt}`);
+    const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); const j = JSON.parse(raw.slice(a, b + 1));
+    x.orden = { corregido: String(j.corregido || x.txt), secciones: (j.secciones || []).filter(s => s && s.titulo).map(s => ({ titulo: String(s.titulo).slice(0, 80), contenido: String(s.contenido || '').slice(0, 6000) })).slice(0, 8), preguntas: (j.preguntas || []).map(String).slice(0, 4), en: Date.now() };
+    x.ordenando = false; x.cambiado = Date.now(); guardar(); renderJournal(); toast('Versión ordenada lista.');
+    if (ntDiarioOk()) jrEnviar(x, true);
+  } catch (e) { x.ordenando = false; renderJournal(); toast(/JSON/i.test(e.message) ? 'El asistente respondió en un formato inesperado. Inténtalo de nuevo.' : e.message); }
+}
+// ---------- Vista
+const jrHost = document.getElementById('view-journal');
+const jrR = jrHost.attachShadow({ mode: 'open' });
+const jrStyle = document.createElement('style'); jrStyle.textContent = ENFOQUE_CSS + `
+  .jr-ta { width: 100%; min-height: 240px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 1rem; line-height: 1.5; }
+  .jr-orden { background: var(--soft); border-radius: 14px; padding: 12px 14px; margin: 14px 0; font-size: .92rem; } .jr-orden h4 { margin: 10px 0 4px; font-size: .9rem; } .jr-orden p { margin: 0 0 6px; white-space: pre-wrap; } .jr-orden ul { margin: 0 0 6px; padding-left: 18px; }
+  .jr-st { font-size: .8rem; color: var(--muted); }`;
+const jrW = document.createElement('div'); jrW.className = 'enf'; jrR.append(jrStyle, jrW);
+let jrEdit = null;
+const jrPregHoy = () => DIARIO_PREGUNTAS[(new Date().getDate() + new Date().getMonth()) % DIARIO_PREGUNTAS.length];
+const jrEstado = x => x.enviando ? 'enviando a Notion…' : x.notion ? (jrPendiente(x) ? 'cambiado desde el envío' : 'en Notion') : x.notionError ? 'no se pudo enviar' : ntDiarioOk() ? 'pendiente de enviar' : '';
+function jrHtmlOrden(o) {
+  const md = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
+  const bloque = t => String(t || '').split(/\n{2,}/).map(p => { const ls = p.split('\n').map(l => l.trim()).filter(Boolean); return ls.every(l => /^[-•*] /.test(l)) ? `<ul>${ls.map(l => `<li>${md(l.replace(/^[-•*] /, ''))}</li>`).join('')}</ul>` : `<p>${md(ls.join('\n'))}</p>`; }).join('');
+  return `<div class="jr-orden">${o.secciones.map(s => `<h4>${esc(s.titulo)}</h4>${bloque(s.contenido)}`).join('')}${o.preguntas?.length ? `<h4>Preguntas para cerrar</h4><ul>${o.preguntas.map(q => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}</div>`;
+}
+function renderJournal() {
+  if (jrEdit) return jrEditor(jrEdit);
+  const c = ntCfg(), L = [...ES.diario].sort((a, b) => (b.d + b.h) < (a.d + a.h) ? -1 : 1), hoy = L.find(x => x.d === today());
+  const pend = L.filter(x => ntDiarioOk() && (!x.notion || jrPendiente(x)) && !x.enviando).length;
+  jrW.innerHTML = `<p class="paso">Journaling</p><h2 style="margin-top:0">${esc(cap(djFecha(today())))}</h2>
+    <button class="row" id="jr-new" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--text)"></span><span class="t"><div>${hoy ? 'Seguir con la entrada de hoy' : 'Escribir ahora'}</div><small>${esc(hoy ? hoy.txt.split('\n')[0].slice(0, 80) : jrPregHoy())}</small></span><span class="tag">›</span></button>
+    <button class="row" id="jr-nt" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:${ntDiarioOk() ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${ntDiarioOk() ? `Va directo a «${esc(c.diario.t)}»` : c.token ? 'Elige el destino en Notion' : 'Conectar Notion'}</div><small>${ntDiarioOk() ? `${c.diario.db ? 'Base de datos' : 'Página'} · cada entrada se envía al guardar${pend ? ` · ${pend} pendiente${pend === 1 ? '' : 's'}` : ''}` : 'Para que cada entrada llegue a tu Journaling sin copiar nada'}</small></span><span class="tag">${ntDiarioOk() ? 'Cambiar' : '›'}</span></button>
+    ${pend ? `<p class="more"><button class="link" id="jr-reintentar">Enviar ${pend === 1 ? 'la pendiente' : 'las ' + pend + ' pendientes'}</button></p>` : ''}
+    <h3>Entradas</h3>
+    ${L.length ? `<div class="rows">${L.slice(0, 30).map(x => `<button class="row" data-jr="${x.id}"><span class="dot" style="--c:${x.notion && !jrPendiente(x) ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${esc(x.txt.split('\n')[0].slice(0, 70) || '(vacía)')}</div>
+      <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(jrTipo(x.tipo)[1])}${x.animo ? ' · ánimo ' + x.animo : ''}${x.orden ? ' · ordenada' : ''}${jrEstado(x) ? ' · ' + jrEstado(x) : ''}</small></span></button>`).join('')}</div>
+      <p class="more">${L.length} ${L.length === 1 ? 'entrada' : 'entradas'} · <button class="link" id="jr-sem">Enviar la última semana como entrada semanal</button></p>` : '<p class="empty">Aún no hay entradas. Dos minutos al final del día bastan: qué pasó, qué aprendiste, qué harías distinto.</p>'}
+    <p class="sci" style="margin-top:18px">Escribir sobre lo vivido, sobre todo lo que pesa, mejora el ánimo y la salud con efectos pequeños pero consistentes (Pennebaker y Chung, 2011; Frattaroli, 2006). Lo que más rinde: nombrar lo aprendido y el siguiente paso.</p>`;
+  jrW.querySelector('#jr-new').onclick = () => jrEditor(hoy || null);
+  jrW.querySelector('#jr-nt').onclick = () => notionSheet('diario');
+  jrW.querySelector('#jr-reintentar')?.addEventListener('click', async () => { for (const x of L.filter(y => !y.notion || jrPendiente(y))) await jrEnviar(x, true); toast('Enviado.'); });
+  jrW.querySelector('#jr-sem')?.addEventListener('click', jrEnviarSemana);
+  jrW.querySelectorAll('[data-jr]').forEach(b => b.onclick = () => jrEditor(ES.diario.find(x => x.id === b.dataset.jr)));
+}
+function jrEditor(x = null) {
+  const nueva = !x;
+  jrEdit = x || { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg: jrPregHoy(), txt: '', animo: 0, tipo: new Date().getHours() < 11 ? 'matutino' : 'diario' };
+  jrEdit.tipo ||= 'diario';
+  const x0 = jrEdit, enNotion = !!x0.notion, st = jrEstado(x0);
+  jrW.innerHTML = `<p class="meta" style="margin:0"><button class="link" id="jr-back">‹ Journaling</button></p>
+    <h2 style="margin-top:10px">${esc(cap(djFecha(x0.d)))}</h2>
+    <div class="chips" id="jr-tipos" style="margin:6px 0 10px">${JR_TIPOS.map(([k, n]) => `<button class="chip${x0.tipo === k ? ' on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>
+    <div class="chips" id="jr-pregs" style="margin:0 0 10px">${['Libre', ...DIARIO_PREGUNTAS].map(p => `<button class="chip${(p === 'Libre' ? '' : p) === x0.preg ? ' on' : ''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+    <p style="font-weight:500;margin:0 0 6px" id="jr-preg">${esc(x0.preg || (x0.tipo === 'trabajo' ? 'Qué hiciste, qué aprendiste y qué harías más eficiente' : 'Escribe lo que quieras'))}</p>
+    <textarea id="jr-txt" class="jr-ta" placeholder="Escribe tal cual, sin pensar demasiado. Al guardar va a tu Journaling de Notion.">${esc(x0.txt)}</textarea>
+    <div class="field" style="margin-top:14px"><label>Ánimo (opcional)</label><div class="chips" id="jr-an">${[1, 2, 3, 4, 5].map(n => `<button class="chip${x0.animo === n ? ' on' : ''}" data-v="${n}">${n}</button>`).join('')}</div></div>
+    ${x0.orden ? `<p class="meta" style="margin:0">Versión ordenada${x0.orden.en ? ' · ' + new Date(x0.orden.en).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''} <button class="link" id="jr-quitar-orden">Quitar</button></p>${jrHtmlOrden(x0.orden)}` : ''}
+    <p class="jr-st" id="jr-st">${st ? esc(cap(st)) : ''}${x0.notionError && !x0.enviando ? ` · ${esc(x0.notionError)}` : ''}</p>
+    <div class="actions stack" style="margin-top:8px">
+      <button class="primary" id="jr-ok">${ntDiarioOk() ? (enNotion ? 'Guardar y actualizar en Notion' : 'Guardar y enviar a Notion') : 'Guardar'}</button>
+      ${iaCfg().key ? `<button class="outline" id="jr-ordenar" ${x0.ordenando ? 'disabled' : ''}>${x0.ordenando ? 'Ordenando…' : x0.orden ? 'Volver a ordenar con el asistente' : 'Ordenar con el asistente'}</button>` : '<p class="meta" style="margin:0">Conecta el asistente para corregir la ortografía y armar la versión ordenada automáticamente.</p>'}
+      ${!ntDiarioOk() ? '<button class="link" id="jr-conectar">Conectar Notion para enviarlo directo</button>' : ''}
+      ${enNotion ? `<a class="link" href="${esc(x0.notion.url)}" target="_blank" rel="noopener">Abrir en Notion</a>` : ''}
+      ${nueva ? '' : '<button class="link red" id="jr-del">Eliminar</button>'}</div>`;
+  const q = s => jrW.querySelector(s);
+  const leer = () => { x0.txt = q('#jr-txt').value.trim(); };
+  q('#jr-tipos').addEventListener('click', e => { const c = e.target.closest('[data-k]'); if (!c) return; x0.tipo = c.dataset.k; q('#jr-tipos').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b === c)); if (!x0.preg) q('#jr-preg').textContent = x0.tipo === 'trabajo' ? 'Qué hiciste, qué aprendiste y qué harías más eficiente' : 'Escribe lo que quieras'; });
+  q('#jr-pregs').addEventListener('click', e => { const c = e.target.closest('[data-p]'); if (!c) return; x0.preg = c.dataset.p === 'Libre' ? '' : c.dataset.p; q('#jr-preg').textContent = x0.preg || 'Escribe lo que quieras'; q('#jr-pregs').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b === c)); });
+  q('#jr-an').addEventListener('click', e => { const c = e.target.closest('[data-v]'); if (!c) return; x0.animo = x0.animo === +c.dataset.v ? 0 : +c.dataset.v; q('#jr-an').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', +b.dataset.v === x0.animo)); });
+  const guardarEntrada = () => { leer(); if (!x0.txt) return false; if (!ES.diario.includes(x0)) { ES.diario.push(x0); xpGanar(10, 'Journaling'); } x0.cambiado = Date.now(); guardar(); return true; };
+  q('#jr-ok').onclick = async () => { if (!guardarEntrada()) { q('#jr-txt').focus(); return; } if (ntDiarioOk() && (!x0.notion || jrPendiente(x0))) { jrEdit = null; renderJournal(); await jrEnviar(x0); } else { jrEdit = null; renderJournal(); } };
+  q('#jr-ordenar')?.addEventListener('click', () => { if (!guardarEntrada()) { q('#jr-txt').focus(); return; } jrOrdenar(x0); });
+  q('#jr-quitar-orden')?.addEventListener('click', () => { delete x0.orden; x0.cambiado = Date.now(); guardar(); jrEditor(x0); });
+  q('#jr-conectar')?.addEventListener('click', () => { leer(); notionSheet('diario'); });
+  q('#jr-back').onclick = () => { if (q('#jr-txt').value.trim()) guardarEntrada(); jrEdit = null; renderJournal(); };
+  q('#jr-del')?.addEventListener('click', () => { if (!confirm('¿Eliminar esta entrada? En Notion se conserva.')) return; forget(x0.id); ES.diario = ES.diario.filter(e => e !== x0); guardar(); jrEdit = null; renderJournal(); });
+  if (!x0.ordenando) setTimeout(() => q('#jr-txt').focus(), 50);
+}
+// ---------- Notion: conexión y destinos (Journaling y pizarras), con detección de tu base «Journaling».
+function notionSheet(foco = '') {
   const c = ntCfg();
   showSheet(`<h2>Notion</h2>
-    ${c.token ? `<p class="note">Conectado${c.pageTitle ? ` · destino: <b>${esc(c.pageTitle)}</b>` : ''}. El diario y las pizarras se crean como páginas dentro de ese destino.</p>` : `
-    <p class="note">El diario y las pizarras se enviarán directo a Notion, como páginas dentro de una página que elijas. Se configura una vez:</p>
+    ${c.token ? `<p class="note">Conectado. El Journaling va a <b>${esc(c.diario?.t || 'sin destino')}</b>${c.diario?.db ? ' (base de datos, con fecha, tipo y estado)' : ''}; las pizarras, a <b>${esc(c.pageTitle || 'sin destino')}</b>.</p>` : `
+    <p class="note">Cada entrada del Journaling y cada pizarra se envían directo a Notion. Se configura una vez:</p>
     <ol class="pros" style="padding-left:20px">
       <li style="margin-bottom:6px">En <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noopener">notion.so/profile/integrations</a> crea una integración interna («New integration»), llámala «Organización Personal» y copia el «Internal Integration Secret» (empieza por <b>ntn_</b>).</li>
-      <li style="margin-bottom:6px">En Notion, abre la página donde quieres guardar todo (por ejemplo «Diario»), toca «···» → «Conexiones» → añade la integración.</li>
-      <li>Pega aquí el secreto y elige esa página.</li>
+      <li style="margin-bottom:6px">En Notion, abre tu base «📓 Journaling» (y la página donde quieras las pizarras), toca «···» → «Conexiones» → añade la integración.</li>
+      <li>Pega aquí el secreto: la base «Journaling» se detecta sola.</li>
     </ol>`}
     <div class="field"><label>Secreto de la integración (solo en este teléfono)</label><input id="nt-tok" type="password" autocomplete="off" value="${esc(c.token || '')}" placeholder="ntn_…"></div>
+    ${c.token ? `<div class="set-row"><span>Journaling<small>${c.diario ? esc(c.diario.t) + (c.diario.db ? ' · base de datos' : ' · página') : 'Sin destino'}</small></span><button class="link" data-el="diario">${c.diario ? 'Cambiar' : 'Elegir'}</button></div>
+    <div class="set-row"><span>Pizarras e ideas<small>${c.pageTitle ? esc(c.pageTitle) : 'Sin destino'}</small></span><button class="link" data-el="pizarras">${c.pageId ? 'Cambiar' : 'Elegir'}</button></div>` : ''}
     <div id="nt-pages"></div>
     <p class="meta red" id="nt-err"></p>
-    <div class="actions">${c.token ? '<button class="link red" id="nt-off">Desconectar</button>' : ''}<button class="link" id="nt-cancel">Cerrar</button><button class="primary" id="nt-buscar">Elegir página</button></div>`);
-  $('#nt-cancel').onclick = closeSheet;
-  $('#nt-off')?.addEventListener('click', () => { ntSetCfg({}); closeSheet(); renderPizarras(); });
-  $('#nt-buscar').onclick = async e => {
+    <div class="actions">${c.token ? '<button class="link red" id="nt-off">Desconectar</button>' : ''}<button class="link" id="nt-cancel">Cerrar</button>${c.token ? '' : '<button class="primary" id="nt-con">Conectar</button>'}</div>`);
+  const body = $('#sheet-body');
+  const refrescar = () => { renderPizarras(); renderJournal(); };
+  $('#nt-cancel').onclick = () => { closeSheet(); refrescar(); };
+  $('#nt-off')?.addEventListener('click', () => { ntSetCfg({}); closeSheet(); refrescar(); });
+  const titulo = p => p.object === 'database' ? (p.title || []).map(x => x.plain_text).join('') || '(Base sin título)' : (Object.values(p.properties || {}).find(x => x.type === 'title')?.title || []).map(x => x.plain_text).join('') || '(Sin título)';
+  const listar = async que => {
+    $('#nt-err').textContent = ''; $('#nt-pages').innerHTML = '<p class="meta">Buscando…</p>';
+    try {
+      const pags = (await notion('search', 'POST', { filter: { property: 'object', value: 'page' }, page_size: 30, sort: { direction: 'descending', timestamp: 'last_edited_time' } })).results || [];
+      const bases = que === 'diario' ? (await notion('search', 'POST', { filter: { property: 'object', value: 'database' }, page_size: 20 })).results || [] : [];
+      const todo = [...bases.map(b => ({ id: b.id, t: titulo(b), db: true })), ...pags.map(p => ({ id: p.id, t: titulo(p), db: false }))].sort((a, b) => (/journal|diario/i.test(b.t) ? 1 : 0) - (/journal|diario/i.test(a.t) ? 1 : 0));
+      if (!todo.length) { $('#nt-pages').innerHTML = ''; $('#nt-err').textContent = 'La integración no ve nada. En Notion, abre el destino → «···» → Conexiones → añade la integración, y vuelve a intentar.'; return; }
+      const actual = que === 'diario' ? ntCfg().diario?.id : ntCfg().pageId;
+      $('#nt-pages').innerHTML = `<p class="meta" style="margin:0 0 4px">Destino para ${que === 'diario' ? 'el Journaling' : 'las pizarras'}:</p><div class="rows">${todo.map(p => `<button class="row" data-pg="${esc(p.id)}" data-t="${esc(p.t)}" data-db="${p.db ? 1 : ''}"><span class="dot" style="--c:${actual === p.id ? 'var(--green)' : p.db ? 'var(--accent)' : 'var(--empty)'}"></span><span class="t"><div>${esc(p.t)}</div><small>${p.db ? 'Base de datos' : 'Página'}</small></span><span class="tag">›</span></button>`).join('')}</div>`;
+      $('#nt-pages').querySelectorAll('[data-pg]').forEach(b => b.onclick = async () => {
+        try {
+          if (que === 'diario') { const d = b.dataset.db ? await ntLeerBase(b.dataset.pg) : { id: b.dataset.pg, t: b.dataset.t, db: false }; ntSetCfg({ ...ntCfg(), diario: d }); toast(`Journaling → «${d.t}».`); }
+          else { ntSetCfg({ ...ntCfg(), pageId: b.dataset.pg, pageTitle: b.dataset.t }); toast(`Pizarras → «${b.dataset.t}».`); }
+          notionSheet();
+        } catch (e) { $('#nt-err').textContent = e.message; }
+      });
+    } catch (e) { $('#nt-pages').innerHTML = ''; $('#nt-err').textContent = e.message; }
+  };
+  body.querySelectorAll('[data-el]').forEach(b => b.onclick = () => listar(b.dataset.el));
+  $('#nt-con')?.addEventListener('click', async e => {
     const tok = $('#nt-tok').value.trim(); if (!tok) { $('#nt-tok').focus(); return; }
     ntSetCfg({ ...ntCfg(), token: tok }); e.target.disabled = true; $('#nt-err').textContent = '';
     try {
-      const r = await notion('search', 'POST', { filter: { property: 'object', value: 'page' }, page_size: 25, sort: { direction: 'descending', timestamp: 'last_edited_time' } });
-      const pags = (r.results || []).map(p => ({ id: p.id, t: (Object.values(p.properties || {}).find(x => x.type === 'title')?.title || []).map(x => x.plain_text).join('') || '(Sin título)' }));
-      if (!pags.length) { $('#nt-err').textContent = 'La integración no ve ninguna página. En Notion, abre la página destino → «···» → Conexiones → añade la integración, y vuelve a intentar.'; e.target.disabled = false; return; }
-      $('#nt-pages').innerHTML = `<p class="meta" style="margin:0 0 4px">Páginas que ve la integración. Elige el destino:</p><div class="rows">${pags.map(p => `<button class="row" data-pg="${esc(p.id)}" data-t="${esc(p.t)}"><span class="dot" style="--c:${ntCfg().pageId === p.id ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${esc(p.t)}</div></span></button>`).join('')}</div>`;
-      $('#nt-pages').querySelectorAll('[data-pg]').forEach(b => b.onclick = () => { ntSetCfg({ ...ntCfg(), pageId: b.dataset.pg, pageTitle: b.dataset.t }); closeSheet(); renderPizarras(); toast(`Notion conectado: «${b.dataset.t}».`); });
-    } catch (err) { $('#nt-err').textContent = err.message; }
-    e.target.disabled = false;
-  };
+      // Detección: la base cuyo título contiene «journaling» pasa a ser el destino del diario.
+      const bases = (await notion('search', 'POST', { query: 'Journaling', filter: { property: 'object', value: 'database' }, page_size: 10 })).results || [];
+      const jr = bases.find(b => /journal/i.test(titulo(b))) || bases[0];
+      if (jr) { const d = await ntLeerBase(jr.id); ntSetCfg({ ...ntCfg(), diario: d }); toast(`Notion conectado. Journaling → «${d.t}».`); }
+      else toast('Notion conectado. Elige el destino del Journaling.');
+      notionSheet(); if (!jr) listar('diario'); else if (!ntCfg().pageId) listar('pizarras');
+    } catch (err) { $('#nt-err').textContent = err.message; e.target.disabled = false; }
+  });
+  if (c.token && foco === 'diario' && !c.diario) listar('diario');
 }
-function toastIdeas(t) { const el = pzW.querySelector('#dj-toast'); if (el) { el.textContent = t; el.hidden = false; setTimeout(() => { el.hidden = true; }, 3500); } }
-function djEditor(x = null) {
-  const nueva = !x, preg = x?.preg ?? DIARIO_PREGUNTAS[(new Date().getDate() + new Date().getMonth()) % DIARIO_PREGUNTAS.length];
-  djEdit = x || { id: crypto.randomUUID(), d: today(), h: hhmm(new Date()), preg, txt: '', animo: 0 };
-  pzW.innerHTML = `<div class="enf">
-    <p class="meta" style="margin:0"><button class="link" id="dj-back">‹ Ideas</button></p>
-    <h2 style="margin-top:10px">${cap(djFecha(djEdit.d))}</h2>
-    <div class="chips" id="dj-pregs" style="margin:10px 0">${['Libre', ...DIARIO_PREGUNTAS].map(p => `<button class="chip${(p === 'Libre' ? '' : p) === djEdit.preg ? ' on' : ''}" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
-    <p style="font-weight:500;margin:0 0 6px" id="dj-preg">${esc(djEdit.preg || 'Escribe lo que quieras')}</p>
-    <textarea id="dj-txt" rows="10" placeholder="Escribe sin pensar demasiado. Nadie más lo lee." style="min-height:220px;border:1px solid var(--line);border-radius:12px;padding:10px 12px">${esc(djEdit.txt)}</textarea>
-    <div class="field" style="margin-top:14px"><label>Ánimo (opcional)</label><div class="chips" id="dj-an">${[1, 2, 3, 4, 5].map(n => `<button class="chip${djEdit.animo === n ? ' on' : ''}" data-v="${n}">${n}</button>`).join('')}</div></div>
-    <p class="meta" id="dj-toast" hidden></p>
-    <div class="actions">${nueva ? '' : '<button class="link red" id="dj-del">Eliminar</button>'}${djEdit.notion ? `<a class="link" href="${esc(djEdit.notion.url)}" target="_blank" rel="noopener">Abrir en Notion</a>` : ''}<button class="link" id="dj-notion">${djEdit.notion ? 'Enviar de nuevo' : 'Enviar a Notion'}</button><button class="primary" id="dj-ok">Guardar</button></div></div>`;
-  const q = s => pzW.querySelector(s);
-  const leer = () => { djEdit.txt = q('#dj-txt').value.trim(); };
-  q('#dj-pregs').addEventListener('click', e => { const c = e.target.closest('[data-p]'); if (!c) return; djEdit.preg = c.dataset.p === 'Libre' ? '' : c.dataset.p;
-    q('#dj-preg').textContent = djEdit.preg || 'Escribe lo que quieras'; q('#dj-pregs').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', b === c)); });
-  q('#dj-an').addEventListener('click', e => { const c = e.target.closest('[data-v]'); if (!c) return; djEdit.animo = djEdit.animo === +c.dataset.v ? 0 : +c.dataset.v; q('#dj-an').querySelectorAll('.chip').forEach(b => b.classList.toggle('on', +b.dataset.v === djEdit.animo)); });
-  const guardarEntrada = () => { leer(); if (!djEdit.txt) return false; if (!ES.diario.includes(djEdit)) { ES.diario.push(djEdit); xpGanar(10, 'Diario'); } djEdit.cambiado = Date.now(); guardar(); return true; };
-  q('#dj-ok').onclick = () => { if (!guardarEntrada()) { q('#dj-txt').focus(); return; } djEdit = null; renderPizarras(); };
-  q('#dj-notion').onclick = () => { if (!guardarEntrada()) { q('#dj-txt').focus(); return; } djEnviar([djEdit], `Diario · ${cap(djFecha(djEdit.d))}`); };
-  q('#dj-back').onclick = () => { if (q('#dj-txt').value.trim() && !ES.diario.includes(djEdit)) guardarEntrada(); djEdit = null; renderPizarras(); };
-  q('#dj-del')?.addEventListener('click', () => { if (!confirm('¿Eliminar esta entrada?')) return; forget(djEdit.id); ES.diario = ES.diario.filter(e => e !== djEdit); guardar(); djEdit = null; renderPizarras(); });
-  setTimeout(() => q('#dj-txt').focus(), 50);
-}
-function djLista() {
-  const L = [...ES.diario].sort((a, b) => (b.d + b.h) < (a.d + a.h) ? -1 : 1);
-  return `<h3 style="margin-top:0">Diario</h3>
-    <button class="row" id="dj-new"><span class="dot" style="--c:var(--text)"></span><span class="t"><div>Escribir hoy</div><small>${esc(DIARIO_PREGUNTAS[(new Date().getDate() + new Date().getMonth()) % DIARIO_PREGUNTAS.length])}</small></span><span class="tag">›</span></button>
-    ${L.length ? `<div class="rows">${L.slice(0, 6).map(x => `<button class="row" data-dj="${x.id}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(x.txt.split('\n')[0].slice(0, 70))}</div>
-      <small>${cap(new Date(x.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }))}${x.animo ? ' · ánimo ' + x.animo : ''}${x.notion ? ' · en Notion' : ''}</small></span></button>`).join('')}</div>
-      <p class="more">${L.length > 6 ? `${L.length} entradas · ` : ''}<button class="link" id="dj-sem">Enviar la última semana a Notion</button></p><p class="meta" id="dj-toast" hidden></p>` : ''}`;
-}
+window.renderJournal = () => renderJournal();
+// Entradas creadas por el asistente (diario_escribir): se envían solas si Notion está listo.
+window.jrEnviarAuto = x => { if (ntDiarioOk()) jrEnviar(x, true); };
 
 // ====================================================================
 // Bienestar: mente (mindfulness y bienestar cognitivo) y espíritu (vida cristiana práctica), juntos.
@@ -5025,6 +5250,649 @@ function practicaFormExtra(pr) {
   return false;
 }
 
+// ---------- Plantillas SMART listas para usar (una o dos palabras por rellenar) y objetivos de ejemplo.
+const INI_PLANTILLAS = {
+  estudio: [
+    { id: 'est-recuerdo', t: 'Repasar {tema} con recuerdo activo', campos: [{ k: 'tema', label: 'Tema', ej: 'Tema 4 de estadística' }], hecho: '15 preguntas respondidas sin mirar los apuntes', min: 25, franja: 'Media mañana', porque: 'Recordar activamente fija más que releer' },
+    { id: 'est-ejercicios', t: 'Resolver 5 ejercicios de {tema}', campos: [{ k: 'tema', label: 'Tema', ej: 'Derivadas' }], hecho: '5 ejercicios resueltos y corregidos', min: 45, franja: 'Tarde', porque: 'Practicar es lo que convierte en habilidad' },
+    { id: 'est-paginas', t: 'Leer 20 páginas de {libro} y anotar 3 ideas', campos: [{ k: 'libro', label: 'Libro o material', ej: 'El libro del curso' }], hecho: '20 páginas leídas y 3 ideas escritas', min: 30, franja: 'Noche', porque: 'Leer con pluma en mano deja huella' },
+    { id: 'est-resumen', t: 'Resumir la clase de {materia} en 10 líneas', campos: [{ k: 'materia', label: 'Materia', ej: 'Microeconomía' }], hecho: 'Resumen de 10 líneas guardado', min: 20, franja: 'Final de tarde', porque: 'Explicarlo en pocas líneas revela qué no entendí' },
+  ],
+  proyecto: [
+    { id: 'pro-paso', t: 'Terminar {paso} de {proyecto}', campos: [{ k: 'paso', label: 'Paso concreto', ej: 'La portada' }, { k: 'proyecto', label: 'Proyecto', ej: 'Mi web' }], hecho: 'Entregable guardado y visible', min: 45, franja: 'Mañana', porque: 'Un paso visible al día mueve cualquier proyecto' },
+    { id: 'pro-bloque', t: 'Bloque de 50 minutos sin teléfono para {proyecto}', campos: [{ k: 'proyecto', label: 'Proyecto', ej: 'La tesis' }], hecho: '50 minutos sin interrupciones y una nota de dónde quedé', min: 50, franja: 'Mañana', porque: 'El trabajo profundo rinde más por minuto' },
+    { id: 'pro-mostrar', t: 'Mostrar el avance de {proyecto} a alguien y pedir una opinión', campos: [{ k: 'proyecto', label: 'Proyecto', ej: 'La app' }], hecho: 'Opinión recibida y anotada', min: 20, franja: 'Tarde', porque: 'Enseñarlo pronto evita trabajar a ciegas' },
+    { id: 'pro-dividir', t: 'Dividir {paso} en tres pasos pequeños', campos: [{ k: 'paso', label: 'Paso grande', ej: 'Montar el sistema de pagos' }], hecho: 'Tres pasos escritos con su primer movimiento', min: 15, franja: 'Mediodía', porque: 'Lo que no empieza suele ser demasiado grande' },
+  ],
+  laboral: [
+    { id: 'lab-propuesta', t: 'Enviar una propuesta de mejora sobre {tema} a {quien}', campos: [{ k: 'tema', label: 'Tema', ej: 'El proceso de reportes' }, { k: 'quien', label: 'A quién', ej: 'Mi jefe' }], hecho: 'Propuesta enviada', min: 30, franja: 'Media mañana', porque: 'Proponer sin que te lo pidan es iniciativa visible' },
+    { id: 'lab-reunion', t: 'Pedir 15 minutos con {quien} para {tema}', campos: [{ k: 'quien', label: 'Con quién', ej: 'El líder del proyecto' }, { k: 'tema', label: 'Para qué', ej: 'Alinear prioridades' }], hecho: 'Reunión agendada con fecha y hora', min: 10, franja: 'Mañana', porque: 'Las conversaciones cortas destraban semanas' },
+    { id: 'lab-terminar', t: 'Terminar hoy {tarea} antes de {hora}', campos: [{ k: 'tarea', label: 'Qué', ej: 'El informe de ventas' }, { k: 'hora', label: 'Antes de', ej: 'Las 4 PM' }], hecho: 'Entregado o enviado', min: 60, franja: 'Mediodía', porque: 'Cerrar hoy lo que se deja para mañana libera la cabeza' },
+    { id: 'lab-feedback', t: 'Pedir feedback concreto sobre {trabajo} a {quien}', campos: [{ k: 'trabajo', label: 'Sobre qué', ej: 'Mi presentación' }, { k: 'quien', label: 'A quién', ej: 'Un compañero senior' }], hecho: 'Feedback recibido y una mejora anotada', min: 15, franja: 'Tarde', porque: 'Quien pide feedback mejora más rápido' },
+  ],
+  social: [
+    { id: 'soc-cafe', t: 'Proponer un café a {persona} con día y hora', campos: [{ k: 'persona', label: 'Persona', ej: 'Ana' }], hecho: 'Mensaje enviado con dos opciones de día', min: 5, franja: 'Mediodía', porque: 'Quien propone día y hora hace que el plan ocurra' },
+    { id: 'soc-llamar', t: 'Llamar a {persona} para preguntarle por {tema}', campos: [{ k: 'persona', label: 'Persona', ej: 'Mi abuela' }, { k: 'tema', label: 'Por qué', ej: 'Su salud' }], hecho: 'Llamada hecha', min: 15, franja: 'Final de tarde', porque: 'Una llamada acerca más que diez mensajes' },
+    { id: 'soc-gracias', t: 'Agradecer a {persona} por {motivo}', campos: [{ k: 'persona', label: 'Persona', ej: 'Luis' }, { k: 'motivo', label: 'Por qué', ej: 'Su ayuda con el proyecto' }], hecho: 'Mensaje de gracias enviado', min: 5, franja: 'Mañana', porque: 'Un gracias concreto alegra más de lo que crees' },
+    { id: 'soc-desconocido', t: 'Hablar con alguien nuevo en {lugar}', campos: [{ k: 'lugar', label: 'Dónde', ej: 'La universidad' }], hecho: 'Una conversación de al menos 2 minutos', min: 10, franja: 'Tarde', porque: 'La mayoría está más abierta a hablar de lo que esperas' },
+  ],
+  espiritual: [
+    { id: 'esp-manana', t: 'Oración de la mañana: gratitud, entrega del día e intercesión', campos: [], hecho: '10 minutos de oración antes de abrir el teléfono', min: 10, franja: 'Mañana', porque: 'Empezar el día con Dios ordena el resto' },
+    { id: 'esp-lectio', t: 'Leer {pasaje} y anotar una frase', campos: [{ k: 'pasaje', label: 'Pasaje', ej: 'Salmo 23' }], hecho: 'Pasaje leído y una frase escrita', min: 15, franja: 'Mañana', porque: 'La Palabra leída despacio alimenta' },
+    { id: 'esp-examen', t: 'Examen del día: gratitud, repaso, perdón y propósito', campos: [], hecho: 'Examen hecho y una gracia anotada', min: 10, franja: 'Noche', porque: 'Cerrar el día con Dios da paz y claridad' },
+    { id: 'esp-interceder', t: 'Orar por {personas}', campos: [{ k: 'personas', label: 'Por quién', ej: 'Mi familia y un amigo que lo necesita' }], hecho: 'Oración hecha por cada persona', min: 5, franja: 'Mediodía', porque: 'Interceder cambia cómo miras a los demás' },
+    { id: 'esp-servir', t: 'Un acto de servicio: {acto}', campos: [{ k: 'acto', label: 'Qué', ej: 'Ayudar a mi vecino con las compras' }], hecho: 'Acto hecho sin que nadie lo sepa', min: 20, franja: 'Tarde', porque: 'La fe se hace visible sirviendo' },
+  ],
+};
+const OBJ_PLANTILLAS = [
+  { id: 'obj-ingles', t: 'Terminar el nivel B1 de inglés', metrica: 'Lecciones completadas', meta: 30, unidad: 'lecciones', semanas: 10, area: 'estudio', porque: 'Para optar a un puesto en inglés', primer_paso: '3 lecciones por semana: martes y jueves a las 7' },
+  { id: 'obj-libros', t: 'Leer 6 libros este trimestre', metrica: 'Libros terminados', meta: 6, unidad: 'libros', semanas: 12, area: 'estudio', porque: 'Pensar mejor y con más calma', primer_paso: '20 páginas cada noche a las 9:30' },
+  { id: 'obj-proyecto', t: 'Publicar la primera versión de mi proyecto', metrica: 'Hitos completados', meta: 8, unidad: 'hitos', semanas: 8, area: 'proyecto', porque: 'Tener algo real que mostrar', primer_paso: 'Un bloque de 50 minutos cada mañana' },
+  { id: 'obj-social', t: 'Ver a un amigo en persona cada semana', metrica: 'Encuentros', meta: 8, unidad: 'encuentros', semanas: 8, area: 'social', porque: 'Las amistades se sostienen con tiempo juntos', primer_paso: 'Proponer el plan los lunes' },
+  { id: 'obj-esp', t: 'Leer el Evangelio de Juan completo', metrica: 'Capítulos leídos', meta: 21, unidad: 'capítulos', semanas: 6, area: 'espiritual', porque: 'Conocer mejor a Jesús', primer_paso: 'Un capítulo cada mañana a las 6:30' },
+  { id: 'obj-deporte', t: 'Entrenar 36 veces en 12 semanas', metrica: 'Entrenamientos', meta: 36, unidad: 'sesiones', semanas: 12, area: 'salud', porque: 'Energía y cabeza clara', primer_paso: 'Lunes, miércoles y viernes a las 6 PM' },
+  { id: 'obj-ahorro', t: 'Ahorrar 600 dólares', metrica: 'Dólares ahorrados', meta: 600, unidad: '$', semanas: 12, area: 'finanzas', porque: 'Un colchón de tranquilidad', primer_paso: '50 cada semana el día de cobro' },
+  { id: 'obj-orden', t: 'Dejar el escritorio ordenado 30 días seguidos', metrica: 'Días con el escritorio ordenado', meta: 30, unidad: 'días', semanas: 5, area: 'orden', porque: 'Un espacio claro, una mente clara', primer_paso: '2 minutos de orden al cerrar el día' },
+];
+// ====================================================================
+// Agenda del día y objetivos SMART. La agenda junta en una sola lista, con hora, los hábitos de hoy,
+// las tareas, las 5 iniciativas, las prioridades, los planes y los eventos del calendario.
+// «Organizar mi día» lo arma en cuatro pasos cortos con todo preseleccionado: lo difícil es no hacerlo.
+// Todo lo que entra tiene estructura SMART: específico (verbo + qué), medible (señal de hecho),
+// alcanzable (minutos y primer paso), relevante (para qué u objetivo) y con tiempo (hora de hoy).
+// Metas específicas y difíciles rinden más que «hazlo lo mejor que puedas» (Locke y Latham, 2002);
+// un plan con hora y lugar se cumple mucho más (Gollwitzer y Sheeran, 2006; Milkman et al., 2011);
+// registrar el avance con frecuencia es lo que más acerca a la meta (Harkin et al., 2016).
+// ====================================================================
+const SMART_L = ['S', 'M', 'A', 'R', 'T'];
+const SMART_NOMBRE = { S: 'Específico', M: 'Medible', A: 'Alcanzable', R: 'Relevante', T: 'Con tiempo' };
+const AG_TIPO = { habito: 'Hábito', tarea: 'Tarea', ini: 'Iniciativa', prio: 'Prioridad', plan: 'Plan', evento: 'Calendario', libre: 'Agenda' };
+const AG_MIN = { habito: 15, tarea: 25, ini: 30, prio: 25, plan: 60, evento: 60, libre: 30 };
+const FRANJAS = [['Mañana', '08:00'], ['Media mañana', '10:30'], ['Mediodía', '13:00'], ['Tarde', '15:30'], ['Final de tarde', '17:30'], ['Noche', '20:00']];
+const MINUTOS_AG = [10, 15, 25, 45, 60, 90];
+const iniIdx = k => INI4.findIndex(([x]) => x === k);
+const iniNombre = k => (INI4.find(([x]) => x === k) || [])[1] || '';
+const minToHm = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const franjaHora = f => (FRANJAS.find(([n]) => n.toLowerCase() === String(f || '').toLowerCase()) || [])[1] || '';
+const semilla = () => Math.round(Date.parse(today() + 'T12:00') / 864e5);
+const rellenar = (txt, vals) => String(txt || '').replace(/\{(\w+)\}/g, (_, k) => vals[k] || '').replace(/\s{2,}/g, ' ').replace(/\s+([,.:;)])/g, '$1').trim();
+const sinHuecos = txt => String(txt || '').replace(/\{(\w+)\}/g, '…');
+
+// ---------- SMART: qué letras cumple algo (una iniciativa, una tarea, un hábito, un objetivo…).
+function smartDe(o) {
+  const t = String(o.t || '').trim();
+  return {
+    S: t.split(/\s+/).filter(Boolean).length >= 2,
+    M: !!(o.exito || o.medida || o.tipo === 'tarea' || o.tipo === 'habito' || o.tipo === 'plan' || o.tipo === 'evento' || /\d/.test(t)),
+    A: !!((o.min && o.min <= 90) || o.paso || o.tipo === 'habito'),
+    R: !!(o.por || o.obj || o.porque || ['ini', 'prio', 'habito', 'plan'].includes(o.tipo)),
+    T: !!(o.h || o.hora || o.fecha),
+  };
+}
+const smartTodo = s => SMART_L.every(l => s[l]);
+const smartDots = s => `<span class="smart" title="${SMART_L.map(l => `${l}: ${SMART_NOMBRE[l]}${s[l] ? ' ✓' : ''}`).join(' · ')}">${SMART_L.map(l => `<i class="${s[l] ? 'on' : ''}">${l}</i>`).join('')}</span>`;
+const smartFalta = s => SMART_L.filter(l => !s[l]).map(l => SMART_NOMBRE[l].toLowerCase()).join(', ');
+
+// ---------- Estructura SMART por categoría de iniciativa: campos propios de cada una para que no quede ambigua.
+const INI_SMART = {
+  estudio: { verbos: ['Estudiar', 'Practicar', 'Leer', 'Resolver', 'Resumir', 'Repasar'], campos: [
+    { k: 'que', letra: 'S', label: 'Qué tema, exactamente', ph: 'Capítulo 3 de álgebra · vocabulario del tema 5', req: true },
+    { k: 'metodo', letra: 'S', label: 'Cómo (método)', ph: 'Ejercicios · tarjetas · resumen · práctica con ejemplos' },
+    { k: 'medida', letra: 'M', label: 'Cantidad que deja huella', ph: '10 ejercicios resueltos · 20 páginas · resumen de 5 líneas', req: true },
+    { k: 'porque', letra: 'R', label: 'Para qué', ph: 'El parcial del 15 · hablar inglés en junio' }],
+    titulo: o => `${o.verbo} ${o.que}${o.metodo ? ' con ' + o.metodo : ''}`, exito: o => `${o.medida}` },
+  proyecto: { verbos: ['Avanzar', 'Terminar', 'Escribir', 'Diseñar', 'Construir', 'Publicar'], campos: [
+    { k: 'proyecto', letra: 'S', label: 'Proyecto', ph: 'Mi web · la tesis · la app' , req: true },
+    { k: 'que', letra: 'S', label: 'Paso concreto de hoy', ph: 'La portada · el capítulo 2 · la pantalla de inicio', req: true },
+    { k: 'medida', letra: 'M', label: 'Entregable visible al terminar', ph: 'Archivo guardado · commit subido · boceto en papel', req: true },
+    { k: 'porque', letra: 'R', label: 'Qué acerca', ph: 'Lanzar en diciembre · entregar la tesis' }],
+    titulo: o => `${o.verbo} ${o.que} (${o.proyecto})`, exito: o => `${o.medida}` },
+  laboral: { verbos: ['Enviar', 'Proponer', 'Terminar', 'Llamar a', 'Preparar', 'Pedir'], campos: [
+    { k: 'que', letra: 'S', label: 'Qué, exactamente', ph: 'La propuesta de mejora · el informe de ventas · 15 min con mi jefe', req: true },
+    { k: 'quien', letra: 'S', label: 'A quién o con quién', ph: 'Luis · el equipo · el cliente' },
+    { k: 'medida', letra: 'M', label: 'Estado que confirma que está hecho', ph: 'Enviado · reunión agendada · respuesta recibida', req: true },
+    { k: 'porque', letra: 'R', label: 'Para qué', ph: 'Que me tengan en cuenta para el proyecto · cerrar el trimestre' }],
+    titulo: o => `${o.verbo} ${o.que}${o.quien ? ' a ' + o.quien : ''}`.replace(' a a ', ' a '), exito: o => `${o.medida}` },
+  social: { verbos: ['Escribir a', 'Llamar a', 'Invitar a', 'Proponer a', 'Agradecer a', 'Visitar a'], campos: [
+    { k: 'persona', letra: 'S', label: 'Persona', ph: 'Ana · mi abuela · un compañero nuevo', req: true },
+    { k: 'que', letra: 'S', label: 'Para qué, en concreto', ph: 'Un café el jueves · preguntarle por su examen · darle las gracias por…', req: true },
+    { k: 'canal', letra: 'S', label: 'Por dónde', ph: 'WhatsApp · llamada · en persona' },
+    { k: 'medida', letra: 'M', label: 'Hecha cuando', ph: 'Mensaje enviado · fecha acordada · llamada hecha', req: true },
+    { k: 'porque', letra: 'R', label: 'Por qué importa', ph: 'No perder el contacto · hacer un amigo nuevo' }],
+    titulo: o => `${o.verbo} ${o.persona}: ${o.que}${o.canal ? ' (' + o.canal + ')' : ''}`, exito: o => `${o.medida}` },
+  espiritual: { verbos: ['Orar', 'Leer', 'Agradecer', 'Servir a', 'Perdonar a', 'Interceder por'], campos: [
+    { k: 'que', letra: 'S', label: 'Práctica concreta', ph: 'Salmo 23 · oración de la mañana · examen del día · ayudar a mi vecino', req: true },
+    { k: 'intencion', letra: 'S', label: 'Pasaje, persona o intención', ph: 'Mi familia · Juan 15 · gratitud por…' },
+    { k: 'medida', letra: 'M', label: 'Hecha cuando', ph: '10 minutos en silencio · capítulo leído y una frase anotada · acto hecho', req: true },
+    { k: 'porque', letra: 'R', label: 'Para qué', ph: 'Empezar el día con Dios · paz · obediencia' }],
+    titulo: o => `${o.verbo} ${o.que}${o.intencion ? ' · ' + o.intencion : ''}`, exito: o => `${o.medida}` },
+};
+// Plantillas listas (una o dos palabras por rellenar) y objetivos de ejemplo: se definen en INI_PLANTILLAS y OBJ_PLANTILLAS.
+const plantillasDe = k => (typeof INI_PLANTILLAS === 'object' && INI_PLANTILLAS[k]) || [];
+const plantillasDia = (k, n = 2) => { const L = plantillasDe(k); if (!L.length) return []; const s = semilla(); return Array.from({ length: Math.min(n, L.length) }, (_, i) => L[(s + i * 3) % L.length]); };
+// Una iniciativa lista para hoy a partir de una plantilla ya rellenada.
+const dePlantilla = (p, vals = {}) => ({ t: rellenar(p.t, vals), exito: rellenar(p.hecho, vals), min: p.min || AG_MIN.ini, h: '', por: p.porque || '', paso: '', src: 'plantilla:' + p.id });
+
+// ---------- Datos de la agenda
+function agenda() {
+  const A = ES.agendaHoy;
+  if (A.fecha !== today()) {
+    if (A.fecha && A.items.length) { const H = { ...(ES.agendaHist || {}) }; H[A.fecha] = A.items.map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: agHecho(it, A.fecha) })); ES.agendaHist = H; }
+    ES.agendaHoy = { fecha: today(), items: [], organizado: 0, completa: false };
+  }
+  return ES.agendaHoy;
+}
+const agFuente = it => {
+  const s = HT();
+  if (it.tipo === 'habito') return s.habits.find(x => x.id === it.ref);
+  if (it.tipo === 'tarea') return s.tareas.items.find(x => x.id === it.ref);
+  if (it.tipo === 'ini') return ini4Semana().items.find(x => x.k === it.ref);
+  if (it.tipo === 'prio') return ES.prioridades.items.find(x => x.id === it.ref);
+  if (it.tipo === 'plan') return ES.planes.find(x => x.id === it.ref);
+  return it;
+};
+const agVivo = it => !!agFuente(it) && (it.tipo !== 'ini' || !!agFuente(it).t);
+function agHecho(it, k = today()) {
+  const s = HT();
+  if (it.tipo === 'habito') { const h = s.habits.find(x => x.id === it.ref); return h ? ['full', 'min'].includes(s.log[h.id]?.[k]) : !!it.hecho; }
+  if (it.tipo === 'ini' && k !== today()) return (ES.iniHist?.[k] || []).includes(it.ref);
+  const f = agFuente(it);
+  if (it.tipo === 'tarea') return f ? !!f.hecha : !!it.hecho;
+  if (it.tipo === 'ini' || it.tipo === 'prio' || it.tipo === 'plan') return f ? !!f.hecho : !!it.hecho;
+  return !!it.hecho;
+}
+const agItems = () => agenda().items.filter(agVivo);
+const agOrden = (a, b) => (a.h && b.h) ? toMin(a.h) - toMin(b.h) : a.h ? -1 : b.h ? 1 : 0;
+const agEtiqueta = it => it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda';
+// Lo que SMART mira de cada ítem: el ítem más lo que sabe su fuente (señal de hecho, primer paso, por qué, objetivo).
+const agSmartSrc = it => { const f = agFuente(it) || {}; return { ...it, exito: f.exito || it.exito, paso: f.paso || it.paso, por: f.por || it.por, obj: f.obj || it.obj, minima: f.minima }; };
+// Siguiente ítem pendiente con hora, si su momento es ahora (desde 15 minutos antes hasta 30 después de su fin).
+function agendaAhora() {
+  const now = nowMin();
+  return agItems().filter(it => it.h && !agHecho(it) && it.tipo !== 'evento').sort(agOrden).find(it => toMin(it.h) <= now + 15 && now <= toMin(it.h) + (it.min || 30) + 30) || null;
+}
+// Eventos de Google Calendar de hoy, como ítems de la agenda (se renuevan con cada carga).
+function agSyncEventos(evs) {
+  const A = agenda(), prev = A.items.filter(it => it.tipo === 'evento'), antes = JSON.stringify(prev);
+  const nuevos = (evs || []).slice(0, 12).map(ev => { const p = prev.find(x => x.ref === (ev.id || ev.titulo + ev.inicio)); const min = ev.todoElDia ? 0 : Math.round((Date.parse(ev.fin) - Date.parse(ev.inicio)) / 60000);
+    return { id: p?.id || crypto.randomUUID(), tipo: 'evento', ref: ev.id || ev.titulo + ev.inicio, t: ev.titulo, h: ev.todoElDia ? '' : hhmm(new Date(ev.inicio)), min: min > 0 && min <= 720 ? min : 60, hecho: !!p?.hecho, enlace: ev.enlace || '' }; });
+  A.items = [...A.items.filter(it => it.tipo !== 'evento'), ...nuevos];
+  return JSON.stringify(nuevos) !== antes;
+}
+// Marcar hecho o deshacer, en la fuente real de cada ítem (así cuenta igual que desde Hábitos, Tareas o las iniciativas).
+function iniMarcar(i, hecho) {
+  const I = ini4Semana(), x = I.items[i]; if (!x || !!x.hecho === !!hecho) return;
+  x.hecho = hecho; bump('iniciativas', hecho ? 1 : -1); bump('ini4', hecho ? 1 : -1);
+  if (x.k === 'social') bump('ini_social', hecho ? 1 : -1); if (x.k === 'espiritual') bump('ini_esp', hecho ? 1 : -1);
+  if (hecho) {
+    iniPremios(I); if (x.obj) objAvance(x.obj, 1, x.t);
+    if (smartTodo(smartDe({ ...x, tipo: 'ini', h: x.hora })) && !x.smartBonus) { x.smartBonus = true; setTimeout(() => xpGanar(10, 'Iniciativa SMART completa'), 700); }
+  }
+}
+function prioMarcar(id, hecho) {
+  const P = ES.prioridades, x = P.items.find(i => i.id === id); if (!x || !!x.hecho === !!hecho) return;
+  const idx = P.items.indexOf(x); x.hecho = hecho; bump('iniciativas', hecho ? 1 : -1);
+  if (!hecho) return;
+  buzz(30); xpGanar(idx === 0 ? 40 : idx >= 3 ? 30 : 25, idx === 0 ? 'La rana, primero' : idx >= 3 ? 'Prioridad extra' : 'Prioridad hecha');
+  const tres = P.items.slice(0, 3);
+  if (tres.length === 3 && tres.every(i => i.hecho) && !P.bonus) { P.bonus = true; setTimeout(() => xpGanar(50, 'Las tres prioridades del día'), 1200); }
+  const pr = ES.proyectos.find(p => p.id === x.pro); if (pr && pr.paso === x.t) pasoHecho(pr);
+  if (x.obj) objAvance(x.obj, 1, x.t);
+}
+function agMarcar(it, hecho = !agHecho(it)) {
+  const s = HT(), f = agFuente(it);
+  if (it.tipo === 'habito') { if (!f) return; if (hecho) complete(f, 'full'); else setMark(f, ''); }
+  else if (it.tipo === 'tarea') { if (!f) return; if (hecho) completeTask(f); else uncompleteTask(f); save(); if (view === 'tareas') renderTareas(); gAuto(); }
+  else if (it.tipo === 'ini') iniMarcar(iniIdx(it.ref), hecho);
+  else if (it.tipo === 'prio') prioMarcar(it.ref, hecho);
+  else if (it.tipo === 'plan') { if (f) { f.hecho = hecho; if (hecho) f.resultado = 'si'; } }
+  else { it.hecho = hecho; if (hecho && it.tipo === 'libre' && !it.premiado) { it.premiado = true; xpGanar(10, 'Agenda cumplida'); } }
+  if (hecho && it.obj && !['ini', 'prio'].includes(it.tipo)) objAvance(it.obj, 1, it.t);
+  guardar(); renderE(); renderAg(); agCompleta();
+}
+function agCompleta() {
+  const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento');
+  if (its.length >= 3 && its.every(it => agHecho(it)) && !A.completa) { A.completa = true; bump('agendas'); guardar(); buzz([40, 60, 40]); setTimeout(() => xpGanar(25, 'Agenda del día completa'), 800); }
+}
+function agQuitar(it) {
+  const A = agenda(); A.items = A.items.filter(x => x.id !== it.id); forget(it.id);
+  if (it.tipo === 'ini') { const x = agFuente(it); if (x && !x.hecho) { x.t = ''; x.hora = ''; x.exito = ''; } }
+  guardar(); renderE(); renderAg();
+}
+function agPonerHora(it, h) { it.h = h || ''; const f = agFuente(it); if (it.tipo === 'ini' && f) f.hora = it.h; if (it.tipo === 'tarea' && f) f.hora = it.h; guardar(); renderE(); renderAg(); }
+
+// ---------- Crear en el momento: un hábito o una tarea con lo mínimo SMART (qué, cuándo, cuánto).
+function agCrearHabito(d) {
+  const h = { id: crypto.randomUUID(), creado: today(), clave: false, rutina: false, nombre: d.nombre, icono: 'punto', color: '', padre: '', identidad: '', minima: d.minima || '', modo: 'check', meta: 1, lugar: '', despuesDe: '', recompensa: '', celebracion: '',
+    beneficios: [d.porque || 'Me acerca a quien quiero ser'], contras: ['Un día más sin avanzar'], dias: Array.isArray(d.dias) && d.dias.length ? d.dias : [...ALL_DAYS], horas: d.hora ? [d.hora] : [] };
+  HT().habits.push(h); save(); render(); return h;
+}
+function agCrearTarea(d) {
+  const T = HT().tareas, lista = T.listas.find(l => l.id === T.activa) || T.listas[0];
+  const x = { id: crypto.randomUUID(), lista: lista.id, titulo: d.titulo, detalle: d.detalle || '', fecha: d.fecha === undefined ? today() : d.fecha, hecha: false, creado: Date.now(), repite: '', dias: [], hora: d.hora || '', obj: d.obj || '' };
+  T.items.push(x); save(); if (view === 'tareas') renderTareas(); gAuto(); return x;
+}
+const horaInput = (id, v, extra = '') => `<input type="time" class="ag-time" id="${id}" value="${esc(v || '')}" ${extra}>`;
+const franjaChips = (id, v) => `<div class="chips ag-franjas" data-for="${id}">${FRANJAS.map(([n, h]) => `<button type="button" class="chip${v === h ? ' on' : ''}" data-h="${h}">${n} ${fmtHora(h)}</button>`).join('')}</div>`;
+// Las franjas ponen la hora en el input al que apuntan.
+function activarFranjas(body) {
+  body.querySelectorAll('.ag-franjas').forEach(c => c.addEventListener('click', e => { const b = e.target.closest('[data-h]'); if (!b) return; const inp = body.querySelector('#' + c.dataset.for); if (inp) { inp.value = b.dataset.h; inp.dispatchEvent(new Event('change')); } c.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); }));
+}
+
+// ---------- Mi iniciativa SMART: formulario propio de cada categoría; el título y la señal de hecho se componen solos.
+function iniCrearSmart(k, cb, base = {}) {
+  const D = INI_SMART[k], n = iniNombre(k), v = base.campos || {}, objs = ES.objetivos.filter(o => !o.hecho);
+  showSheet(`<h2>Mi iniciativa de ${n.toLowerCase()}</h2>
+    <p class="sci">Que no quede ambigua: un verbo y un qué concretos (S), una señal de hecho que se pueda ver (M), minutos realistas y un primer paso (A), para qué sirve (R) y la hora de hoy (T).</p>
+    <div class="field"><label>S · Acción</label><div class="chips" id="is-verbos">${D.verbos.map(x => `<button type="button" class="chip${(v.verbo || D.verbos[0]) === x ? ' on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
+    ${D.campos.map(c => `<div class="field"><label>${c.letra} · ${esc(c.label)}${c.req ? '' : ' <span class="meta">(opcional)</span>'}</label><input data-k="${c.k}" maxlength="100" value="${esc(v[c.k] || '')}" placeholder="${esc(c.ph || '')}"></div>`).join('')}
+    <div class="field"><label>A · Minutos</label><div class="chips" id="is-min">${MINUTOS_AG.map(m => `<button type="button" class="chip${(base.min || 25) === m ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
+    <div class="field"><label>A · Primer paso (menos de 2 minutos) <span class="meta">(opcional)</span></label><input id="is-paso" maxlength="100" value="${esc(base.paso || '')}" placeholder="Abrir el documento · marcar el número · sacar el libro"></div>
+    ${objs.length ? `<div class="field"><label>R · Objetivo al que suma <span class="meta">(opcional)</span></label><select id="is-obj"><option value="">Ninguno</option>${objs.map(o => `<option value="${o.id}" ${base.obj === o.id ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>` : ''}
+    <div class="field"><label>T · Hora de hoy</label>${horaInput('is-hora', base.h || base.hora || '')}${franjaChips('is-hora', base.h || base.hora || '')}</div>
+    <p class="meta" id="is-prev"></p><p class="meta red" id="is-err"></p>
+    <div class="actions"><button class="link" id="is-cancel">Cancelar</button><button class="primary" id="is-ok">Guardar y usar hoy</button></div>`);
+  const body = $('#sheet-body'); activarFranjas(body);
+  let verbo = v.verbo || D.verbos[0], min = base.min || 25;
+  const leer = () => { const o = { verbo }; body.querySelectorAll('[data-k]').forEach(i => { o[i.dataset.k] = i.value.trim(); }); return o; };
+  const prev = () => { const o = leer(); const t = D.titulo(o), ex = D.exito(o); $('#is-prev').innerHTML = o.que ? `Quedará así: <b style="color:var(--text)">${esc(t)}</b>${ex ? ` · hecha cuando: ${esc(ex)}` : ''}` : ''; };
+  body.querySelectorAll('[data-k]').forEach(i => i.addEventListener('input', prev));
+  $('#is-verbos').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; verbo = c.dataset.v; $('#is-verbos').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); prev(); });
+  $('#is-min').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; min = +c.dataset.m; $('#is-min').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  $('#is-cancel').onclick = () => cb(null);
+  $('#is-ok').onclick = () => {
+    const o = leer(), falta = D.campos.find(c => c.req && !o[c.k]);
+    if (falta) { $('#is-err').textContent = `Falta: ${falta.label.toLowerCase()}.`; body.querySelector(`[data-k="${falta.k}"]`).focus(); return; }
+    const h = $('#is-hora').value;
+    const ini = { id: crypto.randomUUID(), t: D.titulo(o), exito: D.exito(o), por: o.porque || '', paso: $('#is-paso').value.trim(), hora: h, min, obj: $('#is-obj')?.value || '', donde: '', obst: '', plan: '', campos: o, origen: 'Mía', veces: 1, smart: true };
+    if (!ES.catalogoIni[k].some(x => x.t === ini.t)) ES.catalogoIni[k].push(ini);
+    guardar(); toast('Guardada en «Mis iniciativas».');
+    cb({ t: ini.t, exito: ini.exito, min, h, por: ini.por, paso: ini.paso, obj: ini.obj, src: 'mia:' + ini.id });
+  };
+  prev();
+}
+// Rellenar los huecos de una plantilla ({tema}, {persona}…) y usarla hoy.
+function plantillaForm(k, p, cb) {
+  showSheet(`<h2>${esc(sinHuecos(p.t))}</h2>
+    <p class="note">${esc(p.porque || '')}${p.porque ? ' · ' : ''}Hecha cuando: ${esc(sinHuecos(p.hecho))} · ${p.min} min</p>
+    ${p.campos.map(c => `<div class="field"><label>${esc(c.label)}</label><input data-k="${c.k}" maxlength="80" placeholder="${esc(c.ej || '')}"></div>`).join('')}
+    <div class="field"><label>T · Hora de hoy</label>${horaInput('pf-hora', franjaHora(p.franja))}${franjaChips('pf-hora', franjaHora(p.franja))}</div>
+    <p class="meta red" id="pf-err"></p>
+    <div class="actions"><button class="link" id="pf-cancel">Volver</button><button class="primary" id="pf-ok">Usar hoy</button></div>`);
+  const body = $('#sheet-body'); activarFranjas(body); setTimeout(() => body.querySelector('[data-k]')?.focus(), 60);
+  $('#pf-cancel').onclick = () => cb(null);
+  $('#pf-ok').onclick = () => {
+    const vals = {}; let falta = null;
+    body.querySelectorAll('[data-k]').forEach(i => { vals[i.dataset.k] = i.value.trim(); if (!vals[i.dataset.k] && !falta) falta = i; });
+    if (falta) { $('#pf-err').textContent = 'Rellena los huecos: así la iniciativa no queda ambigua.'; falta.focus(); return; }
+    cb({ ...dePlantilla(p, vals), h: $('#pf-hora').value });
+  };
+}
+// Elegir la iniciativa de una categoría: sugeridas hoy, plantillas SMART, las mías, o crear una.
+function iniElegir(k, cb, base = {}) {
+  const n = iniNombre(k), [, , desc] = INI4[iniIdx(k)], mias = ES.catalogoIni[k], sug = ini4Sugerencias(k), dia = plantillasDia(k, 2), P = plantillasDe(k), x = ini4Semana().items[iniIdx(k)];
+  const fila = (t, small, attrs, dot = 'var(--empty)') => `<button class="row" ${attrs}><span class="dot" style="--c:${dot}"></span><span class="t"><div>${esc(t)}</div>${small ? `<small>${esc(small)}</small>` : ''}</span><span class="tag">›</span></button>`;
+  showSheet(`<h2>Iniciativa de ${n.toLowerCase()}</h2>
+    <p class="note">${esc(desc)}. Toca una y queda como la de hoy${x?.t ? ` (ahora: «${esc(x.t)}»)` : ''}.</p>
+    ${sug.length || dia.length ? `<h3 style="margin-top:0">Sugeridas hoy</h3><div class="rows">${sug.slice(0, 2).map((t, i) => fila(t, 'De tus proyectos, personas y hábitos', `data-sug="${i}"`, 'var(--accent)')).join('')}${dia.map(p => fila(sinHuecos(p.t), `${sinHuecos(p.hecho)} · ${p.min} min`, `data-pl="${esc(p.id)}"`, 'var(--green)')).join('')}</div>` : ''}
+    ${mias.length ? `<h3>Mis iniciativas</h3><div class="rows">${mias.slice().reverse().slice(0, 12).map(o => fila(o.t, [o.exito, o.min ? o.min + ' min' : '', o.origen].filter(Boolean).join(' · '), `data-mia="${esc(o.id)}"`, 'var(--green)')).join('')}</div>` : ''}
+    ${P.length ? `<h3>Plantillas SMART</h3><div class="rows">${P.map(p => fila(sinHuecos(p.t), `${sinHuecos(p.hecho)} · ${p.min} min · ${p.franja}`, `data-pl="${esc(p.id)}"`)).join('')}</div>` : ''}
+    <h3>Ideas rápidas</h3><div class="rows">${INI_CAT[k].slice(0, 12).map((t, j) => fila(t, '', `data-idea="${j}"`)).join('')}</div>
+    <div class="actions"><button class="link" id="ie-crear">Crear la mía (SMART)</button><button class="link" id="ie-back">Volver</button></div>`);
+  const body = $('#sheet-body');
+  body.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => cb({ t: sug[+b.dataset.sug], exito: '', min: AG_MIN.ini, h: '', por: '', paso: '', src: 'sugerida' }));
+  body.querySelectorAll('[data-idea]').forEach(b => b.onclick = () => cb({ t: INI_CAT[k][+b.dataset.idea], exito: '', min: AG_MIN.ini, h: '', por: '', paso: '', src: 'idea' }));
+  body.querySelectorAll('[data-mia]').forEach(b => b.onclick = () => { const o = mias.find(m => m.id === b.dataset.mia); o.veces = (o.veces || 0) + 1; guardar(); cb({ t: o.t, exito: o.exito || '', min: o.min || AG_MIN.ini, h: o.hora || '', por: o.por || '', paso: o.paso || '', obj: o.obj || '', src: 'mia:' + o.id }); });
+  body.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = P.find(q => q.id === b.dataset.pl); if (!p) return; if (p.campos?.length) plantillaForm(k, p, r => r ? cb(r) : iniElegir(k, cb, base)); else cb({ ...dePlantilla(p), h: franjaHora(p.franja) }); });
+  $('#ie-crear').onclick = () => iniCrearSmart(k, r => r ? cb(r) : iniElegir(k, cb, base), base);
+  $('#ie-back').onclick = () => cb(null);
+}
+
+// ---------- Organizar mi día: cuatro pasos con todo preseleccionado.
+let org = null;
+function orgInit(desde = null) {
+  const A = agenda(), s = HT(), t = today(), sel = new Map(A.items.map(it => [it.tipo + ':' + it.ref, it]));
+  const habs = s.habits.filter(h => !h.rutina && (!h.creado || h.creado <= t) && isSched(h, t));
+  org = { hab: new Map(), tar: new Map(), ini: {}, prioH: {}, libres: A.items.filter(it => it.tipo === 'libre'), nuevos: 0 };
+  for (const h of habs) { const it = sel.get('habito:' + h.id); org.hab.set(h.id, { on: it ? true : !A.organizado, h: it?.h || (h.horas || [])[0] || '' }); }
+  const p = pendientes();
+  for (const x of [...p.due, ...p.sinFecha.slice(0, 15)]) { const it = sel.get('tarea:' + x.id); org.tar.set(x.id, { on: it ? true : (!A.organizado && !!x.fecha), h: it?.h || x.hora || '' }); }
+  for (const x of ini4Semana().items) if (x.t) org.ini[x.k] = { t: x.t, exito: x.exito || '', min: x.min || AG_MIN.ini, h: x.hora || '', por: x.por || '', paso: x.paso || '', obj: x.obj || '', on: true, src: 'hoy' };
+  for (const x of ES.prioridades.items) { const it = sel.get('prio:' + x.id); if (it?.h) org.prioH[x.id] = it.h; }
+  if (desde) orgDesdeHist(desde); else if (!A.organizado) orgIniSugerir();
+}
+// Sugerencias de iniciativas para llegar al mínimo del día sin pensar: la espiritual siempre; luego las que falten.
+function orgIniSugerir() {
+  const sugerir = k => { const dia = plantillasDia(k, 3).find(p => !p.campos?.length); if (dia) return { ...dePlantilla(dia), h: franjaHora(dia.franja), on: false, src: 'sugerida' }; const s = ini4Sugerencias(k)[0] || INI_CAT[k][semilla() % INI_CAT[k].length]; return { t: s, exito: '', min: AG_MIN.ini, h: '', por: '', paso: '', on: false, src: 'sugerida' }; };
+  for (const [k] of INI4) if (!org.ini[k]) org.ini[k] = sugerir(k);
+  let on = Object.values(org.ini).filter(o => o.on).length;
+  if (!org.ini.espiritual.on) { org.ini.espiritual.on = true; on++; }
+  if (socialEnRiesgo() && !org.ini.social.on) { org.ini.social.on = true; on++; }
+  for (const k of ['proyecto', 'estudio', 'laboral', 'social']) { if (on >= ES.minIni) break; if (!org.ini[k].on) { org.ini[k].on = true; on++; } }
+}
+function orgDesdeHist(fecha) {
+  const H = ES.agendaHist?.[fecha] || [], s = HT(), t = today();
+  for (const it of H) {
+    if (it.tipo === 'habito' && org.hab.has(it.ref)) org.hab.set(it.ref, { on: true, h: it.h || org.hab.get(it.ref).h });
+    if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x && !x.hecha) org.tar.set(x.id, { on: true, h: it.h || '' }); }
+    if (it.tipo === 'ini' && !org.ini[it.ref]?.on) org.ini[it.ref] = { t: it.t, exito: '', min: it.min || AG_MIN.ini, h: it.h || '', por: '', paso: '', obj: '', on: true, src: 'ayer' };
+    if (it.tipo === 'libre' && !org.libres.some(x => x.t === it.t)) org.libres.push({ id: crypto.randomUUID(), tipo: 'libre', ref: '', t: it.t, h: it.h || '', min: it.min || AG_MIN.libre, hecho: false });
+  }
+  for (const [k, o] of Object.entries(org.ini)) if (!o) delete org.ini[k];
+}
+const pie = (n, t) => `<p class="paso">Paso ${n} de 4 · ${t}</p>`;
+const boxSt = on => on ? 'background:var(--text);border-color:var(--text)' : '';
+function organizarDia(paso = 1) {
+  if (!org || paso === 1 && !org.enCurso) { orgInit(); org.enCurso = true; }
+  const s = HT(), body = () => $('#sheet-body');
+  if (paso === 1) {
+    const habs = s.habits.filter(h => org.hab.has(h.id)), hoyHechos = h => ['full', 'min'].includes(s.log[h.id]?.[today()]);
+    showSheet(`${pie(1, 'Hábitos')}<h2>¿Qué hábitos entran hoy?</h2>
+      <p class="note">Ya están marcados los que tocan hoy. Toca la hora para cambiarla. Un hábito con hora fija se cumple mucho más (Gollwitzer y Sheeran, 2006).</p>
+      ${habs.length ? `<div class="rows">${habs.map(h => { const o = org.hab.get(h.id), ok = hoyHechos(h); return `<div class="row"><button class="box" data-hab="${esc(h.id)}" style="${ok ? 'background:var(--green);border-color:var(--green)' : boxSt(o.on)}" ${ok ? 'disabled' : ''}></button>
+        <span class="t"><div>${esc(h.nombre)}${ok ? ' <span class="green">· hecho</span>' : ''}</div><small>${h.minima ? `2 min: ${esc(h.minima)}` : h.modo === 'tiempo' ? `${h.meta} min al día` : h.modo === 'veces' ? `${h.meta} veces al día` : 'Hábito'}</small></span>
+        ${horaInput('oh-' + h.id, o.h, `data-th="${esc(h.id)}"`)}</div>`; }).join('')}</div>` : '<p class="empty">Hoy no toca ningún hábito. Puedes crear uno aquí mismo.</p>'}
+      <details ${habs.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear un hábito nuevo</summary>
+        <div class="field" style="margin-top:12px"><label>S · Hábito (verbo + qué)</label><input id="oh-n" maxlength="60" placeholder="Leer 10 páginas · Caminar 20 minutos · Orar 5 minutos"></div>
+        <div class="times"><div class="field"><label>T · Hora</label>${horaInput('oh-h', '')}</div><div class="field"><label>M · Versión de 2 minutos</label><input id="oh-min" maxlength="60" placeholder="Leer 1 página"></div></div>
+        <div class="field"><label>R · Por qué (una línea)</label><input id="oh-por" maxlength="80" placeholder="Para llegar al examen con calma"></div>
+        <div class="actions" style="margin-top:0"><button class="link" id="oh-crear">Crear y poner hoy</button></div></details>
+      <div class="actions"><button class="link" id="og-skip">Saltar</button><button class="primary" id="og-next">Siguiente</button></div>`);
+    const b = body();
+    b.querySelectorAll('[data-hab]').forEach(x => x.onclick = () => { const o = org.hab.get(x.dataset.hab); o.on = !o.on; x.style.cssText = boxSt(o.on); });
+    b.querySelectorAll('[data-th]').forEach(i => i.addEventListener('change', () => { const o = org.hab.get(i.dataset.th); o.h = i.value; o.on = true; b.querySelector(`[data-hab="${i.dataset.th}"]`).style.cssText = boxSt(true); }));
+    $('#oh-crear').onclick = () => { const nombre = $('#oh-n').value.trim(); if (!nombre) { $('#oh-n').focus(); return; } const h = agCrearHabito({ nombre, hora: $('#oh-h').value, minima: $('#oh-min').value.trim(), porque: $('#oh-por').value.trim() }); org.hab.set(h.id, { on: true, h: $('#oh-h').value }); org.nuevos++; toast('Hábito creado.'); organizarDia(1); };
+    $('#og-skip').onclick = () => { for (const o of org.hab.values()) o.on = false; organizarDia(2); };
+    $('#og-next').onclick = () => organizarDia(2);
+    return;
+  }
+  if (paso === 2) {
+    const p = pendientes(), ts = [...p.due, ...p.sinFecha].filter(x => org.tar.has(x.id));
+    showSheet(`${pie(2, 'Tareas')}<h2>¿Qué tareas entran hoy?</h2>
+      <p class="note">Las de hoy y las vencidas ya están marcadas. Ponles hora: una tarea con hora es una decisión tomada.</p>
+      ${ts.length ? `<div class="rows">${ts.map(x => { const o = org.tar.get(x.id); return `<div class="row"><button class="box" data-tar="${esc(x.id)}" style="${boxSt(o.on)}"></button>
+        <span class="t"><div>${esc(x.titulo)}</div><small>${x.fecha ? (x.fecha < today() ? `<span class="amber">Vencida · ${fmtFecha(x.fecha)}</span>` : fmtFecha(x.fecha)) : 'Sin fecha'}${x.detalle ? ' · ' + esc(x.detalle) : ''}</small></span>
+        ${horaInput('ot-' + x.id, o.h, `data-tt="${esc(x.id)}"`)}</div>`; }).join('')}</div>` : '<p class="empty">No hay tareas pendientes. Crea una si hace falta.</p>'}
+      <details ${ts.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear una tarea</summary>
+        <div class="field" style="margin-top:12px"><label>S · Tarea (verbo + qué + a quién)</label><input id="ot-n" maxlength="100" placeholder="Enviar la propuesta a Luis · Pagar la luz · Llamar al dentista"></div>
+        <div class="times"><div class="field"><label>T · Hora de hoy</label>${horaInput('ot-h', '')}</div><div class="field"><label>A · Minutos</label><select id="ot-m">${MINUTOS_AG.map(m => `<option value="${m}" ${m === 25 ? 'selected' : ''}>${m} min</option>`).join('')}</select></div></div>
+        <div class="actions" style="margin-top:0"><button class="link" id="ot-crear">Crear y poner hoy</button></div></details>
+      <div class="actions"><button class="link" id="og-back">Atrás</button><button class="link" id="og-skip">Saltar</button><button class="primary" id="og-next">Siguiente</button></div>`);
+    const b = body();
+    b.querySelectorAll('[data-tar]').forEach(x => x.onclick = () => { const o = org.tar.get(x.dataset.tar); o.on = !o.on; x.style.cssText = boxSt(o.on); });
+    b.querySelectorAll('[data-tt]').forEach(i => i.addEventListener('change', () => { const o = org.tar.get(i.dataset.tt); o.h = i.value; o.on = true; b.querySelector(`[data-tar="${i.dataset.tt}"]`).style.cssText = boxSt(true); }));
+    $('#ot-crear').onclick = () => { const titulo = $('#ot-n').value.trim(); if (!titulo) { $('#ot-n').focus(); return; } const x = agCrearTarea({ titulo, hora: $('#ot-h').value }); x.min = +$('#ot-m').value || 25; org.tar.set(x.id, { on: true, h: $('#ot-h').value }); org.nuevos++; toast('Tarea creada.'); organizarDia(2); };
+    $('#og-back').onclick = () => organizarDia(1);
+    $('#og-skip').onclick = () => { for (const o of org.tar.values()) o.on = false; organizarDia(3); };
+    $('#og-next').onclick = () => organizarDia(3);
+    return;
+  }
+  if (paso === 3) {
+    const on = Object.values(org.ini).filter(o => o?.on).length;
+    showSheet(`${pie(3, 'Iniciativas')}<h2>Las iniciativas de hoy</h2>
+      <p class="note">Mínimo ${ES.minIni} al día; la espiritual, todos los días; la social, ${ES.minSocial} días a la semana (${socialDiasSemana()} de ${ES.minSocial} esta semana). Ya hay una propuesta por categoría: cámbiala o crea la tuya.</p>
+      <div class="rows">${INI4.map(([k, n, d]) => { const o = org.ini[k], x = ini4Semana().items[iniIdx(k)], ok = !!x?.hecho, sm = o ? smartDe({ ...o, tipo: 'ini' }) : null;
+        return `<div class="row"><button class="box" data-ion="${k}" style="${ok ? 'background:var(--green);border-color:var(--green)' : boxSt(o?.on)}" ${ok ? 'disabled' : ''}></button>
+          <button class="t" data-iel="${k}" style="text-align:left"><div>${n}${k === 'espiritual' ? ' · cada día' : ''}${ok ? ' <span class="green">· hecha</span>' : ''}</div><small style="white-space:normal">${o ? esc(o.t) + (o.h ? ` · ${fmtHora(o.h)}` : '') + ' ' + smartDots(sm) : esc(d)}</small></button><span class="tag">${o ? 'Cambiar' : 'Elegir'} ›</span></div>`; }).join('')}</div>
+      <p class="meta" style="margin-top:10px">${on >= ES.minIni ? `${on} elegidas. ` : `<span class="amber">${on} de ${ES.minIni} mínimas.</span> `}Cada una vale ${XP_INI} XP; si es SMART completa, +10.</p>
+      <div class="actions"><button class="link" id="og-back">Atrás</button><button class="primary" id="og-next">Siguiente</button></div>`);
+    const b = body();
+    b.querySelectorAll('[data-ion]').forEach(x => x.onclick = () => { const k = x.dataset.ion, o = org.ini[k]; if (!o) return iniElegir(k, r => { if (r) org.ini[k] = { ...r, on: true }; organizarDia(3); }); o.on = !o.on; organizarDia(3); });
+    b.querySelectorAll('[data-iel]').forEach(x => x.onclick = () => { const k = x.dataset.iel; iniElegir(k, r => { if (r) org.ini[k] = { ...r, on: true }; organizarDia(3); }, org.ini[k] || {}); });
+    $('#og-back').onclick = () => organizarDia(2);
+    $('#og-next').onclick = () => { orgAutoHoras(false); organizarDia(4); };
+    return;
+  }
+  // Paso 4: horas y listo.
+  const L = orgLista();
+  showSheet(`${pie(4, 'Horas')}<h2>Tu día, en orden</h2>
+    <p class="note">Las que no tenían hora ya la tienen (desde ahora, en bloques). Cambia la que quieras y listo.</p>
+    ${L.length ? `<div class="rows">${L.map(e => `<div class="row"><span class="dot" style="--c:${e.fijo ? 'var(--muted)' : 'var(--accent)'}"></span><span class="t"><div>${esc(e.t)}</div><small>${esc(e.etq)}${e.min ? ` · ${fmtMin(e.min)}` : ''}</small></span>
+      ${e.fijo ? `<span class="tag">${e.h ? fmtHora(e.h) : 'Todo el día'}</span>` : horaInput('ol-' + e.key, e.h, `data-tl="${esc(e.key)}"`)}</div>`).join('')}</div>` : '<p class="empty">No hay nada elegido. Vuelve atrás y marca algo, o crea una tarea.</p>'}
+    <div class="actions" style="justify-content:space-between"><button class="link" id="og-auto">Reordenar horas desde ahora</button></div>
+    <div class="actions"><button class="link" id="og-back">Atrás</button><button class="primary" id="og-ok">Listo: mi día está organizado</button></div>`);
+  const b = body();
+  b.querySelectorAll('[data-tl]').forEach(i => i.addEventListener('change', () => orgSetHora(i.dataset.tl, i.value)));
+  $('#og-auto').onclick = () => { orgAutoHoras(true); organizarDia(4); };
+  $('#og-back').onclick = () => organizarDia(3);
+  $('#og-ok').onclick = () => { orgGuardar(); };
+}
+// Lista unificada de lo elegido (para poner horas): clave, texto, hora, minutos, si la hora es fija (planes y eventos).
+function orgLista() {
+  const s = HT(), L = [];
+  for (const x of ES.prioridades.items.filter(p => !p.hecho)) L.push({ key: 'prio:' + x.id, tipo: 'prio', t: x.t, etq: 'Prioridad', h: org.prioH[x.id] || '', min: AG_MIN.prio });
+  for (const [k, o] of Object.entries(org.ini)) if (o?.on) L.push({ key: 'ini:' + k, tipo: 'ini', t: o.t, etq: `Iniciativa de ${iniNombre(k).toLowerCase()}`, h: o.h || '', min: o.min || AG_MIN.ini });
+  for (const [id, o] of org.tar) if (o.on) { const x = s.tareas.items.find(y => y.id === id); if (x) L.push({ key: 'tar:' + id, tipo: 'tarea', t: x.titulo, etq: 'Tarea', h: o.h || '', min: x.min || AG_MIN.tarea }); }
+  for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) L.push({ key: 'hab:' + id, tipo: 'habito', t: h.nombre, etq: 'Hábito', h: o.h || '', min: h.modo === 'tiempo' ? h.meta : AG_MIN.habito }); }
+  for (const it of org.libres) L.push({ key: 'lib:' + it.id, tipo: 'libre', t: it.t, etq: 'Agenda', h: it.h || '', min: it.min || AG_MIN.libre });
+  for (const pl of ES.planes.filter(p => !p.hecho && p.fecha === today())) L.push({ key: 'plan:' + pl.id, tipo: 'plan', t: `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, etq: 'Plan', h: pl.hora, min: 60, fijo: true });
+  for (const it of agenda().items.filter(i => i.tipo === 'evento')) L.push({ key: 'ev:' + it.id, tipo: 'evento', t: it.t, etq: 'Calendario', h: it.h, min: it.min, fijo: true });
+  return L.sort(agOrden);
+}
+function orgSetHora(key, h) {
+  const [tipo, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+  if (tipo === 'prio') org.prioH[id] = h; else if (tipo === 'ini') org.ini[id].h = h; else if (tipo === 'tar') org.tar.get(id).h = h; else if (tipo === 'hab') org.hab.get(id).h = h; else if (tipo === 'lib') { const it = org.libres.find(x => x.id === id); if (it) it.h = h; }
+}
+// Horas automáticas: desde ahora (o desde las 7), en bloques del tamaño de cada cosa, saltando lo que ya tiene hora. Primero prioridades e iniciativas.
+function orgAutoHoras(todas) {
+  const L = orgLista(), ocup = L.filter(e => e.h && (!todas || e.fijo)).map(e => [toMin(e.h), toMin(e.h) + (e.min || 30)]);
+  const orden = { prio: 0, ini: 1, tarea: 2, habito: 3, libre: 4 };
+  const libres = L.filter(e => !e.fijo && (todas || !e.h)).sort((a, b) => (orden[a.tipo] ?? 9) - (orden[b.tipo] ?? 9));
+  let cursor = Math.max(nowMin() + 5, 7 * 60); cursor = Math.ceil(cursor / 5) * 5;
+  const fin = 23 * 60;
+  for (const e of libres) {
+    const dur = e.min || 30; let ini = cursor, vueltas = 0;
+    while (vueltas++ < 60) { const choque = ocup.find(([a, b]) => ini < b && ini + dur > a); if (!choque) break; ini = Math.ceil((choque[1] + 5) / 5) * 5; }
+    if (ini + dur > fin) break;
+    orgSetHora(e.key, minToHm(ini)); ocup.push([ini, ini + dur]); cursor = ini + dur + 10;
+  }
+}
+function orgGuardar() {
+  const A = agenda(), prev = new Map(A.items.map(it => [it.tipo + ':' + it.ref, it])), s = HT(), items = [];
+  const mk = (tipo, ref, t, h, min, extra = {}) => { const p = prev.get(tipo + ':' + ref); items.push({ id: p?.id || crypto.randomUUID(), tipo, ref, t, h: h || '', min: min || AG_MIN[tipo], hecho: !!p?.hecho, premiado: !!p?.premiado, ...extra }); };
+  for (const x of ES.prioridades.items.filter(p => !p.hecho)) mk('prio', x.id, x.t, org.prioH[x.id], AG_MIN.prio);
+  const I = ini4Semana();
+  for (const [k, o] of Object.entries(org.ini)) { const x = I.items[iniIdx(k)]; if (!x || !o) continue;
+    if (o.on) { if (!x.hecho || x.t === o.t) Object.assign(x, { t: o.t, exito: o.exito || (x.t === o.t ? x.exito : '') || '', hora: o.h || '', por: o.por || (x.t === o.t ? x.por : '') || '', paso: o.paso || (x.t === o.t ? x.paso : '') || '', min: o.min || AG_MIN.ini, obj: o.obj || (x.t === o.t ? x.obj : '') || '' }); mk('ini', k, x.t, x.hora, x.min, { obj: x.obj || '' }); }
+    else if (!x.hecho && x.t === o.t && o.src !== 'hoy') { x.t = ''; x.hora = ''; x.exito = ''; }
+    else if (!x.hecho && x.t === o.t) { x.t = ''; x.hora = ''; } }
+  for (const [id, o] of org.tar) if (o.on) { const x = s.tareas.items.find(y => y.id === id); if (x) { x.hora = o.h || x.hora || ''; mk('tarea', id, x.titulo, o.h, x.min || AG_MIN.tarea, { obj: x.obj || '' }); } }
+  for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) mk('habito', id, h.nombre, o.h, h.modo === 'tiempo' ? h.meta : AG_MIN.habito); }
+  for (const pl of ES.planes.filter(p => !p.hecho && p.fecha === today())) mk('plan', pl.id, `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, pl.hora, 60);
+  for (const it of A.items.filter(i => i.tipo === 'evento')) items.push(it);
+  for (const it of org.libres) items.push(it);
+  for (const it of A.items) if (!items.some(x => x.id === it.id)) forget(it.id);
+  A.items = items; A.organizado = Date.now(); A.completa = false;
+  const primera = !dayOf().agenda; if (primera) bump('agenda');
+  org = null; guardar(); save(); closeSheet(); renderE(); renderAg(); irA('agenda');
+  if (primera) xpGanar(20, 'Día organizado'); else toast('Agenda actualizada.');
+}
+function agCopiarAyer() { const ayer = dayKey(addDays(new Date(), -1)); orgInit(ayer); org.enCurso = true; orgAutoHoras(false); organizarDia(4); }
+
+// ---------- Añadir una cosa suelta a la agenda (hábito, tarea, iniciativa u otra cosa).
+function agAddSheet(tipo = '') {
+  const A = agenda(), s = HT(), en = new Set(A.items.map(it => it.tipo + ':' + it.ref));
+  const chips = `<div class="chips" id="aa-tipos">${[['habito', 'Hábito'], ['tarea', 'Tarea'], ['ini', 'Iniciativa'], ['libre', 'Otra cosa']].map(([k, n]) => `<button class="chip${tipo === k ? ' on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>`;
+  let cuerpo = '<p class="empty">Elige qué quieres añadir.</p>';
+  if (tipo === 'habito') { const habs = s.habits.filter(h => !h.rutina && !en.has('habito:' + h.id)); cuerpo = `${habs.length ? `<div class="rows">${habs.map(h => `<button class="row" data-h="${esc(h.id)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc(h.nombre)}</div><small>${isSched(h, today()) ? 'Toca hoy' : 'Otro día, pero puede entrar hoy'}${(h.horas || [])[0] ? ' · ' + fmtHora(h.horas[0]) : ''}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}
+    <div class="field" style="margin-top:14px"><label>S · Hábito nuevo (verbo + qué)</label><div style="display:flex;gap:10px"><input id="aa-n" maxlength="60" placeholder="Leer 10 páginas"><button class="link" id="aa-crear">Crear</button></div></div>`; }
+  if (tipo === 'tarea') { const p = pendientes(), ts = [...p.due, ...p.sinFecha].filter(x => !en.has('tarea:' + x.id)); cuerpo = `${ts.length ? `<div class="rows">${ts.slice(0, 20).map(x => `<button class="row" data-x="${esc(x.id)}"><span class="box"></span><span class="t"><div>${esc(x.titulo)}</div><small>${x.fecha ? fmtFecha(x.fecha) : 'Sin fecha'}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}
+    <div class="field" style="margin-top:14px"><label>S · Tarea nueva</label><div style="display:flex;gap:10px"><input id="aa-n" maxlength="100" placeholder="Enviar la propuesta a Luis"><button class="link" id="aa-crear">Crear</button></div></div>`; }
+  if (tipo === 'ini') cuerpo = `<div class="rows">${INI4.map(([k, n, d]) => { const x = ini4Semana().items[iniIdx(k)]; return `<button class="row" data-k="${k}"><span class="dot" style="--c:${x.hecho ? 'var(--green)' : x.t ? 'var(--accent)' : 'var(--empty)'}"></span><span class="t"><div>${n}</div><small>${esc(x.t || d)}</small></span><span class="tag">›</span></button>`; }).join('')}</div>`;
+  if (tipo === 'libre') cuerpo = `<div class="field"><label>S · Qué (verbo + qué)</label><input id="aa-n" maxlength="100" placeholder="Comprar el regalo de mamá · Ir al banco"></div>
+    <div class="times"><div class="field"><label>T · Hora</label>${horaInput('aa-h', '')}</div><div class="field"><label>A · Minutos</label><select id="aa-m">${MINUTOS_AG.map(m => `<option value="${m}" ${m === 25 ? 'selected' : ''}>${m} min</option>`).join('')}</select></div></div>${franjaChips('aa-h', '')}
+    <div class="actions" style="margin-top:0"><button class="primary" id="aa-ok">Añadir</button></div>`;
+  showSheet(`<h2>Añadir a la agenda</h2>${chips}${cuerpo}<div class="actions"><button class="link" id="aa-close">Cerrar</button></div>`);
+  const b = $('#sheet-body'); activarFranjas(b);
+  $('#aa-tipos').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) agAddSheet(c.dataset.k); });
+  $('#aa-close').onclick = closeSheet;
+  const poner = (t, ref, txt, h, min, extra = {}) => { A.items.push({ id: crypto.randomUUID(), tipo: t, ref, t: txt, h: h || '', min: min || AG_MIN[t], hecho: false, ...extra }); guardar(); renderE(); renderAg(); closeSheet(); toast('En la agenda.'); };
+  b.querySelectorAll('[data-h]').forEach(x => x.onclick = () => { const h = s.habits.find(y => y.id === x.dataset.h); poner('habito', h.id, h.nombre, (h.horas || [])[0], h.modo === 'tiempo' ? h.meta : AG_MIN.habito); });
+  b.querySelectorAll('[data-x]').forEach(x => x.onclick = () => { const t = s.tareas.items.find(y => y.id === x.dataset.x); poner('tarea', t.id, t.titulo, t.hora, t.min || AG_MIN.tarea); });
+  b.querySelectorAll('[data-k]').forEach(x => x.onclick = () => { const k = x.dataset.k; iniElegir(k, r => { if (!r) return agAddSheet('ini'); const it = ini4Semana().items[iniIdx(k)]; Object.assign(it, { t: r.t, exito: r.exito || '', hora: r.h || '', por: r.por || '', paso: r.paso || '', min: r.min || AG_MIN.ini, obj: r.obj || '' }); A.items = A.items.filter(i => !(i.tipo === 'ini' && i.ref === k)); poner('ini', k, r.t, r.h, r.min, { obj: r.obj || '' }); }); });
+  $('#aa-crear')?.addEventListener('click', () => { const n = $('#aa-n').value.trim(); if (!n) { $('#aa-n').focus(); return; } if (tipo === 'habito') { const h = agCrearHabito({ nombre: n }); poner('habito', h.id, h.nombre, '', AG_MIN.habito); } else { const x = agCrearTarea({ titulo: n }); poner('tarea', x.id, x.titulo, '', AG_MIN.tarea); } });
+  $('#aa-ok')?.addEventListener('click', () => { const n = $('#aa-n').value.trim(); if (!n) { $('#aa-n').focus(); return; } poner('libre', '', n, $('#aa-h').value, +$('#aa-m').value || AG_MIN.libre); });
+}
+// Ficha de un ítem: qué, SMART, empezar, hecha, hora, quitar.
+function agItemSheet(it) {
+  if (!it) return;
+  const ok = agHecho(it), src = agSmartSrc(it), s = smartDe(src), falta = smartFalta(s);
+  const f = agFuente(it) || {};
+  showSheet(`<p class="paso">${esc(agEtiqueta(it))}${it.h ? ` · ${fmtHora(it.h)}` : ''}${it.min ? ` · ${fmtMin(it.min)}` : ''}</p><h2>${esc(it.t)}</h2>
+    <p class="meta" style="margin:0 0 10px">${smartDots(s)} ${smartTodo(s) ? '<span class="green">SMART completa</span>' : `Le falta: ${esc(falta)}`}</p>
+    <dl class="woop">${src.exito ? `<dt>M · Hecha cuando</dt><dd>${esc(src.exito)}</dd>` : ''}${src.paso ? `<dt>A · Primer paso</dt><dd>${esc(src.paso)}</dd>` : ''}${src.minima ? `<dt>A · Versión de 2 minutos</dt><dd>${esc(src.minima)}</dd>` : ''}${src.por ? `<dt>R · Para qué</dt><dd>${esc(src.por)}</dd>` : ''}${src.obj && ES.objetivos.find(o => o.id === src.obj) ? `<dt>R · Objetivo</dt><dd>${esc(ES.objetivos.find(o => o.id === src.obj).t)}</dd>` : ''}</dl>
+    ${it.tipo === 'evento' && it.enlace ? `<p class="meta"><a href="${esc(it.enlace)}" target="_blank" rel="noopener">Abrir en Google Calendar</a></p>` : ''}
+    <div class="field"><label>T · Hora de hoy</label>${it.tipo === 'evento' || it.tipo === 'plan' ? `<p class="meta" style="margin:0">${it.h ? fmtHora(it.h) : 'Todo el día'} (fija)</p>` : horaInput('ai-h', it.h) + franjaChips('ai-h', it.h)}</div>
+    ${['tarea', 'libre', 'ini', 'prio'].includes(it.tipo) && objetivosActivos().length ? `<div class="field"><label>R · Suma a un objetivo</label><select id="ai-obj"><option value="">Ninguno</option>${objetivosActivos().map(o => `<option value="${o.id}" ${src.obj === o.id ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>` : ''}
+    <div class="actions stack" style="margin-top:4px">
+      ${ok ? '' : `<button class="primary" id="ai-go">Empezar ${it.min ? fmtMin(it.min) : '25 min'} sin teléfono</button>`}
+      <button class="outline" id="ai-ok">${ok ? 'Deshacer «hecha»' : 'Marcar hecha'}</button>
+      ${it.tipo === 'ini' ? '<button class="link" id="ai-ini">Ver la iniciativa</button>' : it.tipo === 'habito' ? '<button class="link" data-goview="hoy">Ir a Hábitos</button>' : it.tipo === 'tarea' ? '<button class="link" data-goview="tareas">Ir a Tareas</button>' : ''}
+      <button class="link red" id="ai-del">Quitar de la agenda</button><button class="link" id="ai-close">Cerrar</button></div>`);
+  const b = $('#sheet-body'); activarFranjas(b);
+  $('#ai-h')?.addEventListener('change', () => agPonerHora(it, $('#ai-h').value));
+  $('#ai-obj')?.addEventListener('change', () => { it.obj = $('#ai-obj').value; if (f && it.tipo !== 'libre') f.obj = it.obj; guardar(); renderAg(); });
+  $('#ai-go')?.addEventListener('click', () => { closeSheet(); irA('enfoque'); startFocus(it.t, Math.max(5, Math.min(120, it.min || 25)), f.pro || ''); });
+  $('#ai-ok').onclick = () => { closeSheet(); agMarcar(it, !ok); };
+  $('#ai-ini')?.addEventListener('click', () => ini4Sheet(iniIdx(it.ref)));
+  $('#ai-del').onclick = () => { closeSheet(); agQuitar(it); };
+  $('#ai-close').onclick = closeSheet;
+}
+
+// ---------- Objetivos SMART: metas de semanas o meses, con métrica, fecha y avance visible.
+const OBJ_AREAS = { estudio: 'Estudio', proyecto: 'Proyecto', laboral: 'Laboral', social: 'Social', espiritual: 'Espiritual', salud: 'Salud y hábitos', finanzas: 'Finanzas', orden: 'Orden', otro: 'Otro' };
+const objDias = o => o.fecha ? Math.round((Date.parse(o.fecha + 'T12:00') - Date.parse(today() + 'T12:00')) / 864e5) : null;
+const objPct = o => Math.min(100, Math.round((o.actual / Math.max(1, o.meta)) * 100));
+const objRitmo = o => { const d = objDias(o); if (d === null || d <= 0 || o.actual >= o.meta) return ''; const porSem = (o.meta - o.actual) / Math.max(1, d / 7); return `Para llegar: ${porSem < 1 ? (porSem * 7).toFixed(1).replace('.', ',') + ' ' + o.unidad + ' al día' : Math.ceil(porSem) + ' ' + o.unidad + ' por semana'}`; };
+const objetivosActivos = () => ES.objetivos.filter(o => !o.hecho).sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : 1);
+function objAvance(id, n = 1, nota = '') {
+  const o = ES.objetivos.find(x => x.id === id); if (!o || o.hecho) return;
+  o.actual = Math.max(0, +(o.actual + n).toFixed(2)); o.avances.push({ d: today(), n, nota: String(nota || '').slice(0, 80) }); o.avances = o.avances.slice(-300);
+  if (o.ultimoXp !== today() && n > 0) { o.ultimoXp = today(); xpGanar(5, `Avance: ${o.t}`); }
+  if (o.actual >= o.meta) { o.hecho = true; o.hechoEn = today(); buzz([60, 80, 60]); setTimeout(() => xpGanar(100, `Objetivo cumplido: ${o.t}`), 900); }
+  guardar();
+}
+function objetivoForm(o = null, base = {}) {
+  const P = (typeof OBJ_PLANTILLAS === 'object' && Array.isArray(OBJ_PLANTILLAS)) ? OBJ_PLANTILLAS : [];
+  const v = { t: '', metrica: '', meta: 1, unidad: 'veces', area: 'otro', porque: '', paso: '', fecha: dayKey(addDays(new Date(), 28)), ...(o || base) };
+  showSheet(`<h2>${o ? 'Editar objetivo' : 'Objetivo SMART'}</h2>
+    <p class="sci">Un objetivo específico y difícil, con número y fecha, rinde más que «hacerlo lo mejor posible» (Locke y Latham, 2002). Y registrar el avance a menudo es lo que más acerca a la meta (Harkin et al., 2016).</p>
+    ${!o && P.length ? `<p class="meta" style="margin:0 0 6px">Ejemplos para empezar</p><div class="chips" style="margin-bottom:14px" id="ob-pl">${P.map(p => `<button class="chip" data-p="${esc(p.id)}">${esc(p.t)}</button>`).join('')}</div>` : ''}
+    <div class="field"><label>S · Qué quieres lograr (verbo + qué)</label><input id="ob-t" maxlength="100" value="${esc(v.t)}" placeholder="Terminar el curso de inglés B1 · Leer 6 libros"></div>
+    <div class="field"><label>M · Cómo lo mides</label><input id="ob-metrica" maxlength="60" value="${esc(v.metrica)}" placeholder="Lecciones completadas · libros leídos · ahorro en dólares"></div>
+    <div class="times"><div class="field"><label>M · Meta (número)</label><input id="ob-meta" type="number" inputmode="decimal" min="1" step="any" value="${esc(v.meta)}"></div><div class="field"><label>M · Unidad</label><input id="ob-unidad" maxlength="20" value="${esc(v.unidad)}" placeholder="lecciones · libros · $"></div></div>
+    <div class="field"><label>R · Área</label><div class="chips" id="ob-area">${Object.entries(OBJ_AREAS).map(([k, n]) => `<button class="chip${v.area === k ? ' on' : ''}" data-a="${k}">${n}</button>`).join('')}</div></div>
+    <div class="field"><label>R · Por qué importa</label><input id="ob-por" maxlength="120" value="${esc(v.porque)}" placeholder="Para optar al puesto en la empresa X"></div>
+    <div class="field"><label>A · Primer paso o rutina semanal</label><input id="ob-paso" maxlength="100" value="${esc(v.paso)}" placeholder="3 lecciones por semana, martes y jueves a las 7"></div>
+    <div class="field"><label>T · Fecha límite</label><input id="ob-fecha" type="date" value="${esc(v.fecha)}" min="${today()}"></div>
+    <p class="meta red" id="ob-err"></p>
+    <div class="actions">${o ? '<button class="link red" id="ob-del">Eliminar</button>' : ''}<button class="link" id="ob-cancel">Cancelar</button><button class="primary" id="ob-ok">${o ? 'Guardar' : 'Crear objetivo'}</button></div>`);
+  let area = v.area;
+  $('#ob-area').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; area = c.dataset.a; $('#ob-area').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  $('#ob-pl')?.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; const p = P.find(q => q.id === c.dataset.p); if (!p) return; objetivoForm(null, { t: p.t, metrica: p.metrica, meta: p.meta, unidad: p.unidad, area: p.area, porque: p.porque || '', paso: p.primer_paso || '', fecha: dayKey(addDays(new Date(), 7 * (p.semanas || 4))) }); });
+  $('#ob-cancel').onclick = () => o ? objetivoSheet(o) : renderAg(closeSheet());
+  $('#ob-del')?.addEventListener('click', () => { forget(o.id); ES.objetivos = ES.objetivos.filter(x => x !== o); guardar(); closeSheet(); renderAg(); });
+  $('#ob-ok').onclick = () => {
+    const d = { t: $('#ob-t').value.trim(), metrica: $('#ob-metrica').value.trim(), meta: Math.max(0.01, +$('#ob-meta').value || 0), unidad: $('#ob-unidad').value.trim() || 'veces', area, porque: $('#ob-por').value.trim(), paso: $('#ob-paso').value.trim(), fecha: $('#ob-fecha').value };
+    const falta = !d.t ? ['ob-t', 'qué quieres lograr'] : !d.metrica ? ['ob-metrica', 'cómo lo mides'] : !(+$('#ob-meta').value > 0) ? ['ob-meta', 'la meta en número'] : !d.fecha ? ['ob-fecha', 'la fecha límite'] : null;
+    if (falta) { $('#ob-err').textContent = `Para que sea SMART falta ${falta[1]}.`; $('#' + falta[0]).focus(); return; }
+    if (o) Object.assign(o, d); else { o = { id: crypto.randomUUID(), creado: today(), actual: 0, avances: [], hecho: false, ...d }; ES.objetivos.push(o); xpGanar(15, 'Objetivo SMART'); }
+    guardar(); objetivoSheet(o); renderAg();
+  };
+}
+function objetivoSheet(o) {
+  if (!o) return;
+  const d = objDias(o), pct = objPct(o), s = smartDe({ t: o.t, medida: o.metrica, paso: o.paso, porque: o.porque, fecha: o.fecha, min: 1 });
+  const ligadas = [...ES.catalogoIni.estudio, ...ES.catalogoIni.proyecto, ...ES.catalogoIni.laboral, ...ES.catalogoIni.social, ...ES.catalogoIni.espiritual].filter(x => x.obj === o.id);
+  showSheet(`<p class="paso">${esc(OBJ_AREAS[o.area] || 'Objetivo')}${o.hecho ? ' · cumplido' : d !== null ? ` · ${d < 0 ? `venció hace ${-d} días` : d === 0 ? 'vence hoy' : `quedan ${d} días`}` : ''}</p><h2>${esc(o.t)}</h2>
+    <div class="meter"><span>${esc(o.metrica)}</span><b class="${o.hecho ? 'green' : ''}">${o.actual} de ${o.meta} ${esc(o.unidad)} · ${pct} %</b></div><div class="meter-bar"><i style="width:${pct}%"></i></div>
+    <p class="meta">${smartDots(s)} ${o.porque ? esc(o.porque) : ''}${o.paso ? ` · ${esc(o.paso)}` : ''}</p>
+    ${!o.hecho ? `<p class="meta">${esc(objRitmo(o))}${o.fecha ? ` · fecha límite ${fechaLarga(o.fecha)}` : ''}</p>` : `<p class="meta green">Cumplido el ${fechaLarga(o.hechoEn || today())}.</p>`}
+    ${ligadas.length ? `<p class="meta">Iniciativas que suman: ${ligadas.map(x => esc(x.t)).join(' · ')}</p>` : ''}
+    ${o.avances.length ? `<p class="meta">Últimos avances: ${o.avances.slice(-5).reverse().map(a => `${fmtFecha(a.d)} +${a.n}${a.nota ? ' ' + esc(a.nota) : ''}`).join(' · ')}</p>` : ''}
+    ${o.hecho ? '' : `<div class="field" style="margin-top:14px"><label>Registrar avance</label><div style="display:flex;gap:10px;align-items:center"><button class="chip" id="ob-1">+1 ${esc(o.unidad)}</button><input id="ob-n" type="number" inputmode="decimal" step="any" placeholder="Cantidad" style="max-width:120px"><input id="ob-nota" maxlength="80" placeholder="Nota (opcional)"><button class="link" id="ob-add">Sumar</button></div></div>`}
+    <div class="actions">${o.hecho ? '' : '<button class="link" id="ob-done">Darlo por cumplido</button>'}<button class="link" id="ob-edit">Editar</button><button class="link" id="ob-close">Cerrar</button></div>`);
+  $('#ob-1')?.addEventListener('click', () => { objAvance(o.id, 1); objetivoSheet(o); renderAg(); });
+  $('#ob-add')?.addEventListener('click', () => { const n = +$('#ob-n').value; if (!n) { $('#ob-n').focus(); return; } objAvance(o.id, n, $('#ob-nota').value.trim()); objetivoSheet(o); renderAg(); });
+  $('#ob-done')?.addEventListener('click', () => { objAvance(o.id, Math.max(0, o.meta - o.actual)); objetivoSheet(o); renderAg(); });
+  $('#ob-edit').onclick = () => objetivoForm(o);
+  $('#ob-close').onclick = () => { closeSheet(); renderAg(); };
+}
+
+// ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (número, hoy, antes de dormir).
+const XP_TABLA = [['Hábito cumplido', 10], ['Versión de 2 minutos', 5], ['Tarea completada', 5], ['Prioridad hecha', 25], ['La rana (prioridad 1)', 40], ['Las tres prioridades', 50], ['Prioridad extra', 30],
+  ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], ['Mínimo de iniciativas del día', 40], ['Las 5 iniciativas', 50], ['Social 6 días en la semana', 60], ['Espiritual 7 días seguidos', 40],
+  ['Día organizado (Agenda)', 20], ['Agenda del día completa', 25], ['Cosa suelta de la agenda', 10], ['Minutos de enfoque', '1 por minuto, hasta 90 (+20 sin interrupciones)'], ['Descanso con propósito', '1 por minuto, hasta 30'],
+  ['Resistir una apertura', 15], ['Alternativa elegida', 10], ['Escribir, llamar o proponer un plan', '20–25'], ['Paso de proyecto', 30], ['Misión social', 25], ['Práctica de Bienestar', '5–15'],
+  ['Objetivo SMART creado', 15], ['Avance en un objetivo (1 al día por objetivo)', 5], ['Objetivo cumplido', 100], ['Tres cosas buenas', 10], ['Diario', 10], ['Plan de rescate', 20]];
+function xpSheet() {
+  const T = ES.xp.total, L = nivelDe(T), a = xpParaNivel(L), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
+  showSheet(`<h2>Nivel ${L} · ${esc(nivelNombre(L))}</h2>
+    <p class="note">${T} XP en total. Para el nivel ${L + 1} (${esc(nivelNombre(L + 1))}) faltan <b style="color:var(--text)">${b - T} XP</b>. Cada nivel pide 50 × L × (L − 1): 100, 300, 600, 1000, 1500…</p>
+    <div class="meter"><span>Meta de hoy: ${ES.metaXp} XP antes de dormir</span><b class="${hoy >= ES.metaXp ? 'green' : ''}">${hoy} de ${ES.metaXp}</b></div><div class="meter-bar"><i style="width:${Math.min(100, hoy / ES.metaXp * 100)}%"></i></div>
+    <p class="meta">${r ? `Racha de ${r} ${r === 1 ? 'día' : 'días'} con la meta cumplida. ` : ''}Un día sin meta no resta nada: la racha se reanuda al día siguiente.</p>
+    <h3>Cómo se gana</h3>
+    <div class="rows">${XP_TABLA.map(([t, n]) => `<div class="row" style="padding:8px 0"><span class="t"><div style="font-size:.92rem">${esc(t)}</div></span><span class="tag">${typeof n === 'number' ? '+' + n : esc(n)}</span></div>`).join('')}</div>
+    <p class="meta">Los puntos nunca se restan. Se cambia en Ajustes la meta del día (50 a 200 XP).</p>
+    <div class="actions"><button class="primary" id="xs-ok">Cerrar</button></div>`);
+  $('#xs-ok').onclick = closeSheet;
+}
+
+// ---------- ¿Día sin rumbo?: breve (solo agendar) o completo (plan de rescate).
+function sosSheet() {
+  showSheet(`<h2>¿Día sin rumbo?</h2>
+    <p class="note">Dos salidas. La breve ordena el día en dos minutos: hábitos, tareas e iniciativas con hora. La completa calma el cuerpo, vacía la cabeza y elige una sola cosa.</p>
+    <div class="actions stack" style="margin-top:0"><button class="primary" id="ss-ag">Solo agendar el día · 2 min</button><button class="outline" id="ss-full">Plan de rescate completo · 5 min</button><button class="link" id="ss-close">Cerrar</button></div>`);
+  $('#ss-ag').onclick = () => organizarDia();
+  $('#ss-full').onclick = () => rescate();
+  $('#ss-close').onclick = closeSheet;
+}
+
+// ---------- Pestaña Agenda
+const agHost = document.getElementById('view-agenda');
+const agR = agHost.attachShadow({ mode: 'open' });
+const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_CSS + `
+  .ag-it { padding: 11px 0; } .ag-it.ok .t div { text-decoration: line-through; color: var(--muted); }
+  .ag-now { display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 4px 0; }
+  .ag-now::before, .ag-now::after { content: ''; flex: 1; height: 1.5px; background: var(--accent); opacity: .6; }
+  .ag-top { margin: 0 0 12px; }`;
+const agW = document.createElement('div'); agW.className = 'enf'; agR.append(agStyle, agW);
+function renderAg() {
+  if (!agW) return;
+  cargarAgenda();
+  const A = agenda(), its = agItems(), sinEv = its.filter(it => it.tipo !== 'evento'), hechas = sinEv.filter(it => agHecho(it)).length, org0 = !!A.organizado, now = nowMin();
+  const conH = its.filter(i => i.h).sort(agOrden), sinH = its.filter(i => !i.h);
+  const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length;
+  const fila = it => { const ok = agHecho(it), tarde = !ok && it.h && toMin(it.h) + (it.min || 30) < now, s = smartDe(agSmartSrc(it));
+    return `<div class="row ag-it${ok ? ' ok' : ''}"><button class="box" data-chk="${it.id}" aria-label="Hecha" style="${ok ? 'background:var(--green);border-color:var(--green)' : ''}"></button>
+      <button class="t" data-open="${it.id}" style="text-align:left"><div>${esc(it.t)}</div><small>${esc(agEtiqueta(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''} ${smartDots(s)}${tarde ? ' · <span class="amber">pasó la hora</span>' : ''}</small></button>
+      <span class="tag" style="${tarde ? 'color:var(--amber)' : ''}">${it.h ? fmtHora(it.h) : '—'}</span></div>`; };
+  const filas = []; let marcado = false;
+  for (const it of conH) { if (!marcado && toMin(it.h) > now) { filas.push(`<div class="ag-now"><span>Ahora · ${fmtHora(hhmm(new Date()))}</span></div>`); marcado = true; } filas.push(fila(it)); }
+  if (!marcado && conH.length) filas.push(`<div class="ag-now"><span>Ahora · ${fmtHora(hhmm(new Date()))}</span></div>`);
+  const objs = objetivosActivos();
+  agW.innerHTML = `<div class="ag-top"><p class="paso">${esc(cap(fechaLarga(today())))}</p>
+    ${its.length ? `<div class="meter"><span>${org0 ? 'Día organizado' : 'Agenda de hoy'}</span><b class="${sinEv.length && hechas === sinEv.length ? 'green' : ''}">${hechas} de ${sinEv.length} hechas · ${xpHoy()} XP hoy</b></div><div class="meter-bar"><i style="width:${sinEv.length ? hechas / sinEv.length * 100 : 0}%"></i></div>
+      <div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="${org0 ? 'link' : 'primary'}" id="ag-org">${org0 ? 'Reorganizar' : 'Organizar mi día · 2 min'}</button><button class="link" id="ag-add">+ Añadir</button></div>`
+    : `<div class="interv"><b>Tu día aún no tiene agenda</b><p>Hábitos, tareas e iniciativas con hora, en dos minutos. Tan fácil que sería ridículo no hacerlo.</p>
+      <div class="row-b"><button class="primary" id="ag-org">Organizar mi día</button>${hayAyer ? '<button class="link" id="ag-copy">Copiar la de ayer</button>' : ''}<button class="link" id="ag-add">Añadir una cosa</button></div></div>`}</div>
+    ${filas.length ? `<div class="rows">${filas.join('')}</div>` : ''}
+    ${sinH.length ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows">${sinH.map(fila).join('')}</div><p class="meta">Toca una y ponle hora: con hora se cumple el doble.</p>` : ''}
+    <section style="margin-top:28px"><h3>Objetivos SMART</h3>
+      ${objs.length ? `<div class="rows">${objs.map(o => { const d = objDias(o), pct = objPct(o); return `<button class="row" data-obj="${o.id}"><span class="dot" style="--c:${d !== null && d < 0 ? 'var(--red)' : 'var(--accent)'}"></span><span class="t"><div>${esc(o.t)}</div><small>${o.actual} de ${o.meta} ${esc(o.unidad)} · ${pct} %${d !== null ? ` · ${d < 0 ? 'vencido' : d === 0 ? 'vence hoy' : `${d} días`}` : ''}</small></span><span class="tag">${pct} %</span></button>`; }).join('')}</div>` : '<p class="empty">Un objetivo con número y fecha convierte las iniciativas en avance. Crea el primero.</p>'}
+      <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p></section>`;
+  agW.querySelector('#ag-org').onclick = () => organizarDia();
+  agW.querySelector('#ag-add').onclick = () => agAddSheet();
+  agW.querySelector('#ag-copy')?.addEventListener('click', agCopiarAyer);
+  agW.querySelector('#ag-obj-add').onclick = () => objetivoForm();
+  agW.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => { const it = agItems().find(x => x.id === b.dataset.chk); if (it) agMarcar(it); });
+  agW.querySelectorAll('[data-open]').forEach(b => b.onclick = () => agItemSheet(agItems().find(x => x.id === b.dataset.open)));
+  agW.querySelectorAll('[data-obj]').forEach(b => b.onclick = () => objetivoSheet(ES.objetivos.find(o => o.id === b.dataset.obj)));
+}
+window.renderAgendaTab = () => renderAg();
+window.organizarDia = () => organizarDia();
+window.agendaResumen = () => ({ organizado: !!agenda().organizado, items: agItems().sort(agOrden).map(it => ({ id: it.id, tipo: agEtiqueta(it), texto: it.t, hora: it.h || '', minutos: it.min || 0, hecha: agHecho(it) })) });
+
 // ====================================================================
 // Notificaciones: llegan aunque la app esté cerrada. El teléfono se suscribe aquí (Web Push) y la
 // tarea programada de GitHub (.github/workflows/notificaciones.yml) las envía con los datos de la cuenta.
@@ -5032,7 +5900,7 @@ function practicaFormExtra(pr) {
 const VAPID_PUBLIC = 'BCkSUFWA-q7GyyocviKZMTzTPNMvWGUNO-G_js0Y9zvBo5DtHoALCHHQIu5SoWc9ML1xaIO9JdPiP_DNG_FMito';
 const AV_KEY = 'rumbo-avisos';
 const AVISOS = [['manana', 'Resumen de la mañana', 'Prioridades, agenda, planes, hábitos, tareas y a quién escribir'], ['habitos', 'Hora de cada hábito', 'A la hora que pusiste en cada hábito, si aún no lo hiciste'],
-  ['planes', 'Una hora antes de cada plan', 'Con una idea para la conversación'], ['proyectos', 'Paso de proyecto', 'A la hora que fijaste para el siguiente paso'],
+  ['planes', 'Una hora antes de cada plan', 'Con una idea para la conversación'], ['proyectos', 'Paso de proyecto', 'A la hora que fijaste para el siguiente paso'], ['agenda', 'Agenda del día', '10 minutos antes de cada cosa con hora; a las 9:30, si el día no está organizado'],
   ['mediodia', 'Prioridad al mediodía', 'A la 1:00 PM, si tu prioridad sigue pendiente'], ['noche', 'Cierre del día', 'A las 9:00 PM: tu día en números y tres cosas buenas'], ['semana', 'Lunes y viernes', 'Revisión semanal y gracias del viernes']];
 const avCfg = () => { try { return JSON.parse(localStorage.getItem(AV_KEY)) || {}; } catch { return {}; } };
 const avSetCfg = c => { try { localStorage.setItem(AV_KEY, JSON.stringify(c)); } catch {} };
