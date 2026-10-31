@@ -1,6 +1,6 @@
 // Guarda la app en el teléfono para que abra sin internet.
 // La página se pide a la red primero (así llegan las versiones nuevas) y, sin red, sale de la caché.
-const CACHE = 'habitos-v2.11.1';
+const CACHE = 'habitos-v2.12.0';
 const CORE = ['./', './index.html', './vendor/anthropic-sdk-0.134.0.mjs', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
@@ -29,12 +29,19 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data?.text() || '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'Organización Personal', { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag, data: { url: d.url || './' } }));
+  // Cada aviso trae un botón para apagar su tipo con un toque (la app lo aplica al abrirse).
+  const op = { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag, data: { url: d.url || './', tag: d.tag || '' } };
+  if (d.apagar) op.actions = [{ action: 'apagar', title: String(d.apagar).slice(0, 40) }];
+  e.waitUntil(self.registration.showNotification(d.title || 'Organización Personal', op));
 });
 // Al tocarla se abre la app (o se trae al frente) en la pestaña que corresponde.
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  const data = e.notification.data || {}, u = new URL(data.url || './', self.registration.scope);
+  // La app anota qué aviso abriste (n=…) para saber cuáles sirven; con «Apagar», apaga ese tipo (off=1).
+  if (data.tag) u.searchParams.set('n', data.tag);
+  if (e.action === 'apagar') u.searchParams.set('off', '1');
+  const url = u.href;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => {
     const w = ws.find(c => c.url.startsWith(self.registration.scope));
     if (w) { w.postMessage({ abrir: url }); return w.focus(); }
