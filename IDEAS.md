@@ -384,6 +384,14 @@ La persona pidió «una pestaña de identidad que haga aplicar todo lo demás» 
 
 `ES.identidades = [{ id, t, area, por, creado, orden, archivada, bienestar }]` (hasta 6 activas; `t` sin el «Soy una persona que» inicial, 80 caracteres; `por` 160), normalizado en `normEnfoque` y fusionado por id entre teléfonos. Si existía el «Soy una persona que…» de la práctica «Afirmar lo que valoro» y no hay identidades, pasa a ser la primera (con id fijo, para que dos teléfonos creen la misma). El vínculo es el campo `iden` (id de identidad o '') en hábitos, objetivos, proyectos, iniciativas propias y del día, prioridades y tareas; un `iden` que apunte a una identidad archivada cuenta como ''. La API para el resto de la app es `window.idn`: `lista()`, `de(x)`, `etiqueta(id)`, `chips(sel, pref)`, `leerChips(body, pref)`, `sugerir(texto, area)`, `votos(id, desde, hasta)`, `votosSemana(id)`, `ultimoVoto(id)`, `sinVoto(dias)`, `proponer(id)`, `resumenDia()`, `crear({ t, area, por })`, `archivar(id)`, `ficha(id)`, `abrir()`; los demás módulos la usan con `window.idn?.`.
 
+### Revisión
+
+Revisión adversarial de la pestaña en tres dimensiones (datos y sincronización, cumplimiento del diseño, flujos en el navegador), con un verificador independiente por hallazgo: 12 confirmados, ninguno grave, todos corregidos.
+
+- **Dos dispositivos.** Las hojas de Identidad escriben siempre en los objetos vivos (si la nube reemplaza el estado con la hoja abierta, el vínculo y el texto no se pierden y el XP no se cobra dos veces); la foto de la agenda conserva el vínculo al combinar; la agenda se guarda 35 días enteros y, hasta 120, lo hecho con identidad en forma compacta (para «Último voto» y la identidad más olvidada).
+- **Votos fieles.** El vínculo de cada iniciativa se guarda al archivar el día (antes, al día siguiente el voto saltaba a la primera identidad del área); un acto es un voto (la prioridad, tarea o ítem libre y el objetivo al que suma ya no votan dos veces); el bono de la semana se evalúa también al cambiar la meta o elegir «Plan corto».
+- **Orden y textos.** «Ahora» pone el voto de identidad detrás del hábito que toca a esta hora y de las iniciativas pendientes; «Al soltarlo» con un descanso arranca el descanso; «Vas a 1 libro por semana» en singular; «Por qué funciona» sin notas internas de verificación; el pie de los escenarios de Bienestar ya no promete que afirmar quién eres cambie la conducta; la pestaña Hábitos no se desplaza en horizontal a 390 px.
+
 ### Lista de control (informe final, 6.2)
 
 - [x] «Más tarde», «Ahora no», «Cerrar» y «Saltar este paso» se ven siempre y cuestan un toque.

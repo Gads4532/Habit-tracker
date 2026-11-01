@@ -111,14 +111,14 @@
     border: 1.5px solid var(--text); border-radius: 12px; font-size: .9rem; }
   .upd .primary { padding: 7px 14px; }
   /* Modo, días y horas en el formulario */
-  .seg { display: flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+  .seg { position: relative; display: flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; margin-top: 6px; }
   .seg label { flex: 1; margin: 0; text-align: center; padding: 8px 4px; font-size: .88rem; color: var(--muted); cursor: pointer; }
-  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
   .seg label:has(input:checked) { background: var(--text); color: var(--bg); }
-  .days { display: flex; gap: 6px; margin-top: 6px; }
+  .days { position: relative; display: flex; gap: 6px; margin-top: 6px; }
   .days label { flex: 1; margin: 0; text-align: center; padding: 8px 0; border-radius: 10px; border: 1.5px solid var(--line);
     font-size: .85rem; color: var(--muted); cursor: pointer; }
-  .days input { position: absolute; opacity: 0; pointer-events: none; }
+  .days input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
   .days label:has(input:checked) { border-color: var(--c); color: var(--c); font-weight: 600; }
   .hours { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .hour-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 12px; border-radius: 999px;
@@ -739,6 +739,15 @@ function normEnfoque(e) {
     for (const x of e.iniciativas4.items || []) fix(x);
     for (const x of e.prioridades.items || []) fix(x);
   }
+  // 2.13 · iniHist: lista de categorías por día (como siempre); si alguna entrada llega como objeto {k, iden}, se queda la categoría y el
+  // vínculo pasa a iniHistIden = { 'YYYY-MM-DD': { categoría: idIdentidad } }, acotado, que es lo que lee el índice de votos.
+  { const F = k => /^\d{4}-\d\d-\d\d$/.test(k), II = e.iniHistIden && typeof e.iniHistIden === 'object' && !Array.isArray(e.iniHistIden) ? e.iniHistIden : {};
+    if (e.iniHist && typeof e.iniHist === 'object' && !Array.isArray(e.iniHist)) for (const [k, v] of Object.entries(e.iniHist)) {
+      if (!Array.isArray(v) || !v.some(x => x && typeof x === 'object')) continue;
+      const ks = []; for (const x of v) { if (typeof x === 'string') ks.push(x); else if (x && typeof x === 'object' && typeof x.k === 'string') { ks.push(x.k); if (F(k) && typeof x.iden === 'string' && x.iden) { if (!II[k] || typeof II[k] !== 'object') II[k] = {}; II[k][x.k] ||= x.iden; } } }
+      e.iniHist[k] = [...new Set(ks)]; }
+    const out = {}; for (const k of Object.keys(II).filter(F).sort().slice(-400)) { const m = {}; for (const [c, v] of Object.entries(II[k] && typeof II[k] === 'object' ? II[k] : {})) if (typeof v === 'string' && v) m[c.slice(0, 20)] = v.slice(0, 40); if (Object.keys(m).length) out[k] = m; }
+    e.iniHistIden = out; }
   // 2.12 · Avisos: los que abriste (60), el silencio de las sesiones de enfoque (12) y desde cuándo se anotan.
   e.avisosAbiertos = (Array.isArray(e.avisosAbiertos) ? e.avisosAbiertos : []).filter(x => x && typeof x.tag === 'string' && /^\d{4}-\d\d-\d\d$/.test(x.d || '')).map(x => ({ tag: x.tag.slice(0, 80), d: x.d, t: +x.t || 0 })).slice(-60);
   e.enfoqueHasta = +e.enfoqueHasta > 0 ? +e.enfoqueHasta : 0;
@@ -880,7 +889,7 @@ function unirAgendaHist(eN, eO, out) {
       : it.tipo === 'tarea' ? out.tareas.items.some(x => x.id === it.ref && x.hecha && !(+x.hechaEn && dayKey(new Date(+x.hechaEn)) > k))
       : it.tipo === 'ini' ? [eN, eO].some(e => lista(e.iniHist?.[k]).includes(it.ref) || (e.iniciativas4?.dia === k && lista(e.iniciativas4.items).some(x => x?.k === it.ref && x.hecho)))
       : it.tipo === 'plan' ? pl.some(x => x?.id === it.ref && x.hecho) : false);
-    if (lista(v.items).length) H[k] = unir(lista(v.items).filter(it => it && typeof it === 'object').map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: hecho(it), ...(it.foco ? { foco: true } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })), H[k]);
+    if (lista(v.items).length) H[k] = unir(lista(v.items).filter(it => it && typeof it === 'object').map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: hecho(it), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })), H[k]);   // 2.13 · con su iden (voto)
   }
   return H;
 }
@@ -939,6 +948,12 @@ function mergeStates(a, b) {
     for (const e of [eO, eN]) for (const [k, ks] of Object.entries(e.iniHist && typeof e.iniHist === 'object' ? e.iniHist : {})) add(k, ks);
     if (Id && Id !== I && /^\d{4}-\d\d-\d\d$/.test(Id.dia || '') && Id.dia < t && Id.dia !== I?.dia && L(Id.items).some(x => x?.hecho)) add(Id.dia, L(Id.items).filter(x => x?.hecho).map(x => x.k));
     if (eN.iniHist || eO.iniHist || Object.keys(IH).length) E.iniHist = IH; }
+  // 2.13 · Vínculos de las iniciativas archivadas (iniHistIden): por día, los de las dos copias; del día anterior que aquí se descarta, los suyos.
+  { const E = out.enfoque, L = x => Array.isArray(x) ? x : [], t = today(), II = {}, F = k => /^\d{4}-\d\d-\d\d$/.test(k || '');
+    for (const e of [eO, eN]) for (const [k, m] of Object.entries(e.iniHistIden && typeof e.iniHistIden === 'object' && !Array.isArray(e.iniHistIden) ? e.iniHistIden : {})) if (F(k) && m && typeof m === 'object') II[k] = { ...(II[k] || {}), ...m };
+    const Id = [eN.iniciativas4, eO.iniciativas4].find(x => x && x !== E.iniciativas4 && F(x.dia) && x.dia < t && x.dia !== E.iniciativas4?.dia);
+    if (Id) for (const x of L(Id.items)) if (x?.hecho && typeof x.iden === 'string' && x.iden && typeof x.k === 'string') II[Id.dia] = { [x.k]: x.iden, ...(II[Id.dia] || {}) };
+    if (Object.keys(II).length) E.iniHistIden = II; }
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
   return normalize(out);
@@ -3535,8 +3550,15 @@ function guardar() {
   // Solo se guardan los últimos 180 días.
   const cut = dayKey(addDays(new Date(), -180));
   for (const k of Object.keys(state.enfoque.dias)) if (k < cut) delete state.enfoque.dias[k];
-  const cutA = dayKey(addDays(new Date(), -21));
-  for (const k of Object.keys(state.enfoque.agendaHist || {})) if (k < cutA) delete state.enfoque.agendaHist[k];
+  // 2.13 · La agenda de cada día se guarda entera 35 días; hasta 120 (lo más atrás que miran «Último voto» y la identidad más olvidada)
+  // quedan solo, en forma compacta, las cosas hechas que votan por una identidad; un día sin nada de eso se borra. iniHistIden, igual a 120.
+  const cutA = dayKey(addDays(new Date(), -35)), cutV = dayKey(addDays(new Date(), -120)), AH = state.enfoque.agendaHist || {};
+  for (const k of Object.keys(AH)) {
+    if (k >= cutA) continue;
+    const v = k >= cutV ? (Array.isArray(AH[k]) ? AH[k] : []).filter(it => it && it.iden && it.hecho && ['libre', 'tarea', 'evento', 'plan'].includes(it.tipo)).map(({ tipo, ref, t, hecho, iden }) => ({ tipo, ref, t, hecho, iden })) : [];
+    if (v.length) AH[k] = v; else delete AH[k];
+  }
+  if (state.enfoque.iniHistIden && typeof state.enfoque.iniHistIden === 'object') for (const k of Object.keys(state.enfoque.iniHistIden)) if (k < cutV) delete state.enfoque.iniHistIden[k];
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {}
   save();
 }
@@ -4748,6 +4770,9 @@ function ini4Semana() {
   // Cada día empiezan de cero; lo de ayer se guarda en el historial (para la racha y para «Tus datos»).
   if (ES.iniciativas4.dia !== today()) {
     if (ES.iniciativas4.dia && ES.iniciativas4.items?.some(x => x.hecho)) { ES.iniHist ||= {}; ES.iniHist[ES.iniciativas4.dia] = ES.iniciativas4.items.filter(x => x.hecho).map(x => x.k); }
+    // 2.13 · El vínculo de cada iniciativa hecha (el del ítem o el de su entrada del catálogo) se guarda aparte, por día y categoría, para que
+    // mañana vote por la misma identidad que hoy; iniHist sigue siendo la lista de categorías que leen la racha, los premios y el catálogo.
+    if (ES.iniciativas4.dia && ES.iniciativas4.items?.some(x => x.hecho)) { const m = {}; for (const x of ES.iniciativas4.items) { if (!x?.hecho || typeof x.k !== 'string') continue; const v = x.iden || (ES.catalogoIni?.[x.k] || []).find(c => c && c.t && c.t === x.t && typeof c.iden === 'string' && c.iden)?.iden || ''; if (typeof v === 'string' && v) m[x.k] = v.slice(0, 40); } if (Object.keys(m).length) { ES.iniHistIden ||= {}; ES.iniHistIden[ES.iniciativas4.dia] = m; } }
     ES.iniciativas4 = { dia: today(), items: INI4.map(([k]) => ({ k, t: '', por: '', paso: '', cuando: '', hora: '', hecho: false })) };
   }
   while (ES.iniciativas4.items.length < N_INI) ES.iniciativas4.items.push({ k: INI4[ES.iniciativas4.items.length][0], t: '', por: '', paso: '', cuando: '', hora: '', hecho: false });
@@ -5022,7 +5047,7 @@ const CIENCIA = [
   ['Teléfono guardado', 'Usar el teléfono en comidas con amigos o familia aumentó la distracción y redujo el disfrute del encuentro.', 'Dwyer, Kushlev y Dunn (2018), Journal of Experimental Social Psychology'],
   ['Lo que importa es qué desplaza', 'En adolescentes, la relación media entre tiempo de pantalla y bienestar es pequeña; lo que pesa es lo que el uso deja fuera: el sueño, las personas, tu prioridad.', 'Orben y Przybylski (2019), Nature Human Behaviour'],
   ['Presupuesto diario de 30 minutos', 'Limitar las redes a un rato fijo al día durante unas semanas redujo la soledad y los síntomas depresivos en un estudio con estudiantes. Un metaanálisis halla un efecto pequeño, igual reduciendo que dejándolas del todo. Réplicas de 2026 no hallaron mejora con un límite fijo: casi nadie lo cumplía. Por eso la meta de la revisión semanal parte de tu dato real.', 'Hunt et al. (2018), J. Social and Clinical Psychology; Burnell et al. (2025), SSM – Mental Health; Bradley et al. (2026), Clinical Psychological Science'],
-  ['Tres ventanas de revisión', 'Recibir las notificaciones en lotes, unas pocas veces al día, mejoró la atención y la sensación de control y bajó el estrés; apagarlas todas no cambió el uso y subió la ansiedad y el FOMO.', 'Fitz et al. (2019), Computers in Human Behavior; Kushlev y Dunn (2015), Computers in Human Behavior; Dekker et al. (2025), Media Psychology. Nota: Ariely es coautor de Fitz et al.; falta comprobar que no esté entre sus artículos retirados.'],
+  ['Tres ventanas de revisión', 'Recibir las notificaciones en lotes, unas pocas veces al día, mejoró la atención y la sensación de control y bajó el estrés; apagarlas todas no cambió el uso y subió la ansiedad y el FOMO.', 'Fitz et al. (2019), Computers in Human Behavior; Kushlev y Dunn (2015), Computers in Human Behavior; Dekker et al. (2025), Media Psychology'],
   ['«Hablar» frente a «solo mirar»', 'Mirar redes sin interactuar empeoró el ánimo a través de la envidia.', 'Verduyn et al. (2015), J. Experimental Psychology: General'],
   ['Prueba de realidad', 'El FOMO es una predicción. Contrastarla con lo que pasó es un experimento conductual de la terapia cognitivo-conductual (evidencia indirecta: aún no hay ensayos específicos para FOMO).', 'Przybylski et al. (2013), definición de FOMO; Mayo-Wilson et al. (2014), Lancet Psychiatry, sobre TCC'],
   ['Configurar el teléfono', 'Quitar apps del inicio, notificaciones mínimas, grises y el teléfono fuera del dormitorio redujeron el uso problemático y mejoraron el sueño. Por eso la app te propone un cambio por semana, empezando por quitar las redes de la pantalla de inicio.', 'Olson et al. (2022), Int. J. Mental Health and Addiction'],
@@ -5147,7 +5172,7 @@ function settings() {
     const alts = $('#s-alts').value.split('\n').map(s => s.trim()).filter(Boolean);
     if (alts.length) ES.alternativas = alts;
     const sDormir = $('#s-dormir')?.value || ''; ES.horaDormir = /^\d\d:\d\d$/.test(sDormir) ? sDormir : (ES.horaDormir || '23:00');
-    guardar(); closeSheet(); renderE();
+    guardar(); closeSheet(); renderE(); window.xmBono?.();   // 2.13 · F14: con la meta más baja, el quinto día puede quedar cumplido
   };
 }
 $('#open-settings').onclick = settings;
@@ -6576,7 +6601,7 @@ function escenarioSheet(k, subk = '') {
     ${E.sub ? `<div class="chips" style="margin-bottom:14px">${E.sub.map(x => `<button class="chip${x.k === S.k ? ' on' : ''}" data-sub="${x.k}">${esc(x.n)}</button>`).join('')}</div>` : ''}
     <h3 style="margin-top:4px">La Palabra</h3>
     ${S.versos.map(([r, t]) => `<p style="margin:0 0 10px"><span style="font-size:1.02rem">«${esc(t)}»</span><br><a class="link" href="${YV(r)}" target="_blank" rel="noopener">${esc(refTxt(r))}</a></p>`).join('')}
-    ${S.declaro ? `<h3>Declaro</h3><ul class="pros">${S.declaro.map(t => `<li>${esc(t)}</li>`).join('')}</ul><p class="meta">Dilo en voz baja, despacio, una vez por frase. Afirmar quién eres cambia cómo actúas (Cohen y Sherman, 2014).</p>` : ''}
+    ${S.declaro ? `<h3>Declaro</h3><ul class="pros">${S.declaro.map(t => `<li>${esc(t)}</li>`).join('')}</ul><p class="meta">Dilo en voz baja, despacio, una vez por frase. Escribir lo que valoras y por qué ayuda a sostener lo que importa cuando algo pesa (Cohen y Sherman, 2014).</p>` : ''}
     <div class="actions stack">
       <button class="primary" id="es-orar">Orar con esto · ${Math.round(S.oracion.reduce((a, p) => a + p[1], 0) / 60)} min</button>
       ${mente ? `<button class="outline" id="es-mente">Para la mente: ${esc(mente.n)}</button>` : ''}
@@ -7805,13 +7830,15 @@ function valioLinea() {
 // ---------- «¿Y qué harás al soltarlo?» Lo que sigue en el mundo real, tomado de «Ahora» y de la agenda.
 const SOLTAR_MS = 2 * 3600e3;
 function soltarOpciones() {
-  const a = ahoraSugerido(), out = [{ t: a.t, src: 'ahora', lbl: soltarLbl(a).replace(' — ', ': ') }], now = nowMin();
+  const a = ahoraSugerido(), out = [{ t: a.t, src: 'ahora', lbl: soltarLbl(a).replace(' — ', ': '), ...(a.descanso ? { descanso: true, min: +a.min || 0 } : {}) }], now = nowMin();
   const ag = agItems().filter(it => it.tipo !== 'evento' && it.t && !agHecho(it) && (!it.h || toMin(it.h) + (it.min || 30) >= now)).sort(agOrden);
   for (const it of ag) if (out.length < 4 && !out.some(o => o.t === it.t)) out.push({ t: it.t, src: 'agenda', ref: it.id });
   return out;
 }
-function soltarGuardar(o) { local.alSoltar = { t: String(o.t).slice(0, 80), en: Date.now(), src: o.src || 'libre', ref: o.ref || '' }; e1GuardarLocal(); }
+function soltarGuardar(o) { local.alSoltar = { t: String(o.t).slice(0, 80), en: Date.now(), src: o.src || 'libre', ref: o.ref || '', ...(o.descanso ? { descanso: true, min: Math.min(120, Math.max(0, Math.round(+o.min || 0))) } : {}) }; e1GuardarLocal(); }
 const soltarVigente = () => { const a = local.alSoltar; return a && a.t && Date.now() - (+a.en || 0) < SOLTAR_MS ? a : null; };
+// 2.13 (IX) · El botón según lo elegido: un descanso dice «Descansar {min} min» (o «Descansar»); lo demás, «Empezar 25 min» (F11).
+const soltarBtn = a => a?.descanso ? (+a.min > 0 ? `Descansar ${Math.min(120, Math.round(+a.min))} min` : 'Descansar') : 'Empezar 25 min';
 // Después de «Algo concreto».
 function soltarSheet(q) {
   const ops = soltarOpciones();
@@ -7835,6 +7862,7 @@ function soltarEmpezar(a) {
   if (!a) return;
   const x = ES.prioridades.fecha === today() ? ES.prioridades.items.find(i => !i.hecho && i.t === a.t) : null;
   if (x?.per) { const per = ES.personas.find(q => q.id === x.per); if (per) { personaSheet(per); return; } }
+  if (a.descanso) { const m = Math.min(120, Math.round(+a.min || 0)); if (m > 0) startFocus(/siesta/i.test(a.t) ? 'Siesta corta' : 'Descanso', m, '', 0, 'descanso'); else descansoForm(); return; }   // 2.13 (IX) · sin depender de que «Ahora» siga igual
   if (a.src === 'ahora') { const b = ahoraSugerido(); if (b.t === a.t && b.descanso) { b.a(); return; } }
   startFocus(a.t, 25, x?.pro || '');
 }
@@ -7848,7 +7876,7 @@ function soltarCard() {
   delete local.alSoltar; e1GuardarLocal();
   if (!e1CardEl) { e1CardEl = document.createElement('div'); e1CardEl.id = 'al-card'; ov.appendChild(e1CardEl); }
   const el = e1CardEl;
-  el.innerHTML = `<span class="t">Al soltarlo: <b>${esc(soltarLbl(a))}</b></span><button class="primary" id="al-go">Empezar 25 min</button><button class="x" id="al-x" aria-label="Cerrar">×</button>`;
+  el.innerHTML = `<span class="t">Al soltarlo: <b>${esc(soltarLbl(a))}</b></span><button class="primary" id="al-go">${soltarBtn(a)}</button><button class="x" id="al-x" aria-label="Cerrar">×</button>`;
   el.hidden = false;
   el.querySelector('#al-go').onclick = () => { el.hidden = true; soltarEmpezar(a); };
   el.querySelector('#al-x').onclick = () => { el.hidden = true; };
@@ -7867,7 +7895,7 @@ function salidaE1Html() {
   return `<div id="sv-valio"><h3 style="margin-top:20px">¿Valió la pena?</h3>${e1Escala('sv-valio-c')}
       <p class="meta" style="margin:6px 0 0">1 = nada, 5 = mucho. Querer entrar no siempre es disfrutarlo.</p></div>
     ${a ? `<div class="why" id="sv-sol-box" style="margin-top:16px">Al soltarlo: <b>${esc(soltarLbl(a))}</b>
-      <div class="actions" style="justify-content:flex-start;margin-top:10px"><button class="primary" id="sv-sol">Empezar 25 min</button></div></div>` : ''}`;
+      <div class="actions" style="justify-content:flex-start;margin-top:10px"><button class="primary" id="sv-sol">${soltarBtn(a)}</button></div></div>` : ''}`;
 }
 function salidaE1Wire(s, k) {
   const a = salidaSolE1; salidaSolE1 = null;
@@ -8173,7 +8201,7 @@ function e2aNaturaHtml() {
   CIENCIA.splice(i >= 0 ? i + 1 : CIENCIA.length, 0,
     ['Retomar lo empezado', 'Lo que queda a medias tira de nosotros: tendemos a retomarlo (efecto Ovsiankina), aunque no lo recordemos mejor. Por eso «Ahora» te propone primero el cronómetro que dejaste a medias o el paso de proyecto con su «Dónde lo dejaste».', 'Ghibellini y Meier (2025), Humanities and Social Sciences Communications'],
     ['La versión corta, con poca energía', 'La dopamina decide si vale la pena el esfuerzo, no cuánto apetece el premio. Con el ánimo bajo o desde las 21:00, «Ahora» baja el coste: 2 minutos cuentan.', 'Salamone y Correa (2012), Neuron'],
-    ['Pausas tras el enfoque', 'Las pausas breves suben el vigor y bajan la fatiga; en el rendimiento el efecto es pequeño y crece con pausas más largas. Por eso, tras 25 min de enfoque o más, la app propone 5 sin pantalla, y tras 90 min, una de 20.', 'Albulescu et al. (2022), PLOS ONE; Sievertsen, Gino y Piovesan (2016), PNAS. Nota: Gino es coautora de Sievertsen et al.; falta comprobar que no esté entre sus artículos retirados.'],
+    ['Pausas tras el enfoque', 'Las pausas breves suben el vigor y bajan la fatiga; en el rendimiento el efecto es pequeño y crece con pausas más largas. Por eso, tras 25 min de enfoque o más, la app propone 5 sin pantalla, y tras 90 min, una de 20.', 'Albulescu et al. (2022), PLOS ONE; Sievertsen, Gino y Piovesan (2016), PNAS'],
     ['Nota de vuelta', 'Dejar escrito dónde lo dejas y qué harás primero al volver reduce el residuo atencional: la cabeza suelta la tarea anterior y rinde mejor en la siguiente. La próxima sesión te lo enseña.', 'Leroy (2009), OBHDP; Leroy y Glomb (2018), Organization Science'],
     ['Meta de la sesión', 'Antes, qué habrás hecho; al terminar, «¿Lo lograste?»: feedback sobre la tarea. En una gran revisión, el feedback mejoró el rendimiento de media, pero a menudo lo empeoró cuando apuntaba a la persona y no a lo hecho. Por eso la pregunta es sobre la tarea, nunca sobre ti.', 'Kluger y DeNisi (1996), Psychological Bulletin'],
     ['Naturaleza', 'Mirar unos segundos un tejado verde redujo los errores de atención en un estudio, y pasear por la naturaleza bajó la rumiación en otro; pasar tiempo en ella cada semana se asoció a más salud y bienestar en un estudio observacional. Por eso hay descansos para mirar verde y para salir a verlo.', 'Lee et al. (2015), Journal of Environmental Psychology; Bratman et al. (2015), PNAS; White et al. (2019), Scientific Reports']); }
@@ -8464,18 +8492,25 @@ function xmSemanaLinea() {
   return `Semanas con tu meta: ${n} · esta: ${d} de 7 días${d >= 5 ? ' (cumplida)' : f <= quedan ? ` (te ${f === 1 ? 'falta' : 'faltan'} ${f})` : ''}`;
 }
 // El bono, en cuanto el quinto día de la semana llega a su meta; una vez por semana. Seguida = la semana anterior tuvo bono.
+// 2.13 · También la semana anterior: si su quinto día quedó cumplido sin «cruzar» la meta (meta bajada en Ajustes, «Plan corto») y la app
+// no se volvió a abrir antes del lunes, el bono llega igual, una sola vez, y la cadena +30/+40/+50 sigue (primero la más antigua).
 function xmBono() {
-  const L = xmLunes(); if (ES.semanasMeta?.[L] || xmSemanaDias(L) < 5) return 0;
   const antes = k => dayKey(addDays(new Date(k + 'T12:00'), -7));
-  let r = 1; for (let k = antes(L); r < 3 && ES.semanasMeta?.[k]; k = antes(k)) r++;
-  const b = [30, 40, 50][r - 1];
-  ES.semanasMeta = { ...(ES.semanasMeta || {}), [L]: b }; guardar();
-  const n = xmSemanasN();
-  buzz([40, 60, 40]);
-  xpGanar(b, `Semana ${n} con tu meta`);
-  setTimeout(() => toast(xmDatos() ? `Semana ${n} con tu meta.` : `Semana ${n} con tu meta. +${b} XP.`), 900);
-  return b;
+  let dado = 0, i = 0;
+  for (const L of [antes(xmLunes()), xmLunes()]) {
+    if (ES.semanasMeta?.[L] || xmSemanaDias(L) < 5) continue;
+    let r = 1; for (let k = antes(L); r < 3 && ES.semanasMeta?.[k]; k = antes(k)) r++;
+    const b = [30, 40, 50][r - 1];
+    ES.semanasMeta = { ...(ES.semanasMeta || {}), [L]: b }; guardar();
+    const n = xmSemanasN();
+    buzz([40, 60, 40]);
+    xpGanar(b, `Semana ${n} con tu meta`);
+    setTimeout(() => toast(xmDatos() ? `Semana ${n} con tu meta.` : `Semana ${n} con tu meta. +${b} XP.`), 900 + 2200 * i++);
+    dado = b;
+  }
+  return dado;
 }
+window.xmBono = xmBono;
 // Al cruzar la meta del día: el bono de la semana si toca; si no, el aviso de la meta (sin números con «Solo datos»).
 function xmMetaCumplida(subioNivel) {
   if (xmBono() || subioNivel) return;
@@ -8669,7 +8704,7 @@ function suenoResponder(n) {
   if (n !== 1) toast(`Anotado: ${suenoOpc()[n - 1][1]}.`);
 }
 function planCortoElegir() {
-  const k = today(); ES.dias[k] = { ...dayOf(k), corto: 1 }; guardar(); renderE();
+  const k = today(); ES.dias[k] = { ...dayOf(k), corto: 1 }; guardar(); renderE(); window.xmBono?.();   // 2.13 · F14: la meta de hoy baja y el quinto día puede quedar cumplido
   toast('Plan corto para hoy.');
 }
 
@@ -8678,7 +8713,7 @@ function e212bAhoraCorto() {
   if (!diaCorto()) return null;
   const h = new Date().getHours(), t = today();
   if (h < 14 || h >= 18 || local.siestaNo === t || (+dayOf().descanso || 0) >= 20) return null;
-  return { k: 'Hoy, plan corto', t: 'Descansar con propósito: siesta de 20 min.', p: '', b: 'Siesta · 20 min', descanso: true,
+  return { k: 'Hoy, plan corto', t: 'Descansar con propósito: siesta de 20 min.', p: '', b: 'Siesta · 20 min', descanso: true, min: 20,
     a: () => startFocus('Siesta corta', 20, '', 0, 'descanso'), no: 'Ahora no', noA: () => { local.siestaNo = t; e212bLocal(); renderAhora(); } };
 }
 // Un hábito nuevo en día corto: mejor guardarlo para mañana (el botón «+ Nuevo hábito» llama aquí antes de abrir el formulario).
@@ -9324,12 +9359,25 @@ function agbRitmo(o) {
   const d = objDias(o), resta = Math.max(0, o.meta - o.actual), y = d !== null && d > 0 && resta > 0 ? resta / Math.max(1, d / 7) : null;
   return { x: suma > 0 ? suma / (W / 7) : 0, hay: suma > 0, W, nec: y === null ? '' : y < 1 ? agbNum(Math.ceil(y * 10) / 10) : String(Math.ceil(y)) };
 }
+// 2.13 (IX) · Singular de la unidad cuando el número es exactamente 1, solo con reglas seguras del español (veces → vez, lecciones → lección,
+// libros → libro, páginas leídas → página leída, informes → informe); las unidades sin regla segura (dólares, meses, clases, $, km) quedan
+// como las escribió la persona, y una unidad guardada ya en singular no se toca.
+function agbUnidad1(u) {
+  return String(u || '').split(' ').map(w => {
+    if (/^veces$/i.test(w)) return 'vez';
+    if (w.length > 4 && /ones$/i.test(w)) return w.replace(/ones$/i, 'ón');                 // lecciones → lección, sesiones → sesión
+    if (w.length > 3 && /[aoáó]s$/i.test(w)) return w.slice(0, -1);                           // libros → libro, páginas → página, días → día
+    if (w.length > 4 && /(m|t|ch|qu|v|f|p|b|ll|rr)es$/i.test(w)) return w.slice(0, -1);       // informes → informe, clientes → cliente, noches → noche
+    return w;
+  }).join(' ');
+}
 function agbRitmoTxt(o) {
   if (o.hecho) return '';
   const r = agbRitmo(o), u = o.unidad || 'veces', fecha = o.fecha ? new Date(o.fecha + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' }) : '';
-  if (r.hay) return `Vas a ${agbNum(r.x)} ${u} por semana ${r.W >= 14 ? '(últimas 2 semanas)' : '(desde que lo creaste)'}${r.nec ? `; necesitas ${r.nec} para llegar el ${fecha}` : ''}.`;
-  if (r.W >= 14) return r.nec ? `Sin avances anotados en las últimas 2 semanas; necesitas ${r.nec} ${u} por semana para llegar el ${fecha}.` : 'Sin avances anotados en las últimas 2 semanas.';
-  return r.nec ? `Necesitas ${r.nec} ${u} por semana para llegar el ${fecha}.` : '';
+  const u1 = n => String(n) === '1' ? agbUnidad1(u) : u;   // «1 libro», «1,5 libros», «2 libros»
+  if (r.hay) return `Vas a ${agbNum(r.x)} ${u1(agbNum(r.x))} por semana ${r.W >= 14 ? '(últimas 2 semanas)' : '(desde que lo creaste)'}${r.nec ? `; necesitas ${r.nec} para llegar el ${fecha}` : ''}.`;
+  if (r.W >= 14) return r.nec ? `Sin avances anotados en las últimas 2 semanas; necesitas ${r.nec} ${u1(r.nec)} por semana para llegar el ${fecha}.` : 'Sin avances anotados en las últimas 2 semanas.';
+  return r.nec ? `Necesitas ${r.nec} ${u1(r.nec)} por semana para llegar el ${fecha}.` : '';
 }
 function agbRitmoHtml(o) {
   const t = agbRitmoTxt(o), dice = t.includes('para llegar el');
@@ -9862,6 +9910,7 @@ const idnTxt = (v, n = 80) => String(v ?? '').replace(/\s+/g, ' ').trim().replac
 const idnTodas = () => Array.isArray(ES.identidades) ? ES.identidades : [];
 const idnActivas = () => idnTodas().filter(x => !x.archivada).sort((a, b) => ((+a.orden || 0) - (+b.orden || 0)) || (a.creado < b.creado ? -1 : a.creado > b.creado ? 1 : 0));
 const idnPor = id => id ? idnActivas().find(x => x.id === id) || null : null;
+const idnViva = id => idnTodas().find(x => x.id === id) || null;   // 2.13 · la viva por id: state puede cambiar (nube) con la hoja abierta
 const idnDe = x => x && typeof x === 'object' ? idnPor(x.iden) : null;
 const idnEtiqueta = x => { const i = typeof x === 'string' ? idnPor(x) : x; return i && i.t ? `una persona que ${i.t}` : ''; };
 const idnLunes = () => { const d = new Date(); return dayKey(addDays(d, -((d.getDay() + 6) % 7))); };
@@ -9896,6 +9945,10 @@ function idnSugerir(texto = '', area = '') {
 // por el área de la identidad), avances de objetivos, pasos de proyecto, prioridades hechas de hoy, ítems de la agenda
 // con iden (libres, tareas, planes, eventos) y las prácticas de Bienestar si la persona marcó una identidad para ellas.
 const IDN_AG_TIPOS = new Set(['libre', 'tarea', 'evento', 'plan']);
+// Un acto, un voto: con qué referencia anota objAvance el origen de un avance (prio:id, tarea:id, it:id, ini:k:fecha). La foto de la
+// agenda no guarda el id de los ítems libres, así que para ellos vale también el día y el texto (lo que objAvance guarda como nota).
+const idnRefAg = (it, d) => it.tipo === 'tarea' ? ['tarea:' + it.ref] : [...(it.id ? ['it:' + it.id] : []), 'it@' + d + ':' + String(it.t || '').slice(0, 80)];
+const idnEco = (a, propios) => typeof a.ref === 'string' && !!a.ref && (propios.has(a.ref) || (a.ref.startsWith('it:') && propios.has('it@' + a.d + ':' + String(a.nota || '').slice(0, 80))));
 function idnIniId(k, it, act) {
   if (it?.iden && act.has(it.iden)) return it.iden;
   const c = it?.t ? (ES.catalogoIni?.[k] || []).find(x => x && x.t === it.t && x.iden && act.has(x.iden)) : null;
@@ -9906,19 +9959,21 @@ function idnIndice(desde, hasta) {
   const L = idnActivas(), act = new Map(L.map(x => [x.id, []])), s = HT(), t = today();
   if (!act.size) return act;
   const en = d => typeof d === 'string' && d >= desde && d <= hasta;
-  const push = (id, d, txt, k) => { const l = id && act.get(id); if (l) l.push({ d, t: String(txt || '').slice(0, 60), k }); };
+  const propios = new Set(), push = (id, d, txt, k, ref) => { const l = id && act.get(id); if (l) { l.push({ d, t: String(txt || '').slice(0, 60), k }); for (const r of [].concat(ref || [])) propios.add(r); } };   // propios: lo que ya votó por sí mismo
   for (const h of s.habits || []) {
     if (h.rutina || !h.iden || !act.has(h.iden)) continue;
     const L = s.log?.[h.id] || {}; for (const d of Object.keys(L)) if (en(d) && (L[d] === 'full' || L[d] === 'min')) push(h.iden, d, h.nombre, 'habito');
   }
   const I4 = ES.iniciativas4;
-  for (const [d, ks] of Object.entries(ES.iniHist && typeof ES.iniHist === 'object' ? ES.iniHist : {})) { if (!en(d) || d === I4?.dia || !Array.isArray(ks)) continue; for (const k of ks) push(idnIniId(k, null, act), d, iniNombre(k), 'ini'); }
-  if (I4?.dia && en(I4.dia)) for (const it of I4.items || []) if (it && it.hecho) push(idnIniId(it.k, it, act), I4.dia, it.t || iniNombre(it.k), 'ini');
-  for (const o of ES.objetivos || []) if (o.iden && act.has(o.iden)) for (const a of o.avances || []) if (a && en(a.d)) push(o.iden, a.d, o.t, 'objetivo');
+  for (const [d, ks] of Object.entries(ES.iniHist && typeof ES.iniHist === 'object' ? ES.iniHist : {})) { if (!en(d) || d === I4?.dia || !Array.isArray(ks)) continue; for (const k of ks) push(idnIniId(k, { iden: ES.iniHistIden?.[d]?.[k] }, act), d, iniNombre(k), 'ini', `ini:${k}:${d}`); }   // 2.13 · con el vínculo archivado ese día
+  if (I4?.dia && en(I4.dia)) for (const it of I4.items || []) if (it && it.hecho) push(idnIniId(it.k, it, act), I4.dia, it.t || iniNombre(it.k), 'ini', `ini:${it.k}:${I4.dia}`);
   for (const p of ES.proyectos || []) if (p.iden && act.has(p.iden)) for (const x of p.pasos || []) if (x && en(x.d)) push(p.iden, x.d, x.t || p.nombre, 'proyecto');
-  const P = ES.prioridades; if (P?.fecha && en(P.fecha)) for (const x of P.items || []) if (x && x.hecho && x.iden) push(x.iden, P.fecha, x.t, 'prio');
-  for (const [d, its] of Object.entries(ES.agendaHist && typeof ES.agendaHist === 'object' ? ES.agendaHist : {})) { if (!en(d) || d === t || !Array.isArray(its)) continue; for (const it of its) if (it && it.iden && it.hecho && IDN_AG_TIPOS.has(it.tipo)) push(it.iden, d, it.t, 'agenda'); }
-  const A = ES.agendaHoy; if (A?.fecha === t && en(t)) for (const it of A.items || []) if (it && it.iden && IDN_AG_TIPOS.has(it.tipo) && agHecho(it)) push(it.iden, t, it.t, 'agenda');
+  const P = ES.prioridades; if (P?.fecha && en(P.fecha)) for (const x of P.items || []) if (x && x.hecho && x.iden) push(x.iden, P.fecha, x.t, 'prio', 'prio:' + x.id);
+  for (const [d, its] of Object.entries(ES.agendaHist && typeof ES.agendaHist === 'object' ? ES.agendaHist : {})) { if (!en(d) || d === t || !Array.isArray(its)) continue; for (const it of its) if (it && it.iden && it.hecho && IDN_AG_TIPOS.has(it.tipo)) push(it.iden, d, it.t, 'agenda', idnRefAg(it, d)); }
+  const A = ES.agendaHoy; if (A?.fecha === t && en(t)) for (const it of A.items || []) if (it && it.iden && IDN_AG_TIPOS.has(it.tipo) && agHecho(it)) push(it.iden, t, it.t, 'agenda', idnRefAg(it, t));
+  // Un acto, un voto: el avance de un objetivo que es eco de una prioridad, tarea, iniciativa o ítem libre que ya votó por sí misma no se
+  // cuenta otra vez; los avances manuales y los de cosas sin vínculo (o de días en que la cosa ya no vota) siguen votando por el objetivo.
+  for (const o of ES.objetivos || []) if (o.iden && act.has(o.iden)) for (const a of o.avances || []) if (a && en(a.d) && !idnEco(a, propios)) push(o.iden, a.d, o.t, 'objetivo');
   const B = L.find(x => x.bienestar);
   if (B) for (const x of ES.practicas || []) if (x && en(x.d)) push(B.id, x.d, PRACTICAS.find(p => p.k === x.k)?.n || 'Práctica', 'bienestar');
   return act;
@@ -9950,7 +10005,7 @@ function idnProponer(id) {
   const I = idnPor(id); if (!I) return null;
   const s = HT(), t = today(), w = wd(t), H = (s.habits || []).filter(h => !h.rutina && h.iden === id && !s.log?.[h.id]?.[t]);
   const h = H.find(h => (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !window.hbProtegido?.(h, t)) || H[0];
-  if (h) { const m = xcMinima(h); return { tipo: 'habito', id: h.id, h, t: m, sub: `${h.nombre} · 2 minutos`, a: () => startFocus(m, 2), marcar: () => complete(h, 'min') }; }
+  if (h) { const m = xcMinima(h); return { tipo: 'habito', id: h.id, h, t: m, sub: `${h.nombre} · 2 minutos`, a: () => startFocus(m, 2), marcar: () => complete(hbVivo(h), 'min') }; }
   const pr = (ES.proyectos || []).find(p => p.iden === id);
   if (pr) return { tipo: 'proyecto', id: pr.id, pr, t: pr.minima || pr.paso || `Un paso pequeño de «${pr.nombre}»`, sub: `${pr.nombre} · paso de proyecto`, a: () => proyectoSheet(pr) };
   const act = new Map(idnActivas().map(x => [x.id, 1])), I4 = ES.iniciativas4?.dia === t ? ES.iniciativas4.items || [] : [], i = I4.findIndex(it => it && !it.hecho && idnIniId(it.k, it, act) === id);
@@ -10166,17 +10221,18 @@ function idnFicha(id) {
   body.querySelectorAll('[data-vinc]').forEach(cb => cb.addEventListener('change', () => {
     const [tipo, oid] = cb.dataset.vinc.split('|'), on = cb.checked;
     const set = x => { if (!x) return; if (on) x.iden = id; else if (x.iden === id) x.iden = ''; };
-    if (tipo === 'habito') set((s.habits || []).find(h => h.id === oid));
+    if (tipo === 'habito') set((HT().habits || []).find(h => h.id === oid));   // el hábito vivo, no el capturado al abrir
     else if (tipo === 'objetivo') set((ES.objetivos || []).find(o => o.id === oid));
     else if (tipo === 'proyecto') set((ES.proyectos || []).find(p => p.id === oid));
     else if (tipo.startsWith('ini:')) set((ES.catalogoIni?.[tipo.slice(4)] || []).find(x => x && x.id === oid));
     guardar(); renderIdentidad(); if (view === 'hoy') render();
   }));
-  $('#idf-bien').addEventListener('change', () => { for (const x of idnTodas()) if (x !== I) x.bienestar = false; I.bienestar = $('#idf-bien').checked; guardar(); renderIdentidad(); });
+  $('#idf-bien').addEventListener('change', () => { const Iv = idnViva(id); if (!Iv) { closeSheet(); renderIdentidad(); return; } for (const x of idnTodas()) if (x.id !== id) x.bienestar = false; Iv.bienestar = $('#idf-bien').checked; guardar(); renderIdentidad(); });
   body.querySelectorAll('[data-nuevo]').forEach(b => b.onclick = () => { if (b.dataset.nuevo === 'tarea') idnAnadir(id, () => idnFicha(id)); else idnNuevo(b.dataset.nuevo, id, () => idnFicha(id)); });
   $('#idf-ok').onclick = () => {
     const t = idnTxt($('#idf-t').value, 80); if (!t) { $('#idf-t').focus(); return; }
-    I.t = t; I.area = IDN_AREAS[area] ? area : 'otro'; I.por = idnTxt($('#idf-por').value, 160); guardar(); closeSheet(); renderIdentidad(); toast('Guardada.');
+    const Iv = idnViva(id); if (!Iv) { closeSheet(); renderIdentidad(); return; }
+    Iv.t = t; Iv.area = IDN_AREAS[area] ? area : 'otro'; Iv.por = idnTxt($('#idf-por').value, 160); guardar(); closeSheet(); renderIdentidad(); toast('Guardada.');
   };
   $('#idf-arch')?.addEventListener('click', () => { idnArchivar(id, true); guardar(); closeSheet(); renderIdentidad(); toast('Archivada: deja de contar votos; puedes reactivarla cuando quieras.'); });
   $('#idf-react')?.addEventListener('click', () => { if (!idnArchivar(id, false)) { toast('Ya hay seis activas: archiva una primero.'); return; } guardar(); renderIdentidad(); idnFicha(id); });
@@ -10222,7 +10278,7 @@ function idnCrear(opts = {}) {
       let x = idnTodas().find(i => i.t.toLowerCase() === t.toLowerCase());
       if (x && x.archivada) { if (!idnArchivar(x.id, false)) break; }
       else if (!x) { if (idnActivas().length >= 6) break; x = idnNueva({ t, area: Object.keys(IDN_CLAVES).find(a => IDN_CLAVES[a].test(t)) || 'otro' }); }
-      for (const h of s.habits || []) if (!h.rutina && idnTxt(h.identidad, 80) === t && !h.iden) h.iden = x.id;
+      for (const h of HT().habits || []) if (!h.rutina && idnTxt(h.identidad, 80) === t && !h.iden) h.iden = x.id;   // los vivos al pulsar
       n++;
     }
     guardar(); closeSheet(); renderIdentidad();
@@ -10306,7 +10362,7 @@ function idnEmpezar(paso = 1, pre = null) {
         const d = habFormLeer(body, 'ih' + i); if (!d) return;
         nuevos.push([ids[i], d]);
       }
-      for (let i = 0; i < ids.length; i++) { const v = $('#e2-sel-' + i).value; if (v && v !== '__nuevo') { const h = (s.habits || []).find(h => h.id === v); if (h) h.iden = ids[i]; } }
+      for (let i = 0; i < ids.length; i++) { const v = $('#e2-sel-' + i).value; if (v && v !== '__nuevo') { const h = (HT().habits || []).find(h => h.id === v); if (h) h.iden = ids[i]; } }   // los vivos al pulsar
       for (const [id, d] of nuevos) { const h = agCrearHabito(d), I = idnPor(id); h.iden = id; if (!h.identidad && I) h.identidad = `Soy una persona que ${I.t}`; }
       guardar(); if (nuevos.length) toast(nuevos.length === 1 ? 'Hábito creado.' : `${nuevos.length} hábitos creados.`);
       renderIdentidad(); idnEmpezar(3);
@@ -10429,10 +10485,15 @@ function jdAhora(p) {
   if (!jdLista().length) return null;
   // Un plan para volver vivo para hoy (en cualquier hábito, toque o no) manda sobre el voto.
   if ((HT().habits || []).some(hb => { try { return hb && !hb.rutina && h2PlanHoy(hb) && !isDone(hb, today()); } catch { return false; } })) return null;
-  const i = jdSin(3).sort((a, b) => (Number.isFinite(jdDias(b)) ? jdDias(b) : -1) - (Number.isFinite(jdDias(a)) ? jdDias(a) : -1))[0];
+  // 2.13 (IX) · Un hábito pendiente con hora a menos de una hora es «algo con hora» (el mismo criterio que la rama del hábito de «Ahora»)
+  // y una iniciativa del día definida y pendiente por debajo del mínimo va antes: ninguno de los dos cede ante el voto.
+  { const nm = nowMin(); if ((p?.habits || []).some(hb => (hb?.horas || []).some(hm => Math.abs(toMin(hm) - nm) <= 60))) return null; }
+  try { if (iniHechasHoy() < ES.minIni && ini4Semana().items.some(it => it && it.t && !it.hecho)) return null; } catch {}
+  // Solo una identidad con acción de 2 minutos (algo vinculado); la que no tiene nada se atiende desde su tarjeta en Identidad.
+  const i = jdSin(3).sort((a, b) => (Number.isFinite(jdDias(b)) ? jdDias(b) : -1) - (Number.isFinite(jdDias(a)) ? jdDias(a) : -1)).find(x => { try { return !jdAccion(x).vacio; } catch { return false; } });
   if (!i) return null;
   const a = jdAccion(i), d = jdDias(i);
-  return { k: 'Identidad', t: `Un voto por ${jdT(i)}`, p: `Dos minutos: ${a.t}.${Number.isFinite(d) && d >= 3 ? ` Sin votos desde hace ${d} días.` : ''}`, b: a.vacio ? 'Añadir algo que vote' : 'Empezar 2 min', a: () => jdAccionIr(i, a) };
+  return { k: 'Identidad', t: `Un voto por ${jdT(i)}`, p: `Dos minutos: ${a.t}.${Number.isFinite(d) && d >= 3 ? ` Sin votos desde hace ${d} días.` : ''}`, b: 'Empezar 2 min', a: () => jdAccionIr(i, a) };
 }
 
 // ---------- Organizar mi día, paso 4: «Hoy votas por: {t1} ×2 · {t2} ×1» y, por cada identidad sin nada ese día que lleve
