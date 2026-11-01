@@ -211,12 +211,40 @@ function fuentesAg(C, fecha) {
     : it.tipo === 'ini' ? I4.find(x => x.k === it.ref && x.t) : it.tipo === 'prio' ? PR.find(x => x.id === it.ref) : it;
   const borradoEn = it => +BE[it.ref] || 0;
   // ¿Existía su fuente a la hora at? Sin at, ahora.
-  const vivoF = (it, at) => !it.enFuente || !!fuente(it) || (at !== undefined && at <= C.desde && borradoEn(it) > at);
+  const vivoF = (it, at) => it.tipo !== 'estudio' && (!it.enFuente || !!fuente(it) || (at !== undefined && at <= C.desde && borradoEn(it) > at));   // 2.14 · estudio: avisa la ruta, no el ítem
   const texto = it => { const f = fuente(it); return (it.tipo === 'tarea' ? f?.titulo : it.tipo === 'habito' ? f?.nombre : ['ini', 'prio'].includes(it.tipo) ? f?.t : '') || it.t; };
   const horaDe = it => { if (it.fantasma) return it.h; const f = fuente(it); return it.tipo === 'ini' && f ? f.hora || '' : it.tipo === 'tarea' && f?.hora ? f.hora : it.h; };
   return { fuente, vivoF, texto, horaDe, borradoEn };
 }
 
+// 2.14 · Estudio (E.estudio.rutas): los bloques de un día y los exámenes que vienen, leídos a la defensiva (una ruta mal formada no
+// para a las demás; nada de XP). El texto del bloque es el de la app: «{materia} · {tema}», «Repaso: …», «Ejercicios: …», «Simulacro», «Repaso ligero».
+const ESTUDIO = new WeakMap();
+function estTexto(b, materia, temas) {
+  const tema = typeof b.tema === 'string' && b.tema ? temas.find(t => t.id === b.tema) : null, tt = sinPunto(tema ? tema.t : String(b.t || '').replace(/^(Ejercicios|Repaso): /, ''));
+  const cuerpo = b.tipo === 'ligero' ? 'Repaso ligero' : b.tipo === 'simulacro' ? 'Simulacro' : b.tipo === 'repaso' ? `Repaso: ${tt}` : b.tipo === 'practica' ? `Ejercicios: ${tt}` : tt;
+  return [materia, cuerpo].filter(Boolean).join(' · ');
+}
+function estudioDe(st, fecha) {
+  let M = ESTUDIO.get(st); if (!M) ESTUDIO.set(st, M = new Map());
+  if (M.has(fecha)) return M.get(fecha);
+  const out = { bloques: [], examenes: [] }, E = st.enfoque || {}, D = E.estudio && typeof E.estudio === 'object' ? E.estudio : {}, mats = acota(D.materias, 20);
+  for (const r of acota(D.rutas, 40)) {
+    try {
+      if (r.archivada || !/^\d{4}-\d\d-\d\d$/.test(r.fecha || '') || typeof r.id !== 'string') continue;
+      const materia = sinPunto((mats.find(m => m.id === r.materia) || {}).nombre), temas = acota(r.temas, 30), hechos = r.hechos && typeof r.hechos === 'object' && !Array.isArray(r.hechos) ? r.hechos : {};
+      if (r.fecha >= fecha && (materia || sinPunto(r.nombre))) out.examenes.push({ ruta: r.id, nombre: sinPunto(r.nombre), materia, fecha: r.fecha, hora: hmOk(r.hora) ? r.hora : '', dias: dias(fecha, r.fecha) });
+      for (const b of acota(r.plan, 600)) {
+        if (b.d !== fecha || typeof b.id !== 'string') continue;
+        const h = hechos[b.id] && typeof hechos[b.id] === 'object' ? hechos[b.id] : null, min = Math.max(0, Math.round(+b.min || 0)), texto = estTexto(b, materia, temas);
+        if (!(min > 0) || !texto) continue;   // un bloque sin minutos o sin texto no es un bloque
+        out.bloques.push({ id: b.id, h: hmOk(b.h) ? b.h : '', min, ej: Math.max(0, Math.round(+b.ej || 0)), texto, materia, examen: r.fecha, hecho: !!hechos[b.id], hechoEn: h ? ts(h.en) : 0 });
+      }
+    } catch {}
+  }
+  out.bloques.sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : 1); out.examenes.sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+  M.set(fecha, out); return out;
+}
 // 2.13 · Identidad: una sola línea dentro del resumen si alguna identidad (E.identidades, con iden en hábitos, iniciativas y agenda)
 // lleva 3 o más días sin votos: «Sin votos desde el {día}: una persona que {t}. ¿Dos minutos hoy?». Sin XP, sin imperativos,
 // sin aviso aparte. Los votos se calculan con el criterio simplificado: hábitos (log full/min), iniciativas del día y el historial de la agenda.
@@ -249,6 +277,10 @@ function resumen(C, fecha) {
   L.push(P.length ? `Prioridades: ${P.map((x, i) => `${i + 1}. ${x.t}`).join(' · ')}` : 'Aún sin prioridades: tres como máximo, la más difícil primero.');
   const FA = fuentesAg(C, fecha), ag = agendaDe(C, fecha).items.filter(it => !it.fantasma && !it.hist && FA.vivoF(it)).map(it => ({ t: FA.texto(it), h: FA.horaDe(it) })).filter(e => e.t).sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : 1);
   if (ag.length) L.push(`Agenda: ${ag.slice(0, 4).map(e => `${hmOk(e.h) ? hora12(e.h) + ' ' : ''}${e.t}`).join(' · ')}${ag.length > 4 ? '…' : ''}`);
+  // 2.14 · Estudio: hasta dos bloques de hoy que siguen pendientes y el examen que viene en la semana («mañana» si es mañana).
+  const ES = estudioDe(st, fecha);
+  for (const b of ES.bloques.filter(b => !b.hecho).slice(0, 2)) L.push(`Estudio: ${b.h ? hora12(b.h) + ' ' : ''}${b.texto} · ${b.min} min${b.ej ? ` · ${b.ej} ${b.ej === 1 ? 'ejercicio' : 'ejercicios'}` : ''}`);
+  for (const x of ES.examenes.filter(x => x.dias <= 7).slice(0, 2)) L.push(`Examen de ${x.materia || x.nombre || 'estudio'}: ${x.dias === 0 ? 'hoy' : x.dias === 1 ? 'mañana' : `en ${x.dias} días`}${x.hora ? ' ' + alas(x.hora) : ''}`);
   const pl = acota(E.planes, 60).filter(p => !p.hecho && p.fecha === fecha);
   if (pl.length) L.push(`Planes: ${pl.map(p => `${p.titulo}${p.con ? ' con ' + p.con : ''} ${hora12(p.hora)}`).join(' · ')}`);
   const hab = habitosDe(st).filter(h => !h.rutina && !h.graduado && (!h.creado || h.creado <= fecha) && programado(h, fecha) && !protegido(h, fecha));
@@ -350,6 +382,14 @@ function candidatos(C, fecha) {
         url: './?v=agenda', apagar: APAGAR, hasta: en(h), vivo: at => (!fant || (pasado(at) && at < fant)) && tipoOn('agenda', at) && (actual(at) || !org || org < 1e11 || org <= at) && vivoF(it, at) && pendienteAg(it, at),
         duda: () => dudaAg(it) });
     }
+    // 2.14 · Estudio: un aviso de clase 1 por bloque de hoy con hora; la fuente es la ruta (su ítem de la agenda no avisa aparte). Tu razón y
+    // una elección, sin imperativos ni XP; vivo mientras el bloque no esté hecho; la misma pausa de 3 días que los avisos fijos (abrir el
+    // aviso o hacer un bloque ese día cuenta como útil). Con la app cerrada sigue igual: el plan vive en los datos.
+    for (const b of estudioDe(st, fecha).bloques.slice(0, 12)) {
+      if (!b.h || pausaFija(C, fecha, 'est@' + b.h, ['est-' + b.id], ['agenda'], e => estudioDe(st, e).bloques.some(x => x.hecho || abiertosDe(C, 'est-' + x.id, e).length))) continue;
+      out.push({ t: en(b.h), clase: 1, tag: 'est-' + b.id, franja: 'est@' + b.h, title: `${hora12(b.h)} · Estudio · ${b.texto}`, body: `Para llegar al examen de ${b.materia || 'estudio'} con el tema visto. ¿Empiezas, lo mueves o lo dejas para mañana?`,
+        url: './?v=estudio', apagar: APAGAR, limite: 60, vivo: at => tipoOn('agenda', at) && (!b.hecho || (pasado(at) && !(b.hechoEn > 0 && b.hechoEn <= at))), duda: () => b.hecho && !(b.hechoEn > 0) });
+    }
     // A las 9:30, si el día no tiene hora (solo trae de vuelta a la app: cuenta como el único del día de ese tipo).
     if (!pausaFija(C, fecha, 'agenda@09:30', ['agenda'], ['agenda'], e => (E.dias?.[e]?.agenda || 0) > 0))
       out.push({ t: en('09:30'), clase: 3, soloVolver: true, tag: 'agenda', franja: 'agenda@09:30', title: 'Tu día aún no tiene hora', body: 'Dos minutos y lo importante queda con hora.', url: './?v=agenda', apagar: APAGAR,
@@ -427,7 +467,8 @@ function candidatos(C, fecha) {
       const nom = it => it.tipo === 'habito' ? habito(it.ref)?.nombre || '' : it.tipo === 'tarea' ? acota(st.tareas?.items, 2000).find(x => x.id === it.ref && !x.hecha)?.titulo || '' : it.t;
       const r = acota(P?.items, 80).filter(it => hmOk(it.h) && sinPunto(nom(it))).sort((a, b) => a.h < b.h ? -1 : 1)[0];
       const res = r ? `Mañana ${alas(r.h)} tienes reservado: ${sinPunto(nom(r))}.` : '';
-      return { tag: 'noche', duda: sim && B.some(x => !(+x.en > 0)), corto: `lo mejor de hoy${res ? ' · ' + minus(res.slice(0, -1)) : ''}`, title: '¿Qué fue lo mejor de hoy?', body: `Un minuto para cerrar con lo que avanzaste y lo mejor del día.${res ? ' ' + res : ''}` };
+      const exM = estudioDe(st, m).examenes.find(x => x.fecha === m), exT = exM ? `Mañana: examen de ${exM.materia || exM.nombre || 'estudio'}${exM.hora ? ' ' + alas(exM.hora) : ''}.` : '';   // 2.14 · Estudio
+      return { tag: 'noche', duda: sim && B.some(x => !(+x.en > 0)), corto: `lo mejor de hoy${res ? ' · ' + minus(res.slice(0, -1)) : ''}`, title: '¿Qué fue lo mejor de hoy?', body: `Un minuto para cerrar con lo que avanzaste y lo mejor del día.${res ? ' ' + res : ''}${exT ? ' ' + exT : ''}` };
     } });
   }
   const V = [...new Set((Array.isArray(E.ventanas) && E.ventanas.length ? E.ventanas : ['12:30', '18:00', '21:00']).filter(hmOk))].sort().slice(0, 8);
@@ -462,7 +503,7 @@ function silencios(C, fecha) {
     const a = aMs(fecha, it.h, C.tz);
     // En un bloque protegido solo puede sonar su propio aviso, al empezar. El silencio vale para lo que ya pasó solo si
     // el evento ya se conocía a esa hora (it.org: cuándo entró a la agenda); si no, lo ya enviado no se mueve.
-    S.push({ a, b: a + Math.min(720, +it.min) * 60000, propio: it.foco ? 'ag-' + it.id : '', ag: true, org: +it.org > 1e11 ? +it.org : +it.org > 0 ? 1 : 0 });
+    S.push({ a, b: a + Math.min(720, +it.min) * 60000, propio: it.foco ? (it.tipo === 'estudio' ? 'est-' + it.ref : 'ag-' + it.id) : '', ag: true, org: +it.org > 1e11 ? +it.org : +it.org > 0 ? 1 : 0 });
   }
   return S;
 }
