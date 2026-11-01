@@ -32,8 +32,33 @@ self.addEventListener('push', e => {
   // Cada aviso trae un botón para apagar su tipo con un toque (la app lo aplica al abrirse).
   const op = { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag, data: { url: d.url || './', tag: d.tag || '' } };
   if (d.apagar) op.actions = [{ action: 'apagar', title: String(d.apagar).slice(0, 40) }];
-  e.waitUntil(self.registration.showNotification(d.title || 'Organización Personal', op));
+  // Cada tipo se repite cada día con su tag (h-leer, resumen…): el de hoy reemplaza al de ayer en la bandeja, pero vuelve a
+  // sonar y vibrar (sin renotify, Android lo cambia en silencio). renotify exige tag.
+  if (d.tag) op.renotify = true;
+  e.waitUntil(Promise.all([self.registration.showNotification(d.title || 'Organización Personal', op), anotarRecibido(d.tag)]));
 });
+// Cada aviso que llega se anota en este teléfono (IndexedDB, los últimos 30 días): la app solo dice que un aviso «lleva
+// 3 días sin servir» si de verdad sonó esos días. Si algo falla, el aviso se muestra igual.
+function anotarRecibido(tag) {
+  if (!tag || typeof indexedDB === 'undefined') return Promise.resolve();
+  return new Promise(fin => {
+    try {
+      const r = indexedDB.open('avisos-recibidos', 1);
+      r.onupgradeneeded = () => { const db = r.result; db.createObjectStore('recibidos', { autoIncrement: true }); db.createObjectStore('meta', { keyPath: 'k' }).put({ k: 'desde', desde: Date.now() }); };
+      r.onerror = () => fin();
+      r.onsuccess = () => {
+        const db = r.result, t = Date.now();
+        try {
+          const tx = db.transaction('recibidos', 'readwrite'), os = tx.objectStore('recibidos');
+          os.add({ tag: String(tag).slice(0, 80), t });
+          const c = os.openCursor();
+          c.onsuccess = () => { const x = c.result; if (x && !(x.value?.t > t - 30 * 864e5)) { x.delete(); x.continue(); } };
+          tx.oncomplete = tx.onerror = tx.onabort = () => { db.close(); fin(); };
+        } catch { db.close(); fin(); }
+      };
+    } catch { fin(); }
+  });
+}
 // Al tocarla se abre la app (o se trae al frente) en la pestaña que corresponde.
 self.addEventListener('notificationclick', e => {
   e.notification.close();

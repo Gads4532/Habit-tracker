@@ -641,6 +641,7 @@ function normalize(s) {
     if (h.rutina) continue;
     if (!Array.isArray(h.dias) || !h.dias.length) h.dias = [...ALL_DAYS];
     if (!Array.isArray(h.horas)) h.horas = h.hora ? [h.hora] : [];
+    if (h.horas.length > 24) h.horas = h.horas.slice(0, 24);   // 2.12 · avisos: como mucho 24 horas por hábito
     delete h.hora;
     if (!['check', 'veces', 'tiempo'].includes(h.modo)) h.modo = 'check';
     h.meta = Math.max(1, +h.meta || 1);
@@ -657,6 +658,8 @@ function normEnfoque(e) {
   e.limite = Math.max(1, Math.min(20, +e.limite || 3));
   e.espera = [5, 10, 20, 30].includes(+e.espera) ? +e.espera : 10;
   e.dias ||= {};
+  if (typeof e.dias !== 'object' || Array.isArray(e.dias)) e.dias = {};
+  for (const k of Object.keys(e.dias)) { const d = e.dias[k]; if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !d || typeof d !== 'object' || Array.isArray(d)) { delete e.dias[k]; continue; } for (const f of Object.keys(d)) { const v = +d[f]; d[f] = Number.isFinite(v) ? v : 0; } }
   if (!Array.isArray(e.personas)) e.personas = [];
   for (const p of e.personas) { p.cada = +p.cada || 30; p.ultimo ||= ''; p.tel ||= ''; if (!Array.isArray(p.historial)) p.historial = []; }
   if (!Array.isArray(e.proyectos)) e.proyectos = [];
@@ -777,7 +780,7 @@ function save() {
   pushCloud();
 }
 // Lo borrado se recuerda por id para que no vuelva al combinar con la nube.
-function forget(id) { state.borrados.push(id); if (state.borrados.length > 500) state.borrados = state.borrados.slice(-500); }
+function forget(id) { state.borrados.push(id); if (state.borrados.length > 500) state.borrados = state.borrados.slice(-500); (state.borradosEn = state.borradosEn && typeof state.borradosEn === 'object' && !Array.isArray(state.borradosEn) ? state.borradosEn : {})[id] = Date.now(); }
 
 // Antes de que la nube cambie lo que hay en el teléfono, se guarda una copia por si acaso.
 const PREV_KEY = 'habit-tracker-prev';
@@ -795,6 +798,68 @@ function renderPrev() {
 
 // Texto canónico (claves ordenadas) para comparar estados sin que importe el orden.
 const canon = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+// 2.12 · Registros sueltos de la puerta y el teléfono (olas medidas, «¿valió la pena?», aperturas con su para qué): unión sin duplicados,
+// en orden y con su tope. Los nuevos llevan t (milisegundos); dos registros de antes iguales dentro de una copia cuentan como dos.
+function unirLog(x, y, n) {
+  const m = new Map(), s = v => String(v ?? ''), cmp = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  for (const l of [y, x]) { const c = {}; for (const i of Array.isArray(l) ? l : []) { if (!i || typeof i !== 'object') continue; const k = +i.t ? 't' + i.t : JSON.stringify(i); c[k] = (c[k] || 0) + 1; m.set(k + '#' + c[k], i); } }
+  return [...m.values()].sort((a, b) => cmp(s(a.d), s(b.d)) || (+a.t || 0) - (+b.t || 0) || cmp(s(a.h), s(b.h)) || cmp(JSON.stringify(a), JSON.stringify(b))).slice(-n);
+}
+// 2.12 · Lo que cada hábito anota de sus días se une entre teléfonos; en lo demás manda el objeto del más reciente (n; o es el del otro).
+// Días protegidos (los que quitaste no vuelven), chequeos de automaticidad, cada «Hoy no», el plan para volver (el del «Hoy no» más
+// reciente, salvo que eligieras «Sin plan» ese día), la graduación (manda lo último que pasó) y los días en que ya cobró su XP.
+function unirHabito(n, o) {
+  const F = /^\d{4}-\d\d-\d\d$/, f = v => typeof v === 'string' && F.test(v), fechas = L => (Array.isArray(L) ? L : []).filter(f), r = { ...n };
+  if (n.protegidos || o.protegidos || n.desprotegidos || o.desprotegidos) {
+    const pN = fechas(n.protegidos), qN = fechas(n.desprotegidos), qO = fechas(o.desprotegidos);
+    const prot = [...new Set([...pN, ...fechas(o.protegidos)])].filter(k => !qN.includes(k) && !(qO.includes(k) && !pN.includes(k))).sort();
+    const quit = [...new Set([...qN, ...qO])].filter(k => !prot.includes(k)).sort().slice(-60), por = { ...o.protegidoPor, ...n.protegidoPor };
+    if (prot.length || n.protegidos || o.protegidos) r.protegidos = prot;
+    if (n.protegidoPor || o.protegidoPor) r.protegidoPor = Object.fromEntries(prot.filter(k => por[k]).map(k => [k, por[k]]));
+    if (quit.length) r.desprotegidos = quit; else delete r.desprotegidos;
+  }
+  const porFecha = (campo, max, elige) => { const m = new Map();
+    for (const l of [o[campo], n[campo]]) for (const x of Array.isArray(l) ? l : []) { if (!x || typeof x !== 'object') continue; const k = f(x.d) ? x.d : JSON.stringify(x), q = m.get(k); m.set(k, q && elige ? elige(x, q) : x); }
+    return [...m.values()].sort((a, b) => String(a.d || '') < String(b.d || '') ? -1 : String(a.d || '') > String(b.d || '') ? 1 : 0).slice(-max); };
+  if (n.srbai || o.srbai) r.srbai = porFecha('srbai', 10);
+  // Un «Hoy no» que tiene plan en una copia lo conserva, salvo que en la más reciente eligieras «Sin plan» ese día.
+  if (n.volver || o.volver) r.volver = porFecha('volver', 30, (x, q) => x.plan || !q.plan || n.sinPlan === x.d ? x : q);
+  if (f(o.sinPlan) && !(f(n.sinPlan) && n.sinPlan >= o.sinPlan)) r.sinPlan = o.sinPlan;
+  const rN = n.retomar && typeof n.retomar === 'object' ? n.retomar : null, rO = o.retomar && typeof o.retomar === 'object' ? o.retomar : null;
+  if (rO && (!rN || String(rO.de || '') > String(rN.de || '')) && n.sinPlan !== rO.de) r.retomar = rO;
+  // Si al unir su día quedó protegido, el plan pasa al siguiente día que toca (como al proteger en este teléfono).
+  if (r.retomar && f(r.retomar.de) && (r.protegidos || []).includes(r.retomar.d) && r.retomar.de < r.retomar.d) try { r.retomar = { ...r.retomar, d: h2Siguiente(r, r.retomar.de) }; } catch {}
+  const no = x => [x.desgraduado, x.gradNo].filter(f).sort().pop() || '', gN = f(n.graduado) ? n.graduado : '', gO = f(o.graduado) ? o.graduado : '';
+  if (gO && !gN && gO > no(n)) {   // se graduó en el otro y aquí no se deshizo después
+    r.graduado = gO; r.sinAviso = o.sinAviso; if (o.sinAvisoPorGraduacion) r.sinAvisoPorGraduacion = true; else delete r.sinAvisoPorGraduacion; delete r.gradNo; delete r.desgraduado;
+  } else if (gN && !gO && no(o) >= gN) {   // en el otro volvió a la lista activa después de graduarse aquí
+    delete r.graduado; if (r.sinAvisoPorGraduacion) { r.sinAviso = false; delete r.sinAvisoPorGraduacion; }
+    for (const k of ['desgraduado', 'gradNo']) if (f(o[k])) r[k] = o[k];
+  }
+  if (!f(r.automatico) && f(o.automatico)) r.automatico = o.automatico;
+  for (const k of ['xpDia', 'xpRutinaDia', 'celeDia']) if (f(o[k]) && !(f(n[k]) && n[k] >= o[k])) r[k] = o[k];   // lo ya premiado hoy sigue premiado
+  return r;
+}
+// 2.12 · Historial de la agenda: por día, un ítem por tipo y referencia (las sueltas, por texto), hecho si lo está en cualquiera de las
+// dos copias. La agenda de un día anterior que el otro teléfono aún no había archivado entra en la foto de ese día, con lo hecho según
+// lo ya combinado (registro de hábitos, tareas, iniciativas y planes): la foto ya no depende de cuál de los dos abrió primero.
+function unirAgendaHist(eN, eO, out) {
+  // Dos cosas iguales en una misma copia (dos «Llamar» sueltos el mismo día) siguen siendo dos: se emparejan por orden con las del otro.
+  const clave = it => it.tipo + ':' + (it.tipo === 'libre' ? it.t : it.ref);
+  const unir = (n, o) => { const m = new Map(); for (const l of [o, n]) { const c = {}; for (const it of Array.isArray(l) ? l : []) { if (!it || typeof it !== 'object') continue; const b = clave(it), k = b + '#' + (c[b] = (c[b] || 0) + 1), q = m.get(k); m.set(k, q ? { ...q, ...it, hecho: !!(q.hecho || it.hecho) } : it); } } return [...m.values()]; };
+  const H = {};
+  for (const k of new Set([...Object.keys(eO.agendaHist || {}), ...Object.keys(eN.agendaHist || {})])) H[k] = unir(eN.agendaHist?.[k], eO.agendaHist?.[k]);
+  const a = eN.agendaHoy, b = eO.agendaHoy;
+  if (a?.fecha && b?.fecha && a.fecha !== b.fecha) {
+    const v = a.fecha < b.fecha ? a : b, k = v.fecha, pl = [...(eN.planes || []), ...(eO.planes || [])], lista = x => Array.isArray(x) ? x : [];
+    const hecho = it => !!it.hecho || (it.tipo === 'habito' ? ['full', 'min'].includes(out.log[it.ref]?.[k])
+      : it.tipo === 'tarea' ? out.tareas.items.some(x => x.id === it.ref && x.hecha && !(+x.hechaEn && dayKey(new Date(+x.hechaEn)) > k))
+      : it.tipo === 'ini' ? [eN, eO].some(e => lista(e.iniHist?.[k]).includes(it.ref) || (e.iniciativas4?.dia === k && lista(e.iniciativas4.items).some(x => x?.k === it.ref && x.hecho)))
+      : it.tipo === 'plan' ? pl.some(x => x?.id === it.ref && x.hecho) : false);
+    if (lista(v.items).length) H[k] = unir(lista(v.items).filter(it => it && typeof it === 'object').map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: hecho(it), ...(it.foco ? { foco: true } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })), H[k]);
+  }
+  return H;
+}
 // Combinar dos estados sin perder nada: unión de hábitos, días y tareas; en conflicto manda el más reciente.
 function mergeStates(a, b) {
   a = normalize(a); b = normalize(b);
@@ -835,6 +900,21 @@ function mergeStates(a, b) {
       for (const it of byId(x.items || [], y.items || [])) { if (it.tipo === 'libre') { out.push(it); continue; } const k = it.tipo + ':' + it.ref; if (!pos.has(k)) { pos.set(k, out.length); out.push(it); } else if (nuevos.has(it.id)) out[pos.get(k)] = it; }
       return { ...y, ...x, items: out, ocultos: [...new Set([...(x.ocultos || []), ...(y.ocultos || [])])], organizado: Math.max(+x.organizado || 0, +y.organizado || 0) }; })(eN.agendaHoy, eO.agendaHoy),
     agendaPlan: ((x, y) => !x ? (y || null) : !y ? x : x.fecha !== y.fecha ? (x.fecha > y.fecha ? x : y) : ((+x.organizado || 0) >= (+y.organizado || 0) ? x : y))(eN.agendaPlan, eO.agendaPlan) });
+  // 2.12 · Lo que la regla de arriba no combinaba: cada hábito con lo del otro (unirHabito), los registros de la puerta y del teléfono,
+  // el historial de la agenda y de las iniciativas, y lo de hoy (prioridades e iniciativas) del teléfono que ya abrió hoy: el otro, aunque
+  // haya guardado después, tiene las de ayer (las prioridades, vacías al normalizar).
+  { const viejos = new Map(older.habits.map(h => [h.id, h])), t = today(), E = out.enfoque, L = x => Array.isArray(x) ? x : [];
+    out.habits = out.habits.map(h => { const o = viejos.get(h.id); return o && o !== h ? unirHabito(h, o) : h; });
+    E.surf = unirLog(eN.surf, eO.surf, 100); E.valio = unirLog(eN.valio, eO.valio, 60); E.aperturasLog = unirLog(eN.aperturasLog, eO.aperturasLog, 100);
+    E.agendaHist = unirAgendaHist(eN, eO, out);
+    if (!L(eN.prioridades?.items).length && L(eO.prioridades?.items).length && eN.agendaHoy?.fecha !== t) E.prioridades = eO.prioridades;
+    const I = eN.iniciativas4?.dia !== t && eO.iniciativas4?.dia === t ? eO.iniciativas4 : eN.iniciativas4, Id = I === eN.iniciativas4 ? eO.iniciativas4 : eN.iniciativas4;
+    E.iniciativas4 = I;
+    // Historial de iniciativas: por día, lo hecho en cualquiera de las dos copias, y las de un día anterior que aquí se descartan.
+    const IH = {}, add = (k, ks) => { IH[k] = [...new Set([...L(IH[k]), ...L(ks)])]; };
+    for (const e of [eO, eN]) for (const [k, ks] of Object.entries(e.iniHist && typeof e.iniHist === 'object' ? e.iniHist : {})) add(k, ks);
+    if (Id && Id !== I && /^\d{4}-\d\d-\d\d$/.test(Id.dia || '') && Id.dia < t && Id.dia !== I?.dia && L(Id.items).some(x => x?.hecho)) add(Id.dia, L(Id.items).filter(x => x?.hecho).map(x => x.k));
+    if (eN.iniHist || eO.iniHist || Object.keys(IH).length) E.iniHist = IH; }
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
   return normalize(out);
@@ -843,6 +923,12 @@ function mergeStates(a, b) {
 // ---------- Nube: un documento privado por persona en el almacenamiento de la página.
 // Sin él (archivo abierto suelto), la app sigue funcionando solo en este dispositivo.
 let cloudRef = null, writing = false, dirty = false, pending = false;
+// 2.12 · Lo que la app cambia sola al pintar (lo pedido «desde el lunes», un consolidado que vuelve, el plan de anoche) espera a que la
+// nube combine para guardarse: guardado antes, un teléfono atrasado pasaría a ser «el más reciente» y pisaría lo que subió el otro.
+// Mientras, queda en memoria (si cierras antes, se vuelve a aplicar al abrir). Sin cuenta, o con la nube ya combinada, se guarda enseguida.
+let nubeLista = false, guardarTras = false;
+function guardarAlPintar(fn = save) { if (nubeLista || !(auth || window.claude?.use)) fn(); else guardarTras = true; }
+function nubeCombinada() { nubeLista = true; if (guardarTras) { guardarTras = false; save(); } }
 const SYNC_TEXT = { ok: '· Guardado en la nube', saving: '· Guardando en la nube…', local: '· Solo en este teléfono', error: '· Pendiente de subir; se reintenta solo', wait: '· Conectando…', notable: '· Falta preparar la base de datos' };
 const setSync = st => {
   const hora = st === 'ok' && savedAt ? ' ' + new Date(savedAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -975,7 +1061,7 @@ async function signOut() {
 let pollTimer = 0, lastSeen = '';
 async function connectSupabase() {
   setSync('wait');
-  if (!(await ensureToken())) { setSync(auth ? 'error' : 'local'); return; }
+  if (!(await ensureToken())) { setSync(auth ? 'error' : 'local'); if (!auth) nubeCombinada(); return; }
   const uid = auth.uid;
   cloudRef = { set: async data => {
     if (!(await ensureToken())) throw new Error('sin sesión');
@@ -993,8 +1079,8 @@ async function connectSupabase() {
     catch (e) { setSync(e.code === '42P01' || e.status === 404 ? 'notable' : 'error'); return; }
     const row = rows?.[0];
     const localHas = state.habits.length || state.tareas.items.length;
-    if (!row) { if (localHas) pushCloud(); else setSync('ok'); return; }
-    if (row.updated_at === lastSeen) { setSync('ok'); return; }
+    if (!row) { if (localHas) pushCloud(); else setSync('ok'); nubeCombinada(); return; }
+    if (row.updated_at === lastSeen) { setSync('ok'); nubeCombinada(); return; }
     // Nunca se elige entre teléfono y cuenta: se combinan y se guarda la copia previa por si acaso.
     const remote = normalize(row.data);
     const merged = mergeStates(JSON.parse(JSON.stringify(state)), remote);
@@ -1003,6 +1089,7 @@ async function connectSupabase() {
     if (localChanged) { snapshotLocal(); state = merged; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} renderAll(); }
     lastSeen = row.updated_at; try { localStorage.setItem(SEEN_KEY, lastSeen); } catch {}
     if (remoteChanged) pushCloud(); else setSync('ok');
+    nubeCombinada();   // ya combinado: lo que se cambió al pintar se guarda ahora
   };
   await pull();
   clearInterval(pollTimer);
@@ -1011,11 +1098,12 @@ async function connectSupabase() {
 }
 
 async function connectCloud() {
-  if (!window.claude?.use) { renderAccount(); if (auth) connectSupabase(); else setSync('local'); return; }
+  nubeLista = false;   // hasta que esta conexión combine, lo que se cambia al pintar no se guarda
+  if (!window.claude?.use) { renderAccount(); if (auth) connectSupabase(); else { setSync('local'); nubeCombinada(); } return; }
   setSync('wait');
   const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
   const uid = db && user ? await user.id() : null;
-  if (!uid) { setSync('local'); return; }
+  if (!uid) { setSync('local'); nubeCombinada(); return; }
   cloudRef = db.doc(`data/users/${uid}/estado`);
   let first = true;
   cloudRef.onSnapshot(snap => {
@@ -1029,7 +1117,7 @@ async function connectCloud() {
     } else if (first && state.habits.length) {
       pushCloud(); // Primera vez: sube lo que ya había en este dispositivo.
     } else setSync('ok');
-    first = false;
+    first = false; nubeCombinada();
   }, () => setSync('error'));
 }
 
@@ -1090,7 +1178,7 @@ function render() {
   h2AlRender();   // 2.12 · H2: lo pedido «desde el lunes» y los consolidados que vuelven a la lista activa
   const top = state.habits.filter(h => !h.padre).sort((a, b) => (b.clave ? 1 : 0) - (a.clave ? 1 : 0));
 
-  const building = state.habits.filter(h => !h.rutina && !h.graduado && stats(h).done < 66).length;   // un graduado libera su hueco
+  const building = state.habits.filter(h => !h.rutina && !h.graduado).length;   // solo graduarse libera el hueco (F21), no los 66 votos
   $('#notice').hidden = building <= 3;
   $('#notice').textContent = `${building} hábitos en construcción. Menos, pero mejor: consolida uno antes de añadir otro.`;
 
@@ -1414,7 +1502,7 @@ function hbImpulso(h) {
 document.head.insertAdjacentHTML('beforeend', `<style id="h2-css">
   #form .hb-pista { font-size: .82rem; margin: 8px 0 0; }
   #form .hb-chips, #msg .hb-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; overflow: visible; padding: 0; }
-  #form .hb-chips .chip, #msg .hb-chips .chip { padding: 6px 12px; font-size: .85rem; }
+  #form .hb-chips .chip, #msg .hb-chips .chip { padding: 6px 12px; font-size: .85rem; white-space: normal; flex: 0 1 auto; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
   #form .hb-chips .link, #msg .hb-chips .link { font-size: .85rem; }
   #form .hb-ops { display: flex; gap: 8px; margin: 8px 0 0; }
   #form .hb-ops .chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
@@ -1477,12 +1565,19 @@ function h2Proteger(h, k, motivo) {
   h = hbVivo(h);
   if (h2Prot(h, k)) return true;
   if (h2ProtDelMes(h, k.slice(0, 7)) >= H2_PROT_MES) return false;
-  h.protegidos = [...h2Protegidos(h), k].sort().slice(-24);
+  h.protegidos = [...h2Protegidos(h), k].sort();   // sin tope por número: un protegido antiguo nunca pasa a ser un fallo
+  if (Array.isArray(h.desprotegidos)) { h.desprotegidos = h.desprotegidos.filter(x => x !== k); if (!h.desprotegidos.length) delete h.desprotegidos; }
   const por = {}; for (const d of h.protegidos) { const m = d === k ? motivo : h2ProtMotivo(h, d); if (m) por[d] = String(m).slice(0, 30); }
   h.protegidoPor = por;
+  if (h.retomar?.d === k) h.retomar.d = h2Siguiente(h, k);   // el plan para volver pasa al siguiente día que toca
   save(); render(); return true;
 }
-function h2Desproteger(h, k) { h = hbVivo(h); h.protegidos = h2Protegidos(h).filter(x => x !== k); if (h.protegidoPor) delete h.protegidoPor[k]; save(); render(); }
+function h2Desproteger(h, k) {
+  h = hbVivo(h); const era = h2Prot(h, k); h.protegidos = h2Protegidos(h).filter(x => x !== k); if (h.protegidoPor) delete h.protegidoPor[k];
+  if (era) h.desprotegidos = [...new Set([...(Array.isArray(h.desprotegidos) ? h.desprotegidos : []), k])].sort().slice(-60);   // que otro teléfono no lo devuelva al combinar
+  if (h.retomar && h2Valida(h.retomar.de) && h.retomar.de < k && k < h.retomar.d) h.retomar.d = h2Siguiente(h, h.retomar.de);   // y el plan vuelve a ese día
+  save(); render();
+}
 // El siguiente día que toca y no está protegido (normalmente, mañana).
 function h2Siguiente(h, desde) {
   for (let i = 1; i <= 14; i++) { const k = h2Sig(desde, i); if (isSched(h, k) && !h2Prot(h, k)) return k; }
@@ -1566,11 +1661,11 @@ function h2PlanPaso(id, day) {
     if (!/^\d\d:\d\d$/.test(hm)) { $('#hb-pl-hora').focus(); return; }
     const s2 = hbLimpia($('#hb-pl-si').value, /^si(?=[\s,:])[\s,:]*/i) || obst[0];
     const e2 = String($('#hb-pl-ent').value || '').trim().replace(/^(entonces|hago)(?=[\s,:])[\s,:]*/i, '').replace(/[\s.,;:]+$/, '') || hv.minima || hv.nombre;
-    hv.retomar = { d, hora: hm, si: s2.slice(0, 80), entonces: e2.slice(0, 80), de: day, siTu: h2Tu(s2).slice(0, 80) };
+    hv.retomar = { d, hora: hm, si: s2.slice(0, 80), entonces: e2.slice(0, 80), de: day, siTu: h2Tu(s2).slice(0, 80) }; if (hv.sinPlan === day) delete hv.sinPlan;
     h2VolverMarca(hv, day, true); save(); render(); $('#msg-dialog').close();
     h2Toast(`Plan guardado para ${cuando} a las ${fmtHora(hm)}.`);
   };
-  $('#hb-pl-no').onclick = () => { const hv = hbVivo(h); delete hv.retomar; h2VolverMarca(hv, day, false); save(); render(); $('#msg-dialog').close(); };
+  $('#hb-pl-no').onclick = () => { const hv = hbVivo(h); delete hv.retomar; hv.sinPlan = day; h2VolverMarca(hv, day, false); save(); render(); $('#msg-dialog').close(); };
 }
 // El plan vale para su día, y solo si el día del «Hoy no» siguió sin hacerse.
 const h2PlanVivo = h => !!h.retomar && /^\d\d:\d\d$/.test(h.retomar.hora || '') && !(h2Valida(h.retomar.de) && isDone(h, h.retomar.de));
@@ -1691,6 +1786,8 @@ function h2Anio(h) {
   const n = Math.min(7, Math.round(hechos / W * 7)), dias = Math.min(365, Math.round(hechos / W * 365 / 10) * 10);
   return n && dias ? `<p class="meta">A este ritmo (${n} de 7 días), en un año serán unos ${dias} días de ${esc(h2Min1(h.nombre))}.</p>` : '';
 }
+// Graduarse y volver a la lista activa usan la misma regla: con 7 o más de los últimos 14 días que tocaban, menos del 70 % hecho.
+function h2Cae14(h) { const r = hbUltimos(h, 14); return r.length >= 7 && hbTasa(r) < .7; }
 // Al pintar la lista: lo que se pidió «desde el lunes» y los consolidados que bajan del 70 % en 14 días.
 function h2AlRender() {
   let cambio = false; const t = today();
@@ -1699,9 +1796,9 @@ function h2AlRender() {
     const c = h.cambioLunes;
     if (c && h2Valida(c.desde) && t >= c.desde) { if (+c.meta >= 1) h.meta = Math.round(+c.meta); if (c.nombre) h.nombre = String(c.nombre).slice(0, 80); delete h.cambioLunes; cambio = true; }
     else if (c && !h2Valida(c.desde)) { delete h.cambioLunes; cambio = true; }
-    if (h.graduado) { const r = hbUltimos(h, 14); if (r.length >= 7 && hbTasa(r) < .7) { h2Desgraduar(h, true); cambio = true; } }
+    if (h.graduado && h2Cae14(h)) { h2Desgraduar(h, true); cambio = true; }
   }
-  if (cambio) save();
+  if (cambio) guardarAlPintar();   // 2.12 · al abrir, después de combinar con la nube (hasta entonces, en memoria)
 }
 let h2ConsAbierto = false;
 function h2ConsHTML(cons) {
@@ -1803,11 +1900,13 @@ function hbSrbai(h) {
     h.srbai = [...(Array.isArray(h.srbai) ? h.srbai : []).filter(x => x?.d !== t), { d: t, v: media }].slice(-10);
     const dos = h.srbai.slice(-2), seguidos = dos.length === 2 && dos.every(x => +x.v >= 5.5);
     if (seguidos && !h.automatico) h.automatico = t;
-    const r = h2Ventana(h, 28), tasa = hbTasa(r);
+    const r = h2Ventana(h, 28), tasa = hbTasa(r), cae = h2Cae14(h);
     // Se gradúa con dos chequeos seguidos de 5,5 o más y el 80 % de los días de las últimas 4 semanas hechos.
-    if (seguidos && !h.graduado && r.length && tasa >= .8) { h2Graduar(h); save(); render(); h2GradSheet(h, tasa); return; }
+    // …y, como para seguir graduado, al menos el 70 % de los últimos 14 días que tocaban: nunca se gradúa y vuelve a la lista a la vez.
+    if (seguidos && !h.graduado && r.length && tasa >= .8 && !cae) { h2Graduar(h); save(); render(); h2GradSheet(h, tasa); return; }
     save(); render(); $('#msg-dialog').close();
-    if (seguidos) dialogResult('Ya te sale solo', `Dos chequeos seguidos con 5,5 o más de 7. Para graduarse falta que salga el 80 % de los días de las últimas 4 semanas: ahora, el ${Math.round(tasa * 100)} %.`);
+    if (seguidos) dialogResult('Ya te sale solo', cae && tasa >= .8 ? `Dos chequeos seguidos con 5,5 o más de 7. Para graduarse falta que salga al menos el 70 % de los últimos 14 días que tocaban: ahora, el ${Math.round(hbTasa(hbUltimos(h, 14)) * 100)} %.`
+      : `Dos chequeos seguidos con 5,5 o más de 7. Para graduarse falta que salga el 80 % de los días de las últimas 4 semanas: ahora, el ${Math.round(tasa * 100)} %.`);
     else dialogResult('Guardado', `Hoy: ${String(+media.toFixed(2)).replace('.', ',')} de 7. Lo volvemos a mirar en 14 días.`);
   };
 }
@@ -1822,11 +1921,11 @@ function h2SenalesDe(hora, sinId = '') {
   for (const s of [...propios, ...HB_SENALES]) if (out.length < 6 && !out.some(y => normText(y) === normText(s))) out.push(s);
   return out;
 }
-const H2_EJER = /\b(camin|corr(?!e[eg])|trot|gim|entren|ejercic|nad(?:ar|o|ando)\b|nataci|bici|ciclis|pesas|yoga|pilates|deport|f[uú]tbol|tenis|baloncesto|b[aá]squet|voleibol|bail|cardio|crossfit|running|spinning|calistenia|flexion|sentadill)/i;
+const H2_EJER = /(?<![\p{L}\d])(camin|corr(?:er|o|e|iendo)(?![\p{L}\d])|trot|gim|entren|ejercic|nad(?:ar|o|ando)(?![\p{L}\d])|nataci|bici|ciclis|pesas|yoga|pilates|deport|f[uú]tbol|tenis|baloncesto|b[aá]squet|voleibol|bail|cardio|crossfit|running|spinning|calistenia|flexi[oó]n|sentadill)/iu;
 const H2_GUSTO = /(por placer|por gusto|m[uú]sica|guitarra|piano|\bcant(?:o|ar)\b|descans|oraci[oó]n|\borar\b|\brezar|biblia|devocional|medita)/i;
-const H2_MIN = [[/\b(le[eé]r|lectura)/i, 'Leer 1 página'], [/\b(corr(?!e[eg])|camin|trot)/i, 'Ponerme las zapatillas y salir a la puerta'], [/\bmedit/i, 'Tres respiraciones'],
+const H2_MIN = [[/\b(le[eé]r|lectura)/i, 'Leer 1 página'], [/(?<![\p{L}\d])(corr(?:er|o|e|iendo)(?![\p{L}\d])|camin|trot)/iu, 'Ponerme las zapatillas y salir a la puerta'], [/\bmedit/i, 'Tres respiraciones'],
   [/\bescrib/i, 'Escribir una frase'], [/\bestudi/i, 'Abrir el libro y leer un párrafo'], [/\bagua\b/i, 'Un vaso de agua'],
-  [/\b(gim|entren|ejercic|pesas|yoga|pilates|deport|cardio|crossfit|spinning)/i, 'Ponerme la ropa de deporte']];
+  [/(?<![\p{L}\d])(gim|entren|ejercic|pesas|yoga|pilates|deport|cardio|crossfit|spinning)/iu, 'Ponerme la ropa de deporte']];
 // La versión de 2 minutos a partir del verbo; nunca vacía.
 function hbMinimaDe(nombre) {
   const n = String(nombre || '').trim(); if (!n) return '';
@@ -2205,7 +2304,7 @@ $('#list').addEventListener('click', e => {
         ${consHTML(h)}
         ${hbPerdida(h)}
         <p class="meta" style="margin-top:12px">Un día no cambia la curva del hábito (Lally et al., 2010). Si hoy no, perdónate: mañana, volver ${h.sinXp ? 'es lo que cuenta' : 'vale +15 XP'}.</p>
-        <p class="meta" style="margin-top:16px">La versión mínima cuenta: <b>${esc(h.minima)}</b></p>
+        <p class="meta" style="margin-top:16px">La versión mínima cuenta: <b>${esc(h.minima || hbMinimaDe(h.nombre))}</b></p>
         <input id="motivo" class="reason" placeholder="¿Por qué no? (opcional, para tu análisis)" maxlength="140" value="${esc(state.motivos[h.id]?.[today()] || '')}">
         ${hbRetomarHTML(h)}
         <div class="dialog-actions">
@@ -2223,7 +2322,7 @@ $('#list').addEventListener('click', e => {
     case 'clave': h.clave = !h.clave; save(); render(); break;
     case 'edit': openForm(h); break;
     case 'repair': justifyForm(h.id, btn.dataset.day); break;
-    case 'add-in': openForm(null, { padre: h.id }); break;
+    case 'add-in': { const abrir = () => openForm(null, { padre: h.id }); if (!window.enfNoEstrenar?.(abrir)) abrir(); break; }
   }
 });
 
@@ -2717,7 +2816,7 @@ function renderHoras() {
 $('#add-hour').onclick = () => {
   const v = readTime();
   if (!v) { $('#h-hour').focus(); return; }
-  if (!formHoras.includes(v)) formHoras.push(v);
+  if (!formHoras.includes(v) && formHoras.length < 24) formHoras.push(v);   // 2.12 · avisos: hasta 24 horas
   formHoras.sort(); renderHoras(); setTime('');
 };
 $('#hours-list').addEventListener('click', e => { const b = e.target.closest('[data-rm-hora]'); if (!b) return; formHoras = formHoras.filter(h => h !== b.dataset.rmHora); renderHoras(); });
@@ -3410,7 +3509,7 @@ function pendientes() {
   const t = today(), w = wd(t);
   const firstHour = h => (h.horas || [])[0] || '99';
   const habits = (s.habits || [])
-    .filter(h => !h.rutina && (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !s.log?.[h.id]?.[t])
+    .filter(h => !h.rutina && (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !s.log?.[h.id]?.[t] && !window.hbProtegido?.(h, t))
     .sort((a, b) => firstHour(a) < firstHour(b) ? -1 : firstHour(a) > firstHour(b) ? 1 : 0);
   const items = (s.tareas?.items || []).filter(x => !x.hecha);
   const due = items.filter(x => x.fecha && x.fecha <= t).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
@@ -3896,6 +3995,7 @@ function gateChoice() {
     closeGate(); renderE();
     salidaOculta = false;
     // Con «noopener» window.open siempre devuelve null, así que se corta el vínculo a mano.
+    if (/^\s*(javascript|data|vbscript|file|blob):/i.test(app.url || '')) { toast('Ese enlace no se puede abrir: cámbialo en Ajustes.'); return; }
     const w = window.open(app.url, '_blank');
     if (w) w.opener = null; else location.href = app.url;
   });
@@ -3949,7 +4049,7 @@ function renderPrio() {
   const done = P.items.filter(x => x.hecho).length;
   $('#prio').innerHTML = P.items.length ? `<div class="rows">${P.items.map((x, i) => `<div class="row" style="${x.hecho ? 'opacity:.5' : ''}">
       <button class="box" data-pchk="${esc(x.id)}" aria-label="Hecha" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></button>
-      <button class="t" data-pgo="${esc(x.id)}" style="text-align:left"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div><small>${i === 0 ? 'La rana: primero, antes que todo' : i >= 3 ? 'Extra' : x.origen || 'Prioridad'}</small></button>
+      <button class="t" data-pgo="${esc(x.id)}" style="text-align:left"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div><small>${i === 0 ? 'La rana: primero, antes que todo' : i >= 3 ? 'Extra' : esc(x.origen || 'Prioridad')}</small></button>
       <span class="tag" style="font-weight:600;color:${i === 0 ? 'var(--red)' : 'var(--muted)'}">${i + 1}</span></div>`).join('')}</div>
     <p class="more">${done} de ${P.items.length} hechas · <button class="link" id="prio-edit">${P.items.every(x => x.hecho) ? 'Añadir una extra' : 'Cambiar'}</button></p>`
     : `<button class="row" id="prio-edit" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--red)"></span><span class="t"><div>Elige tus prioridades de hoy</div><small>Tres como máximo. La más difícil va primero.</small></span><span class="tag">›</span></button>`;
@@ -4710,7 +4810,7 @@ function intervenciones() {
     (dia === 0 || new Date().getDate() === 1) && ES.revision !== today() && { id: 'rev', t: 'Nuevo comienzo', p: 'Un lunes o un mes nuevo es buen momento para retomar lo que dejaste. Diez minutos de revisión.', sci: 'Dai, Milkman y Riis (2014)', b: 'Hacer la revisión', a: () => revisionSemanal() },
     d.distraccion >= presupuestoHoy() && { id: 'pres', t: 'Ya usaste tu presupuesto de hoy', p: `Llevas ${d.distraccion} min en distracciones. Lo que queda del día es tuyo: una alternativa que sume.${d.distraccion > presupuestoHoy() ? ' Mañana empieza de cero.' : ''}`, sci: 'Allcott, Gentzkow y Song (2022)', b: 'Ver alternativas', a: () => alternativas('Lo que queda del día es tuyo', 'Elige una:') },
     intervWoop7(),
-    altaParada && { id: 'compasion', t: `«${altaParada.nombre}» lleva ${daysSince(ultimoPaso(altaParada))} días quieto`, p: 'No pasa nada: perdonarte la pausa suele hacer más fácil retomarlo. Hoy basta con 2 minutos.', sci: 'Wohl, Pychyl y Bennett (2010)', b: 'Empezar 2 minutos', a: () => startFocus(altaParada.minima || altaParada.paso, 2, altaParada.id) },
+    altaParada && proyectoQuieto7()?.id !== altaParada.id && { id: 'compasion', t: `«${altaParada.nombre}» lleva ${daysSince(ultimoPaso(altaParada))} días quieto`, p: 'No pasa nada: perdonarte la pausa suele hacer más fácil retomarlo. Hoy basta con 2 minutos.', sci: 'Wohl, Pychyl y Bennett (2010)', b: 'Empezar 2 minutos', a: () => startFocus(altaParada.minima || altaParada.paso, 2, altaParada.id) },
     dia === 4 && ES.personas.length && !graciasSemana && { id: 'gracias', t: 'Gracias del viernes', p: 'Agradécele algo concreto a alguien. Le alegrará más de lo que imaginas.', sci: 'Kumar y Epley (2018)', b: 'Elegir a quién', a: () => personasManager() },
     h >= 20 && !ES.buenas.some(x => x.d === today()) && { id: 'buenas', t: 'Antes del último scroll', p: 'Un minuto para cerrar con lo que avanzaste y lo mejor del día.', sci: 'Redelmeier, Katz y Kahneman (2003)', b: 'Cerrar el día', a: () => buenasSheet() },
     retoDia() === 21 && { id: 'reto21', t: 'Reto de 3 semanas: semana 3 de 3', p: 'Una hora menos al día durante tres semanas. El efecto medio es pequeño; lo que ganas seguro es tiempo para lo tuyo. Mira tus datos.', sci: 'Burnell et al. (2025); Lemahieu et al. (2025)', b: 'Ver tus datos', a: () => datosSheet() },
@@ -4934,6 +5034,7 @@ function settings() {
     const n = $('#s-an').value.trim(); let u = $('#s-au').value.trim();
     if (!n || !u) { (n ? $('#s-au') : $('#s-an')).focus(); return; }
     if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+    if (/^(javascript|data|vbscript|file|blob):/i.test(u)) { toast('Usa el enlace https de la red o el de su app.'); $('#s-au').focus(); return; }
     ES.apps.push({ id: crypto.randomUUID(), nombre: n, url: u }); guardar(); settings();
   };
   $('#s-help').onclick = welcome;
@@ -4996,7 +5097,7 @@ async function cargarAgenda(force = false) {
   try {
     const desde = new Date(); desde.setHours(0, 0, 0, 0); const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 1);
     agendaCache = { d: today(), t: Date.now(), items: await gCalEventos(desde, hasta), err: '' };
-    if (agSyncEventos(agendaCache.items)) guardar();
+    if (agSyncEventos(agendaCache.items)) guardarAlPintar(guardar);
   } catch (e) { agendaCache = { d: today(), t: Date.now(), items: null, err: e.message }; }
   renderAgenda(); if (view === 'agenda') renderAg();
 }
@@ -6620,7 +6721,7 @@ function agAplicarPlan(A, P) {
   for (const [k, o] of Object.entries(P.ini || {})) { const x = I.items[iniIdx(k)]; if (x && !x.t && !x.hecho) Object.assign(x, { t: o.t, exito: o.exito || EXITO_DEF[k], hora: o.h || '', por: o.por || '', paso: o.paso || '', min: o.min || AG_MIN.ini, obj: o.obj || '' }); }
   if (P.rana?.t) { if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] }; if (!ES.prioridades.items.some(x => x.id === P.rana.id)) ES.prioridades.items.unshift({ id: P.rana.id, t: P.rana.t, hecho: false, origen: 'Elegida anoche' }); }
   if (!dayOf().agenda) bump('agenda');
-  ES.agendaPlan = null; guardar();
+  ES.agendaPlan = null; guardarAlPintar(guardar);   // 2.12 · al abrir, se guarda cuando la nube ya combinó
 }
 const planManana = () => ES.agendaPlan?.fecha === diaManana() ? ES.agendaPlan : null;
 const agFuente = it => {
@@ -6657,7 +6758,7 @@ function agSync(A) {
   }
   return cambio;
 }
-const agItems = () => { const A = agenda(); if (agSync(A)) guardar(); return A.items.filter(agVivo); };
+const agItems = () => { const A = agenda(); if (agSync(A)) guardarAlPintar(guardar); return A.items.filter(agVivo); };
 const agPorId = id => agenda().items.find(x => x.id === id);
 const agOrden = (a, b) => (a.h && b.h) ? toMin(a.h) - toMin(b.h) : a.h ? -1 : b.h ? 1 : 0;
 const agEtiqueta = it => it.foco ? 'Bloque protegido' : it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : it.tipo === 'libre' && it.cat ? `Extra de ${iniNombre(it.cat).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda';
@@ -6671,13 +6772,13 @@ const agSmartSrc = it => {
 // Siguiente ítem pendiente con hora, si su momento es ahora (desde 15 minutos antes hasta 30 después de su fin).
 function agendaAhora() {
   const now = nowMin();
-  return agItems().filter(it => it.h && !agHecho(it) && it.tipo !== 'evento').sort(agOrden).find(it => toMin(it.h) <= now + 15 && now <= toMin(it.h) + (it.min || 30) + 30) || null;
+  return agItems().filter(it => it.h && !agHecho(it) && it.tipo !== 'evento' && !(it.tipo === 'habito' && window.hbProtegido?.(it.ref, today()))).sort(agOrden).find(it => toMin(it.h) <= now + 15 && now <= toMin(it.h) + (it.min || 30) + 30) || null;
 }
 // Eventos de Google Calendar de hoy, como ítems de la agenda (se renuevan con cada carga; los que quitaste no vuelven).
 function agSyncEventos(evs) {
   const A = agenda(), prev = A.items.filter(it => it.tipo === 'evento'), antes = JSON.stringify(prev), ocultos = new Set(A.ocultos);
   const nuevos = (evs || []).filter(ev => !ocultos.has(ev.id || ev.titulo + ev.inicio)).slice(0, 12).map(ev => { const ref = ev.id || ev.titulo + ev.inicio, p = prev.find(x => x.ref === ref); const min = ev.todoElDia ? 0 : Math.round((Date.parse(ev.fin) - Date.parse(ev.inicio)) / 60000);
-    return { id: p?.id || crypto.randomUUID(), tipo: 'evento', ref, t: ev.titulo, h: ev.todoElDia ? '' : hhmm(new Date(ev.inicio)), min: min > 0 && min <= 720 ? min : 60, hecho: !!p?.hecho, enlace: ev.enlace || '' }; });
+    return { id: p?.id || crypto.randomUUID(), tipo: 'evento', ref, t: ev.titulo, h: ev.todoElDia ? '' : hhmm(new Date(ev.inicio)), min: min > 0 && min <= 720 ? min : 60, hecho: !!p?.hecho, enlace: ev.enlace || '', alta: +p?.alta || Date.now() }; });
   A.items = [...A.items.filter(it => it.tipo !== 'evento'), ...nuevos];
   return JSON.stringify(nuevos) !== antes;
 }
@@ -6752,7 +6853,7 @@ function agPonerHora(it, h) { it.h = h || ''; const f = agFuente(it); if (it.tip
 
 // ---------- Crear en el momento, con lo mínimo SMART: un hábito (qué con cantidad, hora, para qué) o una tarea (verbo + qué, hora, señal de hecho).
 function agCrearHabito(d) {
-  const h = { id: crypto.randomUUID(), creado: today(), clave: false, rutina: false, nombre: d.nombre, icono: 'punto', color: '', padre: '', identidad: '', minima: d.minima || '', modo: 'check', meta: 1, lugar: '', despuesDe: '', recompensa: '', celebracion: '',
+  const h = { id: crypto.randomUUID(), creado: today(), clave: false, rutina: false, nombre: d.nombre, icono: 'punto', color: '', padre: '', identidad: '', minima: d.minima || hbMinimaDe(d.nombre), modo: 'check', meta: 1, lugar: '', despuesDe: '', recompensa: '', celebracion: '',
     beneficios: [d.porque || d.nombre], contras: ['Perder el impulso de hoy'], dias: Array.isArray(d.dias) && d.dias.length ? d.dias : [...ALL_DAYS], horas: d.hora ? [d.hora] : [] };
   if (d.extra) Object.assign(h, d.extra);   // 2.12 · H2: la señal («Después de…») elegida al crear
   HT().habits.push(h); save(); render(); return h;
@@ -6888,7 +6989,7 @@ function orgInit(dest = today()) {
   const base = M ? (P?.items || []) : A.items, sel = new Map(base.map(it => [it.tipo + ':' + it.ref, it]));
   const organizado = M ? !!P?.organizado : !!A.organizado;
   org = { dest, manana: M, creado: today(), hab: new Map(), tar: new Map(), ini: {}, prioH: {}, libres: base.filter(it => it.tipo === 'libre').map(it => ({ ...it })), organizado, rana: null, auto: new Set() };
-  for (const h of s.habits.filter(h => !h.rutina && (!h.creado || h.creado <= dest) && isSched(h, dest))) { const it = sel.get('habito:' + h.id); org.hab.set(h.id, { on: it ? true : !organizado, h: it?.h || (h.horas || [])[0] || '' }); }
+  for (const h of s.habits.filter(h => !h.rutina && (!h.creado || h.creado <= dest) && isSched(h, dest))) { const it = sel.get('habito:' + h.id); org.hab.set(h.id, { on: it ? true : (!organizado && !window.hbProtegido?.(h, dest)), h: it?.h || (h.horas || [])[0] || '' }); }
   // Lo que ya está en la agenda entra aunque no toque ese día o ya esté hecho: reorganizar nunca borra lo que no muestra.
   for (const it of base.filter(i => i.tipo === 'habito' && !org.hab.has(i.ref))) if (s.habits.some(h => h.id === it.ref)) org.hab.set(it.ref, { on: true, h: it.h || '' });
   const pend = s.tareas.items.filter(x => !x.hecha);
@@ -6941,7 +7042,7 @@ function organizarDia(paso = 1, sigue = false) {
     showSheet(`${pieOrg(1, 'Hábitos')}${agbSuenoHtml()}<h2>¿Qué hábitos entran ${cuando}?</h2>
       <p class="note">Ya están marcados los que tocan ${cuando}. Toca una fila para ponerla o quitarla; toca la hora para cambiarla. Con hora fija se cumplen más (Gollwitzer y Sheeran, 2006).</p>
       ${habs.length ? `<div class="rows" id="og-rows">${habs.map(h => { const o = org.hab.get(h.id), ok = hechoH(h); return `<div class="row" data-tg="${esc(h.id)}" ${ok ? 'data-hecho="1"' : ''} style="cursor:pointer"><span class="box" style="${ok ? boxHecho : boxSt(o.on)}"></span>
-        <span class="t"><div>${esc(agbCorto() && h.minima ? '2 min: ' + h.minima : h.nombre)}${ok ? ' <span class="green">· hecho</span>' : ''}</div><small>${agbCorto() && h.minima ? esc(h.nombre) : h.minima ? `2 min: ${esc(h.minima)}` : h.modo === 'tiempo' ? `${h.meta} min al día` : h.modo === 'veces' ? `${h.meta} veces al día` : 'Hábito'}</small></span>
+        <span class="t"><div>${esc(agbCorto() && h.minima ? '2 min: ' + h.minima : h.nombre)}${ok ? ' <span class="green">· hecho</span>' : window.hbProtegido?.(h, org.dest) ? ' <span class="meta">· protegido</span>' : ''}</div><small>${agbCorto() && h.minima ? esc(h.nombre) : h.minima ? `2 min: ${esc(h.minima)}` : h.modo === 'tiempo' ? `${h.meta} min al día` : h.modo === 'veces' ? `${h.meta} veces al día` : 'Hábito'}</small></span>
         ${horaInput('oh-' + esc(h.id), o.h, `data-th="${esc(h.id)}"`)}</div>`; }).join('')}</div>` : `<p class="empty">${M ? 'Mañana' : 'Hoy'} no toca ningún hábito. Puedes crear uno aquí mismo.</p>`}
       <details ${habs.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear un hábito nuevo</summary>${habFormHtml('oh')}
         <div class="actions" style="margin-top:0"><button class="link" id="oh-crear">Crear y poner ${cuando}</button></div></details>
@@ -6949,7 +7050,7 @@ function organizarDia(paso = 1, sigue = false) {
     activarFranjas(body());
     filas('#og-rows', org.hab, id => hechoH(s.habits.find(h => h.id === id)));
     horas('data-th', org.hab, 'hab:');
-    $('#oh-crear').onclick = () => { const d = habFormLeer(body(), 'oh'); if (!d) return; const h = agCrearHabito(d); org.hab.set(h.id, { on: true, h: d.hora }); toast('Hábito creado.'); organizarDia(1, true); };
+    $('#oh-crear').onclick = () => { const d = habFormLeer(body(), 'oh'); if (!d) return; const crear = () => { const h = agCrearHabito(d); org.hab.set(h.id, { on: true, h: d.hora }); toast('Hábito creado.'); organizarDia(1, true); }; if (!M && window.enfNoEstrenar?.(crear, d.nombre)) return; crear(); };
     $('#og-cancel').onclick = closeSheet;
     $('#og-next').onclick = () => organizarDia(2, true);
     return;
@@ -7048,14 +7149,17 @@ function orgAutoHoras(todas, sinReintento) {
   // Una hora elegida que choca pasa al siguiente hueco; si ese hueco ya no cabe antes de las 11 PM, se queda en su hora (el tope es solo para las automáticas).
   for (const e of L.filter(e => !e.fijo && !e.hecho && e.h && !movible(e) && !(e.foco && empezado(e))).sort((a, b) => toMin(a.h) - toMin(b.h))) { const dur = e.min || 30, ini = libreDesde(toMin(e.h), dur); if (ini + dur > fin) ocup.push([toMin(e.h), toMin(e.h) + dur]); else poner(e, ini); }
   // El bloque protegido (F25): el primer hueco libre desde las 8:00 AM (o desde ahora) que empiece antes de las 12:00 PM.
-  const fb = L.find(e => e.foco && movible(e));
+  const fb = L.find(e => e.foco && movible(e)); let finB = 0;
   if (fb) {
     const ini = libreDesde(Math.ceil((org.manana ? 8 * 60 : Math.max(8 * 60, now + 5)) / 5) * 5, fb.min);
-    if (ini < 12 * 60) { orgSetHora(fb.key, minToHm(ini)); ocup.push([ini, ini + fb.min]); org.auto.add(fb.key); }
+    if (ini < 12 * 60) { orgSetHora(fb.key, minToHm(ini)); ocup.push([ini, ini + fb.min]); org.auto.add(fb.key); finB = ini + fb.min; }
     else { org.foco.on = false; org.foco.noCabe = true; orgSetHora(fb.key, org.foco.hPrev || ''); if (org.foco.hPrev) org.auto.delete(fb.key); else org.auto.add(fb.key); return orgAutoHoras(todas, true); }
   }
   const orden = { prio: 0, ini: 1, tarea: 2, habito: 3, libre: 4 };
-  let cursor = Math.ceil((org.manana ? 7 * 60 : Math.max(now + 5, 7 * 60)) / 5) * 5;
+  // Con bloque protegido, lo automático va después de él: la rana, primero (lo fijo y las horas elegidas no se mueven).
+  // También cuando la hora del bloque la eligió la persona, mientras no haya empezado.
+  if (!finB) { const e = L.find(e => e.foco && !e.hecho && e.h && !empezado(e)), hF = e && (orgLista().find(x => x.key === e.key) || e).h; if (hF && toMin(hF) < 12 * 60) finB = toMin(hF) + (e.min || 30); }
+  let cursor = Math.max(Math.ceil((org.manana ? 7 * 60 : Math.max(now + 5, 7 * 60)) / 5) * 5, finB ? finB + 10 : 0);
   for (const e of L.filter(e => movible(e) && !e.foco).sort((a, b) => (orden[a.tipo] ?? 9) - (orden[b.tipo] ?? 9))) {
     const ini = libreDesde(cursor, e.min || 30);
     if (poner(e, ini)) { org.auto.add(e.key); cursor = ini + (e.min || 30) + 10; } else org.auto.delete(e.key);
@@ -7068,7 +7172,7 @@ function orgGuardar() {
   const s = HT(), M = org.manana, D = org.dest, items = [], planIni = {};
   const A = M ? null : agenda(), baseItems = M ? (planManana()?.items || []) : A.items;
   const prev = new Map(baseItems.map(it => [it.tipo + ':' + it.ref, it]));
-  const mk = (tipo, ref, t, h, min, extra = {}) => { const p = prev.get(tipo + ':' + ref); items.push({ ...(p || {}), id: p?.id || crypto.randomUUID(), tipo, ref, t, h: h || '', min: min || AG_MIN[tipo], hecho: !!p?.hecho, premiado: !!p?.premiado, ...extra }); };
+  const mk = (tipo, ref, t, h, min, extra = {}) => { const p = prev.get(tipo + ':' + ref); items.push({ ...(p || {}), id: p?.id || crypto.randomUUID(), tipo, ref, t, h: h || '', min: min || AG_MIN[tipo], hecho: !!p?.hecho, premiado: !!p?.premiado, alta: +p?.alta || Date.now(), ...extra }); };
   const F = agbFocoRef();
   if (!M && F && F === org.foco.nuevaId && org.foco.nueva) { if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] }; if (!ES.prioridades.items.some(x => x.id === F)) ES.prioridades.items.unshift({ id: F, t: org.foco.nueva, hecho: false, origen: 'Bloque protegido' }); }
   if (!M) for (const x of ES.prioridades.items) if (!x.hecho || prev.has('prio:' + x.id) || x.id === F) mk('prio', x.id, x.t, org.prioH[x.id] || prev.get('prio:' + x.id)?.h || '', x.id === F ? org.foco.min : AG_MIN.prio, x.id === F ? { foco: true } : {});
@@ -7133,7 +7237,7 @@ function agAddSheet(tipo = '') {
     Object.assign(it, { t: r.t, exito: r.exito || EXITO_DEF[k], hora: r.h || '', por: r.por || '', paso: r.paso || '', min: r.min || AG_MIN.ini, obj: r.obj || '' });
     A.items = A.items.filter(i => !(i.tipo === 'ini' && i.ref === k)); poner('ini', k, r.t, r.h, r.min, { obj: r.obj || '' }); }); });
   $('#aa-crear')?.addEventListener('click', () => {
-    if (tipo === 'habito') { const d = habFormLeer(b, 'ah'); if (!d) return; const h = agCrearHabito(d); poner('habito', h.id, h.nombre, d.hora, AG_MIN.habito); }
+    if (tipo === 'habito') { const d = habFormLeer(b, 'ah'); if (!d) return; const crear = () => { const h = agCrearHabito(d); poner('habito', h.id, h.nombre, d.hora, AG_MIN.habito); }; if (window.enfNoEstrenar?.(crear, d.nombre)) return; crear(); }
     else { const d = tarFormLeer(b, 'at', true); if (!d) return; const x = agCrearTarea({ titulo: d.titulo, hora: d.hora, min: d.min, exito: d.exito }); poner('tarea', x.id, x.titulo, d.hora, d.min, { exito: d.exito }); }
   });
   $('#aa-ok')?.addEventListener('click', () => { const d = tarFormLeer(b, 'al', true); if (!d) return; poner('libre', '', d.titulo, d.hora, d.min, { exito: d.exito }); });
@@ -7267,6 +7371,19 @@ function sosSheet() {
 
 // ---------- Para el asistente: poner cosas en la agenda de hoy o de mañana (crea hábitos y tareas que falten).
 const agendaPlanResumen = () => { const P = planManana(); return P ? { fecha: P.fecha, organizado: true, items: [...P.items].sort(agOrden).map(it => ({ tipo: it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda', texto: it.t, hora: it.h || '', minutos: it.min || 0 })) } : null; };
+// F7 · Día corto: el hábito nuevo que el asistente pone hoy se guarda como idea para mañana (la tarjeta «Tu idea» lo propone).
+function agbIdeaCorto(texto) {
+  const t = String(texto || '').trim().slice(0, 60), I = ES.ideaHabito;
+  if (!t || !diaCorto() || buscar(HT().habits.filter(x => !x.rutina), t, 'nombre')) return false;
+  if (I?.d === today() && String(I.t || '').toLowerCase() === t.toLowerCase()) return false;   // lo pide otra vez: se crea igual
+  ES.ideaHabito = { t, d: today() }; return true;
+}
+function agbIdeaNota(a) {
+  const I = ES.ideaHabito, t = String(I?.t || '').toLowerCase();
+  if (a.dia === 'manana' || !diaCorto() || I?.d !== today() || HT().habits.some(h => String(h.nombre || '').trim().slice(0, 60).toLowerCase() === t)
+    || !(a.items || []).some(it => it.tipo === 'habito' && String(it.texto || '').trim().slice(0, 60).toLowerCase() === t)) return {};
+  return { nota: `Hoy es día corto: mejor no estrenar hábitos. «${I.t}» quedó guardado como idea y mañana la app se lo propone. Si la persona quiere crearlo igual hoy, vuelve a llamar a agenda_organizar con ese hábito.` };
+}
 function agendaAsistente(a) {
   const M = a.dia === 'manana', D = M ? diaManana() : today(), s = HT();
   let base;
@@ -7280,6 +7397,7 @@ function agendaAsistente(a) {
   };
   for (const it of (a.items || []).slice(0, 15)) {
     const h = /^\d\d:\d\d$/.test(it.hora || '') ? it.hora : '', min = it.minutos > 0 ? Math.max(5, Math.min(180, it.minutos | 0)) : 0, texto = String(it.texto || '').trim(); if (!texto) continue;
+    if (it.tipo === 'habito' && !M && agbIdeaCorto(texto)) continue;
     if (it.tipo === 'habito') { let hb = buscar(s.habits.filter(x => !x.rutina), texto, 'nombre'); if (!hb) hb = agCrearHabito({ nombre: texto, hora: h, porque: it.para_que || '' }); poner('habito', hb.id, hb.nombre, h, min || AG_MIN.habito); }
     else if (it.tipo === 'tarea') { let x = buscar(s.tareas.items.filter(y => !y.hecha), texto, 'titulo'); if (!x) x = agCrearTarea({ titulo: texto, hora: M ? '' : h, fecha: D, min }); else if (h && !M) { x.hora = h; save(); } poner('tarea', x.id, x.titulo, h, min || x.min || AG_MIN.tarea, { exito: it.hecho_cuando || '', por: it.para_que || '' }); }
     else if (it.tipo === 'iniciativa') {
@@ -7300,7 +7418,7 @@ function agendaAsistente(a) {
     if (!base.organizado) { base.organizado = Date.now(); if (!dayOf().agenda) { bump('agenda'); xpGanar(20, 'Día organizado'); } }
   } else { base.organizado = Date.now(); if (!dayOf().planManana) { bump('planManana'); xpGanar(20, 'Mañana organizado'); } }
   guardar(); renderE(); if (view === 'agenda') renderAg();
-  return M ? { dia: 'mañana', ...agendaPlanResumen() } : { dia: 'hoy', ...window.agendaResumen() };
+  return M ? { dia: 'mañana', ...agendaPlanResumen() } : { dia: 'hoy', ...window.agendaResumen(), ...agbIdeaNota(a) };
 }
 
 // ---------- Pestaña Agenda
@@ -7548,7 +7666,7 @@ function puertaPasar(app, min, abrir) {
     if (ido) return; ido = true;
     abrir();
     if (ES.salida) { ES.salida.para = para; if (o) ES.salida.alSoltar = o.t; }
-    ES.aperturasLog = [...(ES.aperturasLog || []), { d: today(), h: hhmm(new Date()), app: app.nombre, para, emo, min }].slice(-100);
+    ES.aperturasLog = [...(ES.aperturasLog || []), { d: today(), h: hhmm(new Date()), app: app.nombre, para, emo, min, t: Date.now() }].slice(-100);
     if (o) soltarGuardar(o);
     guardar();
   };
@@ -7636,7 +7754,7 @@ function salidaE1Wire(s, k) {
   $('#sv-valio-c')?.addEventListener('click', e => {
     const c = e.target.closest('[data-v]'); if (!c) return;
     const v = +c.dataset.v;
-    ES.valio = [...(ES.valio || []), { d: k, v, app: s.app }].slice(-60); guardar();
+    ES.valio = [...(ES.valio || []), { d: k, v, app: s.app, t: Date.now() }].slice(-60); guardar();
     const xs = ES.valio.slice(-5);
     $('#sv-valio').innerHTML = `<p class="meta" style="margin:16px 0 0">Anotado: ${v}/5.${xs.length >= 2 ? ` Tus últimas ${xs.length} veces: ${e1Num(e1Media(xs.map(x => x.v)))}/5 de media.` : ''}</p>`;
   });
@@ -7675,7 +7793,7 @@ function surfSheet(s) {
       $('#su-despues').addEventListener('click', ev => {
         const d = ev.target.closest('[data-v]'); if (!d) return;
         const v = +d.dataset.v;
-        ES.surf = [...(ES.surf || []), { d: today(), antes, despues: v, seg }].slice(-100); guardar();
+        ES.surf = [...(ES.surf || []), { d: today(), antes, despues: v, seg, t: Date.now() }].slice(-100); guardar();
         showSheet(`<h2>${v < antes ? `Bajó de ${antes} a ${v}` : v === antes ? `Sigue en ${antes}` : `Subió de ${antes} a ${v}`}</h2>
           <p class="note">${v < antes ? `Tu ola bajó en ${fmtSec(seg)}.` : `${fmtSec(seg)} de ola. Aunque no baje, surfearla cambia lo que haces con ella.`} Surfear no es pelear con las ganas: es no obedecerlas (Bowen y Marlatt, 2009).</p>
           ${pie}
@@ -7756,7 +7874,7 @@ const E2A_VERDE = 'Salir a ver verde: árboles, parque o cielo', E2A_CAMINAR = '
 const E2A_PAUSA5 = 'Pausa sin pantalla: estira o mira lejos', E2A_PAUSA20 = 'Pausa larga sin pantalla';
 const E2A_CORTA = 'Hoy, la versión corta: 2 minutos cuentan.';
 const E2A_CHANG = 'Después de moverte, tu cabeza rinde algo mejor durante un rato. ¿La rana ahora?';
-const E2A_MOVER = /camin|corr|gim|entren|ejercic|nad|bici|pesas|deport|yoga|fútbol|futbol|tenis|baloncesto|bail/i;
+const E2A_MOVER = /(?<![\p{L}\d])(camin|corr(?:er|o|e|iendo)(?![\p{L}\d])|trot|gim|entren|ejercic|nad(?:ar|o|ando)(?![\p{L}\d])|nataci|bici|ciclis|pesas|yoga|pilates|deport|f[uú]tbol|tenis|baloncesto|b[aá]squet|voleibol|bail|cardio|crossfit|running|spinning|calistenia|flexi[oó]n|sentadill)/iu;   // la misma lista que el formulario (H2_EJER)
 const E2A_H = 3600e3;
 const e2aLocal = () => { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {} };
 const e2aNorm = s => String(s ?? '').trim().toLowerCase();
@@ -7999,7 +8117,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function habitosParados(max = 4) {
   const s = HT(), t = today(), out = [];
   for (const h of s.habits || []) {
-    if (h.rutina || (h.creado && h.creado > t) || !isSched(h, t) || s.log?.[h.id]?.[t] || (h.creado && daysSince(h.creado) < 7)) continue;
+    if (h.rutina || (h.creado && h.creado > t) || !isSched(h, t) || s.log?.[h.id]?.[t] || window.hbProtegido?.(h, t) || (h.creado && daysSince(h.creado) < 7)) continue;
     let toco = 0, hecho = false;
     for (let i = 1; i <= 7; i++) { const k = dayKey(addDays(new Date(), -i)); if (isDone(h, k)) { hecho = true; break; } if (isSched(h, k) && !isJust(h, k) && !window.hbProtegido?.(h, k)) toco++; }
     if (!hecho && toco) out.push(h);
@@ -8091,12 +8209,15 @@ function cierrePactoWire() {
 
 // ---------- El teléfono en la revisión semanal: primero lo que crees, luego el dato de Bienestar digital.
 function leerMinutos(v) {
-  v = String(v || '').trim().toLowerCase().replace(',', '.');
+  // «2 h», «2 hrs», «2,5 horas», «3 h 20 min», «3 horas y 20 minutos», «3 h y media», «2:30», «45 minutos» o «150»; «al día» al final se ignora.
+  v = String(v || '').trim().toLowerCase().replace(',', '.').replace(/\s*(?:al|por|cada)\s+d[ií]a$|\s*diari[oa]s?$/, '').replace(/\.+$/, '').trim();
   let m, x = null;
   if ((m = v.match(/^(\d{1,2}):([0-5]\d)$/))) x = +m[1] * 60 + +m[2];
-  else if ((m = v.match(/^(\d{1,2}(?:\.\d+)?)\s*h(?:oras?|s)?$/))) x = Math.round(+m[1] * 60);
-  else if ((m = v.match(/^(\d{1,2})\s*h(?:oras?|s)?\s*(\d{1,2})\s*(?:min|m)?$/))) x = +m[1] * 60 + +m[2];
-  else if ((m = v.match(/^(\d{1,4})\s*(?:min|m)?$/))) x = +m[1];
+  else if ((m = v.match(/^(\d{1,2}(?:\.\d+)?)\s*h(?:oras?|rs?|s)?$/))) x = Math.round(+m[1] * 60);
+  else if ((m = v.match(/^(\d{1,2})\s*h(?:oras?|rs?|s)?\s*y\s*media$/))) x = +m[1] * 60 + 30;
+  else if ((m = v.match(/^(\d{1,2})\s*h(?:oras?|rs?|s)?\s*(?:y\s*)?(\d{1,2})\s*(?:min(?:utos?|s)?|m)?$/))) x = +m[1] * 60 + +m[2];
+  else if ((m = v.match(/^(\d{1,4})\s*(?:min(?:utos?|s)?|m)?$/))) x = +m[1];
+  else if (/^media\s*hora$/.test(v)) x = 30;
   return x !== null && x > 0 && x <= 1440 ? x : null;
 }
 function hmTxt(m) { return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; }
@@ -8119,8 +8240,9 @@ function pantallaRevHtml() {
   const v = ES.pantalla?.[lunes()];
   return `<h3>6. Tu teléfono: lo que crees y lo que fue</h3>
     <p class="meta">Lo que creemos que usamos el teléfono rara vez coincide con el registro (Parry et al., 2021). Primero tu estimación; luego, el dato.</p>
-    <div class="field"><label>¿Cuánto crees que usaste el teléfono al día esta semana?</label><input id="rv-pred" autocomplete="off" maxlength="12" value="${v ? hmTxt(v.pred) : ''}" placeholder="2 h"></div>
-    <div class="field" id="rv-real-f" ${v ? '' : 'hidden'}><label>Ahora copia el dato real: Ajustes → Bienestar digital (Android) o Tiempo en pantalla (iPhone).</label><input id="rv-real" autocomplete="off" maxlength="12" value="${v ? hmTxt(v.real) : ''}" placeholder="3 h 20 min"></div>
+    <div class="field"><label>¿Cuánto crees que usaste el teléfono al día esta semana?</label><input id="rv-pred" autocomplete="off" maxlength="30" value="${v ? hmTxt(v.pred) : ''}" placeholder="2 h"></div>
+    <div class="field" id="rv-real-f" ${v ? '' : 'hidden'}><label>Ahora copia el dato real: Ajustes → Bienestar digital (Android) o Tiempo en pantalla (iPhone).</label><input id="rv-real" autocomplete="off" maxlength="30" value="${v ? hmTxt(v.real) : ''}" placeholder="3 h 20 min"></div>
+    <p class="meta" id="rv-pista" style="margin:-8px 0 14px" hidden>Escríbelo así: 2 h, 3 h 20 min, 2:30 o 150 (en minutos).</p>
     <div id="rv-pant">${pantallaResHtml()}</div>`;
 }
 function guardarPantalla(pred, real) {
@@ -8138,7 +8260,7 @@ function pantallaRevWire() {
   const vals = () => [leerMinutos(p.value), leerMinutos(r.value)];
   const marca = (inp, ok) => { inp.style.borderColor = inp.value.trim() && !ok ? 'var(--red)' : ''; };
   // Al escribir solo se muestra el resultado; se guarda al terminar el campo o al salir de la revisión.
-  const vista = () => { const [a, b] = vals(); marca(p, a !== null); marca(r, b !== null); if (a !== null) $('#rv-real-f').hidden = false; $('#rv-pant').innerHTML = pantallaResHtml(a !== null && b !== null ? { pred: a, real: b } : ES.pantalla?.[lunes()]); };
+  const vista = () => { const [a, b] = vals(); marca(p, a !== null); marca(r, b !== null); const pi = $('#rv-pista'); if (pi) pi.hidden = !((p.value.trim() && a === null) || (r.value.trim() && b === null)); if (a !== null) $('#rv-real-f').hidden = false; $('#rv-pant').innerHTML = pantallaResHtml(a !== null && b !== null ? { pred: a, real: b } : ES.pantalla?.[lunes()]); };
   const guardarSi = () => { const [a, b] = vals(); const v = ES.pantalla?.[lunes()]; if (a !== null && b !== null && !(v?.pred === a && v?.real === b)) guardarPantalla(a, b); };
   for (const inp of [p, r]) { inp.addEventListener('input', vista); inp.addEventListener('change', () => { guardarSi(); vista(); }); }
   for (const id of ['#rv-ok', '#rv-wa', '#rv-ini4']) $(id)?.addEventListener('click', guardarSi);
@@ -8402,8 +8524,8 @@ function suenoHtml() {
   if (s === 1 || (madrugada && s !== 3)) return `<div class="sueno" id="sueno-q"><p>Dormiste poco. La atención falla más aunque no lo notes: hoy, plan corto.</p>
       <div class="row-b"><button class="primary" id="sq-corto">Plan corto</button><button class="link" id="sq-normal">Día normal</button></div>
       ${madrugada && !s ? `<p class="meta" style="margin:10px 0 6px">¿Cuánto dormiste?</p>${suenoChips()}` : ''}</div>`;
-  if (s || suenoPausado()) return '';
-  suenoVisto();
+  if (s || suenoPausado() || agbSuenoPausado()) return '';
+  if (view === 'enfoque' && document.visibilityState !== 'hidden') suenoVisto();   // cuenta como vista solo si estaba delante (no al pintar Enfoque de fondo)
   return `<div class="sueno" id="sueno-q"><p>¿Cuánto dormiste?</p>${suenoChips()}</div>`;
 }
 function suenoPintar() {
@@ -8440,11 +8562,11 @@ function e212bAhoraCorto() {
     a: () => startFocus('Siesta corta', 20, '', 0, 'descanso'), no: 'Ahora no', noA: () => { local.siestaNo = t; e212bLocal(); renderAhora(); } };
 }
 // Un hábito nuevo en día corto: mejor guardarlo para mañana (el botón «+ Nuevo hábito» llama aquí antes de abrir el formulario).
-window.enfNoEstrenar = abrir => {
+window.enfNoEstrenar = (abrir, idea = '') => {
   if (!diaCorto()) return false;
   showMsg(`<h2>Hoy, plan corto</h2>
     <p class="meta">Hoy mejor no estrenar hábitos: guárdalo y créalo mañana.</p>
-    <div class="field"><label>Tu idea</label><input id="ne-t" maxlength="60" placeholder="Leer 20 páginas" enterkeyhint="done"></div>
+    <div class="field"><label>Tu idea</label><input id="ne-t" maxlength="60" placeholder="Leer 20 páginas" enterkeyhint="done" value="${esc(String(idea || '').slice(0, 60))}"></div>
     <div class="dialog-actions"><button class="link" id="ne-igual">Crear igual</button><button class="primary" id="ne-ok">Guardar la idea</button></div>`);
   const D = s => document.querySelector(s), cerrar = () => D('#msg-dialog').close();
   D('#ne-igual').onclick = () => { cerrar(); abrir(); };
@@ -8661,6 +8783,7 @@ function pesandoRevHtml() {
 function pesandoRevWire() {
   $('#sheet-body').querySelectorAll('[data-pes]').forEach(b => b.onclick = () => {
     const id = b.dataset.pes; closeSheet(); irA('hoy');
+    if (window.hbPesandoAbrir) return window.hbPesandoAbrir(id);
     setTimeout(() => document.querySelector(`.habit[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120);
   });
 }
@@ -8840,7 +8963,7 @@ function cumpleGuardar() {
 function intervE212b() {
   const I = ideaPendiente();
   return [
-    I && { id: 'idea', t: `Tu idea: ${I.t}`, p: `${daysSince(I.d) === 1 ? 'Ayer' : 'Hace unos días'} la guardaste para otro día. ¿La creamos hoy, con su versión de 2 minutos?`, sci: 'Lim y Dinges (2010)', b: 'Crear el hábito', a: () => ideaCrear() },
+    I && !diaCorto() && { id: 'idea', t: `Tu idea: ${I.t}`, p: `${daysSince(I.d) === 1 ? 'Ayer' : 'Hace unos días'} la guardaste para otro día. ¿La creamos hoy, con su versión de 2 minutos?`, sci: 'Lim y Dinges (2010)', b: 'Crear el hábito', a: () => ideaCrear() },
     !ES.cumple && !ES.cumpleVisto && Object.keys(ES.dias || {}).length >= 3 && { id: 'cumple', t: 'Una fecha tuya', p: '¿Cuándo es tu cumpleaños? Ese día, la app te propone una página nueva.', sci: 'Dai, Milkman y Riis (2014)', b: 'Guardar', a: () => cumpleGuardar(), extra: el => cumpleExtra(el) },
   ].filter(Boolean);
 }
@@ -8936,7 +9059,7 @@ function agbCortoAplicar() {
 // ---------- F7 · ¿Cuánto dormiste? (arriba del paso 1, antes de las 12:00 PM, si aún no se respondió hoy)
 // Se puede ignorar; tres días seguidos sin responder y no se vuelve a preguntar aquí en una semana.
 function agbSuenoPausado() { const p = local.agbSueno; return !!(p?.hasta && today() < p.hasta); }
-function agbSuenoPreguntar() { return !!org && !org.manana && !((dayOf().sueno || 0) > 0) && nowMin() < 12 * 60 && !agbSuenoPausado(); }
+function agbSuenoPreguntar() { return !!org && !org.manana && !((dayOf().sueno || 0) > 0) && nowMin() < 12 * 60 && !agbSuenoPausado() && !suenoPausado(); }
 function agbSuenoHtml() {
   if (!org || org.manana) return '';
   const d = dayOf();
@@ -8944,7 +9067,7 @@ function agbSuenoHtml() {
     <div class="row-b"><button class="primary" data-acorto="si">Plan corto</button><button class="link" data-acorto="no">Día normal</button></div></div>`;
   if ((d.corto || 0) > 0) { const mh = window.metaHoy?.() ?? ES.metaXp; return `<p class="meta" id="og-corto">Plan corto: ${mh !== ES.metaXp ? `meta de hoy ${mh} XP en vez de ${ES.metaXp} · ` : ''}sesiones de 25 min con pausa · primero la versión de 2 minutos.</p>`; }
   if (!agbSuenoPreguntar()) return '';
-  org.suenoVisto = true;
+  org.suenoVisto = true; suenoVisto();   // el mismo registro que la tarjeta de XP: tres días seguidos sin responder, una semana sin preguntar
   return `<div class="interv" id="og-sueno" style="margin:0 0 18px"><b>¿Cuánto dormiste?</b>
     <div class="chips" style="margin-top:8px">${[[1, 'Menos de 6 h'], [2, '6–7 h'], [3, '7 h o más']].map(([v, t]) => `<button type="button" class="chip" data-asueno="${v}">${t}</button>`).join('')}</div></div>`;
 }
@@ -8964,7 +9087,7 @@ sheet.addEventListener('click', e => {
     const v = +b.dataset.asueno; ES.dias[today()] = { ...dayOf(), sueno: v }; org.suenoResp = v; local.agbSueno = null;
     guardar(); renderE(); if (v !== 1) toast(v === 2 ? 'Anotado: 6–7 h.' : 'Anotado: 7 h o más.');
   } else if (b.dataset.acorto === 'si') { ES.dias[today()] = { ...dayOf(), corto: 1 }; agbCortoAplicar(); guardar(); renderE(); toast('Plan corto para hoy.'); }
-  else org.cortoNo = true;
+  else { org.cortoNo = true; local.diaNormal = today(); e212bLocal(); }
   organizarDia(1, true);
 });
 
@@ -9153,7 +9276,7 @@ function avAplicar(c) {
       ES.avisosAbiertos = A.slice(-60);
     } else if (x?.tipo === 'sinAviso') {
       const h = (HT().habits || []).find(y => y.id === x.id);
-      if (h && !h.sinAviso) { h.sinAviso = true; h.avisoReinicio = x.d || today(); }
+      if (h && !h.sinAviso) { h.sinAviso = true; h.avisoReinicio = x.d || today(); h.sinAvisoEn = +x.t || Date.now(); }
     }
   }
 }
@@ -9168,9 +9291,10 @@ function avAntesDeGuardar() {
     for (const h of HT().habits || []) {
       if (h.rutina) continue;
       const k = avHoras(h).join(','); nuevo[h.id] = k;
-      if (snap[h.id] !== k) { cambio = true; if (snap[h.id] !== undefined) h.avisoReinicio = t; }
+      if (snap[h.id] !== k) { cambio = true; if (snap[h.id] !== undefined) { h.avisoReinicio = t; avHorasQuitadas(h, snap[h.id], t); } else if (h.creado === t && !(+h.altaEn > 0)) h.altaEn = Date.now(); }
     }
     if (cambio || Object.keys(snap).length !== Object.keys(nuevo).length) localStorage.setItem(AV_HORAS, JSON.stringify(nuevo));
+    avAnotarHoras(t, Date.now());   // 2.12 · la hora de cada cambio que el servidor necesita para el tope del día
   } catch {}
 }
 window.avAntesDeGuardar = avAntesDeGuardar;
@@ -9196,20 +9320,22 @@ function avAbierto(url, enVivo) {
   if (!enVivo) try { const L = new URL(location.href); if (L.searchParams.has('n') || L.searchParams.has('off')) { L.searchParams.delete('n'); L.searchParams.delete('off'); history.replaceState(history.state, '', L.pathname + L.search + L.hash); } } catch {}
   if (!tag || !/^[\w-]+$/.test(tag)) return;
   const d = today(), cola = [{ tipo: 'abierto', tag, d, t: Date.now() }];
-  if (off && /^h-/.test(tag)) cola.push({ tipo: 'sinAviso', id: tag.slice(2), d });
+  if (off && /^h-/.test(tag)) cola.push({ tipo: 'sinAviso', id: tag.slice(2), d, t: Date.now() });
   avAplicar(cola); avSetCola([...avCola(), ...cola]); avFlush();
   if (off) avApagar(tag);
   renderE();
 }
 window.avAbierto = avAbierto;
 // Cada tipo de aviso se apaga con un toque desde el propio aviso; un lote mezcla tipos, así que abre los ajustes.
-const AV_TIPO = tag => /^ag-/.test(tag) || tag === 'agenda' ? 'agenda' : /^p-/.test(tag) ? 'planes' : /^r-/.test(tag) ? 'proyectos' : tag === 'resumen' ? 'manana'
+// El plan para volver (rt-) se apaga con «Hora de cada hábito», que lo incluye.
+const AV_TIPO = tag => /^rt-/.test(tag) ? 'habitos' : /^ag-/.test(tag) || tag === 'agenda' ? 'agenda' : /^p-/.test(tag) ? 'planes' : /^r-/.test(tag) ? 'proyectos' : tag === 'resumen' ? 'manana'
   : ['mediodia', 'ini4', 'social6'].includes(tag) ? 'mediodia' : ['esp', 'noche', 'dormir'].includes(tag) ? 'noche' : ['semana', 'viernes'].includes(tag) ? 'semana' : '';
 function avApagar(tag) {
   if (/^h-/.test(tag)) { const h = (HT().habits || []).find(x => x.id === tag.slice(2)); toast(h ? `Listo: ya no te aviso de «${h.nombre}». Lo vuelves a activar en su ficha.` : 'Listo: ese aviso ya no llega.'); return; }
   const k = AV_TIPO(tag);
   if (!k) { avisosSheet(); return; }
   const c = avCfg(), prefs = { hora: '07:30', ...c.prefs, [k]: false };
+  avPrefsCambio(c.prefs, prefs);   // cuándo se apagó: lo enviado antes sigue contando en el tope de hoy
   avSetCfg({ ...c, prefs });
   toast(`Listo: «${AVISOS.find(x => x[0] === k)?.[1] || 'Ese aviso'}» apagado. Lo vuelves a activar en Notificaciones.`);
   if (c.on) avSuscribir(prefs).catch(() => toast('No se pudo guardar en tu cuenta: cámbialo en Notificaciones.'));
@@ -9255,12 +9381,14 @@ function avPausado(h, hm, hoy = today()) {
       if (he - slot <= AV_30) return false;
     }
     if (A.some(x => x && x.tag === 'h-' + h.id && x.d === e && avFranja(h, e, +x.t || 0) === hm)) return false;
+    const ll = avLlego(['h-' + h.id], e); if (ll && !ll.some(x => avFranja(h, e, x.t) === hm)) continue;   // no llegó ese día: no cuenta
     if (++n >= 3) return true;
   }
   return false;
 }
-// Tarjetas de Enfoque del área: primero el aviso que no sirve y, si no hay, el aviso que se retira con las semanas.
-function avIntervenciones() { const p = avPausaInterv(); return p.length ? p : avFaseInterv(); }
+// Tarjetas de Enfoque del área: primero el aviso que no sirve (de un hábito y, si no, uno de hora fija) y, si no hay, el
+// aviso que se retira con las semanas.
+function avIntervenciones() { const p = avPausaInterv(); if (p.length) return p; const f = avPausaFijaInterv(); return f.length ? f : avFaseInterv(); }
 const avMarca = (k, clave, t) => { local[k] = Object.fromEntries([...Object.entries(local[k]), [clave, t]].slice(-30)); try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {} };
 // En Enfoque, una sola vez por franja pausada: «El aviso de las 7:00 AM para Leer lleva 3 días sin servir».
 function avPausaInterv() {
@@ -9323,12 +9451,255 @@ function avFaseInterv() {
       sci: 'Lo que sostiene el hábito es repetir ante la misma señal (Lally et al., 2010)', b: 'Así está bien', a: () => { local.descartes = { d: t, ids: [...(local.descartes?.d === t ? local.descartes.ids : []), `avfase-${id}-${fase}`] }; guardar(); renderInterv(); },
       // «Ahora no» pasa a ser la salida de un toque: el aviso vuelve a llegar cada día que toca.
       extra: el => { const no = el.querySelector('#iv-no'); if (!no) return; no.textContent = fase === 2 ? 'A diario' : 'Volver a avisarme';
-        no.addEventListener('click', () => { const x = avHabito(id); if (!x) return; x.avisoDiario = true; guardar(); toast(`Listo: el aviso de «${x.nombre}» vuelve a llegar cada día que toca.`); }); } }];
+        no.addEventListener('click', () => { const x = avHabito(id); if (!x) return; x.avisoDiario = true; x.avisoReinicio = today(); guardar(); toast(`Listo: el aviso de «${x.nombre}» vuelve a llegar cada día que toca.`); }); } }];
   }
   return [];
 }
 // Para Ajustes: cuántos avisos abriste en los últimos 7 días.
 const avAbiertosSemana = () => { const d = dayKey(addDays(new Date(), -6)); return (Array.isArray(ES.avisosAbiertos) ? ES.avisosAbiertos : []).filter(x => x.d >= d).length; };
+
+// ====================================================================
+// 2.12 · Avisos (revisión final): el servidor recalcula el día de avisos en cada pasada sin guardar nada (INFORME F16).
+// Para que lo que ya salió siga contando en el tope y en el pie aunque después lo marques, lo apagues, lo muevas o lo
+// borres, la app anota la hora de cada cambio en el estado que ya se sincroniza:
+// - h.marcaEn: la primera marca de hoy de un hábito (completo, 2 min, «Hoy no» o justificado); se borra al deshacerla.
+// - h.sinAvisoEn / h.conAvisoEn: cuándo se quitó o volvió el aviso de un hábito (a mano, desde el aviso o al graduarse).
+//   Al volver, h.avisoReinicio = hoy: los días sin aviso no cuentan como ignorados.
+// - h.altaEn: la hora en que se creó hoy un hábito; h.horasAntes: una hora quitada hoy después de su aviso; y
+//   enfoque.horasBorradas: las horas de hoy, ya pasadas, de un hábito borrado.
+// - x.hechoEn en las prioridades e iniciativas de hoy, b.en en «Tres cosas buenas» y ES.revisionEn: lo hecho antes de la
+//   hora de un lote no lo hace contar como enviado.
+// - En la agenda de hoy, it.alta (cuándo entró cada cosa), A.antes (lo que se movió o se quitó después de su aviso, con su
+//   hora de antes), A.primero (la primera vez que se organizó el día) y state.borradosEn (cuándo se borró su fuente).
+// Lo hace al guardar (save llama a avAntesDeGuardar), con ganchos de una línea en forget, agSyncEventos y orgGuardar.
+// ====================================================================
+const AV_AG = 'habit-avisos-agenda', AV_HAB = 'habit-avisos-hab', AV_VENT = 'habit-avisos-ventanas';
+const avFecha = x => /^\d{4}-\d\d-\d\d$/.test(x || '');
+const avDiaDe = ms => dayKey(new Date(+ms));
+const avDeHoy = (ms, t) => +ms > 0 && avDiaDe(ms) === t;
+const avIni = () => ES.iniciativas4?.dia === today() && Array.isArray(ES.iniciativas4.items) ? ES.iniciativas4.items : [];
+// La hora real de una cosa de la agenda, como la lee el servidor: la de la tarea o la iniciativa si la tienen.
+function avHoraAg(it) {
+  if (it.tipo === 'tarea') { const f = (HT().tareas?.items || []).find(x => x.id === it.ref); return f?.hora || it.h || ''; }
+  if (it.tipo === 'ini') { const f = avIni().find(x => x.k === it.ref && x.t); return f ? f.hora || '' : it.h || ''; }
+  return it.h || '';
+}
+// ¿Sigue su fuente, como la lee el servidor? (borrada o vaciada, su aviso ya no sale).
+function avFuenteViva(it) {
+  if (it.tipo === 'habito') return (HT().habits || []).some(h => h.id === it.ref);
+  if (it.tipo === 'tarea') return (HT().tareas?.items || []).some(x => x.id === it.ref);
+  if (it.tipo === 'ini') return avIni().some(x => x.k === it.ref && x.t);
+  if (it.tipo === 'prio') return (ES.prioridades?.fecha === today() ? ES.prioridades.items || [] : []).some(x => x.id === it.ref);
+  return true;
+}
+const avFotoAg = it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: avHoraAg(it), min: +it.min || 0, alta: +it.alta || 0, ...(it.foco ? { foco: true } : {}), ...(avFuenteViva(it) ? { v: 1 } : {}) });
+const avFotoHab = (h, t) => ({ hs: avHoras(h), m: avDeHoy(avTs(h.marcaEn), t) ? avTs(h.marcaEn) : 0, ...(h.sinAviso || h.graduado ? { off: 1 } : {}) });
+// Una hora quitada hoy después de su aviso sigue contando hasta el cambio (h.horasAntes).
+function avHorasQuitadas(h, antes, t) {
+  const ahora = Date.now(), hs = avHoras(h), q = String(antes || '').split(',').filter(hm => avHm(hm) && !hs.includes(hm) && avSlot(t, hm) <= ahora);
+  if (q.length) h.horasAntes = [...(Array.isArray(h.horasAntes) ? h.horasAntes : []).filter(x => x && x.d === t && !q.includes(x.hm)), ...q.map(hm => ({ d: t, hm, hasta: ahora }))].slice(-6);
+}
+function avAnotarHoras(t, ahora) {
+  const S = HT(), E = state.enfoque;
+  if (!S.borradosEn || typeof S.borradosEn !== 'object' || Array.isArray(S.borradosEn)) S.borradosEn = {};
+  // Hábitos: la primera marca de hoy, el aviso quitado o devuelto y la foto de hoy (por si se borra después de su aviso).
+  const fh = avLeer(AV_HAB), vistoH = fh?.d === t && fh.h && typeof fh.h === 'object' ? fh.h : null, habHoy = {};
+  for (const h of S.habits || []) {
+    if (!h || h.rutina) continue;
+    if (S.log?.[h.id]?.[t]) { if (!avDeHoy(avTs(h.marcaEn), t)) h.marcaEn = ahora; }
+    else if ('marcaEn' in h) delete h.marcaEn;
+    if ('altaEn' in h && !avDeHoy(h.altaEn, t)) delete h.altaEn;
+    if (Array.isArray(h.horasAntes)) { h.horasAntes = h.horasAntes.filter(x => x?.d === t).slice(-6); if (!h.horasAntes.length) delete h.horasAntes; }
+    habHoy[h.id] = avFotoHab(h, t);
+    if (h.sinAviso || h.graduado) { if (!(+h.sinAvisoEn > 0)) h.sinAvisoEn = ahora; delete h.conAvisoEn; continue; }
+    // Vuelve el aviso (a mano, «Volver a avisarme» o al dejar de estar graduado): los días sin aviso no cuentan como ignorados.
+    if (+h.sinAvisoEn > 0 || (h.desgraduado === t && !(h.avisoReinicio >= t))) { h.avisoReinicio = t; h.conAvisoEn = ahora; }
+    delete h.sinAvisoEn;
+    if ('conAvisoEn' in h && !avDeHoy(h.conAvisoEn, t)) delete h.conAvisoEn;
+  }
+  // Un hábito borrado: sus horas de hoy que ya pasaron siguen contando hasta que se borró (si ya estaba marcado antes de su
+  // hora o sin aviso, ese aviso no salió y no se anota).
+  const borr = new Set(Array.isArray(S.borrados) ? S.borrados : []), HB = (Array.isArray(E.horasBorradas) ? E.horasBorradas : []).filter(x => x && x.d === t);
+  if (vistoH) for (const [id, v] of Object.entries(vistoH)) {
+    if (habHoy[id] || !borr.has(id) || v?.off || !Array.isArray(v?.hs)) continue;
+    for (const hm of v.hs) {
+      if (!avHm(hm) || avSlot(t, hm) > ahora || (+v.m > 0 && +v.m <= avSlot(t, hm)) || HB.some(x => x.id === id && x.hm === hm)) continue;
+      HB.push({ id, d: t, hm, hasta: +S.borradosEn[id] > 0 ? +S.borradosEn[id] : ahora });
+    }
+  }
+  if (HB.length) E.horasBorradas = HB.slice(-24); else delete E.horasBorradas;
+  try { localStorage.setItem(AV_HAB, JSON.stringify({ d: t, h: habHoy })); } catch {}
+  // Prioridades e iniciativas de hoy: cuándo se hicieron (al deshacerlas se borra).
+  for (const x of [...(ES.prioridades?.fecha === t ? ES.prioridades.items || [] : []), ...avIni()]) {
+    if (!x || typeof x !== 'object') continue;
+    if (x.hecho) { if (!(+x.hechoEn > 0)) x.hechoEn = ahora; } else if ('hechoEn' in x) delete x.hechoEn;
+  }
+  for (const b of Array.isArray(ES.buenas) ? ES.buenas : []) if (b && b.d === t && !(+b.en > 0)) b.en = ahora;
+  if (ES.revision === t && !avDeHoy(ES.revisionEn, t)) ES.revisionEn = ahora;
+  // Otras ventanas de revisión: cada lote empieza a contar de nuevo (los días anteriores no salió a esa hora).
+  try {
+    const V = [...new Set((Array.isArray(ES.ventanas) ? ES.ventanas : []).filter(avHm))].sort(), vAntes = localStorage.getItem(AV_VENT);
+    if (vAntes !== null && vAntes !== V.join(',')) ES.avisosReinicio = Object.fromEntries([...Object.entries(ES.avisosReinicio && typeof ES.avisosReinicio === 'object' ? ES.avisosReinicio : {}), ...V.map(hm => ['lote@' + hm, t])].slice(-30));
+    if (vAntes !== V.join(',')) localStorage.setItem(AV_VENT, V.join(','));
+  } catch {}
+  // Desde qué día este teléfono anota lo que le llega: desde entonces el servidor también pausa los avisos de hora fija.
+  if (avRecibidos && !avFecha(E.avisosFijasDesde)) E.avisosFijasDesde = avDia(avDiaDe(avRecibidos.desde), 1);
+  // Agenda de hoy: cuándo entró cada cosa, cuándo se borró su fuente y, si algo se movió o se quitó después de su aviso, su
+  // hora de antes.
+  const A = E.agendaHoy;
+  if (A && A.fecha === t && Array.isArray(A.items)) {
+    const snap = avLeer(AV_AG), visto = snap?.d === t && snap.items && typeof snap.items === 'object' ? snap.items : null, hoy = {};
+    for (const it of A.items) {
+      if (!it || typeof it !== 'object' || !it.id) continue;
+      if (!(+it.alta > 0)) it.alta = visto && !visto[it.id] ? ahora : (+A.organizado || 1);
+      const f = avFotoAg(it);
+      if (!f.v && visto?.[it.id]?.v && it.ref && !avDeHoy(S.borradosEn[it.ref], t)) S.borradosEn[it.ref] = ahora;
+      hoy[it.id] = f;
+    }
+    if (visto) for (const [id, p] of Object.entries(visto)) {
+      const n = hoy[id];
+      if (!p || ['evento', 'plan'].includes(p.tipo) || !avHm(p.h) || (n && n.h === p.h) || avSlot(t, p.h) - 10 * 60000 > ahora) continue;
+      const { v, ...q } = p;
+      A.antes = [...(Array.isArray(A.antes) ? A.antes : []).filter(x => x && !(x.id === id && x.h === p.h)), { id, ...q, hasta: ahora }].slice(-20);
+    }
+    if (+A.organizado > 0 && !(+A.primero > 0)) A.primero = +A.organizado;
+    try { localStorage.setItem(AV_AG, JSON.stringify({ d: t, items: hoy })); } catch {}
+  }
+  // Lo borrado (forget y las fuentes que se quitan): solo hace falta para hoy y ayer.
+  S.borradosEn = Object.fromEntries(Object.entries(S.borradosEn).filter(([, v]) => +v > ahora - 2 * 864e5).slice(-80));
+}
+// Al abrir (y al volver a la app), la foto de partida de hoy se completa con lo que aún no tenía (lo que llegó de la nube sin
+// guardarse aquí): así el primer guardado ya sabe qué es nuevo, qué se movió y qué se borró. Lo que ya estaba no se toca.
+function avFotoUnir() {
+  try {
+    const t = today(), A = ES.agendaHoy, fa = avLeer(AV_AG), fh = avLeer(AV_HAB);
+    if (A?.fecha === t && Array.isArray(A.items)) {
+      const items = fa?.d === t && fa.items && typeof fa.items === 'object' ? fa.items : {}; let n = fa?.d !== t;
+      for (const it of A.items) if (it && it.id && !items[it.id]) { items[it.id] = avFotoAg(it); n = true; }
+      if (n) localStorage.setItem(AV_AG, JSON.stringify({ d: t, items }));
+    }
+    const h = fh?.d === t && fh.h && typeof fh.h === 'object' ? fh.h : {}; let n = fh?.d !== t;
+    for (const x of HT().habits || []) if (x && !x.rutina && x.id && !h[x.id]) { h[x.id] = avFotoHab(x, t); n = true; }
+    if (n) localStorage.setItem(AV_HAB, JSON.stringify({ d: t, h }));
+  } catch {}
+}
+avFotoUnir();
+
+// ---------- Preferencias: cuándo se apagó o encendió cada tipo (lo de antes de apagarlo sigue contando en el tope del día),
+// otra hora del resumen u otro tope. Al volver a encender un tipo o cambiar la hora del resumen, su aviso vuelve a contar
+// desde hoy (los días apagado o a otra hora no cuentan como ignorados). Devuelve si cambió algo del estado (para guardarlo).
+function avPrefsCambio(antes, prefs) {
+  antes = antes && typeof antes === 'object' ? antes : {};
+  const ahora = Date.now(), t = today(), ap = { ...(antes.apagadoEn || {}) }, en = { ...(antes.encendidoEn || {}) };
+  const R = { ...(ES.avisosReinicio && typeof ES.avisosReinicio === 'object' ? ES.avisosReinicio : {}) };
+  let reinicio = false;
+  for (const [k] of AVISOS) {
+    const era = antes[k] !== false, es = prefs[k] !== false;
+    if (era && !es) ap[k] = ahora;
+    if (!era && es) {
+      en[k] = ahora; reinicio = true;
+      if (k === 'habitos') for (const h of HT().habits || []) { if (h && !h.rutina) h.avisoReinicio = t; }
+      else R[k] = t;
+    }
+  }
+  if ((avHm(antes.hora) ? antes.hora : '07:30') !== (avHm(prefs.hora) ? prefs.hora : '07:30')) { R.manana = t; reinicio = true; }
+  const maxDe = p => [2, 3, 4, 5, 6, 7, 8].includes(+p?.max) ? +p.max : 4;
+  if (maxDe(antes) !== maxDe(prefs)) prefs.maxAntes = { v: maxDe(antes), hasta: ahora };
+  else if (antes.maxAntes) prefs.maxAntes = antes.maxAntes;
+  prefs.apagadoEn = Object.fromEntries(Object.entries(ap).filter(([k, v]) => AVISOS.some(x => x[0] === k) && +v > 0));
+  prefs.encendidoEn = Object.fromEntries(Object.entries(en).filter(([k, v]) => AVISOS.some(x => x[0] === k) && +v > 0));
+  if (reinicio) ES.avisosReinicio = Object.fromEntries(Object.entries(R).slice(-30));
+  return reinicio;
+}
+
+// ---------- Lo que de verdad llegó a este teléfono: el service worker anota cada aviso recibido (los últimos 30 días, en
+// IndexedDB). Así, «lleva 3 días sin servir» solo cuenta los días en que ese aviso sonó (si el tope o un silencio lo dejaron
+// fuera, no cuenta). Sin ese registro (otro navegador o antes de esta versión), los hábitos se cuentan como antes.
+let avRecibidos = null;   // { desde: ms, L: [{ tag, t }] }
+async function avLeerRecibidos() {
+  try {
+    if (!('indexedDB' in window)) return;
+    if (indexedDB.databases) { const L = await indexedDB.databases(); if (!L.some(d => d.name === 'avisos-recibidos')) return; }
+    const db = await new Promise((ok, ko) => { const r = indexedDB.open('avisos-recibidos'); r.onupgradeneeded = () => r.transaction.abort(); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
+    const leer = st => new Promise((ok, ko) => { const q = db.transaction(st).objectStore(st).getAll(); q.onsuccess = () => ok(q.result || []); q.onerror = () => ko(q.error); });
+    let meta = [], L = [];
+    try { meta = await leer('meta'); L = await leer('recibidos'); } finally { db.close(); }
+    const desde = Math.min(...meta.map(x => +x?.desde || Infinity));
+    if (!Number.isFinite(desde)) return;
+    const antes = JSON.stringify(avRecibidos);
+    avRecibidos = { desde, L: L.filter(x => x && typeof x.tag === 'string' && +x.t > 0).map(x => ({ tag: x.tag, t: +x.t })).slice(-500) };
+    if (JSON.stringify(avRecibidos) !== antes) renderInterv();
+  } catch {}
+}
+// Lo que llegó ese día con alguno de esos tipos; null si este teléfono no lo registraba entonces (el primer día, a medias).
+function avLlego(tags, e) { return !avRecibidos || e <= avDiaDe(avRecibidos.desde) ? null : avRecibidos.L.filter(x => tags.includes(x.tag) && avDiaDe(x.t) === e); }
+avLeerRecibidos();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { avFotoUnir(); avLeerRecibidos(); } });
+
+// ---------- F16 · También se pausa un aviso diario de hora fija que no es de un hábito: el resumen, «Tu día aún no tiene
+// hora» y el lote de cada ventana (la misma regla del servidor). La hora de soltar el teléfono no se pausa: lo útil es no
+// tocarlo. Los de lunes y viernes son semanales. En Enfoque, con salida de un toque: [Mover] · [Quitarlo] · [Dejarlo].
+const AV_PARTES = [['12:00', 'mediodia', 'mediodia'], ['16:00', 'ini4', 'mediodia'], ['16:00', 'social6', 'mediodia'], ['17:00', 'viernes', 'semana'], ['20:00', 'esp', 'noche'], ['21:00', 'noche', 'noche']];
+function avFijas() {
+  const p = avCfg().prefs || {}, F = [];
+  if (p.manana !== false) { const hm = avHm(p.hora) ? p.hora : '07:30'; F.push({ franja: 'resumen@' + hm, hm, tags: ['resumen'], tipos: ['manana'], tag: 'resumen', t: `El resumen ${avDe(hm)} lleva 3 días sin servir` }); }
+  if (p.agenda !== false) F.push({ franja: 'agenda@09:30', hm: '09:30', tags: ['agenda'], tipos: ['agenda'], tag: 'agenda', fija: true, t: 'El aviso «Tu día aún no tiene hora» lleva 3 días sin servir', util: e => (dayOf(e).agenda || 0) > 0 });
+  const V0 = (Array.isArray(ES.ventanas) ? ES.ventanas : []).filter(avHm), V = [...new Set(V0.length ? V0 : ['12:30', '18:00', '21:00'])].sort(), lotes = new Map();
+  for (const [nominal, tag, k] of AV_PARTES) {
+    if (p[k] === false) continue;
+    const v = V.find(x => x >= nominal) || nominal;
+    if (!lotes.has(v)) lotes.set(v, { tags: ['lote-' + v.replace(':', '')], tipos: [] });
+    const l = lotes.get(v); l.tags.push(tag); if (!l.tipos.includes(k)) l.tipos.push(k);
+  }
+  for (const [hm, l] of lotes) F.push({ franja: 'lote@' + hm, hm, tags: l.tags, tipos: l.tipos, tag: l.tipos.length === 1 ? l.tags[1] : l.tags[0], lote: true, t: `El aviso de tu ventana ${avDe(hm)} lleva 3 días sin servir` });
+  return F;
+}
+// Cuenta solo los días en que ese aviso llegó a este teléfono; sin ese registro no se sabe si salió: no hay tarjeta.
+function avPausaFija(f, hoy = today()) {
+  const desde = ES.avisosDesde, desdeF = ES.avisosFijasDesde; if (!avFecha(desde) || !avFecha(desdeF)) return false;
+  const R = ES.avisosReinicio || {}, reinicio = [R[f.franja], ...f.tipos.map(k => R[k])].filter(avFecha).sort().pop() || '';
+  const A = Array.isArray(ES.avisosAbiertos) ? ES.avisosAbiertos : [];
+  let n = 0;
+  for (let i = 1, e = avDia(hoy, -1); i <= 21; i++, e = avDia(e, -1)) {
+    if (e < desde || e < desdeF || e < reinicio) break;
+    if (A.some(x => x && x.d === e && f.tags.includes(x.tag)) || f.util?.(e)) return false;
+    if (!avLlego(f.tags, e)?.length) continue;
+    if (++n >= 3) return true;
+  }
+  return false;
+}
+function avPausaFijaInterv() {
+  const c = avCfg(); if (!c.on) return [];
+  const t = today();
+  if (!local.avCartas || typeof local.avCartas !== 'object') local.avCartas = {};
+  for (const f of avFijas()) {
+    if (!avPausaFija(f, t)) continue;
+    const R = ES.avisosReinicio || {}, k = `${f.franja}@${[R[f.franja], ...f.tipos.map(x => R[x])].filter(Boolean).sort().pop() || ''}`, visto = local.avCartas[k];
+    if (visto && visto !== t) continue;
+    if (!visto) avMarca('avCartas', k, t);
+    const sci = 'Cada aviso cuesta atención aunque no lo abras (Stothart, Mitchum y Yehnert, 2015)', id = 'avpausa-' + f.franja.replace(/[^\w]/g, '');
+    // «Tu día aún no tiene hora» siempre llega a las 9:30 AM: no hay otra hora, solo quitarlo o dejarlo.
+    if (f.fija) return [{ id, t: f.t, p: '¿Te sigue sirviendo?', sci, b: 'Quitarlo', a: () => { avReiniciarFija(f); avApagar(f.tag); renderE(); }, extra: el => avPausaFijaBotones(el, f, false) }];
+    return [{ id, t: f.t, p: '¿Te viene mejor a otra hora?', sci, b: 'Mover', a: () => avMoverFija(f), extra: el => avPausaFijaBotones(el, f, true) }];
+  }
+  return [];
+}
+const avReiniciarFija = f => { ES.avisosReinicio = Object.fromEntries(Object.entries({ ...(ES.avisosReinicio || {}), [f.franja]: today() }).slice(-30)); guardar(); };
+// Mover: la hora del resumen se ajusta en Notificaciones; un lote, en tus ventanas de revisión (Ajustes de Enfoque).
+function avMoverFija(f) {
+  avReiniciarFija(f);
+  if (f.lote) { settings(); setTimeout(() => { try { const i = Math.max(0, (ES.ventanas || []).indexOf(f.hm)); $(`#s-v${Math.min(3, i + 1)}`)?.focus(); } catch {} }, 80); }
+  else { avisosSheet(); setTimeout(() => { try { $('#av-hora')?.focus(); } catch {} }, 80); }
+}
+function avPausaFijaBotones(el, f, quitar) {
+  const no = el.querySelector('#iv-no'); if (!no) return;
+  no.textContent = 'Dejarlo';
+  if (quitar) {
+    no.insertAdjacentHTML('beforebegin', '<button class="link" id="iv-avq">Quitarlo</button>');
+    el.querySelector('#iv-avq').onclick = () => { avReiniciarFija(f); avApagar(f.tag); renderE(); };
+  }
+  no.addEventListener('click', () => { avReiniciarFija(f); toast('Lo dejamos como está.'); });
+}
 
 // ====================================================================
 // Notificaciones: llegan aunque la app esté cerrada. El teléfono se suscribe aquí (Web Push) y la
@@ -9378,7 +9749,7 @@ function avisosSheet() {
     <p class="meta" id="av-abiertos">Avisos que abriste en los últimos 7 días: ${avAbiertosSemana()}. Cada uno trae un botón para apagar ese tipo.</p>
     <p class="meta red" id="av-err"></p>
     <div class="actions">${c.on ? '<button class="link" id="av-test">Probar</button>' : ''}<button class="primary" id="av-ok">Listo</button></div>`);
-  const guardarPrefs = async () => { prefs.hora = $('#av-hora').value || '07:30'; avSetCfg({ ...avCfg(), prefs }); if (avCfg().on) { try { await avSuscribir(prefs); } catch (e) { $('#av-err').textContent = e.message; } } };
+  const guardarPrefs = async () => { prefs.hora = $('#av-hora').value || '07:30'; if (avPrefsCambio(avCfg().prefs, prefs)) guardar(); avSetCfg({ ...avCfg(), prefs }); if (avCfg().on) { try { await avSuscribir(prefs); } catch (e) { $('#av-err').textContent = e.message; } } };
   $('#av-max').onclick = e => { const b = e.target.closest('[data-max]'); if (!b) return; prefs.max = +b.dataset.max; $('#av-max').querySelectorAll('[data-max]').forEach(x => x.classList.toggle('on', +x.dataset.max === prefs.max)); };
   $('#sheet-body').querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
     prefs[b.dataset.k] = prefs[b.dataset.k] === false; const x = b.querySelector('.box');

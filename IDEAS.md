@@ -334,6 +334,16 @@ Un informe final concilió los seis informes de investigación (neurociencia de 
 - **El plan para volver no avisa** si el día del «Hoy no» lo terminaste haciendo.
 - **Textos que no afirman de más**: el perdón de «Estoy procrastinando» como lo dice el estudio (correlacional; Wohl, Pychyl y Bennett, 2010) y el aviso de fin de sesión sin imperativos.
 
+### Revisión final
+
+Una revisión adversarial en seis dimensiones (datos y sincronización, cumplimiento del informe, avisos, flujos en el navegador, seguridad y regresiones), con un verificador independiente por hallazgo: 34 confirmados, todos corregidos y con pruebas.
+
+- **Dos dispositivos sin pérdidas.** Nada se guarda como «más reciente» mientras se pinta antes de combinar con la nube; las listas nuevas (surfear, «¿valió la pena?», aperturas, días protegidos, chequeos) se unen entre teléfonos; la foto de ayer de la agenda refleja lo combinado.
+- **Días protegidos de verdad.** Un día protegido no sale como pendiente en Enfoque, en la puerta ni en «Organizar mi día»; proteger el 25.º día nunca convierte el primero en fallo; un plan para volver no cae en un día protegido; graduarse y volver a la lista activa no ocurren a la vez.
+- **Avisos que cumplen el tope.** Lo ya enviado sigue contando aunque después marques «Hoy no», apagues un tipo, reorganices o borres algo (la app anota cuándo lo hiciste); un evento que entra tarde no repite avisos; la pausa de «3 días sin servir» solo cuenta días en que el aviso salió, y vale para todos los tipos con hora fija; cada aviso, también el plan para volver, lleva su botón para apagarlo; un aviso de un día nuevo suena aunque el de ayer siga en la bandeja; un estado enorme o roto no frena a las demás cuentas.
+- **Seguridad.** Los contadores del día y el origen de una prioridad se normalizan y se escapan; la puerta no abre enlaces con esquemas que ejecutan código.
+- **Pequeños.** La rana va primero también en una mañana protegida; los chips largos no desbordan a 390 px; «Hoy mejor no estrenar hábitos» en todos los sitios donde se crea un hábito; «Día normal» se recuerda; la detección de ejercicio va por palabra entera; la revisión acepta «45 minutos», «3 h 20» o «2 hrs».
+
 ### Lista de control antes de cada versión
 
 - [ ] «Hoy no», «Abrir igual» y apagar un aviso se ven siempre y cuestan un toque. Pueden ser secundarios, nunca estar escondidos.
