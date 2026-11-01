@@ -217,6 +217,31 @@ function fuentesAg(C, fecha) {
   return { fuente, vivoF, texto, horaDe, borradoEn };
 }
 
+// 2.13 · Identidad: una sola línea dentro del resumen si alguna identidad (E.identidades, con iden en hábitos, iniciativas y agenda)
+// lleva 3 o más días sin votos: «Sin votos desde el {día}: una persona que {t}. ¿Dos minutos hoy?». Sin XP, sin imperativos,
+// sin aviso aparte. Los votos se calculan con el criterio simplificado: hábitos (log full/min), iniciativas del día y el historial de la agenda.
+const DIAS_ES = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'], MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const fechaOk = k => /^\d{4}-\d\d-\d\d$/.test(k || '');
+function jdLinea(C, fecha) {
+  const st = C.st, E = st.enfoque || {};
+  const L = acota(E.identidades, 12).filter(i => !i.archivada && typeof i.id === 'string' && typeof i.t === 'string' && i.t.trim()).slice(0, 6);
+  if (!L.length) return '';
+  const H = habitosDe(st).filter(h => typeof h.iden === 'string' && h.iden), hecho = m => m === 'full' || m === 'min';
+  const I4 = E.iniciativas4 && typeof E.iniciativas4 === 'object' ? E.iniciativas4 : null, AH = E.agendaHist && typeof E.agendaHist === 'object' && !Array.isArray(E.agendaHist) ? E.agendaHist : {};
+  const ultimo = i => {
+    let best = '';
+    for (const h of H) { if (h.iden !== i.id) continue; const log = st.log?.[h.id]; if (!log || typeof log !== 'object') continue;
+      for (const k of Object.keys(log)) if (k < fecha && k > best && fechaOk(k) && hecho(log[k])) best = k; }
+    if (I4 && fechaOk(I4.dia) && I4.dia < fecha && I4.dia > best && acota(I4.items, 12).some(x => x.hecho && x.iden === i.id)) best = I4.dia;
+    for (const k of Object.keys(AH).slice(-60)) if (k < fecha && k > best && fechaOk(k) && acota(AH[k], 80).some(it => it.hecho && it.iden === i.id)) best = k;
+    return best;
+  };
+  const cand = L.map(i => { const u = ultimo(i), desde = u || (fechaOk(i.creado) ? i.creado : ''); return { i, desde, d: desde && desde <= fecha ? dias(desde, fecha) : 0 }; })
+    .filter(x => x.desde && x.d >= 3).sort((a, b) => b.d - a.d)[0];
+  if (!cand) return '';
+  const f = cand.desde, dia = cand.d <= 6 ? `el ${DIAS_ES[wd(f)]}` : `el ${+f.slice(8, 10)} de ${MESES_ES[+f.slice(5, 7) - 1] || ''}`.trim();
+  return `Sin votos desde ${dia}: una persona que ${cand.i.t.trim()}. ¿Dos minutos hoy?`;
+}
 // Resumen de la mañana: informa, sin XP ni imperativos. Lo borrado no sale y lo editado sale con su texto y su hora actuales.
 function resumen(C, fecha) {
   const st = C.st, E = st.enfoque || {}, L = [];
@@ -232,6 +257,7 @@ function resumen(C, fecha) {
   if (tareas.length) L.push(`Tareas para hoy: ${tareas.length}${tareas.some(x => x.fecha < fecha) ? ' (hay vencidas)' : ''}`);
   const per = acota(E.personas, 300).find(p => !p.ultimo || dias(p.ultimo, fecha) >= (p.cada || 30));
   if (per) L.push(`Hace tiempo que no hablas con ${per.nombre}.`);
+  const idn = jdLinea(C, fecha); if (idn) L.push(idn);
   return { tag: 'resumen', title: `Buenos días${st.nombre ? ', ' + st.nombre : ''}`, body: L.join('\n'), url: './?v=enfoque' };
 }
 
