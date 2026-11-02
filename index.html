@@ -207,6 +207,13 @@
   .ampm label:has(input:checked) { background: var(--text); color: var(--bg); }
   .ampm label:has(input:focus-visible) { outline: 2px solid var(--muted); outline-offset: -2px; }
   .dialog-actions { display: flex; justify-content: flex-end; align-items: center; gap: 24px; margin-top: 28px; }
+  /* 2.17.2 (H) · La franja de «Hecho» en el aviso y en el formulario de hábito: fija arriba, con fondo. */
+  .hecho-bar { position: sticky; top: -28px; z-index: 6; display: flex; justify-content: flex-end; align-items: center; box-sizing: border-box; min-height: 56px;
+    margin: -28px -24px 4px; padding: 6px 16px 4px; background: var(--bg); border-bottom: 1px solid transparent; }
+  .hecho-bar.sombra { border-bottom-color: var(--line); }
+  .hecho-btn { min-height: 44px; min-width: 92px; padding: 0 22px; border-radius: 999px; background: var(--text); color: var(--bg); font-weight: 600; flex: none; }
+  .hecho-btn:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
+  dialog:has(.hecho-bar) { scroll-padding-top: 64px; }
   .dialog-actions .danger { color: var(--red); margin-right: auto; }
   .primary { background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 500; }
   .picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
@@ -610,7 +617,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.17.1';
+const APP_VERSION = '2.17.2';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -4156,6 +4163,15 @@ const ENFOQUE_CSS = `
   @media (min-width: 600px) { dialog { margin: auto; border-radius: 22px; } }
   .sheet { padding: 22px max(20px, env(safe-area-inset-left, 0px)) calc(22px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; max-height: 88dvh; box-sizing: border-box; }
   .sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--empty); margin: -8px auto 16px; }
+  /* 2.17.2 (H) · La franja de «Hecho»: fija arriba de la hoja, con fondo, sin animación propia. */
+  .hecho-bar { position: sticky; top: -22px; z-index: 6; display: flex; justify-content: flex-end; align-items: center; box-sizing: border-box; min-height: 56px;
+    margin: -22px calc(-1 * max(20px, env(safe-area-inset-left, 0px))) 6px; padding: 6px max(14px, env(safe-area-inset-left, 0px)) 4px;
+    background: var(--bg); border-bottom: 1px solid transparent; }
+  .hecho-bar.sombra { border-bottom-color: var(--line); }
+  .sheet .hecho-bar .grab { position: absolute; left: 50%; top: 8px; margin: 0 0 0 -18px; }
+  .hecho-btn { min-height: 44px; min-width: 92px; padding: 0 22px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; flex: none; }
+  .hecho-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .sheet:has(> .hecho-bar) { scroll-padding-top: 64px; }
   .actions { display: flex; justify-content: flex-end; align-items: center; gap: 18px; margin-top: 22px; flex-wrap: wrap; }
   .actions.stack { flex-direction: column; align-items: stretch; gap: 12px; }
   .actions.stack .link { text-align: center; padding: 6px 0; }
@@ -4586,9 +4602,165 @@ const sheet = $('#sheet');
 function showSheet(html) {
   $('#sheet-body').innerHTML = `<div class="grab"></div>${html}`;
   if (!sheet.open) sheet.showModal();
+  hechoMontar(sheet, $('#sheet-body'));   // 2.17.2 (H)
 }
 const closeSheet = () => sheet.open && sheet.close();
 sheet.addEventListener('click', e => { if (e.target === sheet && !euWizAtras()) closeSheet(); });   // 2.17.1 (U) · en «Nueva ruta», un paso atrás
+
+// ---------- 2.17.2 (H) · «Hecho»: guardar y cerrar desde arriba de la hoja, sin tener que usar Atrás.
+// Las tres superficies donde se edita: la hoja (#sheet), el aviso (#msg-dialog) y el formulario de hábito (#form-dialog). La franja se pone
+// cuando hay campos visibles (hechoQuiere). «Hecho» busca lo cambiado desde que se abrió (hechoSucios y los borradores registrados en
+// hechoBorradores), toca el botón de guardar de esa parte (hechoGuardaDe: el más cercano, dentro del mismo <details> o sección) y cierra.
+// Un guardado cuenta si escribió en el almacenamiento, cerró el diálogo o volvió a pintar la hoja; si no, la hoja se queda abierta.
+var HECHO_N = 0, hechoBase = new WeakMap(), hechoBorradores = [], hechoHoras0 = '';
+var HECHO_NO = '[data-sin-hecho], #c-que, #f-que, #pc-min, #as-t, #ex-ej, #motivo, #reason, #pq-t, #gr-ok, #a-email, #e1-t, #ne-t, #pf-nota, #ps-go, #ps-gusto, [aria-label="Avance de la ruta nueva"]';
+var HECHO_CTL = 'input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="search"]), textarea, select, [contenteditable="true"], button.chip, [aria-pressed], [data-pick], .row[data-k]';
+var HECHO_EDIT = 'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]), textarea, select, [contenteditable="true"]';
+var HECHO_GUARDA = /^(guardar|añadir|crear(?! cuenta)|listo|cambiar hora|mover|actualizar|aplicar|usar|sumar)(\s|$)/i;
+{ const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { HECHO_N++; return o.call(this, k, v); }; }
+function hechoTxt(b) { return (b.textContent || '').replace(/\s+/g, ' ').trim(); }
+// Visible para la persona: sin [hidden] por encima ni dentro de un <details> cerrado (sin medir: vale antes de abrir el diálogo).
+function hechoVis(el, dentro = null) {
+  if (!el || !el.isConnected || el.closest('[hidden]')) return false;
+  for (let d = el.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) if (!d.open && !el.closest('summary') && !(dentro && dentro.contains(d))) return false;
+  return true;
+}
+function hechoVal(el) {
+  if (el.matches('[data-pick]')) return 'p:' + (el.dataset.sel ?? '');
+  if (el.matches('.row[data-k]')) return 'r:' + el.innerHTML;
+  if (el.matches('button.chip, [aria-pressed]')) return 'c:' + el.classList.contains('on') + '|' + el.getAttribute('aria-pressed');
+  if (el.isContentEditable) return 'e:' + el.textContent;
+  if (el.type === 'checkbox' || el.type === 'radio') return 'k:' + el.checked;
+  return 'v:' + el.value;
+}
+function hechoControles(body) { return [...body.querySelectorAll(HECHO_CTL)].filter(el => !el.closest('.hecho-bar')); }
+function hechoTomar(body, todo = false) { for (const el of hechoControles(body)) if (todo || !hechoBase.has(el)) hechoBase.set(el, hechoVal(el)); }
+function hechoSucios(body) { return hechoControles(body).filter(el => hechoBase.has(el) && hechoBase.get(el) !== hechoVal(el)); }
+// Un chip es una elección o una pista («Usar estas», «Crear la mía»), no el guardado; tampoco lo que abre otra hoja.
+function hechoEsGuarda(b, dentro = null) {
+  if (!b || b.disabled || b.closest('.hecho-bar') || !hechoVis(b, dentro)) return false;
+  if (b.matches('[data-guarda]')) return true;
+  if (b.matches('.chip, [data-crear], [data-cat], [data-notion], [data-bw]') || b.closest('.hb-pista')) return false;
+  return (b.type === 'submit' && !!b.form) || HECHO_GUARDA.test(hechoTxt(b));
+}
+// El botón de guardar de un campo: el más cercano subiendo desde él, sin salir de su <details> (o [data-hecho-sec]); si su sección no
+// tiene ninguno, el de la sección de fuera. Entre varios al mismo nivel, el principal.
+function hechoGuardaDe(el, body) {
+  if (body.matches('form')) { const sb = body.querySelector('button[type="submit"]'); return hechoEsGuarda(sb) ? sb : null; }   // el formulario de hábito: siempre su «Guardar»
+  const secDe = x => { const c = x && x.closest('details, [data-hecho-sec]'); return c && c !== body && body.contains(c) ? c : body; };
+  let desde = el, sec = secDe(el);
+  for (let k = 0; k < 6; k++) {
+    for (let a = desde.parentElement; a; a = a.parentElement) {
+      const c = [...a.querySelectorAll('button')].filter(b => b !== el && hechoEsGuarda(b, sec === body ? null : sec) && secDe(b) === sec);
+      if (c.length) return c.find(b => b.classList.contains('primary')) || c[0];
+      if (a === sec || a === body) break;
+    }
+    if (sec === body) return null;
+    desde = sec; sec = secDe(sec.parentElement);
+  }
+  return null;
+}
+function hechoQuiere(dlg, body) {
+  if (body.querySelector(HECHO_NO)) return false;
+  const bs = [...body.querySelectorAll('button')].filter(b => !b.closest('.hecho-bar') && hechoVis(b));
+  if (bs.some(b => /^(Atrás|Siguiente|Saltar este paso)$/.test(hechoTxt(b)) || (b.classList.contains('primary') && /^(Hecho|Seguir)$/.test(hechoTxt(b)) && !b.closest('.eu-ej, [data-hecho-sec]')))) return false;
+  if (body.querySelector('[data-hecho]')) return true;
+  return [...body.querySelectorAll(HECHO_EDIT)].some(el => !el.closest('.hecho-bar, [hidden]'));   // también lo de un <details> cerrado: se abre y se edita
+}
+function hechoMontar(dlg, body, soloPoner = false) {
+  if (!dlg || !body) return;
+  const bar = body.querySelector(':scope > .hecho-bar');
+  if (soloPoner && bar) return;
+  const quiere = dlg.open && hechoQuiere(dlg, body);
+  if (quiere && !bar) {
+    const b = document.createElement('div'); b.className = 'hecho-bar';
+    const grab = body.querySelector(':scope > .grab'); if (grab) b.appendChild(grab);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'hecho-btn'; x.textContent = 'Hecho'; x.setAttribute('aria-label', 'Hecho, guardar y cerrar');
+    x.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); hechoTocar(dlg, body); });
+    b.appendChild(x); body.prepend(b); hechoSombra(dlg, body);
+  } else if (!quiere && bar) { const grab = bar.querySelector('.grab'); if (grab) body.prepend(grab); bar.remove(); }
+}
+// Un filo bajo la franja cuando hay algo desplazado debajo.
+function hechoSombra(dlg, body) { const bar = body.querySelector(':scope > .hecho-bar'); if (bar) bar.classList.toggle('sombra', (dlg === sheet ? body.scrollTop : dlg.scrollTop) > 2); }
+// Un control, dicho de forma que se encuentre otra vez tras volver a pintar la hoja: su id o, si no tiene, sus atributos data-*
+// dentro del antepasado con id más cercano (y su posición entre los iguales).
+function hechoLoc(el, body) {
+  if (el.id) return { id: el.id };
+  let anc = el.parentElement; while (anc && anc !== body && !anc.id) anc = anc.parentElement;
+  const scope = anc && anc !== body ? anc : body;
+  const sel = el.tagName.toLowerCase() + [...el.attributes].filter(a => (a.name.startsWith('data-') && !/^data-(sel|ok|conf)$/.test(a.name)) || a.name === 'name' || a.name === 'type').map(a => `[${a.name}="${CSS.escape(a.value)}"]`).join('');
+  return { anc: scope === body ? null : scope.id, sel, i: [...scope.querySelectorAll(sel)].indexOf(el) };
+}
+function hechoBusca(loc, body) {
+  if (loc.id) return body.querySelector('#' + CSS.escape(loc.id));
+  const scope = loc.anc ? body.querySelector('#' + CSS.escape(loc.anc)) : body; if (!scope) return null;
+  const L = scope.querySelectorAll(loc.sel); return L[loc.i] || (L.length === 1 ? L[0] : null);
+}
+// Volver a poner lo que la persona había cambiado en otras partes: campos (valor), selecciones [data-pick] y chips (tocándolos otra vez).
+function hechoReponer(lista, body) {
+  const orden = x => x.v.startsWith('p:') ? 1 : x.v.startsWith('c:true') ? 2 : x.v.startsWith('c:') ? 3 : 0;
+  for (const x of [...lista].sort((a, b) => orden(a) - orden(b))) {
+    const el = hechoBusca(x.loc, body); if (!el || hechoVal(el) === x.v) continue;
+    const t = x.v[0], v = x.v.slice(2);
+    if (t === 'v') el.value = v;
+    else if (t === 'k') el.checked = v === 'true';
+    else if (t === 'e') el.textContent = v;
+    else if (t === 'p') { const c = [...el.querySelectorAll('[data-k]')].find(b => b.dataset.k === v); if (c) c.click(); else continue; }
+    else if (t === 'c') el.click();
+    else continue;
+    const el2 = hechoBusca(x.loc, body) || el;
+    for (let d = el2.closest('details'); d && body.contains(d); d = d.parentElement?.closest('details')) d.open = true;
+  }
+}
+// Guardar lo cambiado (parte por parte) y cerrar. Lo que estaba escrito en otra parte se vuelve a poner si la hoja se pintó de nuevo.
+function hechoTocar(dlg, body) {
+  const hechos = new Set();
+  for (let vuelta = 0; vuelta < 6 && dlg.open; vuelta++) {
+    hechoTomar(body);
+    const sucios = [...hechoSucios(body), ...[...body.querySelectorAll('[data-hecho-sucio]')].filter(el => !el.closest('.hecho-bar'))], btns = [];
+    for (const el of sucios) { const b = hechoGuardaDe(el, body); if (b && !btns.includes(b)) btns.push(b); }
+    for (const f of hechoBorradores) { let b = null; try { b = f(dlg, body); } catch {} if (typeof b === 'string') b = body.querySelector('#' + CSS.escape(b)); if (b && body.contains(b) && hechoEsGuarda(b) && !btns.includes(b)) btns.push(b); }
+    const pend = btns.filter(b => !hechos.has(b.id || b)).sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+    if (!pend.length) break;
+    const b = pend[0];
+    const otros = sucios.filter(el => !el.matches('.row[data-k]') && hechoGuardaDe(el, body) !== b).map(el => ({ loc: hechoLoc(el, body), v: hechoVal(el) }));
+    const n0 = HECHO_N; hechos.add(b.id || b);
+    for (let d = b.closest('details'); d && body.contains(d); d = d.parentElement?.closest('details')) d.open = true;   // su sección, a la vista (por si avisa)
+    b.click();
+    if (!dlg.open) return;
+    if (!(HECHO_N > n0 || !b.isConnected)) { try { b.scrollIntoView({ block: 'nearest' }); } catch {} return; }   // no se guardó: la hoja se queda con su aviso
+    hechoTomar(body);
+    if (b.isConnected) { for (const el of sucios) if (hechoGuardaDe(el, body) === b) hechoBase.set(el, hechoVal(el)); }
+    else { hechoTomar(body); hechoReponer(otros, body); }
+  }
+  if (dlg.open) dlg.close();
+}
+// Montaje: al abrir (la referencia de cada campo), al volver a pintar (los campos nuevos) y lo que se guarda al momento deja de contar.
+for (const [dlg, body] of [[sheet, $('#sheet-body')], [document.getElementById('msg-dialog'), document.getElementById('msg')], [document.getElementById('form-dialog'), document.getElementById('form')]]) {
+  if (!dlg || !body) continue;
+  new MutationObserver(() => {
+    if (!dlg.open) return;
+    hechoTomar(body, true); if (dlg.id === 'form-dialog') hechoHoras0 = JSON.stringify(typeof formHoras !== 'undefined' ? formHoras : []);
+    hechoMontar(dlg, body);
+  }).observe(dlg, { attributes: true, attributeFilter: ['open'] });
+  new MutationObserver(() => { if (!dlg.open) return; hechoMontar(dlg, body, true); hechoTomar(body); }).observe(body, { childList: true, subtree: true });
+  (dlg === sheet ? body : dlg).addEventListener('scroll', () => hechoSombra(dlg, body), { passive: true });
+  let n0 = 0;
+  for (const ev of ['input', 'change', 'click']) {
+    dlg.addEventListener(ev, () => { n0 = HECHO_N; }, true);
+    dlg.addEventListener(ev, e => {
+      const t = e.target; if (!(t instanceof Element) || !body.contains(t) || t.closest('.hecho-bar')) return;
+      const a = n0;
+      setTimeout(() => {
+        if (!dlg.open || HECHO_N <= a || !t.isConnected) return;
+        const g = t.closest('[data-pick], [data-num], .chips, .days, .seg, .field, .set-row, label') || t;
+        for (const el of [t, ...g.querySelectorAll(HECHO_CTL)]) if (el.matches(HECHO_CTL)) hechoBase.set(el, hechoVal(el));
+      }, 0);
+    });
+  }
+}
+// Las horas del formulario de hábito se guardan aparte de sus campos.
+hechoBorradores.push(dlg => dlg.id === 'form-dialog' && typeof formHoras !== 'undefined' && JSON.stringify(formHoras) !== hechoHoras0 ? document.querySelector('#form button[type="submit"]') : null);
 let toastT = 0;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2800); }
 const buzz = p => { try { if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(p); } catch {} };
@@ -7124,7 +7296,7 @@ function notionSheet(foco = '') {
     <div class="set-row"><span>Estudio<small>${c.estudio?.id ? esc(c.estudio.t || '') + (c.estudio.db ? ' · base de datos' : ' · página') : 'Sin destino'}</small></span><button class="link" data-el="estudio">${c.estudio?.id ? 'Cambiar' : 'Elegir'}</button></div>` : ''}
     <div id="nt-pages"></div>
     <p class="meta red" id="nt-err"></p>
-    <div class="actions">${c.token ? '<button class="link red" id="nt-off">Desconectar</button>' : ''}<button class="link" id="nt-cancel">Cerrar</button>${c.token ? '' : '<button class="primary" id="nt-con">Conectar</button>'}</div>`);
+    <div class="actions">${c.token ? '<button class="link red" id="nt-off">Desconectar</button>' : ''}<button class="link" id="nt-cancel">Cerrar</button>${c.token ? '' : '<button class="primary" id="nt-con" data-guarda>Conectar</button>'}</div>`);
   const body = $('#sheet-body');
   const refrescar = () => { renderPizarras(); renderJournal(); };
   $('#nt-cancel').onclick = () => { closeSheet(); refrescar(); };
@@ -8348,7 +8520,7 @@ function objetivoForm(o = null, base = {}) {
   showSheet(`<h2>${o ? 'Editar objetivo' : 'Objetivo SMART'}</h2>
     <p class="sci">Un objetivo específico y difícil, con número y fecha, rinde más que «hacerlo lo mejor posible» (Locke y Latham, 2002). Y anotar el avance a menudo ayuda a llegar (Harkin et al., 2016).</p>
     ${!o && P.length ? `<p class="meta" style="margin:0 0 6px">Ejemplos para empezar</p><div class="chips" style="margin-bottom:14px" id="ob-pl">${P.map(p => `<button class="chip" data-p="${esc(p.id)}">${esc(p.t)}</button>`).join('')}</div>` : ''}
-    <div class="field"><label>S · Qué quieres lograr (verbo + qué)</label><input id="ob-t" maxlength="100" value="${esc(v.t)}" placeholder="Terminar el curso de inglés B1 · Leer 6 libros"></div>
+    <div class="field"><label>S · Qué quieres lograr (verbo + qué)</label><input id="ob-t" maxlength="100"${!o && base && base.t ? ' data-hecho-sucio' : ''} value="${esc(v.t)}" placeholder="Terminar el curso de inglés B1 · Leer 6 libros"></div>
     <div class="field"><label>M · Cómo lo mides</label><input id="ob-metrica" maxlength="60" value="${esc(v.metrica)}" placeholder="Lecciones completadas · libros leídos · dólares ahorrados"></div>
     <div class="times"><div class="field"><label>M · Meta (número)</label><input id="ob-meta" type="number" inputmode="decimal" min="1" step="any" value="${esc(v.meta)}"></div><div class="field"><label>M · Unidad</label><input id="ob-unidad" maxlength="20" value="${esc(v.unidad)}" placeholder="lecciones · libros · $"></div></div>
     <div class="field"><label>A · Primer paso o rutina semanal</label><input id="ob-paso" maxlength="100" value="${esc(v.paso)}" placeholder="3 lecciones por semana, martes y jueves a las 7"></div>
@@ -12295,7 +12467,7 @@ function euHechoDesde(cont, id, pintar) {
   if (!(b.ej > 0) || !row) { euMarcar(id, b.ej, pintar); return; }
   const ya = row.nextElementSibling; if (ya && ya.classList.contains('eu-ej') && ya.dataset.ej === id) { ya.remove(); return; }
   cont.querySelectorAll('.eu-ej').forEach(x => x.remove());
-  row.insertAdjacentHTML('afterend', `<div class="eu-ej" data-ej="${esc(id)}"><p class="meta" style="margin:0 0 6px">¿Cuántos ejercicios?</p>${euPickChips('ej-' + id, euEjVals(b.ej).map(v => [v, String(v)]), b.ej)}<div class="actions" style="margin-top:10px"><button class="link" data-no>Ahora no</button><button class="primary" data-si>Hecho</button></div></div>`);
+  row.insertAdjacentHTML('afterend', `<div class="eu-ej" data-ej="${esc(id)}"><p class="meta" style="margin:0 0 6px">¿Cuántos ejercicios?</p>${euPickChips('ej-' + id, euEjVals(b.ej).map(v => [v, String(v)]), b.ej)}<div class="actions" style="margin-top:10px"><button class="link" data-no>Ahora no</button><button class="primary" data-si data-guarda>Hecho</button></div></div>`);
   const box = row.nextElementSibling; euWire(box);
   box.querySelector('[data-no]').onclick = () => box.remove();
   box.querySelector('[data-si]').onclick = () => euMarcar(id, euNum(euPickLeer(box, 'ej-' + id, b.ej), b.ej, 0, 10000), pintar);
@@ -12627,7 +12799,7 @@ function euBloqueSheet(id) {
   const hoy = today(), r = E.ruta(b.ruta), pasado = b.d < hoy && !b.hecho, viva = !!r && !r.archivada && r.fecha > hoy && !!euF(r.fecha), ult = viva && !b.hecho ? euUltimoDelTema(r, b) : null;
   showSheet(`<p class="paso">${esc(E.etiqueta(b))} · ${esc(EU_TIPO[b.tipo] || 'Estudio')}</p><h2>${esc(E.textoBloque(b))}</h2>
     <p class="meta">${esc(r?.nombre || b.rutaNombre || '')} · ${esc(euCuando(b.d))}${b.h ? ` · ${esc(fmtHora(b.h))}` : ' · sin hora'} · ${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''} · ${b.hecho ? `<span class="green">hecho${euHechoEl(b.hechoInfo?.en)}</span>` : pasado ? '<span class="amber">quedó sin hacer: se reparte al replanificar</span>' : 'pendiente'}</p>
-    ${!b.hecho ? `<div class="actions stack" style="margin-top:6px"><button class="primary" id="eu-b-go">Empezar ${b.min} min sin teléfono</button>${b.ej ? euEjChips('eu-b-ej', b.ej) : ''}<button class="outline" id="eu-b-ok">Hecho</button></div>`
+    ${!b.hecho ? `<div class="actions stack" style="margin-top:6px"><button class="primary" id="eu-b-go">Empezar ${b.min} min sin teléfono</button>${b.ej ? euEjChips('eu-b-ej', b.ej) : ''}<button class="outline" id="eu-b-ok" data-guarda>Marcar hecho</button></div>`
       : `<p class="meta">${b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}${b.hechoInfo.nota ? ` · ${esc(b.hechoInfo.nota)}` : ''}` : ''}</p><div class="actions" style="margin-top:0"><button class="link" id="eu-b-undo">Desmarcar</button></div>`}
     ${viva && !b.hecho ? `<details class="eu-sec" id="eu-b-mover"><summary>Mover a otro día</summary><div class="field" style="margin-top:8px"><label>Día</label><input type="date" id="eu-b-f" min="${hoy}" max="${esc(euDia(r.fecha, -1))}" value="${esc(b.d >= hoy ? b.d : hoy)}"></div><div class="field"><label>Hora <span class="meta">(vacía = la reparte la Agenda)</span></label><input type="time" id="eu-b-fh" value="${esc(euHoraLibre(b, b.d >= hoy ? b.d : hoy))}"></div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-mv">Mover</button></div></details>
       <details class="eu-sec" id="eu-b-hora"><summary>Cambiar hora</summary><div class="field" style="margin-top:8px"><label>Hora</label>${franjaChips('eu-b-h', b.h)}${horaInput('eu-b-h', b.h)}</div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-ch">Cambiar hora</button></div></details>` : ''}
@@ -14041,6 +14213,8 @@ if (espR) { const st = document.createElement('style'); st.textContent = ENFOQUE
 { const st = document.createElement('style'); st.id = 'esp-css'; st.textContent = ESP_CSS; ov.appendChild(st); }
 const espW = document.createElement('div'); espW.className = 'enf'; if (espR) espR.appendChild(espW);
 let espBorrIn = null, espBorrHoja = null, espOtrasAbierto = false, espPropSucio = false;
+let espBorrHoja0 = '';   // 2.17.2 (H) · el plan de vida tal como se abrió en «Ajustar mi plan»: si cambió, «Hecho» lo guarda
+hechoBorradores.push(dlg => dlg === sheet && espBorrHoja && JSON.stringify(espBorrHoja) !== espBorrHoja0 ? 'esp-ed-ok' : null);
 const espCuandoTxt = n => { const c = ESP_K[n.k]; return [c?.cuando ? cap(c.cuando) : '', n.min ? fmtMin(n.min) : ''].filter(Boolean).join(' · '); };
 // Cuándo toca, en palabras: «Los sábados», «Cada mes · el sábado, 14 de noviembre».
 function espCadaTxt(n, f = today()) {
@@ -14181,7 +14355,7 @@ function espGuardarPlan(B, enHoja) {
 }
 // «Ajustar mi plan»: el mismo editor en una hoja.
 function espAjustar() {
-  espBorrHoja = espBorrador(false);
+  espBorrHoja = espBorrador(false); espBorrHoja0 = JSON.stringify(espBorrHoja);   // 2.17.2 (H)
   showSheet(`<h2>Tu plan de vida</h2><p class="meta">Ajústalo con quien te acompaña en la dirección espiritual.</p>
     <div class="esp-editor">${espEditorHtml(espBorrHoja)}</div>
     <div class="actions"><button class="link" id="esp-ed-x">Cancelar</button><button class="primary" id="esp-ed-ok">Guardar mi plan</button></div>`);
@@ -14915,6 +15089,7 @@ function btEditor(b = null, pre = {}) {
 }
 function btPintarEditor() {
   const E = btEd; if (!E) return;
+  if (!btEdOrig.has(E)) btEdOrig.set(E, JSON.stringify(E));   // 2.17.2 (H) · «Hecho» guarda si el borrador cambió
   const t = today(), man = dayKey(addDays(new Date(), 1)), otro = E.fecha !== t && E.fecha !== man, enChip = BT_MIN.includes(E.min);
   const fin = btFin(E);
   showSheet(`<h2>${E.id ? 'Editar el bloque de tiempo' : 'Nuevo bloque de tiempo'}</h2>
@@ -14963,6 +15138,9 @@ function btPintarEditor() {
     } catch (e) { q('#bt-e-err').textContent = e.message; }
   };
 }
+// 2.17.2 (H) · El borrador del editor (lo de dentro, quitado o añadido) cuenta como cambio para «Hecho».
+const btEdOrig = new WeakMap();
+hechoBorradores.push(dlg => dlg === sheet && btEd && btEdOrig.has(btEd) && JSON.stringify(btEd) !== btEdOrig.get(btEd) ? 'bt-e-ok' : null);
 function btEdRangoTxt(E) { if (!btH(E.h)) return ''; const fin = btFin(E); return `De ${fmtHora(E.h)} a ${fmtHora(fin.h)}${fin.fecha !== E.fecha ? ' del día siguiente' : ''} · ${fmtMin(E.min)}`; }
 sheet.addEventListener('close', () => { if (!sheet.open) { btEd = null; btSel = null; btFichaId = ''; } });
 
