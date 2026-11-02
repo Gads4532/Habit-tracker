@@ -220,8 +220,10 @@ function fuentesAg(C, fecha) {
 // 2.14 · Estudio (E.estudio.rutas): los bloques de un día y los exámenes que vienen, leídos a la defensiva (una ruta mal formada no
 // para a las demás; nada de XP). El texto del bloque es el de la app: «{materia} · {tema}», «Repaso: …», «Ejercicios: …», «Simulacro», «Repaso ligero».
 const ESTUDIO = new WeakMap();
+// 2.14.1 · Solo cadenas: el estado llega crudo de cada teléfono (y una copia que ya pasó un objeto por String() trae el texto «[object Object]»).
+const estTx = v => typeof v === 'string' && v.trim() !== '[object Object]' ? v : '';
 function estTexto(b, materia, temas) {
-  const tema = typeof b.tema === 'string' && b.tema ? temas.find(t => t.id === b.tema) : null, tt = sinPunto(tema ? tema.t : String(b.t || '').replace(/^(Ejercicios|Repaso): /, ''));
+  const tema = typeof b.tema === 'string' && b.tema ? temas.find(t => t.id === b.tema) : null, tt = sinPunto(tema ? estTx(tema.t) : estTx(b.t).replace(/^(Ejercicios|Repaso): /, ''));
   const cuerpo = b.tipo === 'ligero' ? 'Repaso ligero' : b.tipo === 'simulacro' ? 'Simulacro' : b.tipo === 'repaso' ? `Repaso: ${tt}` : b.tipo === 'practica' ? `Ejercicios: ${tt}` : tt;
   return [materia, cuerpo].filter(Boolean).join(' · ');
 }
@@ -232,8 +234,8 @@ function estudioDe(st, fecha) {
   for (const r of acota(D.rutas, 40)) {
     try {
       if (r.archivada || !/^\d{4}-\d\d-\d\d$/.test(r.fecha || '') || typeof r.id !== 'string') continue;
-      const materia = sinPunto((mats.find(m => m.id === r.materia) || {}).nombre), temas = acota(r.temas, 30), hechos = r.hechos && typeof r.hechos === 'object' && !Array.isArray(r.hechos) ? r.hechos : {};
-      if (r.fecha >= fecha && (materia || sinPunto(r.nombre))) out.examenes.push({ ruta: r.id, nombre: sinPunto(r.nombre), materia, fecha: r.fecha, hora: hmOk(r.hora) ? r.hora : '', dias: dias(fecha, r.fecha) });
+      const materia = sinPunto(estTx((mats.find(m => m.id === r.materia) || {}).nombre)), nombre = sinPunto(estTx(r.nombre)), temas = acota(r.temas, 30), hechos = r.hechos && typeof r.hechos === 'object' && !Array.isArray(r.hechos) ? r.hechos : {};
+      if (r.fecha >= fecha && (materia || nombre)) out.examenes.push({ ruta: r.id, nombre, materia, fecha: r.fecha, hora: hmOk(r.hora) ? r.hora : '', dias: dias(fecha, r.fecha) });
       for (const b of acota(r.plan, 600)) {
         if (b.d !== fecha || typeof b.id !== 'string') continue;
         const h = hechos[b.id] && typeof hechos[b.id] === 'object' ? hechos[b.id] : null, min = Math.max(0, Math.round(+b.min || 0)), texto = estTexto(b, materia, temas);
@@ -385,11 +387,22 @@ function candidatos(C, fecha) {
     // 2.14 · Estudio: un aviso de clase 1 por bloque de hoy con hora; la fuente es la ruta (su ítem de la agenda no avisa aparte). Tu razón y
     // una elección, sin imperativos ni XP; vivo mientras el bloque no esté hecho; la misma pausa de 3 días que los avisos fijos (abrir el
     // aviso o hacer un bloque ese día cuenta como útil). Con la app cerrada sigue igual: el plan vive en los datos.
-    for (const b of estudioDe(st, fecha).bloques.slice(0, 12)) {
-      if (!b.h || pausaFija(C, fecha, 'est@' + b.h, ['est-' + b.id], ['agenda'], e => estudioDe(st, e).bloques.some(x => x.hecho || abiertosDe(C, 'est-' + x.id, e).length))) continue;
+    // 2.14.1 · Los cambios de hoy de cada bloque (enfoque.estudioAntes, lo anota la app): { h, hasta } = estuvo a esa hora hasta entonces;
+    // { h, alta } = está a esa hora desde entonces (lo que aún no existía no cuenta en lo ya enviado, como el alta de la agenda).
+    const EA = acota(E.estudioAntes, 40).filter(x => x.d === fecha && hmOk(x.h) && typeof x.id === 'string');
+    // Al minuto: la hora de un bloque nuevo nunca es antes del minuto en que nació (replanificar a las 17:10:30 lo pone a las 17:10).
+    const altaEst = (id, h) => Math.floor(Math.max(0, ...EA.filter(x => x.id === id && x.h === h && +x.alta > 0).map(x => +x.alta)) / 60000) * 60000;
+    const utilEst = e => estudioDe(st, e).bloques.some(x => x.hecho || abiertosDe(C, 'est-' + x.id, e).length), bloquesHoy = estudioDe(st, fecha).bloques;
+    for (const b of bloquesHoy.slice(0, 12)) {
+      if (!b.h || pausaFija(C, fecha, 'est@' + b.h, ['est-' + b.id], ['agenda'], utilEst)) continue;
+      const alta = altaEst(b.id, b.h);
       out.push({ t: en(b.h), clase: 1, tag: 'est-' + b.id, franja: 'est@' + b.h, title: `${hora12(b.h)} · Estudio · ${b.texto}`, body: `Para llegar al examen de ${b.materia || 'estudio'} con el tema visto. ¿Empiezas, lo mueves o lo dejas para mañana?`,
-        url: './?v=estudio', apagar: APAGAR, limite: 60, vivo: at => tipoOn('agenda', at) && (!b.hecho || (pasado(at) && !(b.hechoEn > 0 && b.hechoEn <= at))), duda: () => b.hecho && !(b.hechoEn > 0) });
+        url: './?v=estudio', apagar: APAGAR, limite: 60, vivo: at => (actual(at) || !(alta > at)) && tipoOn('agenda', at) && (!b.hecho || (pasado(at) && !(b.hechoEn > 0 && b.hechoEn <= at))), duda: () => b.hecho && !(b.hechoEn > 0) });
     }
+    // 2.14.1 · Un bloque de hoy que se movió, cambió de hora o salió del plan después de su aviso: lo ya enviado sigue contando hasta el
+    // cambio, como la hora borrada de un hábito, y nunca vuelve a salir (si volvió a esa hora antes de su aviso, cuenta el suyo).
+    for (const x of EA) if (+x.hasta > 0 && !bloquesHoy.some(b => b.id === x.id && b.h === x.h && !(altaEst(b.id, b.h) > en(x.h))) && !pausaFija(C, fecha, 'est@' + x.h, ['est-' + x.id], ['agenda'], utilEst))
+      out.push({ t: en(x.h), clase: 1, tag: 'est-' + x.id, franja: 'est@' + x.h, title: '', body: '', url: './?v=estudio', limite: 60, vivo: at => pasado(at) && at < +x.hasta && tipoOn('agenda', at), duda: () => true });
     // A las 9:30, si el día no tiene hora (solo trae de vuelta a la app: cuenta como el único del día de ese tipo).
     if (!pausaFija(C, fecha, 'agenda@09:30', ['agenda'], ['agenda'], e => (E.dias?.[e]?.agenda || 0) > 0))
       out.push({ t: en('09:30'), clase: 3, soloVolver: true, tag: 'agenda', franja: 'agenda@09:30', title: 'Tu día aún no tiene hora', body: 'Dos minutos y lo importante queda con hora.', url: './?v=agenda', apagar: APAGAR,
@@ -468,7 +481,7 @@ function candidatos(C, fecha) {
       const r = acota(P?.items, 80).filter(it => hmOk(it.h) && sinPunto(nom(it))).sort((a, b) => a.h < b.h ? -1 : 1)[0];
       const res = r ? `Mañana ${alas(r.h)} tienes reservado: ${sinPunto(nom(r))}.` : '';
       const exM = estudioDe(st, m).examenes.find(x => x.fecha === m), exT = exM ? `Mañana: examen de ${exM.materia || exM.nombre || 'estudio'}${exM.hora ? ' ' + alas(exM.hora) : ''}.` : '';   // 2.14 · Estudio
-      return { tag: 'noche', duda: sim && B.some(x => !(+x.en > 0)), corto: `lo mejor de hoy${res ? ' · ' + minus(res.slice(0, -1)) : ''}`, title: '¿Qué fue lo mejor de hoy?', body: `Un minuto para cerrar con lo que avanzaste y lo mejor del día.${res ? ' ' + res : ''}${exT ? ' ' + exT : ''}` };
+      return { tag: 'noche', duda: sim && B.some(x => !(+x.en > 0)), corto: `lo mejor de hoy${res ? ' · ' + minus(res.slice(0, -1)) : ''}${exT ? ' · ' + minus(exT.slice(0, -1)) : ''}`, title: '¿Qué fue lo mejor de hoy?', body: `Un minuto para cerrar con lo que avanzaste y lo mejor del día.${res ? ' ' + res : ''}${exT ? ' ' + exT : ''}` };
     } });
   }
   const V = [...new Set((Array.isArray(E.ventanas) && E.ventanas.length ? E.ventanas : ['12:30', '18:00', '21:00']).filter(hmOk))].sort().slice(0, 8);
