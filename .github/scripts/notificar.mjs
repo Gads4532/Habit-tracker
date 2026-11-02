@@ -185,9 +185,29 @@ function presupuesto(C) { if (performance.now() - C.t0 > PRESUPUESTO) { const e 
 // organizó), para no contar lo que aún no existía; lo que se movió o se quitó después de su aviso queda en A.antes con la hora
 // en que dejó de valer (hasta), para que lo ya enviado siga contando. Un día pasado sin su agenda usa la de su historial.
 const altaDe = (it, org) => +it?.alta > 1e11 ? +it.alta : +it?.alta > 0 ? 1 : +org || 0;
+// 2.16 (B) · Bloques de tiempo (enfoque.bloquesT): el de un día que aún no está en su agenda (la app no se abrió ese día) entra igual,
+// como ítem { id: 'bt:'+id, tipo: 'bt' } con su hora y sus minutos (salvo si se quitó de la agenda de ese día); el de la agenda lee
+// su bloque (nombre y hora; si se borró o se movió de día, no avisa). Avisa como cualquier cosa de la Agenda con hora (tipo «Agenda
+// del día», 10 minutos antes, una vez, con los silencios, el tope y las pausas de siempre): «{hora} · Bloque de tiempo · {t}» y en el
+// cuerpo los dos primeros nombres de lo de dentro y «¿Empiezas, lo mueves o lo dejas?». Sin XP. A la defensiva: lo mal formado no cuenta.
+const btTx = v => typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+const btDe = (E, fecha) => acota(E && E.bloquesT, 300).filter(b => typeof b.id === 'string' && b.id && b.fecha === fecha && hmOk(b.h) && +b.min > 0);
+function btFaltan(E, A, fecha) {
+  try {
+    const ya = new Set(acota(A?.items, 80).filter(it => it.tipo === 'bt').map(it => it.ref)), oc = new Set(Array.isArray(A?.ocultos) ? A.ocultos : []);
+    return btDe(E, fecha).filter(b => !ya.has(b.id) && !oc.has(b.id)).slice(0, 20).map(b => ({ id: 'bt:' + b.id, tipo: 'bt', ref: b.id, t: btTx(b.t) || 'Bloque de tiempo', h: b.h,
+      min: Math.min(720, Math.round(+b.min)), hecho: false, enFuente: true, org: +b.creado > 1e11 ? +b.creado : 1, alta: +b.creado > 0 ? +b.creado : 0 }));
+  } catch { return []; }
+}
+function btCuerpoAviso(C, b) {
+  const st = C.st, T = acota(st.tareas?.items, 2000), H = habitosDe(st);
+  const nombre = i => i.tipo === 'tarea' ? btTx(T.find(x => x.id === i.ref)?.titulo) || btTx(i.t) : i.tipo === 'habito' ? btTx(H.find(h => h.id === i.ref)?.nombre) || btTx(i.t) : i.tipo === 'ini' ? btTx(i.sub) || btTx(i.t) : btTx(i.t);
+  const L = acota(b?.items, 30).map(nombre).map(sinPunto).filter(Boolean).slice(0, 2);
+  return `${L.length ? L.join(' · ') + '. ' : ''}¿Empiezas, lo mueves o lo dejas?`;
+}
 const agendaDe = (C, fecha) => {
   const E = C.st.enfoque || {}, A = E.agendaHoy?.fecha === fecha ? E.agendaHoy : null, P = E.agendaPlan?.fecha === fecha ? E.agendaPlan : null;
-  const deA = acota(A?.items, 80).map(it => ({ ...it, enFuente: true, org: altaDe(it, A.organizado) }));
+  const deA = acota(A?.items, 80).map(it => ({ ...it, enFuente: true, org: altaDe(it, A.organizado) })).concat(btFaltan(E, A, fecha));
   const fant = acota(A?.antes, 30).filter(x => hmOk(x.h) && +x.hasta > 0).map(x => ({ ...x, id: x.id || x.ref, enFuente: true, org: altaDe(x, A.organizado), fantasma: +x.hasta }));
   const orgAt = [A?.primero, A?.organizado, P?.organizado].map(x => +x || 0).filter(Boolean).map(x => x < 1e11 ? 1 : x);
   const base = { organizadoEn: orgAt.length ? Math.min(...orgAt) : 0 };
@@ -199,21 +219,23 @@ const agendaDe = (C, fecha) => {
   const clave = it => it.tipo + ':' + (it.tipo === 'libre' ? it.id : it.ref), ya = new Set(acota(P.items, 80).map(clave));
   return { ...base, items: [...acota(P.items, 80).map(it => ({ ...it, enFuente: !['ini', 'prio'].includes(it.tipo), org: altaDe(it, P.organizado) })), ...deA.filter(it => !ya.has(clave(it))), ...fant], organizado: true };
 };
-// Prioridades de un día: las del teléfono si son de ese día; si no, la rana que se eligió la víspera.
-const prioDe = (E, fecha) => E.prioridades?.fecha === fecha ? acota(E.prioridades.items, 20) : E.agendaPlan?.fecha === fecha && E.agendaPlan.rana?.t ? [{ id: E.agendaPlan.rana.id, t: E.agendaPlan.rana.t, hecho: false }] : null;
+// Prioridades de un día: las del teléfono si son de ese día; si no, las que se eligieron la víspera (agendaPlan.prios, en orden; de un
+// teléfono de antes, la rana).
+const prioPlan = P => { const L = acota(P?.prios, 30).filter(x => typeof x.t === 'string' && x.t.trim()); return L.length ? L.map(x => ({ id: x.id, t: x.t, hecho: false })) : P?.rana?.t ? [{ id: P.rana.id, t: P.rana.t, hecho: false }] : null; };
+const prioDe = (E, fecha) => E.prioridades?.fecha === fecha ? acota(E.prioridades.items, 20) : E.agendaPlan?.fecha === fecha ? prioPlan(E.agendaPlan) : null;
 // La fuente de cada cosa de la agenda: si se borró o se vació, no se avisa (ni sale en el resumen ni como «reservado»);
 // el texto y la hora salen de ahí (si la editaste, el aviso la sigue). Una tarea borrada hoy después de su aviso sigue
 // contando hasta la hora en que se borró (borradosEn, lo anota la app).
 function fuentesAg(C, fecha) {
   const st = C.st, E = st.enfoque || {}, I4 = E.iniciativas4?.dia === fecha ? acota(E.iniciativas4.items, 12) : [], PR = E.prioridades?.fecha === fecha ? acota(E.prioridades.items, 20) : [];
   const T = acota(st.tareas?.items, 2000), H = habitosDe(st), BE = st.borradosEn && typeof st.borradosEn === 'object' ? st.borradosEn : {};
-  const fuente = it => !it.enFuente ? null : it.tipo === 'habito' ? H.find(h => h.id === it.ref) : it.tipo === 'tarea' ? T.find(x => x.id === it.ref)
+  const fuente = it => !it.enFuente ? null : it.tipo === 'bt' ? btDe(E, fecha).find(b => b.id === it.ref) || null : it.tipo === 'habito' ? H.find(h => h.id === it.ref) : it.tipo === 'tarea' ? T.find(x => x.id === it.ref)
     : it.tipo === 'ini' ? I4.find(x => x.k === it.ref && x.t) : it.tipo === 'prio' ? PR.find(x => x.id === it.ref) : it;
   const borradoEn = it => +BE[it.ref] || 0;
   // ¿Existía su fuente a la hora at? Sin at, ahora.
   const vivoF = (it, at) => it.tipo !== 'estudio' && (!it.enFuente || !!fuente(it) || (at !== undefined && at <= C.desde && borradoEn(it) > at));   // 2.14 · estudio: avisa la ruta, no el ítem
-  const texto = it => { const f = fuente(it); return (it.tipo === 'tarea' ? f?.titulo : it.tipo === 'habito' ? f?.nombre : ['ini', 'prio'].includes(it.tipo) ? f?.t : '') || it.t; };
-  const horaDe = it => { if (it.fantasma) return it.h; const f = fuente(it); return it.tipo === 'ini' && f ? f.hora || '' : it.tipo === 'tarea' && f?.hora ? f.hora : it.h; };
+  const texto = it => { const f = fuente(it); return (it.tipo === 'bt' ? btTx(f?.t) : it.tipo === 'tarea' ? f?.titulo : it.tipo === 'habito' ? f?.nombre : ['ini', 'prio'].includes(it.tipo) ? f?.t : '') || it.t; };
+  const horaDe = it => { if (it.fantasma) return it.h; const f = fuente(it); return it.tipo === 'bt' && f ? f.h : it.tipo === 'ini' && f ? f.hora || '' : it.tipo === 'tarea' && f?.hora ? f.hora : it.h; };
   return { fuente, vivoF, texto, horaDe, borradoEn };
 }
 
@@ -276,7 +298,7 @@ function jdLinea(C, fecha) {
 function resumen(C, fecha) {
   const st = C.st, E = st.enfoque || {}, L = [];
   const P = prioDe(E, fecha) || [];
-  L.push(P.length ? `Prioridades: ${P.map((x, i) => `${i + 1}. ${x.t}`).join(' · ')}` : 'Aún sin prioridades: tres como máximo, la más difícil primero.');
+  L.push(P.length ? `Prioridades: ${P.slice(0, 4).map((x, i) => `${i + 1}. ${x.t}`).join(' · ')}${P.length > 4 ? '…' : ''}` : 'Aún sin prioridades: la primera, la más importante.');
   const FA = fuentesAg(C, fecha), ag = agendaDe(C, fecha).items.filter(it => !it.fantasma && !it.hist && FA.vivoF(it)).map(it => ({ t: FA.texto(it), h: FA.horaDe(it) })).filter(e => e.t).sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : 1);
   if (ag.length) L.push(`Agenda: ${ag.slice(0, 4).map(e => `${hmOk(e.h) ? hora12(e.h) + ' ' : ''}${e.t}`).join(' · ')}${ag.length > 4 ? '…' : ''}`);
   // 2.14 · Estudio: hasta dos bloques de hoy que siguen pendientes y el examen que viene en la semana («mañana» si es mañana).
@@ -383,6 +405,7 @@ function candidatos(C, fecha) {
       out.push({ t: en(menos(h, 10)), clase: 1, tag: 'ag-' + it.id, franja: 'ag-' + it.id, title: `${texto(it)}${min ? ` · ${min} min` : ''}`, body: `Si ${sonlas(h)}, entonces empiezo: No molestar y el teléfono lejos.${it.foco ? ' Los avisos de la app callan en este bloque.' : ''}`,
         url: './?v=agenda', apagar: APAGAR, hasta: en(h), vivo: at => (!fant || (pasado(at) && at < fant)) && tipoOn('agenda', at) && (actual(at) || !org || org < 1e11 || org <= at) && vivoF(it, at) && pendienteAg(it, at),
         duda: () => dudaAg(it) });
+      if (it.tipo === 'bt') Object.assign(out[out.length - 1], { title: `${hora12(h)} · Bloque de tiempo · ${texto(it)}`, body: btCuerpoAviso(C, fuente(it) || it), url: './?v=bloques' });   // 2.16 (B)
     }
     // 2.14 · Estudio: un aviso de clase 1 por bloque de hoy con hora; la fuente es la ruta (su ítem de la agenda no avisa aparte). Tu razón y
     // una elección, sin imperativos ni XP; vivo mientras el bloque no esté hecho; la misma pausa de 3 días que los avisos fijos (abrir el
@@ -435,7 +458,7 @@ function candidatos(C, fecha) {
         if (i < 0) return { tag: 'mediodia', soloVolver: true, duda: true, corto: 'aún no tienes prioridades', title: 'Aún no tienes prioridades', body: '' };
         return { tag: 'mediodia', corto: `Tu prioridad ${i + 1} sigue libre`, title: `Tu prioridad ${i + 1} sigue libre`, body: '' }; }
       const P = (P0 || []).filter(x => x && sinPunto(x.t));
-      if (!P.length) return { tag: 'mediodia', soloVolver: true, corto: 'aún no tienes prioridades', title: 'Aún no tienes prioridades', body: 'Tres como máximo, la más difícil primero. ¿Las eliges ahora o en tu próxima ventana?' };
+      if (!P.length) return { tag: 'mediodia', soloVolver: true, corto: 'aún no tienes prioridades', title: 'Aún no tienes prioridades', body: 'En orden: la primera, la más importante. ¿Las eliges ahora o en tu próxima ventana?' };
       let i = P.findIndex(x => !x.hecho);
       if (i < 0) { if (actual(at) || P.every(x => hechoAntes(x, at))) return null; i = P.findIndex(x => !hechoAntes(x, at)); }
       const tarde = aMin(fechaHM(at, tz)) >= 15 * 60;

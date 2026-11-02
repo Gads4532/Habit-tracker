@@ -434,6 +434,7 @@
   <div id="view-pizarra" hidden></div>
   <div id="view-bienestar" hidden></div>
   <div id="view-agenda" hidden></div>
+  <div id="view-bloques" hidden></div>
   <div id="view-estudio" hidden></div>
   <div id="view-journal" hidden></div>
   <div id="view-hoy">
@@ -475,6 +476,9 @@
   </button>
   <button class="tab" data-view="agenda">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg>Agenda
+  </button>
+  <button class="tab" data-view="bloques">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="3"/><circle cx="12" cy="12" r="3.6"/><path d="M12 10.3V12l1.2 1"/></svg>Bloques de tiempo
   </button>
   <button class="tab" data-view="estudio">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5a3 3 0 0 0-3-2.5H3.5v14H9a3 3 0 0 1 3 2.5"/><path d="M12 6.5a3 3 0 0 1 3-2.5h5.5v14H15a3 3 0 0 0-3 2.5"/><path d="M12 6.5v14"/></svg>Estudio
@@ -597,7 +601,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.15.1';
+const APP_VERSION = '2.16.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -766,11 +770,17 @@ function normEnfoque(e) {
   // Plan de mañana (organizado la noche antes): se descarta si ya pasó o si la agenda de ese día ya salió de él o ya se organizó.
   // Si otro teléfono abrió el día con la agenda vacía, el plan se conserva y agenda() lo aplica.
   if (e.agendaPlan && (typeof e.agendaPlan !== 'object' || !Array.isArray(e.agendaPlan.items) || !e.agendaPlan.fecha || e.agendaPlan.fecha < hoy || (e.agendaPlan.fecha === e.agendaHoy.fecha && (e.agendaHoy.anoche || e.agendaHoy.organizado)))) e.agendaPlan = null;
+  if (e.agendaPlan) {   // 2.16 (P) · las prioridades de mañana, en orden; la rana (de los teléfonos de antes y del notificador) es la primera
+    const R = e.agendaPlan.rana, L0 = Array.isArray(e.agendaPlan.prios) ? e.agendaPlan.prios : R && typeof R === 'object' ? [R] : [], vistos = new Set();
+    e.agendaPlan.prios = L0.filter(x => x && typeof x === 'object' && typeof x.id === 'string' && x.id && typeof x.t === 'string' && x.t.trim()).map(x => ({ id: x.id.slice(0, 80), t: x.t.trim().slice(0, 100) })).filter(x => !vistos.has(x.id) && vistos.add(x.id)).slice(0, 30);
+    e.agendaPlan.rana = e.agendaPlan.prios[0] ? { ...e.agendaPlan.prios[0] } : null;
+  }
   if (e.agendaPlan) { if (!e.agendaPlan.ini || typeof e.agendaPlan.ini !== 'object') e.agendaPlan.ini = {}; for (const it of e.agendaPlan.items) { it.id ||= crypto.randomUUID(); it.h ||= ''; it.min = +it.min || 0; } }
   e.agendaPlan ??= null;
   if (!Array.isArray(e.objetivos)) e.objetivos = [];
   for (const o of e.objetivos) { o.id ||= crypto.randomUUID(); o.t ||= ''; o.metrica ||= ''; o.meta = +o.meta || 1; o.actual = +o.actual || 0; o.unidad ||= 'veces'; o.area ||= 'otro'; o.porque ||= ''; o.paso ||= ''; o.fecha ||= ''; o.creado ||= hoy; o.hecho = !!o.hecho; if (!Array.isArray(o.avances)) o.avances = []; for (const a of o.avances) a.n = +a.n || 0; }
   e.bienvenida = !!e.bienvenida;
+  e.bloquesT = btNormT(e.bloquesT); e.bloquesTBorrar = btNormTBorrar(e.bloquesTBorrar);   // 2.16 (B) · bloques de tiempo (≤ 300, 60 días) y eventos por quitar de Google Calendar (≤ 100)
   e.espiritu = espNorm(e.espiritu);   // 2.15 (V) · Vida espiritual: normas (≤ 40), hechos (120 días), propósitos (60 días), jaculatoria, configurado
   e.estudio = estNorm(e.estudio);   // 2.14 · Estudio: materias, rutas (temas, config, plan, hechos, pendientes) y cfg; defensivo, acotado
   // 2.13 (J) · Lo que el cierre dejó para mañana por una identidad sin votos: { id, t, d }; se descarta si ya pasó el día.
@@ -838,7 +848,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -971,7 +981,7 @@ function mergeStates(a, b) {
       for (const i of x) { const o = m.get(i.id); if (!o) { m.set(i.id, i); continue; } const gana = (+i.cambiado || 0) >= (+o.cambiado || 0) ? i : o, otro = gana === i ? o : i;
         m.set(i.id, (+otro.notion?.en || 0) > (+gana.notion?.en || 0) ? { ...gana, notion: otro.notion } : gana); }
       return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), xp: { total: Math.max(+eN.xp?.total || 0, +eO.xp?.total || 0) },
-    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estFusion(eN.estudio, eO.estudio, dead), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
+    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estFusion(eN.estudio, eO.estudio, dead), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
     enfoqueLog: [...new Map([...(eO.enfoqueLog || []), ...(eN.enfoqueLog || [])].sort((x, y) => y.b - x.b).map(x => [x.a, x])).values()].sort((x, y) => x.a - y.a).slice(-12),
@@ -1366,6 +1376,7 @@ function habitHTML(h) {
         ${actions}
         ${h2MananaBtn(h)}
         <button class="link" data-act="clave" data-id="${h.id}">${h.clave ? 'Quitar clave' : 'Marcar clave'}</button>
+        ${btcAccion('habito', h.id)}
         <button class="link" data-act="edit" data-id="${h.id}">Editar</button>
       </div>
     </div>`;
@@ -2572,6 +2583,180 @@ function espFusion(a, b, dead) {
   return { normas: [...m.values()].filter(n => !dead.has(n.id)), hechos, propositos, jaculatoria: a.jaculatoria || b.jaculatoria || '', configurado: +a.configurado || +b.configurado || 0 };
 }
 
+// ====================================================================
+// 2.16 (B) · Bloques de tiempo en el Habit Tracker: la normalización defensiva de ES.bloquesT y ES.bloquesTBorrar (btNormT y
+// btNormTBorrar, las llama normEnfoque) y la fusión entre teléfonos (btFusionT y btFusionTBorrar, las llama mergeStates). Son funciones
+// de nivel superior sin dependencias de constantes declaradas después: normalize() corre al cargar el estado, antes de que el resto del
+// archivo se evalúe (por eso las fechas se calculan aquí a mano y no con today()).
+// Contrato (bloques_spec.md): ES.bloquesT = [{ id, t (≤ 80), fecha ('AAAA-MM-DD', fecha real), h ('HH:MM'), min (15–720),
+// items [{ tipo, ref, t (≤ 100), sub (≤ 80) }] (≤ 30, sin repetir tipo+ref), nota (≤ 300), gcal { id, firma, en, estado ('' | 'pendiente' |
+// 'error'), error (≤ 160) }, creado, cambiado }] (≤ 300; fuera los de hace más de 60 días) · ES.bloquesTBorrar = [{ id, gid, en }] (≤ 100):
+// eventos de bloques borrados que faltan por quitar de Google Calendar.
+// ====================================================================
+function btNormT(x) {
+  const TIPOS = ['tarea', 'habito', 'ini', 'ruta', 'est', 'prio', 'proyecto', 'plan', 'norma', 'objetivo'];
+  const S = (v, n) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '').replace(/\s+/g, ' ').trim().slice(0, n);
+  const S2 = (v, n) => (typeof v === 'string' ? v : '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);   // la nota conserva sus saltos de línea
+  const F = v => {   // fecha real o '': una fecha imposible (2026-02-30) queda en ''
+    if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+    const [y, m, d] = v.split('-').map(Number), D = new Date(y, m - 1, d, 12);
+    return D.getFullYear() === y && D.getMonth() === m - 1 && D.getDate() === d ? v : '';
+  };
+  const H = v => { const m = typeof v === 'string' ? /^(\d{1,2}):(\d{2})$/.exec(v.trim()) : null; return m && +m[1] <= 23 && +m[2] <= 59 ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
+  const N = (v, def, lo, hi) => { const n = (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) ? Math.round(+v) : NaN; return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def; };
+  const ID = v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim().slice(0, 60) : '';
+  const d0 = new Date(), D60 = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() - 60, 12);
+  const desde = `${D60.getFullYear()}-${String(D60.getMonth() + 1).padStart(2, '0')}-${String(D60.getDate()).padStart(2, '0')}`;
+  const vistos = new Set();
+  let L = (Array.isArray(x) ? x : []).filter(b => b && typeof b === 'object' && !Array.isArray(b)).map(b => {
+    const id = ID(b.id), fecha = F(b.fecha), h = H(b.h);
+    if (!id || !fecha || !h || fecha < desde || vistos.has(id)) return null;   // sin fecha real (o sin hora) el bloque se descarta
+    vistos.add(id);
+    const ks = new Set();
+    const items = (Array.isArray(b.items) ? b.items : []).filter(i => i && typeof i === 'object' && TIPOS.includes(i.tipo))
+      .map(i => ({ tipo: i.tipo, ref: ID(i.ref), t: S(i.t, 100), sub: S(i.sub, 80) }))
+      .filter(i => { const k = i.tipo + '|' + i.ref; if (!i.ref || ks.has(k)) return false; ks.add(k); return true; }).slice(0, 30);
+    const g = b.gcal && typeof b.gcal === 'object' && !Array.isArray(b.gcal) ? b.gcal : {};
+    return { id, t: S(b.t, 80) || 'Bloque de tiempo', fecha, h, min: N(b.min, 60, 15, 720), items, nota: S2(b.nota, 300),
+      gcal: { id: typeof g.id === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(g.id) ? g.id : '', firma: typeof g.firma === 'string' ? g.firma.slice(0, 64) : '', en: N(g.en, 0, 0, 9e15),
+        estado: g.estado === 'pendiente' || g.estado === 'error' ? g.estado : '', error: S(g.error, 160) },
+      creado: N(b.creado, 0, 0, 9e15), cambiado: N(b.cambiado, 0, 0, 9e15) };
+  }).filter(Boolean);
+  if (L.length > 300) { const quedan = new Set(L.slice().sort((a, b) => (b.fecha + b.h) < (a.fecha + a.h) ? -1 : 1).slice(0, 300)); L = L.filter(b => quedan.has(b)); }   // los más lejanos en el pasado salen primero
+  return L;
+}
+function btNormTBorrar(x) {
+  const ID = v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim().slice(0, 60) : '';
+  const lim = Date.now() - 90 * 864e5, vistos = new Set();
+  return (Array.isArray(x) ? x : []).filter(e => e && typeof e === 'object' && !Array.isArray(e)).map(e => {
+    const id = ID(e.id), gid = typeof e.gid === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(e.gid) ? e.gid : '', en = Number.isFinite(+e.en) && +e.en > 0 ? Math.round(+e.en) : 0;
+    if (!id || !gid || vistos.has(id) || (en && en < lim)) return null;
+    vistos.add(id); return { id, gid, en };
+  }).filter(Boolean).slice(-100);
+}
+// Fusión entre teléfonos: a = la lista de la copia más reciente, b = la de la otra, dead = ids borrados en cualquiera de las dos.
+// Por id gana el bloque de mayor `cambiado` en todo (a igual, el de la copia más reciente), salvo gcal.id: si una copia lo tiene y la
+// otra no, se conserva el que existe (el evento ya está en Google Calendar). Los borrados no vuelven. normEnfoque normaliza el resultado.
+function btFusionT(a, b, dead) {
+  const L = v => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && x.id != null) : [];
+  dead = dead instanceof Set ? dead : new Set(Array.isArray(dead) ? dead : []);
+  const m = new Map();
+  for (const x of L(b)) m.set(String(x.id), x);
+  for (const x of L(a)) {
+    const k = String(x.id), o = m.get(k);
+    if (!o) { m.set(k, x); continue; }
+    const gana = (+x.cambiado || 0) >= (+o.cambiado || 0) ? x : o, otro = gana === x ? o : x;
+    const g = gana.gcal && typeof gana.gcal === 'object' ? gana.gcal : {}, go = otro.gcal && typeof otro.gcal === 'object' ? otro.gcal : {};
+    m.set(k, !g.id && go.id ? { ...gana, gcal: { ...g, id: go.id } } : gana);
+  }
+  return [...m.values()].filter(x => !dead.has(String(x.id)));
+}
+// Eventos por quitar: la unión por id de las dos copias y, además, el de un bloque que la otra copia borró sin saber que ya tenía evento
+// (estaba en los borrados y una de las dos copias tenía su gcal.id): así un borrado en un teléfono quita también el evento que puso el otro.
+function btFusionTBorrar(a, b, Ta, Tb, dead) {
+  const L = v => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && x.id != null && typeof x.gid === 'string' && x.gid) : [];
+  dead = dead instanceof Set ? dead : new Set(Array.isArray(dead) ? dead : []);
+  const m = new Map();
+  for (const x of [...L(a), ...L(b)]) if (!m.has(String(x.id))) m.set(String(x.id), x);
+  for (const x of [...(Array.isArray(Ta) ? Ta : []), ...(Array.isArray(Tb) ? Tb : [])])
+    if (x && typeof x === 'object' && x.id != null && dead.has(String(x.id)) && x.gcal && typeof x.gcal.id === 'string' && x.gcal.id && !m.has(String(x.id))) m.set(String(x.id), { id: String(x.id), gid: x.gcal.id, en: Date.now() });
+  return [...m.values()];
+}
+
+// ====================================================================
+// 2.16 (C) · «Agregar a un bloque de tiempo» desde todo lo demás (bloques_spec.md, «Agregar a un bloque desde todo lo demás»).
+// El área B define window.bt (los bloques de tiempo, su apartado y su sincronización con Google Calendar). Aquí todo pasa por
+// window.bt?. y, si no existe, no se pinta nada: ni la acción ni la fila de chips, y cada formulario guarda como siempre.
+// - btcAccion(tipo, ref): el botón «Agregar a un bloque de tiempo» de cada ficha; un toque llama a window.bt.agregarSheet([{ tipo, ref }]).
+// - btcChips(pref, sel) / btcLeer(body, pref): la fila de chips de los formularios de creación (window.bt.chips / window.bt.leerChips).
+// - btcTras(sel, items): después de crear, lo nuevo entra en el bloque elegido (bt.agregar) o, con «+ Nuevo», abre el editor con ello
+//   dentro (bt.ui.editor({ items })). Va después de lo que el formulario hace al guardar (cerrar, su aviso, repintar) para no pisarlo.
+// Hábitos (la ficha de la tarjeta y el formulario #form) y Tareas (la tarea nueva y el formulario de una tarea) viven fuera de Enfoque:
+// sus ganchos van aquí. Las hojas de Enfoque, Agenda, Estudio y Vida espiritual, en mod216_C.js. Sin XP, sin nada guardado al pintar.
+// ====================================================================
+const BTC_TXT = 'Agregar a un bloque de tiempo';
+let btcAvisoFn = null;   // el aviso corto de Enfoque (lo pone mod216_C.js); sin él, el de Hábitos
+const btcHay = () => !!window.bt && typeof window.bt === 'object';
+function btcAviso(msg) { try { (btcAvisoFn || h2Toast)(msg); } catch {} }
+function btcAccion(tipo, ref, cls = 'link', style = '', sub = '') {
+  if (!btcHay() || !tipo || !ref) return '';
+  return `<button type="button" class="${cls}" data-btc-tipo="${esc(tipo)}" data-btc-ref="${esc(ref)}"${sub ? ` data-btc-sub="${esc(sub)}"` : ''}${style ? ` style="${style}"` : ''}>${BTC_TXT}</button>`;
+}
+// El elemento de un botón de la acción: { tipo, ref } y, en una iniciativa, sub = su texto (como lo guarda el bloque).
+const btcItemDe = b => ({ tipo: b.dataset.btcTipo, ref: b.dataset.btcRef, ...(b.dataset.btcSub ? { sub: b.dataset.btcSub } : {}) });
+function btcAbrir(items) {
+  const bt = window.bt; if (!bt || !Array.isArray(items) || !items.length) return;
+  try {
+    if (typeof bt.agregarSheet === 'function') bt.agregarSheet(items);
+    else if (typeof bt.ui?.agregarSheet === 'function') bt.ui.agregarSheet(items);
+  } catch (e) { console.warn('Bloques de tiempo: no se pudo abrir «Agregar a un bloque de tiempo»', e); btcAviso(e?.message || 'No se pudo abrir. Prueba otra vez.'); }
+}
+function btcChips(pref, sel = '') {
+  if (!btcHay() || typeof window.bt.chips !== 'function') return '';
+  try { return String(window.bt.chips(pref, sel || '') ?? ''); } catch (e) { console.warn('Bloques de tiempo: la fila de chips no se pudo pintar', e); return ''; }
+}
+function btcLeer(body, pref) {
+  if (!btcHay() || typeof window.bt.leerChips !== 'function' || !body) return '';
+  try { const v = window.bt.leerChips(body, pref); return typeof v === 'string' ? v : ''; } catch { return ''; }
+}
+function btcTras(sel, items) {
+  const L = (Array.isArray(items) ? items : [items]).filter(x => x && typeof x.tipo === 'string' && x.ref)
+    .map(x => ({ tipo: x.tipo, ref: String(x.ref), ...(typeof x.sub === 'string' && x.sub.trim() ? { sub: x.sub.trim().slice(0, 80) } : {}) })).slice(0, 30);
+  if (!sel || typeof sel !== 'string' || !L.length || !btcHay()) return;
+  setTimeout(() => {
+    const bt = window.bt; if (!bt) return;
+    try {
+      if (sel === 'nuevo') { if (typeof bt.ui?.editor === 'function') bt.ui.editor({ items: L }); else btcAbrir(L); return; }
+      if (typeof bt.agregar !== 'function') return;
+      bt.agregar(sel, L);
+      const b = typeof bt.bloque === 'function' ? bt.bloque(sel) : null;
+      btcAviso(b && b.t ? `Agregado a «${b.t}».` : 'Agregado a tu bloque de tiempo.');
+    } catch (e) { console.warn('Bloques de tiempo: no se pudo agregar', e); btcAviso(e?.message || 'No se pudo agregar al bloque de tiempo.'); }
+  }, 60);
+}
+// La ficha de un hábito (Hábitos) y el formulario de una tarea (Tareas) están en el documento, fuera de las hojas de Enfoque.
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-btc-tipo]'); if (!b) return;
+  btcAbrir([btcItemDe(b)]);
+});
+// Hábito nuevo (#form): la fila de chips al final, solo al crear (ni al editar ni en una rutina); al guardar, el hábito entra en el bloque.
+{
+  const dlg = document.getElementById('form-dialog'), form = document.getElementById('form'), box = document.createElement('div');
+  box.id = 'hb-bt'; document.getElementById('habit-only')?.appendChild(box);
+  if (dlg && form) {
+    new MutationObserver(() => {
+      if (!dlg.open) return;
+      box.innerHTML = !editing && !formIsRoutine ? btcChips('hb-bt') : '';
+      box.querySelectorAll('button:not([type])').forEach(b => { b.type = 'button'; });   // dentro de un <form>, un botón sin tipo lo enviaría
+    }).observe(dlg, { attributes: true, attributeFilter: ['open'] });
+    form.addEventListener('submit', () => {
+      if (editing || formIsRoutine) return;
+      const sel = btcLeer(form, 'hb-bt'); if (!sel) return;
+      const antes = new Set(state.habits.map(h => h.id));
+      setTimeout(() => { const h = state.habits.find(x => !antes.has(x.id) && !x.rutina); if (h) btcTras(sel, { tipo: 'habito', ref: h.id }); }, 0);
+    });
+  }
+}
+// Tarea nueva («+ Añadir una tarea» en Tareas): mientras la escribes sale la fila de chips; al añadirla, entra en el bloque elegido.
+{
+  const V = document.getElementById('view-tareas');
+  V?.addEventListener('input', e => {
+    if (e.target?.id !== 'tadd-input') return;
+    const box = document.getElementById('tadd-bt'); if (!box) return;
+    const hay = !!e.target.value.trim();
+    if (hay && !box.childElementCount) box.innerHTML = btcChips('tadd-bt');
+    box.hidden = !hay || !box.childElementCount;
+  });
+  // Tocar un chip no cierra el teclado del todo: el campo vuelve a tener el foco y Enter la añade.
+  V?.addEventListener('click', e => { if (e.target.closest?.('#tadd-bt')) setTimeout(() => document.getElementById('tadd-input')?.focus({ preventScroll: true }), 0); });
+  V?.addEventListener('submit', e => {
+    if (e.target?.id !== 'tadd') return;
+    const sel = btcLeer(V, 'tadd-bt'); if (!sel) return;
+    const antes = new Set(state.tareas.items.map(x => x.id));
+    setTimeout(() => { const x = state.tareas.items.find(y => !antes.has(y.id)); if (x) btcTras(sel, { tipo: 'tarea', ref: x.id }); }, 0);
+  }, true);   // antes que el de Tareas, que repinta la vista
+}
+
 function complete(h, value) {
   // Volver el día después de un fallo es lo que más sostiene un hábito (Milkman et al., 2021, Nature): +15 XP, una vez al día.
   const volvio = stats(h).missedYesterday, primera = h.xpDia !== today();
@@ -2884,7 +3069,7 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'inicio') window.renderInicio?.(); if (view === 'identidad') window.renderIdentidad?.(); if (view === 'espiritu') window.renderEspiritu?.(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'agenda') window.renderAgendaTab?.(); if (view === 'estudio') window.renderEstudio?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function renderAll() { render(); if (view === 'inicio') window.renderInicio?.(); if (view === 'identidad') window.renderIdentidad?.(); if (view === 'espiritu') window.renderEspiritu?.(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'agenda') window.renderAgendaTab?.(); if (view === 'bloques') window.renderBloques?.(); if (view === 'estudio') window.renderEstudio?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -2907,7 +3092,7 @@ function renderTareas() {
   $('#view-tareas').innerHTML = `
     <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)} (${pendientesDe(l.id)})</button>`).join('')}
       <button class="chip" data-tact="newlist">+ Lista</button></div>
-    <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea" autocomplete="off"></form>
+    <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea" autocomplete="off"></form><div id="tadd-bt" hidden></div>
     ${pend.length ? pend.map(row).join('') : cleanJust ? `<div class="tclean">${CHECK_BIG}<span>Todo hecho. Lista limpia.</span></div>` : `<p class="empty">Nada pendiente en «${esc(L.nombre)}».</p>`}
     ${done.length ? `<button class="link tdone-toggle" data-tact="showdone">${tareasShowDone ? '▾' : '▸'} Completadas (${done.length})</button>` : ''}
     ${done.length && tareasShowDone ? `<div style="margin-top:10px">${done.map(row).join('')}</div>` : ''}
@@ -2969,7 +3154,7 @@ async function gCalEventos(desde, hasta) {
   const q = new URLSearchParams({ timeMin: desde.toISOString(), timeMax: hasta.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '100' });
   const r = await gCalFetch(`${CAL_API}?${q}`);
   return (r.items || []).filter(e => e.status !== 'cancelled').map(e => ({ id: e.id || '', titulo: e.summary || '(Sin título)', inicio: e.start?.dateTime || e.start?.date, fin: e.end?.dateTime || e.end?.date,
-    todoElDia: !e.start?.dateTime, lugar: e.location || '', enlace: e.htmlLink || '' }));
+    todoElDia: !e.start?.dateTime, lugar: e.location || '', enlace: e.htmlLink || '', opBloque: String(e.extendedProperties?.private?.opBloque || '') }));
 }
 function gCalCrear(a) {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -3126,6 +3311,7 @@ function taskForm(x) {
     <label>Lista</label><select id="t-list">${T.listas.map(l => `<option value="${l.id}"${l.id === x.lista ? ' selected' : ''}>${esc(l.nombre)}</option>`).join('')}</select>
     <label>Repetir</label><select id="t-rep"><option value="">No se repite</option>${Object.entries(REPITE).map(([k, v]) => `<option value="${k}"${x.repite === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
     <div class="days" id="t-days"${x.repite === 'dias' ? '' : ' hidden'} style="margin-top:10px">${DAY_L.map((l, i) => `<label><input type="checkbox" value="${i}"${(x.dias || []).includes(i) ? ' checked' : ''}>${l}</label>`).join('')}</div>
+    ${!x.hecha && btcHay() ? `<p style="margin:16px 0 0">${btcAccion('tarea', x.id)}</p>` : ''}
     <div class="dialog-actions"><button class="link danger" id="t-del" style="margin-right:auto">Borrar</button><button class="link" data-close>Cancelar</button><button class="primary" id="t-go">Guardar</button></div>`);
   $('#t-go').onclick = () => {
     const titulo = $('#t-title').value.trim(); if (!titulo) { $('#t-title').focus(); return; }
@@ -3183,7 +3369,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
   document.querySelector('.tabs .tab.on')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });   // 2.14 · la activa siempre a la vista
-  for (const v of ['inicio', 'identidad', 'espiritu', 'enfoque', 'agenda', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  for (const v of ['inicio', 'identidad', 'espiritu', 'enfoque', 'agenda', 'bloques', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   renderTitle();
   renderAll();
   scrollTo(0, 0);
@@ -3972,7 +4158,7 @@ function ahoraSugerido() {
   { const r = e2aPrioridad(P); if (r) return r; }
   const x = P.find(i => !i.hecho);
   if (x) { const mov = P.indexOf(x) === 0 && !x.per && !e212bMovisteHoy();
-    return { k: 'Tu prioridad ahora', t: x.t, p: mov ? 'Primero 10 min de paseo rápido; luego tu prioridad 1.' : P.indexOf(x) === 0 ? 'La rana: primero, antes que todo.' : 'Una sola cosa, 25 minutos, No molestar y el teléfono lejos.', b: 'Empezar 25 min', a: () => x.per ? personaSheet(ES.personas.find(q => q.id === x.per)) : (mov && e212bCaminarAntes(), focusForm(x.t, 25, x.pro || '')) }; }
+    return { k: 'Tu prioridad ahora', t: x.t, p: mov ? 'Primero 10 min de paseo rápido; luego tu prioridad 1.' : P.indexOf(x) === 0 ? 'La más importante: primero, antes que todo.' : 'Una sola cosa, 25 minutos, No molestar y el teléfono lejos.', b: 'Empezar 25 min', a: () => x.per ? personaSheet(ES.personas.find(q => q.id === x.per)) : (mov && e212bCaminarAntes(), focusForm(x.t, 25, x.pro || '')) }; }
   { const r = exAhora(); if (r) return r; }   // 2.14 (X) · un bloque de estudio pendiente sin hora, o con el examen cerca
   const conHora = I.map((it, i) => ({ it, i })).filter(({ it }) => it.t && !it.hecho && it.hora).sort((a, b) => toMin(a.it.hora) - toMin(b.it.hora)).find(({ it }) => toMin(it.hora) <= nowM + 60);
   if (conHora) return { k: `Iniciativa de ${INI4[conHora.i][1].toLowerCase()} · ${fmtHora(conHora.it.hora)}`, t: conHora.it.t, p: conHora.it.paso ? `Primer paso: ${conHora.it.paso}` : '', b: 'Hacerla', a: () => ini4Sheet(conHora.i) };
@@ -3986,7 +4172,7 @@ function ahoraSugerido() {
   if (hab) return { k: 'Hábito', t: hab.nombre, p: hab.minima ? `Versión de 2 minutos: ${hab.minima}` : '', b: 'Ir a Hábitos', a: () => irA('hoy') };
   const tv = (p?.due || [])[0];
   if (tv) return { k: tv.fecha < today() ? 'Tarea vencida' : 'Tarea de hoy', t: tv.titulo, p: '', b: 'Ir a Tareas', a: () => irA('tareas') };
-  if (!P.length && h < 20) return { k: 'Empieza por lo importante', t: 'Elige tus 3 prioridades de hoy', p: 'La más difícil primero.', b: 'Elegir', a: () => prioForm() };
+  if (!P.length && h < 20) return { k: 'Empieza por lo importante', t: 'Elige tus prioridades de hoy', p: 'En orden: la primera, la más importante.', b: 'Elegir', a: () => prioForm() };
   if (h >= 20 && !ES.buenas.some(b => b.d === today())) return { k: 'Cierre del día', t: 'Lo que avanzaste y lo mejor de hoy', p: 'Un minuto para cerrar con lo que avanzaste y lo mejor del día.', b: 'Cerrar el día', a: () => buenasSheet() };
   return { k: 'Todo lo de hoy está hecho', t: 'Descansa con propósito', p: 'Siesta, caminar, respirar, no hacer nada sin pantalla. Elige cuál y cuánto.', b: 'Descansar', a: () => descansoForm(), descanso: true };
 }
@@ -4141,7 +4327,7 @@ function habitSheet(h, elegido = false) {
     ${h.contras?.length ? `<p class="meta red" style="margin:0;font-weight:600">Contras de no hacerlo</p><ul class="pros">${h.contras.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
     <div class="actions stack">
       <button class="primary" id="hs-focus">Enfocarme en esto</button>
-      <button class="link" data-goview="hoy">Marcarlo en Hábitos</button>
+      <button class="link" data-goview="hoy">Marcarlo en Hábitos</button>${btcAccion('habito', h.id)}
     </div>`);
   $('#hs-focus').onclick = () => focusForm(h.nombre, h.modo === 'tiempo' ? h.meta : 25);
 }
@@ -4152,7 +4338,7 @@ function taskSheet(x) {
     ${x.fecha ? `<p class="meta${x.fecha < today() ? ' red' : ''}">${x.fecha < today() ? 'Vencida' : 'Fecha'}: ${fmtFecha(x.fecha)}</p>` : ''}
     <div class="actions stack">
       <button class="primary" id="ts-focus">Enfocarme en esto</button>
-      <button class="link" data-goview="tareas">Completarla en Tareas</button>
+      <button class="link" data-goview="tareas">Completarla en Tareas</button>${btcAccion('tarea', x.id)}
     </div>`);
   $('#ts-focus').onclick = () => focusForm(x.titulo);
 }
@@ -4471,16 +4657,16 @@ function checkSalida(force = false) {
   });
 }
 
-// ---------- Prioridades del día: tres como máximo y la más difícil primero.
+// ---------- Prioridades del día: las que quieras, en orden; la primera es siempre la más importante (2.16).
 function renderPrio() {
   const P = ES.prioridades.fecha === today() ? ES.prioridades : (ES.prioridades = { fecha: today(), items: [] });
   const done = P.items.filter(x => x.hecho).length;
   $('#prio').innerHTML = P.items.length ? `<div class="rows">${P.items.map((x, i) => `<div class="row" style="${x.hecho ? 'opacity:.5' : ''}">
       <button class="box" data-pchk="${esc(x.id)}" aria-label="Hecha" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></button>
-      <button class="t" data-pgo="${esc(x.id)}" style="text-align:left"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div><small>${i === 0 ? 'La rana: primero, antes que todo' : i >= 3 ? 'Extra' : esc(x.origen || 'Prioridad')}</small></button>
+      <button class="t" data-pgo="${esc(x.id)}" style="text-align:left"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div><small>${i === 0 ? 'La más importante: primero, antes que todo' : `Prioridad ${i + 1}`}</small></button>
       <span class="tag" style="font-weight:600;color:${i === 0 ? 'var(--red)' : 'var(--muted)'}">${i + 1}</span></div>`).join('')}</div>
-    <p class="more">${done} de ${P.items.length} hechas · <button class="link" id="prio-edit">${P.items.every(x => x.hecho) ? 'Añadir una extra' : 'Cambiar'}</button></p>`
-    : `<button class="row" id="prio-edit" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--red)"></span><span class="t"><div>Elige tus prioridades de hoy</div><small>Tres como máximo. La más difícil va primero.</small></span><span class="tag">›</span></button>`;
+    <p class="more">${done} de ${P.items.length} hechas · <button class="link" id="prio-edit">${P.items.every(x => x.hecho) ? 'Añadir otra' : 'Cambiar'}</button></p>`
+    : `<button class="row" id="prio-edit" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--red)"></span><span class="t"><div>Elige tus prioridades de hoy</div><small>En orden: la primera, la más importante.</small></span><span class="tag">›</span></button>`;
 }
 $('#prio').addEventListener('click', e => {
   const P = ES.prioridades;
@@ -4488,7 +4674,7 @@ $('#prio').addEventListener('click', e => {
   if (e.target.closest('#prio-edit')) return prioForm();
   if (chk) {
     const x = P.items.find(i => i.id === chk.dataset.pchk); prioMarcar(x.id, !x.hecho); guardar(); renderE(); if (view === 'agenda') renderAg();
-    if (x.hecho && !(ES.proyectos.find(p => p.id === x.pro)?.paso === x.t)) toast(P.items.every(i => i.hecho) ? 'Las tres prioridades, hechas. Si te queda energía, puedes añadir una extra.' : 'Hecha. Sigue con la siguiente.');
+    if (x.hecho && !(ES.proyectos.find(p => p.id === x.pro)?.paso === x.t)) toast(P.items.every(i => i.hecho) ? 'Todas tus prioridades, hechas.' : 'Hecha. Sigue con la siguiente.');
   }
   if (go) { const x = P.items.find(i => i.id === go.dataset.pgo); if (x.per) personaSheet(ES.personas.find(p => p.id === x.per)); else focusForm(x.t, 25, x.pro || ''); }
 });
@@ -4504,23 +4690,24 @@ function prioCandidatos() {
 }
 function prioForm() {
   const P = ES.prioridades, cands = prioCandidatos().filter(c => !P.items.some(x => x.t === c.t));
-  // Tres como máximo; cuando las tres están hechas, se pueden añadir extras (una a una, cada una vale más XP).
-  const puede = P.items.length < 3 || P.items.every(x => x.hecho);
+  // 2.16 (P) · Sin tope ni compuerta: «Añadir» siempre está; el orden se cambia con ↑ y ↓ (la primera, la más importante).
+  const puede = true;
   showSheet(`<h2>Prioridades de hoy</h2>
-    <p class="sci">Tendemos a elegir lo urgente aunque lo importante valga más (Zhu, Yang y Hsee, 2018). Elige lo que de verdad mueve tus proyectos y relaciones, y pon primero lo más difícil: empezar por ahí aumenta la sensación de capacidad (Habbert y Schroeder, 2020).</p>
-    <div class="rows" id="pf-list">${P.items.map((x, i) => `<div class="row"><span class="tag" style="font-weight:600;width:14px">${i + 1}</span><span class="t"><div>${esc(x.t)}</div><small>${esc(x.origen || '')}${jdSmall(x)}</small></span>
-      ${i ? `<button class="link" data-up="${i}" aria-label="Subir">↑</button>` : ''}<button class="x" data-del="${i}" aria-label="Quitar">×</button></div>`).join('')}</div>
+    <p class="sci">En orden: la primera es la más importante. Elige lo que de verdad mueve tus proyectos y relaciones; si puedes, empieza por la más difícil: aumenta la sensación de capacidad (Habbert y Schroeder, 2020). Tendemos a elegir lo urgente aunque lo importante valga más (Zhu, Yang y Hsee, 2018).</p>
+    <div class="rows" id="pf-list">${P.items.map((x, i) => `<div class="row"><span class="tag" style="font-weight:600;width:14px">${i + 1}</span><span class="t"><div>${esc(x.t)}</div><small>${esc(x.origen || '')}${jdSmall(x)}</small>${x.hecho ? '' : btcAccion('prio', x.id, 'link', 'display:block;margin-top:4px;font-size:.82rem;text-align:left')}</span>
+      ${i ? `<button class="link" data-up="${i}" aria-label="Subir">↑</button>` : ''}${i < P.items.length - 1 ? `<button class="link" data-down="${i}" aria-label="Bajar">↓</button>` : ''}<button class="x" data-del="${i}" aria-label="Quitar">×</button></div>`).join('')}</div>
     ${puede ? `
-      <div class="field" style="margin-top:14px"><label>${P.items.length < 3 ? `Añadir (${P.items.length} de 3)` : 'Las tres están hechas: puedes añadir una extra'}</label>
-        <div style="display:flex;gap:10px"><input id="pf-t" maxlength="100" placeholder="Lo más importante de hoy"><button class="link" id="pf-add">Añadir</button></div></div>
-      ${jdChipsHtml('pf')}
-      ${cands.length ? `<p class="meta" style="margin:4px 0 6px">Sugerencias</p><div class="rows">${cands.slice(0, 8).map((c, i) => `<button class="row" data-c="${i}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(c.t)}</div><small>${esc(c.origen)}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}` : `<p class="meta" style="margin-top:12px">Tres es el máximo: si todo es prioridad, nada lo es.</p>`}
+      <div class="field" style="margin-top:14px"><label>Añadir</label>
+        <div style="display:flex;gap:10px"><input id="pf-t" maxlength="100" placeholder="${P.items.length ? 'Otra prioridad de hoy' : 'Lo más importante de hoy'}"><button class="link" id="pf-add">Añadir</button></div></div>
+      ${jdChipsHtml('pf')}${btcChips('pf-bt')}
+      ${cands.length ? `<p class="meta" style="margin:4px 0 6px">Sugerencias</p><div class="rows">${cands.slice(0, 8).map((c, i) => `<button class="row" data-c="${i}"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>${esc(c.t)}</div><small>${esc(c.origen)}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}` : ``}
     <div class="actions"><button class="primary" id="pf-ok">Listo</button></div>`);
-  const add = c => { if (!(P.items.length < 3 || P.items.every(x => x.hecho))) return; P.items.push({ id: crypto.randomUUID(), hecho: false, ...c }); guardar(); renderPrio(); prioForm(); };
+  const add = c => { P.items.push({ id: crypto.randomUUID(), hecho: false, ...c }); btcTras(btcLeer($('#sheet-body'), 'pf-bt'), { tipo: 'prio', ref: P.items[P.items.length - 1].id }); guardar(); renderPrio(); prioForm(); };
   $('#sheet-body').querySelectorAll('[data-c]').forEach(b => b.onclick = () => add({ ...cands[+b.dataset.c], iden: jdLeerChips($('#sheet-body'), 'pf') }));
   $('#pf-add')?.addEventListener('click', () => { const t = $('#pf-t').value.trim(); if (t.split(/\s+/).filter(Boolean).length < 2) { toast('Escribe verbo + qué: «Enviar la propuesta a Luis».'); $('#pf-t').focus(); return; } add({ t, origen: 'Prioridad', iden: jdLeerChips($('#sheet-body'), 'pf') }); });
   $('#pf-t')?.addEventListener('keydown', e => { if (e.key === 'Enter') $('#pf-add').click(); });
   $('#sheet-body').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { P.items.splice(+b.dataset.del, 1); guardar(); renderPrio(); prioForm(); });
+  $('#sheet-body').querySelectorAll('[data-down]').forEach(b => b.onclick = () => { const i = +b.dataset.down; if (!P.items[i + 1]) return; [P.items[i + 1], P.items[i]] = [P.items[i], P.items[i + 1]]; guardar(); renderPrio(); prioForm(); });
   $('#sheet-body').querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [P.items[i - 1], P.items[i]] = [P.items[i], P.items[i - 1]]; guardar(); renderPrio(); prioForm(); });
   $('#pf-ok').onclick = () => { closeSheet(); renderE(); };
   jdChipsWire($('#sheet-body'), 'pf');
@@ -4704,6 +4891,7 @@ function planForm(con = '') {
       <datalist id="pl-people">${ES.personas.map(p => `<option value="${esc(p.nombre)}">`).join('')}</datalist></div>
     <div class="times"><div class="field"><label>Fecha</label><input id="pl-f" type="date" value="${man}" min="${today()}"></div>
       <div class="field"><label>Hora</label><input id="pl-h" type="time" value="18:00"></div></div>
+    ${btcChips('pl-bt')}
     <div class="actions"><button class="link" id="pl-cancel">Cancelar</button><button class="primary" id="pl-ok">Guardar plan</button></div>`);
   $('#pl-ideas').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) $('#pl-t').value = c.dataset.i; });
   $('#pl-cancel').onclick = closeSheet;
@@ -4712,7 +4900,7 @@ function planForm(con = '') {
     if (!titulo) { $('#pl-t').focus(); return; }
     if (!fecha) { $('#pl-f').focus(); return; }
     const pl = { id: crypto.randomUUID(), titulo, con: $('#pl-c').value.trim(), fecha, hora, hecho: false };
-    ES.planes.push(pl); xpGanar(25, 'Plan propuesto');
+    ES.planes.push(pl); xpGanar(25, 'Plan propuesto'); btcTras(btcLeer($('#sheet-body'), 'pl-bt'), { tipo: 'plan', ref: pl.id });
     const per = ES.personas.find(p => p.nombre.toLowerCase() === pl.con.toLowerCase());
     if (per) registrar(per, 'Plan'); else { bump('iniciativas'); guardar(); renderE(); }
     planSheet(pl, true);
@@ -4734,6 +4922,7 @@ function planSheet(pl, nuevo = false) {
     <div class="actions stack" style="margin-top:0">
       <a class="primary btn" href="https://wa.me/${tel}?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">Enviar invitación por WhatsApp</a>
       ${gCalOk() ? `<button class="outline" id="ps-gcal">Crear en mi Google Calendar</button>` : `<a class="outline btn" href="${cal}" target="_blank" rel="noopener">Añadir a Google Calendar</a>`}
+      ${pl.hecho ? '' : btcAccion('plan', pl.id)}
     </div>
     <h3>Para la conversación</h3>
     <ul class="pros">${[...PREGUNTAS].sort(() => Math.random() - .5).slice(0, 2).map(q => `<li>${esc(q)}</li>`).join('')}${[...PREGUNTAS_ARON].sort(() => Math.random() - .5).slice(0, 1).map(q => `<li>${esc(q)} <span class="meta">(Aron et al., 1997)</span></li>`).join('')}</ul>
@@ -4824,6 +5013,7 @@ function proyectoSheet(pr) {
       ${pr.paso ? `<button class="primary" id="ps-focus">Hacerlo ahora · 25 min</button>
         <a class="outline btn" target="_blank" rel="noopener" href="${calUrl(pr.paso + ' · ' + pr.nombre, pr.cuando || dayKey(addDays(new Date(), 1)), pr.hora || '09:00', 60, pr.donde)}">Agendar un bloque en Google Calendar</a>
         <button class="outline" id="ps-done">Paso hecho</button>
+        ${btcAccion('proyecto', pr.id)}
         <button class="link" id="ps-proc">Estoy procrastinando</button>` : `<button class="primary" id="ps-edit2">Definir el siguiente paso</button>`}
     </div>
     ${pr.pasos.length ? `<h3>Pequeñas victorias (${pr.pasos.length})</h3><p class="meta">${pr.pasos.slice(-5).reverse().map(x => `${esc(x.t)} · ${fmtFecha(x.d)}`).join('<br>')}</p>` : ''}
@@ -4984,7 +5174,7 @@ function rescate(paso = 1) {
       resc.primer = $('#rs-primer').value.trim() || resc.una;
       // La cosa elegida pasa a ser la prioridad 1 de hoy.
       const P = ES.prioridades; P.items = P.items.filter(x => x.t !== resc.una);
-      P.items.unshift({ id: crypto.randomUUID(), t: resc.una, hecho: false, origen: 'Plan de rescate' }); P.items = P.items.slice(0, 3);
+      P.items.unshift({ id: crypto.randomUUID(), t: resc.una, hecho: false, origen: 'Plan de rescate' });
       if ($('#rs-tareas')?.checked) {
         const T = HT().tareas, lista = T.listas.find(l => l.id === T.activa) || T.listas[0];
         for (const t of resc.lista.filter(t => t !== resc.una)) if (!T.items.some(x => !x.hecha && x.titulo === t)) T.items.push({ id: crypto.randomUUID(), lista: lista.id, titulo: t, detalle: '', fecha: '', hecha: false, creado: Date.now(), repite: '', dias: [] });
@@ -5204,7 +5394,7 @@ function ini4Sheet(abrir = -1) {
           <div class="field"><input data-f="plan" data-i="${i}" maxlength="100" value="${esc(x.plan || '')}" placeholder="Si aparece, entonces… (p. ej. hago solo el primer paso de 5 min)"></div>
           <div class="field"><input data-f="exito" data-i="${i}" maxlength="100" value="${esc(x.exito || '')}" placeholder="Sabré que está hecha cuando…"></div></details>
         <div class="chips"><button class="chip${x.hecho ? ' on' : ''}" data-done="${i}">${x.hecho ? 'Hecha' : 'Marcar hecha'}</button>
-          ${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl('Iniciativa de ' + n.toLowerCase() + ': ' + x.t, today(), x.hora || '18:00', 30)}">Agendar</a>` : ''}</div>
+          ${x.t ? `<a class="chip" style="text-decoration:none" target="_blank" rel="noopener" href="${calUrl('Iniciativa de ' + n.toLowerCase() + ': ' + x.t, today(), x.hora || '18:00', 30)}">Agendar</a>` : ''}${x.t && btcHay() ? `<button type="button" class="chip" data-btc-ini="${esc(k)}">${BTC_TXT}</button>` : ''}</div>
       </div>`; }).join('')}
     <div class="actions"><button class="primary" id="i4-ok">Guardar</button></div>`);
   const body = $('#sheet-body');
@@ -5217,6 +5407,7 @@ function ini4Sheet(abrir = -1) {
   body.querySelectorAll('[data-notion]').forEach(b => b.onclick = () => { leer(); guardar(); iniDesdeNotion(+b.dataset.notion); });
   body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { leer(); const i = +b.dataset.done; iniMarcar(i, !I.items[i].hecho); guardar(); renderE(); if (view === 'agenda') renderAg(); ini4Sheet(i); });
   $('#i4-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
+  body.querySelectorAll('[data-btc-ini]').forEach(b => b.onclick = () => { leer(); guardar(); const x = I.items.find(y => y.k === b.dataset.btcIni); btcAbrir([{ tipo: 'ini', ref: b.dataset.btcIni, ...(x?.t ? { sub: x.t } : {}) }]); });   // 2.16 (C) · con su texto
 }
 // ---------- Tres cosas buenas (Seligman et al., 2005): al cerrar el día, en vez de un último scroll.
 function buenasSheet(paso) {
@@ -5246,7 +5437,7 @@ function intervenciones() {
     ...avIntervenciones(),
     !avCfg().on && 'PushManager' in window && { id: 'avisos', t: 'Que la app te avise', p: 'Activa las notificaciones: el resumen de la mañana, la hora de tus hábitos y tus planes te llegan sin abrir la app.', sci: 'Señal en el momento correcto (Gollwitzer y Sheeran, 2006)', b: 'Activar', a: () => avisosSheet() },
     h >= 11 && !P.items.length && !d.enfoque && { id: 'rumbo', t: '¿El día va sin rumbo?', p: 'Pasa. En 5 minutos: respiras, sacas todo de la cabeza, eliges una sola cosa y empiezas por 2 minutos.', sci: 'Masicampo y Baumeister (2011); Balban et al. (2023)', b: 'Plan de rescate', a: () => sosSheet() },
-    h < 13 && !P.items.length && { id: 'prio', t: 'Empieza por lo importante', p: 'Elige tus tres prioridades de hoy antes de abrir nada más. La más difícil, primero.', sci: 'Zhu, Yang y Hsee (2018); Habbert y Schroeder (2020)', b: 'Elegir prioridades', a: () => prioForm() },
+    h < 13 && !P.items.length && { id: 'prio', t: 'Empieza por lo importante', p: 'Elige tus prioridades de hoy antes de abrir nada más, en orden: la primera, la más importante.', sci: 'Zhu, Yang y Hsee (2018); Habbert y Schroeder (2020)', b: 'Elegir prioridades', a: () => prioForm() },
     (dia === 0 || new Date().getDate() === 1) && ES.revision !== today() && { id: 'rev', t: 'Nuevo comienzo', p: 'Un lunes o un mes nuevo es buen momento para retomar lo que dejaste. Diez minutos de revisión.', sci: 'Dai, Milkman y Riis (2014)', b: 'Hacer la revisión', a: () => revisionSemanal() },
     d.distraccion >= presupuestoHoy() && { id: 'pres', t: 'Ya usaste tu presupuesto de hoy', p: `Llevas ${d.distraccion} min en distracciones. Lo que queda del día es tuyo: una alternativa que sume.${d.distraccion > presupuestoHoy() ? ' Mañana empieza de cero.' : ''}`, sci: 'Allcott, Gentzkow y Song (2022)', b: 'Ver alternativas', a: () => alternativas('Lo que queda del día es tuyo', 'Elige una:') },
     intervWoop7(),
@@ -5617,7 +5808,7 @@ Cómo trabajas:
 - Si propones cambios por iniciativa propia (por ejemplo, bloquear horas en el calendario o cambiar prioridades), descríbelos primero y espera un sí antes de hacerlos.
 - La persona es católica y vive la espiritualidad del Opus Dei sin ser numeraria: lo espiritual es católico, práctico y breve (su plan de vida: ofrecimiento de obras, oración mental, Santa Misa, Ángelus, lectura espiritual, Rosario, visita al Santísimo, examen de conciencia; la confesión frecuente; santificar el trabajo ordinario y la presencia de Dios durante el día). Míralo con vida_espiritual_ver; en la pestaña Bienestar hay escenarios (esperanza, consolación, confianza con autoridad/autoestima/identidad, paz, fortaleza, dirección, perdón, gratitud) y prácticas de mente con evidencia; ábrelos con bienestar_abrir cuando encajen con lo que cuenta.
 - Principio: que sea imposible no hacer algo con propósito, incluido el descanso. Si no hay nada pendiente, propón un descanso con propósito (siesta, caminar, respirar, no hacer nada sin pantalla) con tiempo elegido; nunca scroll.
-- Lo importante antes que lo urgente: tres prioridades al día, la más difícil primero; cuando las tres están hechas se pueden añadir extras.
+- Lo importante antes que lo urgente: las prioridades del día, las que la persona quiera y en orden; la primera es siempre la más importante.
 - Cada día hay 5 iniciativas con el mismo peso: estudio, proyecto, laboral, social y espiritual (30 XP cada una); la espiritual es todos los días, y la persona se comprometió a un mínimo diario (ver iniciativas_hoy.minimo_diario) y a hacer la social al menos iniciativas_hoy.social_minimo_semanal días por semana; si social_en_riesgo es true, la de hoy es la que toca. Ayuda a elegir cuáles hoy, con qué, por qué, primer paso y hora; si va tarde y faltan, recuérdalo con tacto.
 - Cada acción buena suma XP (prioridades, hábitos, tareas, enfoque, resistir las redes, escribir a alguien, pasos de proyecto…). Si la persona lo pregunta, cuéntale su nivel y cuánto falta; no inventes puntos.
 - Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
@@ -5637,6 +5828,7 @@ Cómo trabajas:
 - Sin mitos: un hábito no se forma en 21 días (a la mitad le llevó unos 66, con mucha variación), la voluntad no se agota como un músculo y lo de «23 minutos para volver a concentrarse» no sale de ningún estudio.
 - La persona define en Identidad quién quiere ser («una persona que…»; identidad_ver las lista con sus votos e identidad_crear crea una si lo pide); cuando propongas hábitos, objetivos o iniciativas, nómbralos como un voto por una de sus identidades y sugiere a cuál pertenecen; nunca prometas que la etiqueta cambie la conducta.
 - La pestaña Estudio tiene rutas hasta cada examen (materia, fecha, temas, bloques por día con hora, minutos y ejercicios): estudio_ver las lista con lo de hoy; estudio_ruta crea una si la persona lo pide; si un bloque quedó sin hacer, propone replanificar, nunca recriminar.
+- Bloques de tiempo: huecos reservados con lo que va dentro, que se ponen en su Google Calendar con la lista en la descripción; bloques_tiempo_ver los muestra y bloque_tiempo_crear crea uno si la persona lo pide.
 - Horas en formato de 12 horas con AM/PM; fechas como «jueves 30 de octubre».
 - Cada mensaje de la persona empieza con la fecha y la hora actuales entre corchetes: úsalas como referencia para «hoy», «mañana» o «esta tarde».`;
 
@@ -5645,8 +5837,8 @@ const iaTool = (name, description, props) => ({ name, description, strict: true,
 const S = d => ({ type: 'string', description: d });
 const IA_TOOLS = [
   iaTool('ver_estado', 'Devuelve el estado actual de la app: prioridades de hoy, hábitos y tareas pendientes, proyectos con su siguiente paso, personas a las que toca escribir, planes próximos, números de hoy y de la semana, iniciativa laboral y emociones más frecuentes ante el impulso de usar el teléfono.', {}),
-  iaTool('gestionar_prioridad', 'Agrega, completa o quita una de las prioridades de hoy (máximo tres; la primera es la más difícil).', {
-    accion: { type: 'string', enum: ['agregar', 'completar', 'quitar'] }, texto: S('Texto de la prioridad al agregar; vacío en otro caso.'), numero: { type: 'integer', description: 'Número de la prioridad (1-3) al completar o quitar; 0 al agregar.' } }),
+  iaTool('gestionar_prioridad', 'Agrega, completa o quita una de las prioridades de hoy (sin límite y en orden: la primera es la más importante).', {
+    accion: { type: 'string', enum: ['agregar', 'completar', 'quitar'] }, texto: S('Texto de la prioridad al agregar; vacío en otro caso.'), numero: { type: 'integer', description: 'Número de la prioridad (1, 2, 3…) al completar o quitar; al agregar, 0 la pone al final y otro número la pone en ese lugar.' } }),
   iaTool('crear_tarea', 'Crea una tarea en la lista de Tareas (se sincroniza con Google Tasks si está conectado).', {
     titulo: S('Título de la tarea.'), fecha: S('Fecha AAAA-MM-DD o vacío si no tiene.'), detalle: S('Notas o vacío.') }),
   iaTool('completar_tarea', 'Marca como hecha una tarea pendiente, por su id (de ver_estado) o por su título.', { tarea: S('Id o título de la tarea.') }),
@@ -5731,7 +5923,7 @@ async function iaEjecutar(nombre, a) {
     case 'ver_estado': return iaEstado();
     case 'gestionar_prioridad': {
       const P = ES.prioridades;
-      if (a.accion === 'agregar') { if (!(P.items.length < 3 || P.items.every(x => x.hecho))) throw new Error('Ya hay tres prioridades pendientes; se pueden añadir extras cuando las tres estén hechas.'); P.items.push({ id: crypto.randomUUID(), t: a.texto, hecho: false, origen: 'Asistente' }); }
+      if (a.accion === 'agregar') prioIaAgregar(P, a);
       else { const x = P.items[a.numero - 1]; if (!x) throw new Error(`No existe la prioridad ${a.numero}.`); if (a.accion === 'quitar') P.items.splice(a.numero - 1, 1); else if (!x.hecho) prioMarcar(x.id, true); }
       guardar(); renderE(); return { prioridades_hoy: P.items.map((x, i) => `${i + 1}. ${x.t}${x.hecho ? ' (hecha)' : ''}`) };
     }
@@ -5813,6 +6005,8 @@ async function iaEjecutar(nombre, a) {
     case 'identidad_crear': return jdToolCrear(a);
     case 'vida_espiritual_ver': return espToolVer();   // 2.15 (V)
     case 'vida_espiritual_marcar': return espToolMarcar(a);
+    case 'bloques_tiempo_ver': return btToolVer();   // 2.16 (B)
+    case 'bloque_tiempo_crear': return btToolCrear(a);
   }
   throw new Error('Herramienta desconocida.');
 }
@@ -7118,6 +7312,7 @@ const diaManana = () => dayKey(addDays(new Date(), 1));
 // ---------- SMART: qué letras cumple algo. Planes y eventos del calendario no se evalúan (su hora y su qué son fijos).
 function smartDe(o) {
   if (!o || o.tipo === 'evento' || o.tipo === 'plan') return null;
+  if (o.tipo === 'bt') return null;   // 2.16 (B) · un bloque de tiempo es un hueco, no una meta
   const t = String(o.t || '').trim(), n = nPalabras(t), num = /\d/.test(t);
   return {
     S: o.tipo === 'habito' ? n >= 1 : n >= 2,
@@ -7190,10 +7385,11 @@ function agenda() {
   // Lo organizado la víspera (en este teléfono o en otro) pasa a ser la agenda de hoy mientras hoy no se haya organizado.
   if (ES.agendaPlan?.fecha === today() && !ES.agendaHoy.organizado) agAplicarPlan(ES.agendaHoy, ES.agendaPlan);
   ES.agendaHoy.ocultos ||= [];
+  btAgendaInyectar(ES.agendaHoy);   // 2.16 (B) · los bloques de tiempo de hoy, con hora fija (salvo los que quitaste)
   exAgendaInyectar(ES.agendaHoy);   // 2.14 (X) · los bloques de estudio de hoy, salvo los que quitaste
   return ES.agendaHoy;
 }
-// El plan entra con sus iniciativas y la rana; lo que ya hubiera en la agenda de hoy (eventos, algo añadido suelto) se queda.
+// El plan entra con sus iniciativas y sus prioridades (en su orden, delante); lo que ya hubiera en la agenda de hoy (eventos, algo añadido suelto) se queda.
 function agAplicarPlan(A, P) {
   const clave = it => it.tipo + ':' + (it.tipo === 'libre' ? it.id : it.ref), ya = new Set(A.items.map(clave));
   A.items = [...P.items.filter(it => !ya.has(clave(it))).map(it => ({ ...it, hecho: false })), ...A.items];
@@ -7202,7 +7398,7 @@ function agAplicarPlan(A, P) {
   if (Array.isArray(P.ocultos) && P.ocultos.length) A.ocultos = [...new Set([...(A.ocultos || []), ...P.ocultos])];   // 2.14 (X)
   const I = ini4Semana();
   for (const [k, o] of Object.entries(P.ini || {})) { const x = I.items[iniIdx(k)]; if (x && !x.t && !x.hecho) Object.assign(x, { t: o.t, exito: o.exito || EXITO_DEF[k], hora: o.h || '', por: o.por || '', paso: o.paso || '', min: o.min || AG_MIN.ini, obj: o.obj || '', iden: o.iden || '', est: o.est || '' }); }
-  if (P.rana?.t) { if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] }; if (!ES.prioridades.items.some(x => x.id === P.rana.id)) ES.prioridades.items.unshift({ id: P.rana.id, t: P.rana.t, hecho: false, origen: 'Elegida anoche' }); }
+  prioDelPlan(P);   // 2.16 (P) · agendaPlan.prios (o, de un plan de antes, la rana)
   if (!dayOf().agenda) bump('agenda');
   ES.agendaPlan = null; guardarAlPintar(guardar);   // 2.12 · al abrir, se guarda cuando la nube ya combinó
 }
@@ -7215,10 +7411,12 @@ const agFuente = it => {
   if (it.tipo === 'prio') return ES.prioridades.items.find(x => x.id === it.ref);
   if (it.tipo === 'estudio') return window.est?.bloque?.(it.ref) || null;   // 2.14 (X) · la fuente es el bloque de la ruta
   if (it.tipo === 'plan') return ES.planes.find(x => x.id === it.ref);
+  if (it.tipo === 'bt') return btFuenteAg(it);   // 2.16 (B) · la fuente es el bloque de tiempo
   return it;
 };
 const agVivo = it => !!agFuente(it) && (it.tipo !== 'ini' || !!agFuente(it).t);
 function agHecho(it, k = today()) {
+  if (it.tipo === 'bt') return btHechoAg(it, k);   // 2.16 (B) · hecho si todo lo de dentro lo está (sin nada dentro, lo marcado a mano)
   if (it.tipo === 'libre' && it.esp) { const v = espHechaEn(it.esp, k); if (v !== null) return v; }   // 2.15 (V) · un ítem de Vida espiritual es lo que diga su norma
   const s = HT();
   if (it.tipo === 'habito') { const h = s.habits.find(x => x.id === it.ref); return h ? ['full', 'min'].includes(s.log[h.id]?.[k]) : !!it.hecho; }
@@ -7265,7 +7463,7 @@ function agendaAhora() {
 // Eventos de Google Calendar de hoy, como ítems de la agenda (se renuevan con cada carga; los que quitaste no vuelven).
 function agSyncEventos(evs) {
   const A = agenda(), prev = A.items.filter(it => it.tipo === 'evento'), antes = JSON.stringify(prev), ocultos = new Set(A.ocultos);
-  const nuevos = (evs || []).filter(ev => !ocultos.has(ev.id || ev.titulo + ev.inicio)).slice(0, 12).map(ev => { const ref = ev.id || ev.titulo + ev.inicio, p = prev.find(x => x.ref === ref); const min = ev.todoElDia ? 0 : Math.round((Date.parse(ev.fin) - Date.parse(ev.inicio)) / 60000);
+  const nuevos = (evs || []).filter(ev => !ocultos.has(ev.id || ev.titulo + ev.inicio)).filter(ev => !btEsEventoDeBloque(ev)).slice(0, 12).map(ev => { const ref = ev.id || ev.titulo + ev.inicio, p = prev.find(x => x.ref === ref); const min = ev.todoElDia ? 0 : Math.round((Date.parse(ev.fin) - Date.parse(ev.inicio)) / 60000);
     return { id: p?.id || crypto.randomUUID(), tipo: 'evento', ref, t: ev.titulo, h: ev.todoElDia ? '' : hhmm(new Date(ev.inicio)), min: min > 0 && min <= 720 ? min : 60, hecho: !!p?.hecho, enlace: ev.enlace || '', alta: +p?.alta || Date.now() }; });
   A.items = [...A.items.filter(it => it.tipo !== 'evento'), ...nuevos];
   return JSON.stringify(nuevos) !== antes;
@@ -7304,13 +7502,14 @@ function prioMarcar(id, hecho) {
   const P = ES.prioridades, x = P.items.find(i => i.id === id); if (!x || !!x.hecho === !!hecho) return;
   const idx = P.items.indexOf(x); x.hecho = hecho; bump('iniciativas', hecho ? 1 : -1);
   if (!hecho) { if (x.obj) objAvance(x.obj, -1, '', 'prio:' + x.id); return; }
-  buzz(30); if (!x.premiada) { x.premiada = true; xpGanar(idx === 0 ? 40 : idx >= 3 ? 30 : 25, idx === 0 ? 'La rana, primero' : idx >= 3 ? 'Prioridad extra' : 'Prioridad hecha'); }
+  buzz(30); if (!x.premiada) { x.premiada = true; xpGanar(...prioXp(P, idx)); }
   const tres = P.items.slice(0, 3);
-  if (!P.bonus && (dayOf().corto ? P.items.length >= 2 && P.items.slice(0, 2).every(i => i.hecho) : tres.length === 3 && tres.every(i => i.hecho))) { P.bonus = true; setTimeout(() => xpGanar(50, dayOf().corto ? 'Tus prioridades del día' : 'Las tres prioridades del día'), 1200); }   // día corto (F7): con dos basta
+  if (!P.bonus && (dayOf().corto ? P.items.length >= 2 && P.items.slice(0, 2).every(i => i.hecho) : tres.length === 3 && tres.every(i => i.hecho))) { P.bonus = true; setTimeout(() => xpGanar(50, dayOf().corto ? 'Tus dos primeras prioridades' : 'Tus tres primeras prioridades'), 1200); }   // día corto (F7): con dos basta
   const pr = ES.proyectos.find(p => p.id === x.pro); if (pr && pr.paso === x.t) pasoHecho(pr);
   if (x.obj) objAvance(x.obj, 1, x.t, 'prio:' + x.id);
 }
 function agMarcar(it, hecho = !agHecho(it), extra = {}) {
+  if (it && it.tipo === 'bt' && btAgMarcar(it, hecho)) return;   // 2.16 (B) · con algo dentro, la casilla abre la ficha del bloque
   const f = agFuente(it);
   if (it.tipo === 'estudio') { exAgMarcar(it, hecho, extra); guardar(); renderE(); renderAg(); agCompleta(); return; }   // 2.14 (X) · 10 XP una vez; nada se resta
   if (it.tipo === 'habito') { if (!f) return; if (hecho) complete(f, 'full'); else setMark(f, ''); }
@@ -7328,12 +7527,13 @@ function agMarcar(it, hecho = !agHecho(it), extra = {}) {
 window.objAvanceTarea = (x, hecho) => { if (x?.obj && ES.objetivos.some(o => o.id === x.obj)) objAvance(x.obj, hecho ? 1 : -1, x.titulo, 'tarea:' + x.id); };
 // Agenda completa: el premio es una vez al día, aunque luego se reorganice.
 function agCompleta() {
-  const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento');
+  const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt');
   const llena = its.length >= 3 && its.every(it => agHecho(it));
   if (llena && !A.completa) { A.completa = true; guardar(); if (!(dayOf().agendas > 0)) { bump('agendas'); buzz([40, 60, 40]); setTimeout(() => xpGanar(25, 'Agenda del día completa'), 800); } }
   else if (!llena && A.completa) { A.completa = false; guardar(); }
 }
 function agQuitar(it) {
+  if (it && it.tipo === 'bt') { btQuitarDeAgenda(it); return; }   // 2.16 (B) · quitarlo de hoy no borra el bloque
   const A = agenda(); A.items = A.items.filter(x => x.id !== it.id);
   if (it.tipo === 'estudio') A.ocultos = [...new Set([...(A.ocultos || []), it.ref])];   // 2.14 (X) · que no vuelva a entrar hoy
   if (it.tipo === 'evento') A.ocultos = [...new Set([...(A.ocultos || []), it.ref])];   // que no vuelva con la próxima sincronización
@@ -7348,7 +7548,7 @@ function agCrearHabito(d) {
   const h = { id: crypto.randomUUID(), creado: today(), clave: false, rutina: false, nombre: d.nombre, icono: 'punto', color: '', padre: '', identidad: '', iden: d.iden || '', minima: d.minima || hbMinimaDe(d.nombre), modo: 'check', meta: 1, lugar: '', despuesDe: '', recompensa: '', celebracion: '',
     beneficios: [d.porque || d.nombre], contras: ['Perder el impulso de hoy'], dias: Array.isArray(d.dias) && d.dias.length ? d.dias : [...ALL_DAYS], horas: d.hora ? [d.hora] : [] };
   if (d.extra) Object.assign(h, d.extra);   // 2.12 · H2: la señal («Después de…») elegida al crear
-  HT().habits.push(h); save(); render(); return h;
+  HT().habits.push(h); save(); render(); if (d.bt) btcTras(d.bt, { tipo: 'habito', ref: h.id }); return h;
 }
 function agCrearTarea(d) {
   const T = HT().tareas, lista = T.listas.find(l => l.id === T.activa) || T.listas[0];
@@ -7381,7 +7581,7 @@ function habFormLeer(body, p) {
   const nombre = q('-n').value.trim(), dd = (q('-dd')?.value || '').trim();
   // La versión de 2 minutos nunca queda vacía: si no la escribes, sale del verbo.
   if (nombre && !q('-min').value.trim()) { q('-min').value = hbMinimaDe(nombre); q('-min').dataset.auto = q('-min').value; if (q('-minnota')) q('-minnota').hidden = false; }
-  const d = { nombre, hora: q('-h').value, minima: q('-min').value.trim(), porque: q('-por').value.trim(), iden: jdLeerChips(body, p + '-jd') };
+  const d = { nombre, hora: q('-h').value, minima: q('-min').value.trim(), porque: q('-por').value.trim(), iden: jdLeerChips(body, p + '-jd') }; d.bt = btcLeer(body, p + '-bt');
   if (dd) { d.despuesDe = dd; d.extra = { despuesDe: dd }; }
   const falta = nPalabras(d.nombre) < 2 ? ['-n', 'S: verbo + qué, por ejemplo «Leer 10 páginas»'] : !(/\d/.test(d.nombre) || d.minima) ? ['-min', 'M: una cantidad en el nombre («10 páginas») o una versión de 2 minutos'] : !d.hora && !dd ? [q('-op-hora')?.hidden && !q('-op-despues')?.hidden ? '-dd' : '-h', 'T: una señal («Después de…») o una hora (toca una franja)'] : !d.porque ? ['-por', 'R: una línea de para qué'] : null;
   if (falta) { if (falta[0] === '-h' && q('-op-hora')?.hidden) hbqOp(p, 'hora', true); q('-err').textContent = `Falta ${falta[1]}.`; q(falta[0]).focus(); return null; }
@@ -7397,7 +7597,7 @@ function tarFormHtml(p, conHora) {
 }
 function tarFormLeer(body, p, conHora) {
   const q = s => body.querySelector('#' + p + s);
-  const d = { titulo: q('-n').value.trim(), hora: q('-h').value, min: +q('-m').value || 25, exito: q('-ex').value.trim(), iden: jdLeerChips(body, p + '-jd') };
+  const d = { titulo: q('-n').value.trim(), hora: q('-h').value, min: +q('-m').value || 25, exito: q('-ex').value.trim(), iden: jdLeerChips(body, p + '-jd') }; d.bt = btcLeer(body, p + '-bt');
   const falta = nPalabras(d.titulo) < 2 ? ['-n', 'S: verbo + qué, por ejemplo «Enviar la propuesta a Luis»'] : conHora && !d.hora ? ['-h', 'T: la hora (toca una franja)'] : !(d.exito || /\d/.test(d.titulo) || VERBO_CIERRE.test(d.titulo)) ? ['-ex', 'M: cuándo estará hecha'] : null;
   if (falta) { q('-err').textContent = `Falta ${falta[1]}.`; q(falta[0]).focus(); return null; }
   return d;
@@ -7413,7 +7613,7 @@ function iniCrearSmart(k, cb, base = {}) {
     <div class="field"><label>A · Minutos</label><div class="chips" id="is-min">${MINUTOS_AG.map(m => `<button type="button" class="chip${(base.min || 25) === m ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
     <div class="field"><label>A · Primer paso (menos de 2 minutos) <span class="meta">(opcional)</span></label><input id="is-paso" maxlength="100" value="${esc(base.paso || '')}" placeholder="Abrir el documento · marcar el número · sacar el libro"></div>
     ${objs.length ? `<div class="field"><label>R · Objetivo al que suma <span class="meta">(opcional)</span></label><select id="is-obj"><option value="">Ninguno</option>${objs.map(o => `<option value="${esc(o.id)}" ${base.obj === o.id ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>` : ''}
-    ${jdChipsHtml('is', base.iden || jdPre() || jdSugerir('', k))}
+    ${jdChipsHtml('is', base.iden || jdPre() || jdSugerir('', k))}${org ? '' : btcChips('is-bt')}
     <div class="field"><label>T · Hora</label>${horaInput('is-hora', base.h || base.hora || '')}${franjaChips('is-hora', base.h || base.hora || '')}</div>
     <p class="meta" id="is-prev"></p><p class="meta red" id="is-err"></p>
     <div class="actions"><button class="link" id="is-cancel">Volver</button><button class="primary" id="is-ok">Guardar y usar</button></div>`);
@@ -7434,7 +7634,9 @@ function iniCrearSmart(k, cb, base = {}) {
     const ini = { id: crypto.randomUUID(), t: D.titulo(o), exito: D.exito(o), por: o.porque || '', paso: $('#is-paso').value.trim(), hora: h, min, obj: $('#is-obj')?.value || '', donde: '', obst: '', plan: '', campos: o, origen: 'Mía', veces: 1, smart: true, iden: jdLeerChips(body, 'is') };
     if (!ES.catalogoIni[k].some(x => x.t === ini.t)) ES.catalogoIni[k].push(ini);
     guardar(); toast('Guardada en «Mis iniciativas».');
+    const btcSel = btcLeer(body, 'is-bt');
     cb({ t: ini.t, exito: ini.exito, min, h, por: ini.por, paso: ini.paso, obj: ini.obj, iden: ini.iden, src: 'mia:' + ini.id });
+    if (btcSel && ini4Semana().items[iniIdx(k)]?.t === ini.t) btcTras(btcSel, { tipo: 'ini', ref: k, sub: ini.t });   // 2.16 (C) · si quedó como la de hoy, con su texto
   };
   prev();
 }
@@ -7496,7 +7698,7 @@ function orgInit(dest = today()) {
   for (const it of base.filter(i => i.tipo === 'tarea' && !org.tar.has(i.ref))) if (s.tareas.items.some(x => x.id === it.ref)) org.tar.set(it.ref, { on: true, h: it.h || '' });
   if (M) {
     for (const [k, o] of Object.entries(P?.ini || {})) org.ini[k] = { ...o, on: true, src: 'plan' };
-    if (P?.rana?.t) org.rana = { ...P.rana, h: (P.items.find(i => i.tipo === 'prio' && i.ref === P.rana.id) || {}).h || '' };
+    prioOrgInit(P);   // 2.16 (P) · org.prios en orden; org.rana = la primera
   } else {
     for (const x of ini4Semana().items) if (x.t) org.ini[x.k] = { t: x.t, exito: x.exito || '', min: x.min || AG_MIN.ini, h: x.hora || '', por: x.por || '', paso: x.paso || '', obj: x.obj || '', iden: x.iden || '', on: true, src: 'hoy', hecha: !!x.hecho };
     for (const x of ES.prioridades.items) { const it = sel.get('prio:' + x.id); if (it?.h) org.prioH[x.id] = it.h; }
@@ -7598,7 +7800,7 @@ function organizarDia(paso = 1, sigue = false) {
   const L = orgLista(), sinHora = L.filter(e => !e.fijo && !e.h && !e.hecho).length, tarde = !M && nowMin() >= 18 * 60;
   showSheet(`${pieOrg(4, 'Horas')}<h2>${M ? 'Mañana, en orden' : 'Tu día, en orden'}</h2>
     <p class="note">${sinHora ? `${sinHora} sin hora: ${M ? 'ponles hora' : 'no caben antes de las 11 PM. Ponles hora o deja mañana organizado'}.` : `Cada cosa tiene su hora${M ? ', desde las 7:00 AM' : ', desde ahora y en bloques'}. Cambia la que quieras.`}</p>
-    ${M ? `<div class="field"><label>La rana de mañana: lo más importante, primero <span class="meta">(opcional)</span></label><input id="og-rana" maxlength="100" value="${esc(org.rana?.t || '')}" placeholder="Terminar la portada del proyecto"></div>` : ''}
+    ${prioOrgHtml()}
     ${agbPaso4Html(L)}
     ${jdPaso4Html(L)}
     ${L.length ? `<div class="rows">${L.map(e => `<div class="row"><span class="dot" style="--c:${e.hecho ? 'var(--green)' : e.fijo ? 'var(--muted)' : 'var(--accent)'}"></span><span class="t"><div>${esc(e.t)}</div><small>${esc(e.etq)}${e.min ? ` · ${fmtMin(e.min)}` : ''}${e.hecho ? ' · hecha' : ''}</small></span>
@@ -7609,10 +7811,11 @@ function organizarDia(paso = 1, sigue = false) {
   $('#og-rana')?.addEventListener('change', () => { const t = $('#og-rana').value.trim(); org.rana = t ? { id: org.rana?.id || crypto.randomUUID(), t, h: org.rana?.h || '' } : null; if (org.rana && !org.rana.h) org.auto.add('rana:' + org.rana.id); orgAutoHoras(false); organizarDia(4, true); });
   $('#og-auto').onclick = () => { orgAutoHoras(true); organizarDia(4, true); };
   agbPaso4Wire();
+  prioOrgWire();   // 2.16 (P)
   jdPaso4Wire();
   $('#og-man')?.addEventListener('click', organizarManana);
   $('#og-back').onclick = () => organizarDia(3, true);
-  $('#og-ok').onclick = () => { if ($('#og-rana')) { const t = $('#og-rana').value.trim(); if (t && t !== org.rana?.t) { org.rana = { id: org.rana?.id || crypto.randomUUID(), t, h: org.rana?.h || '' }; if (!org.rana.h) org.auto.add('rana:' + org.rana.id); orgAutoHoras(false); } } orgGuardar(); };
+  $('#og-ok').onclick = () => { if (!prioOrgPendiente()) return; if ($('#og-rana')) { const t = $('#og-rana').value.trim(); if (t && t !== org.rana?.t) { org.rana = { id: org.rana?.id || crypto.randomUUID(), t, h: org.rana?.h || '' }; if (!org.rana.h) org.auto.add('rana:' + org.rana.id); orgAutoHoras(false); } } orgGuardar(); };
 }
 // Lista unificada de lo elegido (para poner horas): clave, texto, hora, minutos, si está hecha y si la hora es fija (planes y eventos).
 function orgLista() {
@@ -7620,7 +7823,7 @@ function orgLista() {
   const F = agbFocoRef();
   if (!M) for (const x of ES.prioridades.items) if (!x.hecho || org.prioH[x.id] || x.id === F) L.push({ key: 'prio:' + x.id, tipo: 'prio', t: x.t, etq: x.id === F ? 'Bloque protegido' : 'Prioridad', h: org.prioH[x.id] || '', min: x.id === F ? org.foco.min : AG_MIN.prio, hecho: !!x.hecho, ...(x.id === F ? { foco: true } : {}) });
   if (!M && F && F === org.foco.nuevaId) L.push({ key: 'prio:' + F, tipo: 'prio', t: org.foco.nueva, etq: 'Bloque protegido', h: org.prioH[F] || '', min: org.foco.min, foco: true });
-  if (M && org.rana?.t) L.push({ key: 'rana:' + org.rana.id, tipo: 'prio', t: org.rana.t, etq: org.rana.id === F ? 'Bloque protegido' : 'La rana', h: org.rana.h || '', min: org.rana.id === F ? org.foco.min : 45, ...(org.rana.id === F ? { foco: true } : {}) });
+  if (M && org.rana?.t) L.push({ key: 'rana:' + org.rana.id, tipo: 'prio', t: org.rana.t, etq: org.rana.id === F ? 'Bloque protegido' : 'La más importante', h: org.rana.h || '', min: org.rana.id === F ? org.foco.min : 45, ...(org.rana.id === F ? { foco: true } : {}) }); if (M) prioOrgResto(L);
   const I = M ? [] : ini4Semana().items;
   for (const [k, o] of Object.entries(org.ini)) if (o?.on || (!M && I[iniIdx(k)]?.hecho)) { const hecha = !M && !!I[iniIdx(k)]?.hecho; L.push({ key: 'ini:' + k, tipo: 'ini', t: hecha ? I[iniIdx(k)].t : o.t, etq: `Iniciativa de ${iniNombre(k).toLowerCase()}`, h: o.h || '', min: hecha ? o.min || AG_MIN.ini : agbMin('ini:' + k, 'ini', o.min || AG_MIN.ini), hecho: hecha }); }
   for (const [id, o] of org.tar) if (o.on) { const x = s.tareas.items.find(y => y.id === id); if (x) L.push({ key: 'tar:' + id, tipo: 'tarea', t: x.titulo, etq: 'Tarea', h: o.h || '', min: x.hecha ? x.min || AG_MIN.tarea : agbMin('tar:' + id, 'tarea', x.min || AG_MIN.tarea), hecho: !!x.hecha }); }
@@ -7629,11 +7832,12 @@ function orgLista() {
   for (const it of org.libres) L.push({ key: 'lib:' + it.id, tipo: 'libre', t: it.t, etq: it.esp ? 'Vida espiritual' : it.cat ? `Extra de ${iniNombre(it.cat).toLowerCase()}` : 'Agenda', h: it.h || '', min: it.hecho ? it.min || AG_MIN.libre : agbMin('lib:' + it.id, 'libre', it.min || AG_MIN.libre), hecho: !!it.hecho });
   for (const pl of ES.planes.filter(p => p.fecha === D && !p.hecho)) L.push({ key: 'plan:' + pl.id, tipo: 'plan', t: `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, etq: 'Plan', h: pl.hora, min: 60, fijo: true });
   if (!M) for (const it of agenda().items.filter(i => i.tipo === 'evento')) L.push({ key: 'ev:' + it.id, tipo: 'evento', t: it.t, etq: 'Calendario', h: it.h, min: it.min, fijo: true });
+  btOrgLista(L);   // 2.16 (B) · cada bloque de tiempo del día, fijo; lo de dentro sin hora toma la de su inicio
   return L.sort(agOrden);
 }
 function orgSetHora(key, h) {
   const i = key.indexOf(':'), tipo = key.slice(0, i), id = key.slice(i + 1);
-  if (tipo === 'prio') org.prioH[id] = h; else if (tipo === 'rana') { if (org.rana) org.rana.h = h; } else if (tipo === 'ini') { if (org.ini[id]) org.ini[id].h = h; }
+  if (tipo === 'prio') org.prioH[id] = h; else if (tipo === 'rana') { const x = (org.prios || []).find(p => p.id === id) || (org.rana?.id === id ? org.rana : null); if (x) x.h = h; } else if (tipo === 'ini') { if (org.ini[id]) org.ini[id].h = h; }
   else if (tipo === 'tar') { const o = org.tar.get(id); if (o) o.h = h; } else if (tipo === 'hab') { const o = org.hab.get(id); if (o) o.h = h; }
   else if (tipo === 'lib') { const it = org.libres.find(x => x.id === id); if (it) it.h = h; }
   else if (tipo === 'est') exOrgSetHora(id, h);   // 2.14 (X) · el bloque y, si es su espejo, la iniciativa de estudio
@@ -7666,7 +7870,7 @@ function orgAutoHoras(todas, sinReintento) {
   // También cuando la hora del bloque la eligió la persona, mientras no haya empezado.
   if (!finB) { const e = L.find(e => e.foco && !e.hecho && e.h && !empezado(e)), hF = e && (orgLista().find(x => x.key === e.key) || e).h; if (hF && toMin(hF) < 12 * 60) finB = toMin(hF) + (e.min || 30); }
   let cursor = Math.max(Math.ceil((org.manana ? 7 * 60 : Math.max(now + 5, 7 * 60)) / 5) * 5, finB ? finB + 10 : 0);
-  for (const e of L.filter(e => movible(e) && !e.foco).sort((a, b) => (orden[a.tipo] ?? 9) - (orden[b.tipo] ?? 9))) {
+  for (const e of L.filter(e => movible(e) && !e.foco).sort((a, b) => (orden[a.tipo] ?? 9) - (orden[b.tipo] ?? 9) || prioOrgN(a) - prioOrgN(b))) {
     const ini = libreDesde(cursor, e.min || 30);
     if (poner(e, ini)) { org.auto.add(e.key); cursor = ini + (e.min || 30) + 10; } else org.auto.delete(e.key);
   }
@@ -7682,7 +7886,7 @@ function orgGuardar() {
   const F = agbFocoRef();
   if (!M && F && F === org.foco.nuevaId && org.foco.nueva) { if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] }; if (!ES.prioridades.items.some(x => x.id === F)) ES.prioridades.items.unshift({ id: F, t: org.foco.nueva, hecho: false, origen: 'Bloque protegido' }); }
   if (!M) for (const x of ES.prioridades.items) if (!x.hecho || prev.has('prio:' + x.id) || x.id === F) mk('prio', x.id, x.t, org.prioH[x.id] || prev.get('prio:' + x.id)?.h || '', x.id === F ? org.foco.min : AG_MIN.prio, { ...(x.id === F ? { foco: true } : {}), iden: x.iden || '' });
-  if (M && org.rana?.t) mk('prio', org.rana.id, org.rana.t, org.rana.h, org.rana.id === F ? org.foco.min : 45, org.rana.id === F ? { foco: true } : {});
+  if (M && org.rana?.t) mk('prio', org.rana.id, org.rana.t, org.rana.h, org.rana.id === F ? org.foco.min : 45, org.rana.id === F ? { foco: true } : {}); if (M) prioOrgGuardarResto(mk);
   if (!M) {
     const I = ini4Semana();
     for (const [k, o] of Object.entries(org.ini)) { const x = I.items[iniIdx(k)]; if (!x || !o) continue;
@@ -7699,7 +7903,7 @@ function orgGuardar() {
   for (const it of items) if (it.foco && !(it.tipo === 'prio' && it.ref === F)) delete it.foco;   // un solo bloque: el de ahora
   if (ES.idenManana?.d === D) ES.idenManana = null;   // 2.13 (J) · ya entró como ítem libre
   if (M) {
-    ES.agendaPlan = { fecha: D, items, ini: planIni, rana: org.rana?.t ? { id: org.rana.id, t: org.rana.t } : null, organizado: Date.now() };
+    ES.agendaPlan = { fecha: D, items, ini: planIni, rana: org.rana?.t ? { id: org.rana.id, t: org.rana.t } : null, prios: prioOrgPlan(), organizado: Date.now() };
     if (org.foco?.quitado) ES.agendaPlan.focoNo = true;
     exOrgOcultos(ES.agendaPlan);   // 2.14 (X) · los apagados no entran mañana
     // Si ya es ese día (pasó la medianoche), el plan es la agenda de hoy: agenda() lo aplica al pintar y cuenta como día organizado.
@@ -7711,6 +7915,7 @@ function orgGuardar() {
     return;
   }
   for (const it of A.items.filter(i => i.tipo === 'evento')) items.push(it);
+  for (const it of A.items.filter(i => i.tipo === 'bt')) items.push(it);   // 2.16 (B) · los bloques de tiempo de hoy se quedan
   for (const it of A.items) if (!items.some(x => x.id === it.id)) forget(it.id);
   A.items = items; A.organizado = Date.now();
   exOrgOcultos(A);   // 2.14 (X) · los apagados no vuelven a entrar hoy; los encendidos salen de ocultos
@@ -7727,9 +7932,9 @@ function agAddSheet(tipo = '') {
   const chips = `<div class="chips" id="aa-tipos">${[['habito', 'Hábito'], ['tarea', 'Tarea'], ['ini', 'Iniciativa'], ['libre', 'Otra cosa']].map(([k, n]) => `<button class="chip${tipo === k ? ' on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>`;
   let cuerpo = '<p class="empty">Elige qué quieres añadir.</p>';
   if (tipo === 'habito') { const habs = s.habits.filter(h => !h.rutina && !en.has('habito:' + h.id)); cuerpo = `${habs.length ? `<div class="rows">${habs.map(h => `<button class="row" data-ha="${esc(h.id)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc(h.nombre)}</div><small>${isSched(h, today()) ? 'Toca hoy' : 'Otro día, pero puede entrar hoy'}${(h.horas || [])[0] ? ' · ' + fmtHora(h.horas[0]) : ''}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}
-    <details ${habs.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear un hábito nuevo</summary>${habFormHtml('ah')}<div class="actions" style="margin-top:0"><button class="primary" id="aa-crear">Crear y poner hoy</button></div></details>`; }
+    <details ${habs.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear un hábito nuevo</summary>${habFormHtml('ah')}${btcChips('ah-bt')}<div class="actions" style="margin-top:0"><button class="primary" id="aa-crear">Crear y poner hoy</button></div></details>`; }
   if (tipo === 'tarea') { const p = pendientes(), ts = [...p.due, ...p.sinFecha].filter(x => !en.has('tarea:' + x.id)); cuerpo = `${ts.length ? `<div class="rows">${ts.slice(0, 20).map(x => `<button class="row" data-x="${esc(x.id)}"><span class="box"></span><span class="t"><div>${esc(x.titulo)}</div><small>${x.fecha ? fmtFecha(x.fecha) : 'Sin fecha'}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}
-    <details ${ts.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear una tarea</summary>${tarFormHtml('at', true)}<div class="actions" style="margin-top:0"><button class="primary" id="aa-crear">Crear y poner hoy</button></div></details>`; }
+    <details ${ts.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear una tarea</summary>${tarFormHtml('at', true)}${btcChips('at-bt')}<div class="actions" style="margin-top:0"><button class="primary" id="aa-crear">Crear y poner hoy</button></div></details>`; }
   if (tipo === 'ini') cuerpo = `<div class="rows">${INI4.map(([k, n, d]) => { const x = ini4Semana().items[iniIdx(k)]; return `<button class="row" data-k="${k}"><span class="dot" style="--c:${x.hecho ? 'var(--green)' : x.t ? 'var(--accent)' : 'var(--empty)'}"></span><span class="t"><div>${n}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</div><small>${x.hecho ? 'Hecha hoy: otra de esta categoría entra como extra' : esc(x.t || d)}</small></span><span class="tag">›</span></button>`; }).join('')}</div>`;
   if (tipo === 'libre') cuerpo = `${tarFormHtml('al', true)}<div class="actions" style="margin-top:0"><button class="primary" id="aa-ok">Añadir</button></div>`;
   showSheet(`<h2>Añadir a la agenda</h2>${chips}${cuerpo}<div class="actions"><button class="link" id="aa-close">Cerrar</button></div>`);
@@ -7748,13 +7953,14 @@ function agAddSheet(tipo = '') {
     A.items = A.items.filter(i => !(i.tipo === 'ini' && i.ref === k)); poner('ini', k, r.t, r.h, r.min, { obj: r.obj || '', iden: r.iden || '' }); }); });
   $('#aa-crear')?.addEventListener('click', () => {
     if (tipo === 'habito') { const d = habFormLeer(b, 'ah'); if (!d) return; const crear = () => { const h = agCrearHabito(d); poner('habito', h.id, h.nombre, d.hora, AG_MIN.habito); }; if (window.enfNoEstrenar?.(crear, d.nombre)) return; crear(); }
-    else { const d = tarFormLeer(b, 'at', true); if (!d) return; const x = agCrearTarea({ titulo: d.titulo, hora: d.hora, min: d.min, exito: d.exito, iden: d.iden || '' }); poner('tarea', x.id, x.titulo, d.hora, d.min, { exito: d.exito, iden: d.iden || '' }); }
+    else { const d = tarFormLeer(b, 'at', true); if (!d) return; const x = agCrearTarea({ titulo: d.titulo, hora: d.hora, min: d.min, exito: d.exito, iden: d.iden || '' }); btcTras(d.bt, { tipo: 'tarea', ref: x.id }); poner('tarea', x.id, x.titulo, d.hora, d.min, { exito: d.exito, iden: d.iden || '' }); }
   });
   $('#aa-ok')?.addEventListener('click', () => { const d = tarFormLeer(b, 'al', true); if (!d) return; poner('libre', '', d.titulo, d.hora, d.min, { exito: d.exito, iden: d.iden || '' }); });
 }
 // Ficha de un ítem: qué, SMART (con los campos para completar lo que falta), empezar, hecha, hora, objetivo, quitar.
 function agItemSheet(it0) {
   if (!it0) return;
+  if (it0.tipo === 'bt' && btDesdeAgenda(it0)) return;   // 2.16 (B) · tocarlo abre la ficha del bloque de tiempo
   const it = agPorId(it0.id) || it0, ok = agHecho(it), f = agFuente(it) || {}, fijo = it.tipo === 'evento' || it.tipo === 'plan';
   const src = () => agSmartSrc(agPorId(it.id) || it), s0 = smartDe(src());
   const conObj = ['tarea', 'libre', 'ini', 'prio', 'estudio'].includes(it.tipo), objs = objetivosActivos();
@@ -7775,7 +7981,7 @@ function agItemSheet(it0) {
       <button class="outline" id="ai-ok">${ok ? 'Deshacer «hecha»' : 'Marcar hecha'}</button>
       ${it.tipo === 'estudio' ? '<button class="link" id="ai-est">Ver la ruta</button>' : ''}
       ${it.tipo === 'ini' ? '<button class="link" id="ai-ini">Ver la iniciativa</button>' : it.tipo === 'habito' ? '<button class="link" data-goview="hoy">Ir a Hábitos</button>' : it.tipo === 'tarea' ? '<button class="link" data-goview="tareas">Ir a Tareas</button>' : ''}
-      <button class="link red" id="ai-del">${it.tipo === 'evento' ? 'Ocultar de la agenda de hoy' : 'Quitar de la agenda'}</button><button class="link" id="ai-close">Cerrar</button></div>`);
+      ${btcAgItem(it)}<button class="link red" id="ai-del">${it.tipo === 'evento' ? 'Ocultar de la agenda de hoy' : 'Quitar de la agenda'}</button><button class="link" id="ai-close">Cerrar</button></div>`);
   const b = $('#sheet-body'); activarFranjas(b);
   const cur = () => agPorId(it.id) || it;
   const refrescarSmart = () => { const el = $('#ai-smart'); if (el) el.innerHTML = smartLinea(smartDe(src())); };
@@ -7846,7 +8052,7 @@ function objetivoSheet(o) {
     ${ligadas.length ? `<p class="meta">Iniciativas que suman: ${ligadas.map(x => esc(x.t)).join(' · ')}</p>` : ''}
     ${o.avances.length ? `<p class="meta">Últimos avances: ${o.avances.slice(-5).reverse().map(a => `${fmtFecha(a.d)} ${+a.n > 0 ? '+' : ''}${esc(+a.n || 0)}${a.nota ? ' ' + esc(a.nota) : ''}`).join(' · ')}</p>` : ''}
     ${o.hecho ? '' : `<div class="field" style="margin-top:14px"><label>Registrar avance</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="chip" id="ob-1">+1 ${esc(o.unidad)}</button><input id="ob-n" type="number" inputmode="decimal" step="any" placeholder="Cantidad" style="max-width:110px"><input id="ob-nota" maxlength="80" placeholder="Nota (opcional)" style="flex:1;min-width:120px"><button class="link" id="ob-add">Sumar</button></div></div>`}
-    <div class="actions">${o.hecho ? '' : '<button class="link" id="ob-done">Darlo por cumplido</button>'}<button class="link" id="ob-edit">Editar</button><button class="link" id="ob-close">Cerrar</button></div>`);
+    <div class="actions">${o.hecho ? '' : '<button class="link" id="ob-done">Darlo por cumplido</button>'}${o.hecho ? '' : btcAccion('objetivo', o.id)}<button class="link" id="ob-edit">Editar</button><button class="link" id="ob-close">Cerrar</button></div>`);
   $('#ob-1')?.addEventListener('click', () => { objAvance(o.id, 1); objetivoSheet(o); renderAg(); });
   $('#ob-add')?.addEventListener('click', () => { const n = +$('#ob-n').value; if (!n) { $('#ob-n').focus(); return; } objAvance(o.id, n, $('#ob-nota').value.trim()); objetivoSheet(o); renderAg(); });
   $('#ob-done')?.addEventListener('click', () => { objAvance(o.id, Math.max(0, +(o.meta - o.actual).toFixed(2)), 'Cumplido'); objetivoSheet(o); renderAg(); });
@@ -7855,7 +8061,7 @@ function objetivoSheet(o) {
 }
 
 // ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (un número, hoy, antes de dormir).
-const xpTabla = () => [['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la rana, las tres prioridades y el enfoque sin interrupciones.'], ['Prioridad hecha', 25], ['La rana (prioridad 1)', 40], ['Las tres prioridades (en un día corto, con dos)', 50], ['Prioridad extra', 30],
+const xpTabla = () => [['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
   ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Mínimo de ${ES.minIni} iniciativas en el día`, 40], ['Las 5 iniciativas', 50], [`Social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho desde la Agenda (una vez por bloque)', 10],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
@@ -7888,7 +8094,7 @@ function sosSheet() {
 }
 
 // ---------- Para el asistente: poner cosas en la agenda de hoy o de mañana (crea hábitos y tareas que falten).
-const agendaPlanResumen = () => { const P = planManana(); return P ? { fecha: P.fecha, organizado: true, items: [...P.items].sort(agOrden).map(it => ({ tipo: it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda', texto: it.t, hora: it.h || '', minutos: it.min || 0 })) } : null; };
+const agendaPlanResumen = () => { const P = planManana(); return P ? { fecha: P.fecha, organizado: true, prioridades: prioPlanLista(P).map((x, i) => ({ numero: i + 1, texto: x.t })), items: [...P.items].sort(agOrden).map(it => ({ tipo: it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda', texto: it.t, hora: it.h || '', minutos: it.min || 0 })) } : null; };
 // F7 · Día corto: el hábito nuevo que el asistente pone hoy se guarda como idea para mañana (la tarjeta «Tu idea» lo propone).
 function agbIdeaCorto(texto) {
   const t = String(texto || '').trim().slice(0, 60), I = ES.ideaHabito;
@@ -7926,7 +8132,7 @@ function agendaAsistente(a) {
     else poner('libre', '', texto, h, min || AG_MIN.libre, { exito: it.hecho_cuando || '', por: it.para_que || '' });
   }
   if (a.reemplazar) {
-    const fijos = ['prio', 'plan', 'evento'], quedan = it => puestos.includes(it) || fijos.includes(it.tipo) || (!M && agHecho(it));
+    const fijos = ['prio', 'plan', 'evento', 'bt'], quedan = it => puestos.includes(it) || fijos.includes(it.tipo) || (!M && agHecho(it));
     if (!M) for (const it of base.items) if (!quedan(it)) forget(it.id);
     base.items = base.items.filter(quedan);
     if (M) for (const k of Object.keys(base.ini)) if (!base.items.some(i => i.tipo === 'ini' && i.ref === k)) delete base.ini[k];
@@ -7951,7 +8157,7 @@ const agW = document.createElement('div'); agW.className = 'enf'; agR.append(agS
 function renderAg() {
   if (!agW) return;
   cargarAgenda();
-  const A = agenda(), its = agItems(), sinEv = its.filter(it => it.tipo !== 'evento'), hechas = sinEv.filter(it => agHecho(it)).length, org0 = !!A.organizado, now = nowMin();
+  const A = agenda(), its = agItems(), sinEv = its.filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt'), hechas = sinEv.filter(it => agHecho(it)).length, org0 = !!A.organizado, now = nowMin();
   const conH = its.filter(i => i.h).sort(agOrden), sinH = its.filter(i => !i.h);
   const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length, P = planManana(), tarde = now >= 18 * 60;
   const fila = it => { const ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, s = smartDe(agSmartSrc(it)), fo = !!it.foco;
@@ -7962,7 +8168,7 @@ function renderAg() {
   for (const it of conH) { if (!marcado && toMin(it.h) > now) { filas.push(`<div class="ag-now"><span>Ahora · ${fmtHora(hhmm(new Date()))}</span></div>`); marcado = true; } filas.push(fila(it)); }
   if (!marcado && conH.length) filas.push(`<div class="ag-now"><span>Ahora · ${fmtHora(hhmm(new Date()))}</span></div>`);
   const objs = objetivosActivos();
-  const mananaCard = P ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Mañana ya está organizado</div><small>${P.items.length} ${P.items.length === 1 ? 'cosa' : 'cosas'}${P.rana?.t ? ` · la rana: ${esc(P.rana.t)}` : ''}${(P.items || []).some(i => i.foco) ? ' · con bloque protegido' : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`
+  const mananaCard = P ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Mañana ya está organizado</div><small>${P.items.length} ${P.items.length === 1 ? 'cosa' : 'cosas'}${P.rana?.t ? ` · tu prioridad 1: ${esc(P.rana.t)}` : ''}${(P.items || []).some(i => i.foco) ? ' · con bloque protegido' : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`
     : tarde ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Deja mañana organizado · 2 min</div><small>Al despertar ya sabrás qué hacer y a qué hora: decidirlo la víspera, en frío, ayuda a cumplirlo.</small></span><span class="tag">›</span></button>` : '';
   agW.innerHTML = `<div class="ag-top"><p class="paso">${esc(cap(fechaLarga(today())))}${A.anoche ? ' · organizada anoche' : ''}</p>
     ${its.length ? `<div class="meter"><span>${org0 ? 'Día organizado' : 'Agenda de hoy'}</span><b class="${sinEv.length && hechas === sinEv.length ? 'green' : ''}">${hechas} de ${sinEv.length} hechas · ${xpHoy()} XP hoy</b></div><div class="meter-bar"><i style="width:${sinEv.length ? hechas / sinEv.length * 100 : 0}%"></i></div>
@@ -9632,10 +9838,10 @@ function agbPaso4Html(L) {
     : '<p class="meta" id="og-c25p">Plan corto: bloques de 25 min para lo nuevo y primero la versión de 2 minutos. <button class="link" id="og-c25">Minutos de siempre</button></p>';
   const F = org.foco; if (!F) return out;
   if (!F.on) return out + (F.noCabe ? `<p class="meta" id="og-foco">${org.manana ? 'Mañana' : 'Hoy'} ya no queda un hueco para el bloque protegido antes de las 12:00 PM. «Reordenar horas» lo intenta de nuevo.</p>`
-    : `<p class="meta" id="og-foco"><button class="link" id="og-fsi">+ Bloque protegido para ${org.manana ? 'la rana' : 'tu prioridad 1'}</button></p>`);
+    : `<p class="meta" id="og-foco"><button class="link" id="og-fsi">+ Bloque protegido para tu prioridad 1</button></p>`);
   const e = L.find(x => x.foco);
   if (!e) return out + (org.manana
-    ? `<div class="interv" id="og-foco" style="margin:0 0 18px"><b>Bloque protegido</b><p>Mañana es una de tus mañanas protegidas: escribe arriba la rana y le reservo ${F.min} min antes de las 12:00 PM.</p><div class="row-b"><button class="link" id="og-fno">Sin bloque</button></div></div>`
+    ? `<div class="interv" id="og-foco" style="margin:0 0 18px"><b>Bloque protegido</b><p>Mañana es una de tus mañanas protegidas: escribe arriba tu prioridad 1 y le reservo ${F.min} min antes de las 12:00 PM.</p><div class="row-b"><button class="link" id="og-fno">Sin bloque</button></div></div>`
     : `<div class="interv" id="og-foco" style="margin:0 0 18px"><b>Bloque protegido</b><p>Hoy es una de tus mañanas protegidas. ¿Qué es lo más importante de hoy? Entra como prioridad 1, con ${F.min} min antes de las 12:00 PM.</p>
       <div class="field" style="margin:0 0 6px"><input id="og-fnueva" maxlength="100" placeholder="Terminar la portada del proyecto" value="${esc(F.nueva || '')}"></div><p class="meta red" id="og-ferr" style="margin:0 0 8px"></p>
       <div class="row-b"><button class="link" id="og-fno">Sin bloque</button></div></div>`);
@@ -11689,11 +11895,12 @@ function euPaso1() {
     <div class="field"><label>Lugar <span class="meta">(opcional)</span></label><input id="eu-lugar" maxlength="60" value="${esc(N.lugar)}" placeholder="Aula 4 · En línea"></div>
     ${euIdnChips(N.iden)}
     ${euHabSelect('eu-hab', N.habito)}
+    ${btcChips('eu-bt', N.bt || '')}
     <div class="actions"><button class="link" id="eu-cancel">Cancelar</button><button class="primary" id="eu-next">Siguiente</button></div>`);
   const body = euBody();
   body.querySelector('#eu-mats').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b) return; N.materia = b.dataset.m; N.nueva = !b.dataset.m; body.querySelectorAll('#eu-mats .chip').forEach(x => x.classList.toggle('on', x === b)); body.querySelector('#eu-mat-nueva').hidden = !N.nueva; if (N.nueva) body.querySelector('#eu-mat-n').focus(); });
   body.querySelector('#eu-mat-c').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; N.materiaColor = b.dataset.c; body.querySelectorAll('.eu-sw').forEach(x => x.classList.toggle('on', x === b)); });
-  const leer = () => { N.materiaNombre = euS(body.querySelector('#eu-mat-n').value, 40); N.nombre = euS(body.querySelector('#eu-nombre').value, 80); N.fecha = euF(body.querySelector('#eu-fecha').value); N.hora = euH(body.querySelector('#eu-hora').value); N.lugar = euS(body.querySelector('#eu-lugar').value, 60); N.iden = euIdnLeer(body); N.habito = body.querySelector('#eu-hab').value; };
+  const leer = () => { N.materiaNombre = euS(body.querySelector('#eu-mat-n').value, 40); N.nombre = euS(body.querySelector('#eu-nombre').value, 80); N.fecha = euF(body.querySelector('#eu-fecha').value); N.hora = euH(body.querySelector('#eu-hora').value); N.lugar = euS(body.querySelector('#eu-lugar').value, 60); N.iden = euIdnLeer(body); N.habito = body.querySelector('#eu-hab').value; N.bt = btcLeer(body, 'eu-bt'); };
   body.querySelector('#eu-cancel').onclick = () => { euN = null; closeSheet(); };
   body.querySelector('#eu-next').onclick = () => { leer(); if (N.nueva ? !N.materiaNombre : !N.materia) { toast('Elige o escribe una materia.'); return; } if (!N.fecha || N.fecha < hoy) { toast('La fecha del examen va de hoy en adelante.'); return; } euPaso(2); };
 }
@@ -11770,7 +11977,7 @@ function euPaso4() {
     try {
       const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, iden: N.iden, habito: N.habito, obj: N.obj });
       if (ruta.aviso && body.querySelector('#eu-av')?.hidden) euAvCallar(ruta);   // «Empezar igual»: la tarjeta nueva no vuelve a preguntar
-      const n = ruta.plan.filter(b => b.d === hoy).length; euN = null; closeSheet(); toast(`Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio();
+      const n = ruta.plan.filter(b => b.d === hoy).length; euN = null; closeSheet(); toast(`Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio(); btcTras(N.bt, { tipo: 'ruta', ref: ruta.id });
     } catch (e) { toast(e?.message || 'No se pudo crear la ruta.'); }
   };
 }
@@ -11815,7 +12022,7 @@ function euRutaSheet(id, sec = '') {
       ${euTiempoHtml('eu-a', c, pasado || !euF(r.fecha) ? 0 : Math.max(1, euDiff(hoy, r.fecha)))}
       <div class="actions" style="margin-top:4px"><button class="primary" id="eu-a-ok">Guardar ajustes</button></div></details>
     <h3>Conectar</h3>${extrasHtml || '<p class="empty">Por ahora no hay nada que conectar.</p>'}
-    <div class="actions" id="eu-acciones"><button class="link" id="eu-arch">${r.archivada ? 'Reactivar' : 'Archivar'}</button><button class="link" id="eu-del">Borrar</button><button class="primary" id="eu-cerrar">Cerrar</button></div>
+    <div class="actions" id="eu-acciones">${btcRuta(r)}<button class="link" id="eu-arch">${r.archivada ? 'Reactivar' : 'Archivar'}</button><button class="link" id="eu-del">Borrar</button><button class="primary" id="eu-cerrar">Cerrar</button></div>
     <div class="actions" id="eu-del-conf" hidden><span class="meta" style="margin:0">¿Borrar la ruta con su plan y su registro?</span><button class="link" id="eu-del-no">Cancelar</button><button class="primary" id="eu-del-si">Sí, borrar</button></div>`);
   const body = euBody(); euWire(body); activarFranjas(body); euTiempoWire(body, 'eu-a');
   const pintar = () => { if (!E.ruta(id)) { closeSheet(); renderEstudio(); return; } euRutaSheet(id, sec); renderEstudio(); };
@@ -11879,7 +12086,7 @@ function euBloqueSheet(id) {
       : `<p class="meta">${b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}${b.hechoInfo.nota ? ` · ${esc(b.hechoInfo.nota)}` : ''}` : ''}</p><div class="actions" style="margin-top:0"><button class="link" id="eu-b-undo">Desmarcar</button></div>`}
     ${viva && !b.hecho ? `<details class="eu-sec" id="eu-b-mover"><summary>Mover a otro día</summary><div class="field" style="margin-top:8px"><label>Día</label><input type="date" id="eu-b-f" min="${hoy}" max="${esc(euDia(r.fecha, -1))}" value="${esc(b.d >= hoy ? b.d : hoy)}"></div><div class="field"><label>Hora <span class="meta">(vacía = la reparte la Agenda)</span></label><input type="time" id="eu-b-fh" value="${esc(b.h)}"></div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-mv">Mover</button></div></details>
       <details class="eu-sec" id="eu-b-hora"><summary>Cambiar hora</summary><div class="field" style="margin-top:8px"><label>Hora</label>${franjaChips('eu-b-h', b.h)}${horaInput('eu-b-h', b.h)}</div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-ch">Cambiar hora</button></div></details>` : ''}
-    <div class="actions" id="eu-b-acc"><button class="link" id="eu-b-ruta">Ver la ruta</button>${viva && !b.hecho ? '<button class="link" id="eu-b-quitar">Quitar del plan</button>' : ''}<button class="primary" id="eu-b-cerrar">Cerrar</button></div>
+    <div class="actions" id="eu-b-acc"><button class="link" id="eu-b-ruta">Ver la ruta</button>${b.hecho ? '' : btcAccion('est', id)}${viva && !b.hecho ? '<button class="link" id="eu-b-quitar">Quitar del plan</button>' : ''}<button class="primary" id="eu-b-cerrar">Cerrar</button></div>
     <div class="actions" id="eu-b-qconf" hidden><span class="meta" style="margin:0">${ult ? `Es el último bloque de «${esc(ult.t)}»: el tema queda como visto y lo demás se vuelve a repartir. Puedes cambiarlo en Temas.` : 'Sale del plan y lo demás se vuelve a repartir.'}</span><button class="link" id="eu-b-qno">Cancelar</button><button class="primary" id="eu-b-qsi">Quitar</button></div>`);
   const body = euBody(); euWire(body); activarFranjas(body); body.scrollTop = 0;
   const pintar = () => { renderEstudio(); if (euBloqueDe(id)) euBloqueSheet(id); else closeSheet(); };
@@ -12690,7 +12897,7 @@ const INI_CSS = `
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS; iniR.append(iniStyle, iniW); }
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
-const INI_GRUPOS = [['Organizar y hacer', ['enfoque', 'agenda', 'hoy', 'tareas', 'estudio']], ['Desde la base', ['identidad', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
+const INI_GRUPOS = [['Organizar y hacer', ['enfoque', 'agenda', 'bloques', 'hoy', 'tareas', 'estudio']], ['Desde la base', ['identidad', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
 // Líneas de estado: se calculan solo al pintar, una llamada a cada helper, sin guardar nada.
 const INI_ESTADO = {
   identidad: () => {
@@ -13376,7 +13583,7 @@ function espEditorHtml(B) {
     <p class="meta esp-prop-d">${prop ? ESP_PROP_D[prop] : 'A tu medida: marca cada norma, con su hora y sus minutos.'}</p>
     ${grupo('Cada día', cat('diaria'))}${grupo('Cada semana', cat('semanal'))}${grupo('Cada mes', cat('mensual'))}${grupo('Cada año', cat('anual'))}
     <h3>Tus normas</h3>${propias.length ? `<div class="esp-eds">${propias.map(n => espEdFila(n, idx(n))).join('')}</div>` : '<p class="meta">Añade la que quieras, con su nombre, hora, minutos y frecuencia.</p>'}
-    <p class="more"><button type="button" class="link" data-esp-nueva>+ Añadir una norma propia</button></p>`;
+    <p class="more"><button type="button" class="link" data-esp-nueva>+ Añadir una norma propia</button></p>${btcEspChips(B)}`;
 }
 // Cada cambio en una fila va al borrador en el acto (un repintado no pierde nada); al poner fecha, la mensual o la anual se encienden.
 function espEdCambio(e, B) {
@@ -13446,7 +13653,7 @@ function espSheet(id) {
     <h3>Acto de contrición</h3><p class="esp-rezo">${esc(ESP_TXT.contricion)}</p>`;
   if (n.k === 'confesion') { const u = espUltima(id); if (u) extra += `<p class="meta">Última: ${esc(fmtFecha(u))}</p>`; }
   showSheet(`<h2>${esc(nom)}</h2>${cuando ? `<p class="meta">${esc(cuando)}</p>` : ''}${c?.como ? `<p>${esc(c.como)}</p>` : ''}${extra}
-    <div class="actions"><button class="link" id="esp-x">Cerrar</button><button class="primary" id="esp-ok">${ok ? 'Desmarcar' : 'Marcar hecha'}</button></div>`);
+    <div class="actions">${n.on ? btcAccion('norma', id) : ''}<button class="link" id="esp-x">Cerrar</button><button class="primary" id="esp-ok">${ok ? 'Desmarcar' : 'Marcar hecha'}</button></div>`);
   const ta = $('#esp-prop');
   if (ta) {
     if (ov.activeElement === ta) ta.blur();   // la hoja no abre el teclado: primero se lee la guía
@@ -13518,6 +13725,1090 @@ window.esp = {
   sugerencia: () => espSugerencia(), abrir: id => espSheet(id), ajustar: () => espAjustar(), ponerEnAgenda: () => espPonerEnAgenda(),
   catalogo: ESP_CAT.map(c => ({ k: c.k, t: c.t, h: c.h, min: c.min, freq: c.freq })),
 };
+
+// ====================================================================
+// 2.16 (B) · Bloques de tiempo: un hueco reservado (día, hora de inicio y duración) con nombre y con lo que se hace dentro (tareas,
+// hábitos, iniciativas, rutas de Estudio o sus bloques del día, prioridades, pasos de proyecto, planes, normas de Vida espiritual y
+// objetivos), en su propio apartado (#view-bloques, shadow root con ENFOQUE_CSS), en la Agenda y en «Organizar mi día» como algo con
+// hora fija, y en Google Calendar como un evento cuya descripción lista el nombre vigente de todo lo de dentro.
+// «Ahora tienes que ser capaz de crear bloques de tiempo en Calendar… El bloque de tiempo debe sincronizarse en Calendar y en la
+// descripción debe salir el nombre de todo lo que está incluido.» Aquí siempre se dice «bloque de tiempo» (no es el bloque de una ruta
+// de Estudio ni el bloque protegido de la Agenda).
+// Datos en ES.bloquesT y ES.bloquesTBorrar (btNormT, btFusionT… en el nivel superior). Sin XP nuevo: planificar no es la conducta; lo de
+// dentro da el suyo al hacerse por el camino de siempre. Nunca se guarda al pintar antes de la primera combinación con la nube (lo que
+// cambia solo, como el ítem de la Agenda o el estado de Google, va por guardarAlPintar). Google Calendar nunca bloquea nada: sin permiso
+// o con error, el bloque se guarda igual y queda pendiente.
+// Contrato para el resto de la app (y el área C): window.bt. Las funciones que llaman otros módulos (los ganchos de la Agenda, de
+// «Organizar mi día» y de Google Calendar) son declaraciones de función que miran btListo antes de tocar nada de este bloque.
+// ====================================================================
+var btListo = false, btSyncCorriendo = null, btGOk = null, btArrancado = false, btFichaId = '', btEd = null, btSel = null, btOyentes = [], btEnlaces = new Map();
+var BT_TIPO = { tarea: 'Tarea', habito: 'Hábito', ini: 'Iniciativa', ruta: 'Ruta', est: 'Bloque de estudio', prio: 'Prioridad', proyecto: 'Paso de proyecto', plan: 'Plan', norma: 'Vida espiritual', objetivo: 'Objetivo' };
+var BT_ABRE = ['ruta', 'proyecto', 'objetivo'];   // se abren en su ficha en vez de marcarse
+var BT_MIN = [25, 50, 60, 90, 120];
+var BT_PIE = '<p class="meta bt-pie"><b>Por qué así.</b> Lo que tiene un hueco en el calendario se hace más que lo que solo está en una lista (Gollwitzer y Sheeran, 2006).</p>';
+
+// ---------- Datos y ayudas (sin constantes de bloque: las llaman la Agenda, Organizar mi día y el asistente)
+function btTodos() { return Array.isArray(ES.bloquesT) ? ES.bloquesT : []; }
+function btGet(id) { return typeof id === 'string' && id ? btTodos().find(b => b && b.id === id) || null : null; }
+function btF(v) { if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return ''; const [y, m, d] = v.split('-').map(Number), D = new Date(y, m - 1, d, 12); return D.getFullYear() === y && D.getMonth() === m - 1 && D.getDate() === d ? v : ''; }
+function btH(v) { const m = typeof v === 'string' ? /^(\d{1,2}):(\d{2})$/.exec(v.trim()) : null; return m && +m[1] <= 23 && +m[2] <= 59 ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; }
+function btS(v, n) { return (typeof v === 'string' || typeof v === 'number' ? String(v) : '').replace(/\s+/g, ' ').trim().slice(0, n); }
+function btNota(v) { return (typeof v === 'string' ? v : '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 300); }
+function btDia(f, n) { return dayKey(addDays(new Date(f + 'T12:00'), n)); }
+function btSin(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
+// Ordenados por fecha y hora; desde (incluido) y, si se da, hasta (incluido).
+function btLista(desde = today(), hasta = '') { return btTodos().filter(b => b && b.fecha >= desde && (!hasta || b.fecha <= hasta)).sort((a, b) => (a.fecha + a.h) < (b.fecha + b.h) ? -1 : (a.fecha + a.h) > (b.fecha + b.h) ? 1 : (a.creado || 0) - (b.creado || 0)); }
+function btFin(b) { const d = new Date(`${b.fecha}T${b.h}:00`); d.setMinutes(d.getMinutes() + (+b.min || 0)); return { fecha: dayKey(d), h: hhmm(d), ms: d.getTime() }; }
+function btIni(b) { return new Date(`${b.fecha}T${b.h}:00`).getTime(); }
+function btCopia(b) { return b ? JSON.parse(JSON.stringify(b)) : null; }
+function btMuerto(id) { return Array.isArray(HT().borrados) && HT().borrados.includes(id); }
+// Huella corta y estable (cyrb53) para la firma del evento y para ids que no son UUID.
+function btHash(s) { let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0'); }
+// Id determinista del evento: 'op' + el id del bloque sin guiones (hexadecimal en minúsculas, válido como base32hex de Google).
+function btEvId(id) { const s = String(id || '').toLowerCase().replace(/-/g, ''); return /^[0-9a-f]{8,1000}$/.test(s) ? 'op' + s : 'op' + btHash(String(id)) + btHash('op:' + id); }
+const btDiaTxt = f => f === today() ? 'Hoy' : f === dayKey(addDays(new Date(), 1)) ? 'Mañana' : f === dayKey(addDays(new Date(), -1)) ? 'Ayer' : cap(fechaLarga(f));
+const btRango = b => `${fmtHora(b.h)} a ${fmtHora(btFin(b).h)}`;
+const btCosas = n => `${n} ${n === 1 ? 'cosa' : 'cosas'}`;
+
+// La fuente de cada cosa de dentro: nombre guardado (t, sub), nombre vigente, si está hecha en la fecha del bloque y si existe.
+// 'ini' guarda t = «Iniciativa de {categoría}» y sub = el texto; las demás, t = su nombre y sub = su materia, ruta o proyecto.
+function btFuente(i, fecha = today()) {
+  const tipo = i && i.tipo, ref = String(i && i.ref != null ? i.ref : ''), t0 = btS(i && i.t, 100), s0 = btS(i && i.sub, 80), hoy = today();
+  const R = (t, sub, hecho, existe, vig) => { t = btS(t, 100); sub = btS(sub, 80); return { t, sub, vigente: btS(vig || t, 100) || t, hecho: !!hecho, existe: !!existe }; };
+  const ya = R(t0 || BT_TIPO[tipo] || 'Algo', s0, false, false, tipo === 'ini' ? s0 || t0 : t0);
+  try {
+    const s = HT();
+    if (tipo === 'tarea') { const x = (s.tareas?.items || []).find(y => y && y.id === ref); return x ? R(x.titulo, '', x.hecha, true) : ya; }
+    if (tipo === 'habito') { const h = (s.habits || []).find(y => y && y.id === ref && !y.rutina); return h ? R(h.nombre, '', ['full', 'min'].includes(s.log?.[h.id]?.[fecha]), true) : ya; }
+    if (tipo === 'ini') {
+      const k = INI4.find(([x]) => x === ref); if (!k) return ya;
+      const cat = `Iniciativa de ${k[1].toLowerCase()}`;
+      if (fecha === hoy) { const x = ini4Semana().items.find(y => y && y.k === ref), txt = btS(x?.t, 80); return R(cat, txt, !!x?.hecho, true, txt || cat); }
+      const P = ES.agendaPlan && ES.agendaPlan.fecha === fecha ? ES.agendaPlan.ini?.[ref] : null, txt = btS(P?.t || s0, 80);
+      return R(cat, txt, fecha < hoy && Array.isArray(ES.iniHist?.[fecha]) && ES.iniHist[fecha].includes(ref), true, txt || cat);
+    }
+    if (tipo === 'ruta') {
+      const E = window.est, r = E?.ruta?.(ref); if (!r) return ya;
+      const mat = btS(E.materia?.(r.materia)?.nombre, 80), bs = (E.bloquesDe?.(fecha) || []).filter(b => b && b.ruta === ref);
+      return R(r.nombre || mat || 'Ruta', mat, bs.length > 0 && bs.every(b => b.hecho), true);
+    }
+    if (tipo === 'est') { const E = window.est, b = E?.bloque?.(ref); return b ? R(E.textoBloque?.(b) || t0 || 'Bloque de estudio', b.rutaNombre || b.materia || '', !!b.hecho, true) : ya; }
+    if (tipo === 'prio') { const P = ES.prioridades, x = P && P.fecha === hoy ? (P.items || []).find(y => y && y.id === ref) : null; return x ? R(x.t, '', x.hecho, true) : ya; }
+    if (tipo === 'proyecto') {
+      const p = (ES.proyectos || []).find(y => y && y.id === ref); if (!p) return ya;
+      const hecho = (p.pasos || []).find(z => z && z.d === fecha);
+      return R(t0 || p.paso || p.nombre, p.nombre, !!hecho, true, hecho?.t || p.paso || t0 || p.nombre);
+    }
+    if (tipo === 'plan') { const p = (ES.planes || []).find(y => y && y.id === ref); return p ? R(`${cap(String(p.titulo || ''))}${p.con ? ' con ' + p.con : ''}`, '', p.hecho, true) : ya; }
+    if (tipo === 'norma') { const n = espD().normas.find(y => y && y.id === ref); return n ? R(espNombre(n, fecha), '', espHecha(ref, fecha), true) : ya; }
+    if (tipo === 'objetivo') { const o = (ES.objetivos || []).find(y => y && y.id === ref); return o ? R(o.t, '', (o.avances || []).some(a => a && a.d === fecha && +a.n > 0) || (!!o.hecho && o.hechoEn === fecha), true) : ya; }
+  } catch {}
+  return ya;
+}
+function btVivo(i, fecha = today()) { const f = btFuente(i, fecha); return { t: f.vigente, hecho: f.hecho, existe: f.existe, sub: f.sub }; }
+// ¿Hecho? Todo lo de dentro que existe, hecho; sin nada dentro (o con todo borrado), null: entonces vale lo marcado a mano en la Agenda.
+function btHechoBloque(b, fecha = b && b.fecha) {
+  if (!b || !Array.isArray(b.items) || !b.items.length) return null;
+  const V = b.items.map(i => btFuente(i, fecha)).filter(v => v.existe);
+  return V.length ? V.every(v => v.hecho) : null;
+}
+// El texto del evento: «Incluye:» y una línea por cosa, la nota y el pie; sin nada dentro, «Bloque de tiempo reservado.» y la nota.
+function btDescripcion(b) {
+  if (!b || typeof b !== 'object') return '';
+  const nota = btNota(b.nota), items = Array.isArray(b.items) ? b.items : [];
+  if (!items.length) return `Bloque de tiempo reservado.${nota ? '\n\n' + nota : ''}`;
+  const L = items.map(i => { const f = btFuente(i, b.fecha); return `• ${BT_TIPO[i.tipo] || 'Algo'}: ${f.vigente}${f.sub && f.sub !== f.vigente ? ` (${f.sub})` : ''}`; });
+  return `Incluye:\n${L.join('\n')}${nota ? '\n\n' + nota : ''}\n\nCreado con Organización Personal.`;
+}
+var btTZ = '';
+function btCuerpo(b) {
+  if (!btTZ) { try { btTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { btTZ = 'UTC'; } }
+  const tz = btTZ, fin = btFin(b);
+  return { id: btEvId(b.id), summary: b.t, description: btDescripcion(b), start: { dateTime: `${b.fecha}T${b.h}:00`, timeZone: tz }, end: { dateTime: `${fin.fecha}T${fin.h}:00`, timeZone: tz },
+    extendedProperties: { private: { opBloque: b.id } }, reminders: { useDefault: false } };
+}
+function btFirma(c) { return btHash([c.summary, c.description, c.start.dateTime, c.end.dateTime].join('\n')); }
+// Estado en Google Calendar: ok (lo último enviado coincide), pend (sin sincronizar) o error.
+function btGEstado(b) {
+  const g = b && b.gcal || {};
+  if (g.estado === 'error') return { k: 'error', t: 'error' };
+  if (g.id && g.firma && g.firma === btFirma(btCuerpo(b))) return { k: 'ok', t: '✓ en tu calendario' };
+  return { k: 'pend', t: 'sin sincronizar' };
+}
+function btCruce(b) { const a = btIni(b), z = btFin(b).ms; return btTodos().find(x => x && x.id !== b.id && x.fecha === b.fecha && btIni(x) < z && btFin(x).ms > a) || null; }
+
+// ---------- Crear, editar, borrar, agregar y quitar (lanzan Error en español; nunca a medias)
+function btItemsDe(items, fecha) {
+  const out = [], ks = new Set();
+  for (const x of (Array.isArray(items) ? items : items ? [items] : [])) {
+    if (!x || typeof x !== 'object' || !BT_TIPO[x.tipo] || x.ref == null || x.ref === '') continue;
+    const ref = String(x.ref).slice(0, 60), k = x.tipo + '|' + ref; if (ks.has(k)) continue;
+    const f = btFuente({ tipo: x.tipo, ref, t: x.t, sub: x.sub }, fecha);
+    if (!f.existe && !btS(x.t, 100)) continue;   // lo que ya no está (y no trae nombre) no entra
+    ks.add(k); out.push({ tipo: x.tipo, ref, t: f.t, sub: f.sub });
+    if (out.length >= 30) break;
+  }
+  return out;
+}
+function btValidar(d, previo = null) {
+  const t0 = today(), fecha = d.fecha === undefined || d.fecha === '' ? (previo ? previo.fecha : t0) : btF(String(d.fecha).trim());
+  if (!fecha) throw new Error('La fecha no es válida: usa un día real con el formato AAAA-MM-DD.');
+  if (fecha < t0 && (!previo || fecha !== previo.fecha)) throw new Error('Elige un día de hoy en adelante.');
+  const h = d.h === undefined && previo ? previo.h : btH(String(d.h ?? ''));
+  if (!h) throw new Error('La hora de inicio no es válida: usa HH:MM, de 00:00 a 23:59.');
+  const m0 = d.min === undefined || d.min === null || d.min === '' ? (previo ? previo.min : 60) : Math.round(+d.min);
+  if (!Number.isFinite(m0) || m0 < 15 || m0 > 720) throw new Error('La duración va de 15 minutos a 12 horas (720 minutos).');
+  return { fecha, h, min: m0 };
+}
+function btCrear(d = {}) {
+  d = d && typeof d === 'object' ? d : {};
+  const v = btValidar({ fecha: d.fecha, h: d.h ?? d.hora, min: d.min });
+  if (btTodos().length >= 300) throw new Error('Ya hay 300 bloques de tiempo: borra alguno de los pasados para hacer sitio.');
+  const items = btItemsDe(d.items, v.fecha), primero = items[0] ? btFuente(items[0], v.fecha).vigente : '';
+  const ahora = Date.now(), b = { id: crypto.randomUUID(), t: btS(d.t, 80) || btS(primero, 80) || 'Bloque de tiempo', fecha: v.fecha, h: v.h, min: v.min, items, nota: btNota(d.nota),
+    gcal: { id: '', firma: '', en: 0, estado: '', error: '' }, creado: ahora, cambiado: ahora };
+  ES.bloquesT = [...btTodos(), b];
+  btTrasCambio(b);
+  return b;
+}
+function btEditar(id, c = {}) {
+  const b = btGet(id); if (!b) throw new Error('No encontré ese bloque de tiempo.');
+  c = c && typeof c === 'object' ? c : {};
+  const v = btValidar({ fecha: c.fecha, h: c.h ?? c.hora, min: c.min }, b);
+  const items = 'items' in c ? btItemsDe(c.items, v.fecha) : b.items;
+  const t = 't' in c ? btS(c.t, 80) || (items[0] ? btS(btFuente(items[0], v.fecha).vigente, 80) : '') || 'Bloque de tiempo' : b.t;
+  Object.assign(b, { t, fecha: v.fecha, h: v.h, min: v.min, items, nota: 'nota' in c ? btNota(c.nota) : b.nota, cambiado: Date.now() });
+  btTrasCambio(b);
+  return b;
+}
+function btAgregar(id, items) {
+  const b = btGet(id); if (!b) throw new Error('No encontré ese bloque de tiempo.');
+  const L = (Array.isArray(items) ? items : [items]).filter(x => x && typeof x === 'object');
+  const nuevos = btItemsDe(L, b.fecha).filter(x => !b.items.some(y => y.tipo === x.tipo && y.ref === x.ref));
+  if (!nuevos.length) return b;
+  if (b.items.length >= 30) throw new Error('Un bloque de tiempo admite hasta 30 cosas dentro.');
+  b.items = [...b.items, ...nuevos].slice(0, 30); b.cambiado = Date.now();
+  btTrasCambio(b);
+  return b;
+}
+function btQuitar(id, tipo, ref) {
+  const b = btGet(id); if (!b) throw new Error('No encontré ese bloque de tiempo.');
+  const antes = b.items.length; b.items = b.items.filter(i => !(i.tipo === tipo && i.ref === String(ref)));
+  if (b.items.length !== antes) { b.cambiado = Date.now(); btTrasCambio(b); }
+  return b;
+}
+// Borrar: su id va a los borrados (no vuelve con la nube) y, si tenía evento, a la lista de eventos por quitar de Google Calendar.
+function btBorrar(id) {
+  const b = btGet(id); if (!b) return false;
+  forget(b.id);
+  ES.bloquesT = btTodos().filter(x => x !== b);
+  if (b.gcal && b.gcal.id) ES.bloquesTBorrar = [...(Array.isArray(ES.bloquesTBorrar) ? ES.bloquesTBorrar : []).filter(x => x && x.id !== b.id), { id: b.id, gid: b.gcal.id, en: Date.now() }].slice(-100);
+  btTrasCambio({ ...b, borrado: true });
+  return true;
+}
+// Lo de un día para el siguiente: sin las prioridades (son del día) ni las tareas hechas; un bloque de estudio pasa a ser su ruta.
+function btDuplicar(id) {
+  const b = btGet(id); if (!b) throw new Error('No encontré ese bloque de tiempo.');
+  const f = b.fecha > today() ? btDia(b.fecha, 1) : dayKey(addDays(new Date(), 1)), items = [];
+  for (const i of b.items) {
+    if (i.tipo === 'prio' || (i.tipo === 'tarea' && btFuente(i, b.fecha).hecho)) continue;
+    if (i.tipo === 'est') { const r = window.est?.bloque?.(i.ref)?.ruta; if (r && !items.some(x => x.tipo === 'ruta' && x.ref === r)) items.push({ tipo: 'ruta', ref: r }); continue; }
+    if (!items.some(x => x.tipo === i.tipo && x.ref === i.ref)) items.push({ tipo: i.tipo, ref: i.ref, t: i.t, sub: i.sub });
+  }
+  return btCrear({ t: b.t, fecha: f, h: b.h, min: b.min, items, nota: b.nota });
+}
+// Después de cada cambio de la persona: la Agenda de hoy (entra, cambia o sale el ítem), guardar, pintar, avisar y enviar a Google.
+function btTrasCambio(b) {
+  try { agenda(); } catch {}
+  guardar();
+  btPintar();
+  btAvisar('bloque', b);
+  btSincronizar(b.borrado ? '' : b.id);
+}
+function btAvisar(ev, b) { for (const fn of btOyentes.slice()) { try { fn(ev, btCopia(b)); } catch {} } }
+function btPintar() {
+  try { if (view === 'bloques') renderBloques(); } catch {}
+  try { if (view === 'agenda') renderAg(); } catch {}
+  try { renderE(); } catch {}
+  btRefrescarFicha();
+}
+
+// ---------- Google Calendar: un evento por bloque con id determinista; crear, actualizar (solo si cambió la huella) y borrar, de uno en uno.
+function btStatus(e) {
+  const m = String(e && e.message || '');
+  if (/caducó/.test(m)) return 401;
+  if (/no está activado/.test(m)) return 403;
+  const x = /respondió (\d{3})/.exec(m); return x ? +x[1] : 0;
+}
+function btMsg(e) { const m = String(e && e.message || ''); return e instanceof TypeError || !m || /fetch|network/i.test(m) ? 'Google Calendar no respondió.' : m.slice(0, 160); }
+// DELETE: Google responde 204 sin cuerpo (su json() falla: cuenta como hecho), y 404 o 410 si ya no existe (también cuenta).
+async function btCalBorrar(gid) {
+  try { await gCalFetch(`${CAL_API}/${encodeURIComponent(gid)}`, { method: 'DELETE' }); }
+  catch (e) { if (e instanceof SyntaxError || [404, 410].includes(btStatus(e))) return true; throw e; }
+  return true;
+}
+// Crear con su id (409 = ya existe, de otro teléfono o de antes: se actualiza y se confirma); actualizar el que hay (404/410 = se
+// borró en Google: se vuelve a crear).
+async function btCalEnviar(b, c) {
+  const crear = async () => {
+    try { return await gCalFetch(CAL_API, { method: 'POST', body: JSON.stringify(c) }); }
+    catch (e) { if (btStatus(e) !== 409) throw e; return gCalFetch(`${CAL_API}/${encodeURIComponent(c.id)}`, { method: 'PATCH', body: JSON.stringify({ ...c, status: 'confirmed' }) }); }
+  };
+  if (!b.gcal.id) return crear();
+  try { return await gCalFetch(`${CAL_API}/${encodeURIComponent(b.gcal.id)}`, { method: 'PATCH', body: JSON.stringify({ ...c, id: b.gcal.id, status: 'confirmed' }) }); }
+  catch (e) { if (![404, 410].includes(btStatus(e))) throw e; return crear(); }
+}
+// Lo que toca enviar: un bloque (id) o los de hace una semana en adelante (los pendientes, los cambiados y los que quedaron con error).
+function btParaEnviar(id) {
+  if (id) { const b = btGet(id); return b ? [b] : []; }
+  const desde = dayKey(addDays(new Date(), -7));
+  return btLista(desde).slice(0, 120);
+}
+function btNecesita(b) { const g = b.gcal || {}; return !g.id || g.estado !== '' || g.firma !== btFirma(btCuerpo(b)); }
+// Sin conexión: lo que hace falta enviar queda 'pendiente'. Devuelve cuántos cambiaron.
+function btMarcarPendientes(id = '') {
+  let n = 0;
+  for (const b of btParaEnviar(id)) { if (!b.gcal || typeof b.gcal !== 'object') b.gcal = { id: '', firma: '', en: 0, estado: '', error: '' }; if (btNecesita(b) && b.gcal.estado !== 'pendiente') { b.gcal.estado = 'pendiente'; b.gcal.error = ''; n++; } }
+  return n;
+}
+function btSincronizar(id = '', o = {}) {
+  if (!btListo) return Promise.resolve({ enviados: 0, borrados: 0, fallo: '' });
+  if (btSyncCorriendo) return btSyncCorriendo.then(() => btSincronizar(id, o), () => btSincronizar(id, o));
+  const guarda = () => o.auto ? guardarAlPintar(guardar) : guardar();
+  if (!gCalOk()) {
+    const n = btMarcarPendientes(id); if (n) guarda();
+    btRefrescarFicha(); if (n && view === 'bloques') renderBloques();
+    return Promise.resolve({ enviados: 0, borrados: 0, fallo: '', pendientes: n });
+  }
+  btSyncCorriendo = (async () => {
+    let enviados = 0, borrados = 0, fallo = '', cambio = false;
+    for (const x of (Array.isArray(ES.bloquesTBorrar) ? ES.bloquesTBorrar : []).slice(0, 100)) {
+      if (!x || !x.gid) continue;
+      try { await btCalBorrar(x.gid); ES.bloquesTBorrar = (ES.bloquesTBorrar || []).filter(y => y && y.id !== x.id); borrados++; cambio = true; }
+      catch (e) { fallo = btMsg(e); break; }
+    }
+    if (!fallo) for (const b0 of btParaEnviar(id)) {
+      const b = btGet(b0.id); if (!b || btMuerto(b.id)) continue;   // nunca crea el evento de un bloque borrado
+      if (!b.gcal || typeof b.gcal !== 'object') b.gcal = { id: '', firma: '', en: 0, estado: '', error: '' };
+      const c = btCuerpo(b), firma = btFirma(c);
+      if (b.gcal.id && b.gcal.firma === firma && !b.gcal.estado) continue;   // sin reenvíos si nada cambió
+      try {
+        const r = await btCalEnviar(b, c), gid = String(r && r.id || c.id), bb = btGet(b.id);
+        if (!bb || btMuerto(b.id)) { ES.bloquesTBorrar = [...(ES.bloquesTBorrar || []).filter(y => y && y.id !== b.id), { id: b.id, gid, en: Date.now() }].slice(-100); cambio = true; continue; }   // se borró mientras se enviaba
+        bb.gcal = { id: gid, firma, en: Date.now(), estado: '', error: '' };
+        if (r && typeof r.htmlLink === 'string' && /^https:\/\//.test(r.htmlLink)) btEnlaces.set(bb.id, r.htmlLink);
+        enviados++; cambio = true;
+      } catch (e) {
+        const bb = btGet(b.id), st = btStatus(e);
+        if (bb) { bb.gcal = { ...bb.gcal, estado: st === 401 ? 'pendiente' : 'error', error: st === 401 ? '' : btMsg(e) }; cambio = true; }
+        if (st === 401) btMarcarPendientes();
+        fallo = btMsg(e); break;
+      }
+    }
+    if (cambio) guarda();
+    return { enviados, borrados, fallo };
+  })().catch(e => ({ enviados: 0, borrados: 0, fallo: btMsg(e) })).finally(() => { btSyncCorriendo = null; try { btRefrescarFicha(); if (view === 'bloques') renderBloques(); } catch {} });
+  return btSyncCorriendo;
+}
+// Al arrancar (cuando la nube ya combinó), al volver la app a primer plano y al conectar Google: lo pendiente y lo que cambió de nombre.
+function btAuto() { if (btListo && btArrancado && gCalOk()) btSincronizar('', { auto: true }); }
+function btArranque() {
+  let n = 0;
+  const intento = () => {
+    if (++n <= 60 && typeof nubeLista !== 'undefined' && !nubeLista && (auth || window.claude?.use)) { setTimeout(intento, 1500); return; }   // sin nube en 90 s, se sigue: lo automático se guarda con guardarAlPintar
+    btArrancado = true; btGOk = !!gCalOk(); btAuto();
+  };
+  setTimeout(intento, 1200);
+}
+function btEnlace(b) {
+  const l = btEnlaces.get(b.id); if (l) return l;
+  const [y, m, d] = b.fecha.split('-').map(Number); return `https://calendar.google.com/calendar/r/day/${y}/${m}/${d}`;
+}
+function btGHtml(b) {
+  const g = btGEstado(b), corriendo = !!btSyncCorriendo;
+  if (g.k === 'ok') return `<p class="meta green bt-g-ok">✓ En tu Google Calendar</p>
+    <p class="more" style="padding-top:0"><a class="link" href="${esc(btEnlace(b))}" target="_blank" rel="noopener">Abrir en Google Calendar</a></p>`;
+  if (g.k === 'error') { const m = b.gcal.error || 'no se pudo enviar.'; return `<p class="meta bt-g-err">${esc(/^Google Calendar/.test(m) ? m : `Google Calendar: ${m}`)}</p>
+    <p class="more" style="padding-top:0"><button class="link" id="bt-f-retry">Reintentar</button></p>`; }
+  if (!gCalOk()) return `<p class="meta bt-g-pend">Sin sincronizar con Google Calendar · <button class="link" id="bt-f-con">Conectar Google Calendar</button></p>`;
+  return `<p class="meta bt-g-pend">${corriendo ? 'Enviando a Google Calendar…' : 'Sin sincronizar con Google Calendar'}${corriendo ? '' : ' · <button class="link" id="bt-f-retry">Reintentar</button>'}</p>`;
+}
+
+// ---------- Agenda: el bloque de hoy entra como ítem { id: 'bt:'+id, tipo: 'bt', ref: id } con hora fija; lo de dentro sigue igual.
+function btIdAgenda(bid) { const base = 'bt:' + bid; if (!btMuerto(base)) return base; for (let k = 2; k < 100; k++) if (!btMuerto(`${base}-${k}`)) return `${base}-${k}`; return base + '-' + Date.now(); }
+function btAgendaInyectar(A) {
+  if (!btListo || !A || A.fecha !== today() || !Array.isArray(A.items)) return;
+  try {
+    const L = btLista(A.fecha, A.fecha), oc = new Set(Array.isArray(A.ocultos) ? A.ocultos : []), vivos = new Map(L.map(b => [b.id, b]));
+    let cambio = false;
+    const antes = A.items.length;
+    A.items = A.items.filter(it => !(it && it.tipo === 'bt') || (vivos.has(it.ref) && !oc.has(it.ref)));
+    if (A.items.length !== antes) cambio = true;
+    for (const b of L) {
+      if (oc.has(b.id)) continue;
+      const hecho = btHechoBloque(b);
+      const it = A.items.find(x => x && x.tipo === 'bt' && x.ref === b.id);
+      if (!it) { A.items.push({ id: btIdAgenda(b.id), tipo: 'bt', ref: b.id, t: b.t, h: b.h, min: b.min, hecho: hecho === null ? false : hecho, alta: Date.now() }); cambio = true; continue; }
+      if (it.t !== b.t || it.h !== b.h || it.min !== b.min) { Object.assign(it, { t: b.t, h: b.h, min: b.min }); cambio = true; }
+      if (hecho !== null && !!it.hecho !== hecho) { it.hecho = hecho; cambio = true; }   // lo de dentro manda (también para el aviso y el historial)
+    }
+    if (cambio) guardarAlPintar(guardar);
+  } catch {}
+}
+function btFuenteAg(it) { if (!btListo) return it; try { return btGet(it.ref); } catch { return null; } }
+function btHechoAg(it, k = today()) {
+  if (!btListo) return !!(it && it.hecho);
+  try { const b = btGet(it.ref); if (!b) return !!it.hecho; const v = btHechoBloque(b, b.fecha); return v === null ? !!it.hecho : v; } catch { return !!(it && it.hecho); }
+}
+// La casilla del ítem: sin nada dentro se marca a mano (lo hace agMarcar); con algo dentro, abre la ficha del bloque (allí se marca cada cosa).
+function btAgMarcar(it, hecho) {
+  if (!btListo) return false;
+  try { const b = btGet(it.ref); if (!b || btHechoBloque(b) === null) return false; btFicha(b.id); return true; } catch { return false; }
+}
+function btDesdeAgenda(it) { if (!btListo) return false; try { if (!btGet(it.ref)) return false; btFicha(it.ref); return true; } catch { return false; } }
+// Quitarlo de la agenda de hoy no borra el bloque: queda en ocultos (no vuelve a entrar hoy) y su id no va a los borrados.
+function btQuitarDeAgenda(it) {
+  const A = agenda(); A.items = A.items.filter(x => x.id !== it.id);
+  A.ocultos = [...new Set([...(Array.isArray(A.ocultos) ? A.ocultos : []), it.ref])];
+  guardar(); renderE(); renderAg(); btRefrescarFicha();
+  return true;
+}
+function btEsEventoDeBloque(ev) {
+  try {
+    if (!ev || typeof ev !== 'object') return false;
+    if (ev.opBloque) return true;
+    const id = String(ev.id || ''); if (!/^op[0-9a-v]{5,}$/.test(id)) return false;
+    return btTodos().some(b => b && btEvId(b.id) === id) || (Array.isArray(ES.bloquesTBorrar) ? ES.bloquesTBorrar : []).some(x => x && x.gid === id);
+  } catch { return false; }
+}
+// El ítem de la agenda de hoy que corresponde a una cosa de dentro (si está).
+function btItemAgenda(tipo, ref) {
+  const A = ES.agendaHoy; if (!A || A.fecha !== today() || !Array.isArray(A.items)) return null;
+  const T = { tarea: 'tarea', habito: 'habito', ini: 'ini', est: 'estudio', prio: 'prio', plan: 'plan' }[tipo];
+  return A.items.find(it => it && (T ? it.tipo === T && it.ref === ref : tipo === 'norma' && it.tipo === 'libre' && it.esp === ref)) || null;
+}
+// Organizar mi día (hoy o mañana): cada bloque del día es una fila fija; lo de dentro sin hora toma la hora de inicio del bloque y queda fijo en él.
+function btOrgClave(key) {
+  const i = String(key || '').indexOf(':'), p = key.slice(0, i), id = key.slice(i + 1);
+  if (p === 'lib') { const x = (org?.libres || []).find(y => y && y.id === id); return x && x.esp ? { tipo: 'norma', ref: x.esp } : null; }
+  const tipo = { hab: 'habito', tar: 'tarea', ini: 'ini', prio: 'prio', est: 'est' }[p];
+  return tipo ? { tipo, ref: id } : null;
+}
+function btOrgLista(L) {
+  if (!btListo || !org || !Array.isArray(L)) return;
+  try {
+    const B = btLista(org.dest, org.dest); if (!B.length) return;
+    for (const b of B) L.push({ key: 'bt:' + b.id, tipo: 'bt', t: `Bloque de tiempo · ${b.t}`, etq: b.items.length ? `${btCosas(b.items.length)} dentro` : 'Hueco reservado', h: b.h, min: b.min, fijo: true });
+    for (const e of L) {
+      if (!e || e.fijo || e.hecho || e.foco || e.tipo === 'bt') continue;
+      const i = btOrgClave(e.key); if (!i) continue;
+      const b = B.find(x => x.items.some(y => y.tipo === i.tipo && y.ref === i.ref)); if (!b || (e.h && e.h !== b.h)) continue;
+      if (!e.h) orgSetHora(e.key, b.h);
+      e.h = b.h; e.fijo = true; e.etq = `${e.etq} · en «${b.t}»`;
+    }
+  } catch {}
+}
+
+// ---------- Marcar lo de dentro con el camino de siempre (si está en la agenda de hoy, agMarcar sobre su ítem); la ruta, el proyecto y el
+// objetivo abren su ficha. Lo que depende del día (hábito, iniciativa, prioridad, norma) se marca el día del bloque.
+function btAbrirFuente(i) {
+  if (i.tipo === 'ruta') { closeSheet(); window.est?.abrir?.(i.ref); return true; }
+  if (i.tipo === 'proyecto') { const p = (ES.proyectos || []).find(x => x && x.id === i.ref); if (p) { proyectoSheet(p); return true; } }
+  if (i.tipo === 'objetivo') { const o = (ES.objetivos || []).find(x => x && x.id === i.ref); if (o) { objetivoSheet(o); return true; } }
+  toast('Eso ya no está en la app.'); return false;
+}
+function btMarcarDentro(id, tipo, ref, hecho) {
+  const b = btGet(id); if (!b) return false;
+  ref = String(ref ?? '');
+  const i = b.items.find(x => x.tipo === tipo && x.ref === ref); if (!i) return false;
+  if (BT_ABRE.includes(tipo)) { btAbrirFuente(i); return false; }
+  const f = btFuente(i, b.fecha); if (!f.existe) { toast('Eso ya no está en la app.'); return false; }
+  hecho = hecho === undefined ? !f.hecho : !!hecho;
+  if (f.hecho === hecho) return true;
+  if (['habito', 'ini', 'prio', 'norma'].includes(tipo) && b.fecha !== today()) { toast('Esto se marca el día del bloque.'); return false; }
+  const it = btItemAgenda(tipo, ref);
+  if (it) agMarcar(it, hecho);
+  else if (tipo === 'tarea') { const x = HT().tareas.items.find(y => y.id === ref); if (hecho) completeTask(x); else uncompleteTask(x); save(); if (view === 'tareas') renderTareas(); gAuto(); }
+  else if (tipo === 'habito') { const h = HT().habits.find(y => y.id === ref); if (hecho) complete(h, 'full'); else setMark(h, ''); }
+  else if (tipo === 'ini') { iniMarcar(iniIdx(ref), hecho); guardar(); }
+  else if (tipo === 'est') window.est?.marcar?.(ref, hecho);
+  else if (tipo === 'prio') { prioMarcar(ref, hecho); guardar(); }
+  else if (tipo === 'norma') window.esp?.marcar?.(ref, hecho);
+  else if (tipo === 'plan') { const p = ES.planes.find(x => x.id === ref); if (p) { p.hecho = hecho; if (hecho) p.resultado = 'si'; guardar(); } }
+  try { agenda(); } catch {}
+  btPintar();
+  return true;
+}
+
+// ---------- Candidatos para el selector, agrupados y filtrados por texto (cada lista, hasta 30).
+function btOpciones(fecha = today(), texto = '') {
+  fecha = btF(fecha) || today();
+  const q = btSin(texto), pasa = o => !q || btSin(o.t).includes(q) || btSin(o.sub).includes(q) || btSin(btFuente(o, fecha).vigente).includes(q);
+  const op = (tipo, ref, x = {}) => { const f = btFuente({ tipo, ref, ...x }, fecha); return { tipo, ref: String(ref), t: f.t, sub: f.sub }; };
+  const s = HT(), hoy = today(), out = { rutas: [], iniciativas: [], habitos: [], tareas: [], mas: { prioridades: [], proyectos: [], planes: [], espiritual: [], objetivos: [] } };
+  try {
+    const E = window.est;
+    for (const r of (E?.rutas?.() || []).filter(r => r && !r.archivada && (!r.fecha || r.fecha >= hoy)).slice(0, 40)) {
+      const ro = op('ruta', r.id), bs = (E.bloquesDe?.(fecha) || []).filter(b => b && b.ruta === r.id && !b.hecho).map(b => op('est', b.id));
+      const bsOk = bs.filter(pasa);
+      if (pasa(ro) || bsOk.length) out.rutas.push(ro, ...bsOk);
+    }
+    out.rutas = out.rutas.slice(0, 30);
+  } catch {}
+  try {
+    if (fecha === hoy) out.iniciativas = ini4Semana().items.filter(x => x && INI4.some(([k]) => k === x.k)).map(x => op('ini', x.k));
+    else if (ES.agendaPlan && ES.agendaPlan.fecha === fecha) out.iniciativas = Object.entries(ES.agendaPlan.ini || {}).filter(([k, o]) => o && btS(o.t, 80) && INI4.some(([x]) => x === k)).map(([k, o]) => op('ini', k, { sub: o.t }));
+    out.iniciativas = out.iniciativas.filter(pasa).slice(0, 30);
+  } catch {}
+  try { out.habitos = (s.habits || []).filter(h => h && !h.rutina && !h.archivado).sort((a, b) => (isSched(b, fecha) ? 1 : 0) - (isSched(a, fecha) ? 1 : 0)).map(h => op('habito', h.id)).filter(pasa).slice(0, 30); } catch {}
+  try {
+    const P = (s.tareas?.items || []).filter(x => x && !x.hecha), rango = x => x.fecha && x.fecha <= fecha ? 0 : !x.fecha ? 1 : 2;
+    out.tareas = P.sort((a, b) => rango(a) - rango(b) || (rango(a) === 1 ? (b.creado || 0) - (a.creado || 0) : (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0))).map(x => op('tarea', x.id)).filter(pasa).slice(0, 30);
+  } catch {}
+  try { if (fecha === hoy && ES.prioridades && ES.prioridades.fecha === hoy) out.mas.prioridades = (ES.prioridades.items || []).filter(x => x && !x.hecho).map(x => op('prio', x.id)).filter(pasa).slice(0, 30); } catch {}
+  try { out.mas.proyectos = proyectosActivos().filter(p => p && p.paso).map(p => op('proyecto', p.id, { t: p.paso })).filter(pasa).slice(0, 30); } catch {}
+  try { out.mas.planes = planesProximos().map(p => op('plan', p.id)).filter(pasa).slice(0, 30); } catch {}
+  try { if (espD().configurado) out.mas.espiritual = espHoyLista(fecha).sort((a, b) => (a.hecha ? 1 : 0) - (b.hecha ? 1 : 0)).map(x => op('norma', x.n.id)).filter(pasa).slice(0, 30); } catch {}
+  try { out.mas.objetivos = objetivosActivos().map(o => op('objetivo', o.id)).filter(pasa).slice(0, 30); } catch {}
+  return out;
+}
+// Una pista breve para cada fila del selector (no se guarda).
+function btPista(o, fecha) {
+  try {
+    const s = HT();
+    if (o.tipo === 'ini') return o.sub ? o.t : 'Sin elegir todavía';
+    if (o.tipo === 'ruta') return [o.sub, 'Ruta de estudio'].filter(Boolean).join(' · ');
+    if (o.tipo === 'est') { const b = window.est?.bloque?.(o.ref); return b ? [b.h ? fmtHora(b.h) : 'Sin hora', b.min ? `${b.min} min` : ''].filter(Boolean).join(' · ') : ''; }
+    if (o.tipo === 'habito') { const h = s.habits.find(x => x.id === o.ref); return h ? [isSched(h, fecha) ? 'Toca ese día' : 'Otro día', (h.horas || [])[0] ? fmtHora(h.horas[0]) : ''].filter(Boolean).join(' · ') : ''; }
+    if (o.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === o.ref); return x ? x.fecha ? (x.fecha < today() ? `Vencida · ${fmtFecha(x.fecha)}` : fmtFecha(x.fecha)) : 'Sin fecha' : ''; }
+    if (o.tipo === 'proyecto') return o.sub;
+    if (o.tipo === 'plan') { const p = ES.planes.find(x => x.id === o.ref); return p ? `${btDiaTxt(p.fecha)}${p.hora ? ' · ' + fmtHora(p.hora) : ''}` : ''; }
+    if (o.tipo === 'norma') { const n = espD().normas.find(x => x.id === o.ref); return n && n.h ? fmtHora(n.h) : ''; }
+    if (o.tipo === 'objetivo') { const x = ES.objetivos.find(y => y.id === o.ref); return x ? `${x.actual} de ${x.meta} ${x.unidad}` : ''; }
+  } catch {}
+  return '';
+}
+
+// ---------- La hora propia de algo hoy (para «Crear bloque de tiempo con…»), o la próxima media hora.
+function btHoraPropia(i) {
+  try {
+    const t = today(), s = HT(), ag = btItemAgenda(i.tipo, i.ref);
+    if (ag && btH(ag.h)) return ag.h;
+    if (i.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === i.ref); if (x && btH(x.hora) && (!x.fecha || x.fecha <= t)) return x.hora; }
+    if (i.tipo === 'habito') { const h = s.habits.find(y => y.id === i.ref); if (h && isSched(h, t) && btH((h.horas || [])[0])) return h.horas[0]; }
+    if (i.tipo === 'ini') { const x = ini4Semana().items.find(y => y.k === i.ref); if (x && btH(x.hora)) return x.hora; }
+    if (i.tipo === 'est') { const b = window.est?.bloque?.(i.ref); if (b && b.d === t && btH(b.h)) return b.h; }
+    if (i.tipo === 'ruta') { const b = (window.est?.bloquesDe?.(t) || []).find(x => x.ruta === i.ref && !x.hecho && btH(x.h)); if (b) return b.h; }
+    if (i.tipo === 'plan') { const p = ES.planes.find(x => x.id === i.ref); if (p && p.fecha === t && btH(p.hora)) return p.hora; }
+    if (i.tipo === 'proyecto') { const p = ES.proyectos.find(x => x.id === i.ref); if (p && p.cuando === t && btH(p.hora)) return p.hora; }
+    if (i.tipo === 'norma') { const n = espD().normas.find(x => x.id === i.ref); if (n && espToca(n, t) && btH(n.h)) return n.h; }
+  } catch {}
+  return '';
+}
+function btMinPropios(i) {
+  try {
+    if (i.tipo === 'est') { const b = window.est?.bloque?.(i.ref); if (b && b.min >= 15) return Math.min(720, b.min); }
+    if (i.tipo === 'tarea') { const x = HT().tareas.items.find(y => y.id === i.ref); if (x && +x.min >= 15) return Math.min(720, +x.min); }
+    if (i.tipo === 'ini') { const x = ini4Semana().items.find(y => y.k === i.ref); if (x && +x.min >= 15) return Math.min(720, +x.min); }
+    if (i.tipo === 'norma') { const n = espD().normas.find(x => x.id === i.ref); if (n && +n.min >= 15) return Math.min(720, +n.min); }
+  } catch {}
+  return 0;
+}
+function btProximaMedia() { const n = nowMin(), m = Math.floor(n / 30) * 30 + 30; return m >= 1440 ? { fecha: dayKey(addDays(new Date(), 1)), h: '08:00' } : { fecha: today(), h: minToHm(m) }; }
+
+// ---------- El apartado
+const btHost = document.getElementById('view-bloques');
+const btR = btHost ? btHost.attachShadow({ mode: 'open' }) : null;
+const BT_CSS = `
+  .bt-cab { margin: 0 0 14px; }
+  .bt-nuevo { margin: 0 0 8px; }
+  .bt-card { display: block; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px 11px; margin: 0 0 10px; }
+  .bt-card:active { background: var(--soft); }
+  .bt-l1 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: .84rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bt-l1 .bt-g { flex: none; }
+  .bt-g.ok { color: var(--green); } .bt-g.error { color: var(--red); }
+  .bt-card b { display: block; font-size: 1.02rem; font-weight: 600; line-height: 1.3; margin: 4px 0 2px; overflow-wrap: anywhere; }
+  .bt-card small { display: block; color: var(--muted); font-size: .84rem; line-height: 1.4; overflow-wrap: anywhere; }
+  .bt-card small.amber { color: var(--amber); }
+  .bt-dia { font-size: .9rem; font-weight: 600; margin: 18px 0 8px; }
+  .bt-vacio { background: var(--soft); border-radius: 16px; padding: 14px 16px; margin: 0 0 18px; }
+  .bt-vacio b { display: block; font-size: 1.02rem; margin-bottom: 4px; }
+  .bt-vacio p { margin: 0 0 12px; font-size: .92rem; }
+  .bt-pasados { margin-top: 18px; border-top: 1px solid var(--line); }
+  .bt-pasados summary, .bt-grupo summary { cursor: pointer; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 12px 0 8px; }
+  .bt-pie { margin-top: 30px; font-size: .85rem; }
+  .bt-it .t div, .bt-ed-it .t div { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+  .bt-it .t small, .bt-ed-it .t small { white-space: normal; overflow-wrap: anywhere; }
+  .bt-it.ok .t div { text-decoration: line-through; color: var(--muted); }
+  .bt-it .box:disabled { opacity: .45; }
+  .bt-it .bt-abrir { font-size: 1.2rem; padding: 0 4px; color: var(--muted); }
+  .bt-nota { white-space: pre-line; background: var(--soft); border-radius: 12px; padding: 10px 12px; margin: 10px 0 12px; }
+  .bt-grupo { border-top: 1px solid var(--line); }
+  .bt-op { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .bt-op:first-of-type { border-top: 0; }
+  .bt-op input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--green); }
+  .bt-op .t { flex: 1; min-width: 0; }
+  .bt-op .t div { overflow-wrap: anywhere; line-height: 1.3; }
+  .bt-op small { display: block; color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+  .bt-op.bt-sub { padding-left: 28px; }
+  .bt-op.ya .t div { color: var(--muted); }
+  .bt-sg { font-size: .78rem; color: var(--muted); margin: 10px 0 2px; text-transform: uppercase; letter-spacing: .05em; }
+  .bt-rango { margin: 6px 0 0; }
+  .bt-fin { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: .9rem; color: var(--muted); }
+  .bt-fin input { width: auto; }
+  .bt-a-hecho { margin: 0 0 14px; }`;
+if (btR) { const st = document.createElement('style'); st.textContent = ENFOQUE_CSS + BT_CSS; btR.appendChild(st); }
+{ const st = document.createElement('style'); st.id = 'bt-css'; st.textContent = BT_CSS; ov.appendChild(st); }
+const btW = document.createElement('div'); btW.className = 'enf'; if (btR) btR.appendChild(btW);
+function btCardHtml(b) {
+  const V = b.items.map(i => btFuente(i, b.fecha)), n = V.length, hechas = V.filter(v => v.existe && v.hecho).length, g = btGEstado(b), cruce = btCruce(b);
+  return `<button class="bt-card" data-bt-ver="${esc(b.id)}"><span class="bt-l1"><span>${esc(btRango(b))}</span> <span class="bt-g ${g.k}">${esc(g.t)}</span></span>
+    <b>${esc(b.t)}</b>
+    <small>${n ? `${btCosas(n)} dentro: ${esc(V.slice(0, 2).map(v => v.vigente).join(' · '))}${n > 2 ? ' …' : ''}` : 'Hueco reservado, sin nada dentro'}</small>
+    ${n ? `<small class="bt-av">${hechas} de ${n} hechas</small>` : ''}
+    ${cruce ? `<small class="amber">Se cruza con «${esc(cruce.t)}»</small>` : ''}</button>`;
+}
+function renderBloques() {
+  if (!btR) return;
+  const t = today(), L = btLista(btDia(t, -7)), hoy = L.filter(b => b.fecha === t), prox = L.filter(b => b.fecha > t), pas = L.filter(b => b.fecha < t).reverse();
+  const cab = '<div class="bt-cab"><h2 style="margin-top:0">Bloques de tiempo</h2><p class="note">Reserva un hueco en tu calendario y pon dentro lo que vas a hacer.</p></div>';
+  if (!L.length) {
+    btW.innerHTML = `${cab}<div class="bt-vacio"><b>Aún no hay bloques de tiempo</b><p>Elige el día y la hora, ponle nombre y mete dentro tareas, hábitos, iniciativas o rutas de estudio. Entra en tu Agenda y, con Google conectado, en tu calendario con todo lo de dentro.</p>
+      <div class="row-b"><button class="primary" id="bt-primero">Crear el primero</button></div></div>${BT_PIE}`;
+    return;
+  }
+  const dias = [...new Set(prox.map(b => b.fecha))].slice(0, 30);
+  btW.innerHTML = `${cab}<p class="bt-nuevo"><button class="primary" id="bt-nuevo">+ Nuevo bloque de tiempo</button></p>
+    <h3>Hoy</h3>${hoy.length ? hoy.map(btCardHtml).join('') : '<p class="empty">Hoy no hay bloques de tiempo.</p>'}
+    <h3>Próximos</h3>${dias.length ? dias.map(f => `<p class="bt-dia">${esc(btDiaTxt(f))}</p>${prox.filter(b => b.fecha === f).slice(0, 20).map(btCardHtml).join('')}`).join('') : '<p class="empty">Nada reservado para los próximos días.</p>'}
+    ${pas.length ? `<details class="bt-pasados"><summary>Pasados (últimos 7 días)</summary>${pas.slice(0, 40).map(btCardHtml).join('')}</details>` : ''}
+    ${BT_PIE}`;
+}
+window.renderBloques = () => renderBloques();
+btW.addEventListener('click', e => {
+  const v = e.target.closest('[data-bt-ver]'); if (v) { btFicha(v.dataset.btVer); return; }
+  if (e.target.closest('#bt-nuevo, #bt-primero')) btEditor();
+});
+
+// ---------- La ficha del bloque
+function btRefrescarFicha() {
+  try {
+    if (!btFichaId || !sheet.open) return;
+    const el = $('#bt-f-g'); if (!el) { btFichaId = ''; return; }
+    const b = btGet(btFichaId); if (!b) return;
+    el.innerHTML = btGHtml(b); btWireG(b);
+  } catch {}
+}
+function btWireG(b) {
+  $('#bt-f-con')?.addEventListener('click', async () => { try { await gToken(true, true); btGOk = true; await btSincronizar(b.id); } catch (e) { toast(e.message || 'Google no abrió la ventana de permiso.'); } btRefrescarFicha(); });
+  $('#bt-f-retry')?.addEventListener('click', async () => { const x = btGet(b.id); if (x) { x.gcal.estado = ''; x.gcal.error = ''; } await btSincronizar(b.id); btRefrescarFicha(); });
+}
+function btFicha(id) {
+  const b = btGet(id); if (!b) { toast('Ese bloque de tiempo ya no está.'); return; }
+  btFichaId = b.id; btEd = null;
+  const t = today(), V = b.items.map(i => ({ i, f: btFuente(i, b.fecha) })), hechas = V.filter(x => x.f.existe && x.f.hecho).length, pasado = btFin(b).ms <= Date.now();
+  const A = ES.agendaHoy, itAg = b.fecha === t && A && A.fecha === t ? (A.items || []).find(x => x && x.tipo === 'bt' && x.ref === b.id) : null, oculto = b.fecha === t && Array.isArray(A?.ocultos) && A.ocultos.includes(b.id);
+  const fila = ({ i, f }) => { const k = `${i.tipo}|${i.ref}`, puede = f.existe && (b.fecha === t || !['habito', 'ini', 'prio', 'norma'].includes(i.tipo));
+    const ctl = BT_ABRE.includes(i.tipo) ? `<button class="tag bt-abrir" data-bt-abre="${esc(k)}" aria-label="Abrir: ${esc(f.vigente)}">›</button>`
+      : `<button class="box" data-bt-chk="${esc(k)}" aria-pressed="${f.hecho}" aria-label="${f.hecho ? 'Desmarcar' : 'Marcar hecha'}: ${esc(f.vigente)}" style="${f.hecho ? 'background:var(--green);border-color:var(--green);' : ''}width:20px;height:20px" ${puede ? '' : 'disabled'}></button>`;
+    return `<div class="row bt-it${f.hecho ? ' ok' : ''}" data-k="${esc(k)}">${ctl}<span class="t"><div>${esc(f.vigente)}</div><small>${esc([BT_TIPO[i.tipo], f.sub && f.sub !== f.vigente ? f.sub : '', f.existe ? '' : 'ya no está en la app'].filter(Boolean).join(' · '))}</small></span></div>`; };
+  showSheet(`<p class="paso">Bloque de tiempo · ${esc(btDiaTxt(b.fecha))} · ${esc(btRango(b))}</p><h2>${esc(b.t)}</h2>
+    ${V.length ? `<div class="rows bt-dentro">${V.map(fila).join('')}</div><p class="meta" style="margin-top:8px">${hechas} de ${V.length} hechas</p>` : `<p class="meta">Hueco reservado, sin nada dentro.</p>${itAg ? `<p class="bt-a-hecho"><button class="outline" id="bt-f-hecho">${itAg.hecho ? 'Deshacer «hecho»' : 'Marcar hecho'}</button></p>` : ''}`}
+    <p class="more" style="padding-top:0"><button class="link" id="bt-f-add">+ Añadir</button></p>
+    ${oculto ? '<p class="meta">No está en tu agenda de hoy. <button class="link" id="bt-f-ag">Ponerlo en la agenda</button></p>' : ''}
+    ${b.nota ? `<p class="bt-nota">${esc(b.nota)}</p>` : ''}
+    <div id="bt-f-g">${btGHtml(b)}</div>
+    <div class="actions stack" style="margin-top:8px">
+      ${pasado ? '' : '<button class="primary" id="bt-f-go">Empezar ahora</button>'}
+      <button class="outline" id="bt-f-edit">Editar</button>
+      <button class="link" id="bt-f-dup">${b.fecha > t ? 'Duplicar al día siguiente' : 'Duplicar para mañana'}</button>
+      ${itAg ? '<button class="link" id="bt-f-quitar">Quitar de la agenda de hoy</button>' : ''}
+      <button class="link red" id="bt-f-del">Borrar</button>
+      <button class="link" id="bt-f-x">Cerrar</button></div>`);
+  const body = $('#sheet-body');
+  body.querySelectorAll('[data-bt-chk]').forEach(x => x.onclick = () => { const [tipo, ...r] = x.dataset.btChk.split('|'); const v = btFuente({ tipo, ref: r.join('|') }, b.fecha); btMarcarDentro(b.id, tipo, r.join('|'), !v.hecho); if (sheet.open && btFichaId === b.id && $('#bt-f-g')) btFicha(b.id); });
+  body.querySelectorAll('[data-bt-abre]').forEach(x => x.onclick = () => { const [tipo, ...r] = x.dataset.btAbre.split('|'); btMarcarDentro(b.id, tipo, r.join('|')); });
+  $('#bt-f-hecho')?.addEventListener('click', () => { const it = (agenda().items || []).find(x => x && x.tipo === 'bt' && x.ref === b.id); if (it) agMarcar(it, !it.hecho); btFicha(b.id); });
+  $('#bt-f-ag')?.addEventListener('click', () => { const A2 = agenda(); A2.ocultos = (A2.ocultos || []).filter(r => r !== b.id); agenda(); guardar(); renderE(); if (view === 'agenda') renderAg(); btFicha(b.id); });
+  $('#bt-f-quitar')?.addEventListener('click', () => { const it = (agenda().items || []).find(x => x && x.tipo === 'bt' && x.ref === b.id); if (it) agQuitar(it); btFicha(b.id); });
+  $('#bt-f-add').onclick = () => btSelectorDe(b.id);
+  $('#bt-f-go')?.addEventListener('click', () => {
+    const now = Date.now(), ini = btIni(b), fin = btFin(b).ms, resto = ini <= now && now < fin ? Math.round((fin - now) / 60000) : b.min;
+    closeSheet(); irA('enfoque'); startFocus(b.t, Math.max(1, Math.min(120, resto)));
+  });
+  $('#bt-f-edit').onclick = () => btEditor(b);
+  $('#bt-f-dup').onclick = () => { try { const n = btDuplicar(b.id); toast(`Duplicado: «${n.t}», ${btDiaTxt(n.fecha).toLowerCase()} a las ${fmtHora(n.h)}.`); btFicha(n.id); } catch (e) { toast(e.message); } };
+  $('#bt-f-del').onclick = () => btPedirBorrar(b);
+  $('#bt-f-x').onclick = () => { btFichaId = ''; closeSheet(); };
+  btWireG(b);
+}
+function btPedirBorrar(b) {
+  if (!confirm(`¿Borrar el bloque de tiempo «${b.t}»? Lo que hay dentro no se borra.${b.gcal?.id ? ' Su evento sale también de tu Google Calendar.' : ''}`)) return;
+  const g = !!b.gcal?.id;
+  btBorrar(b.id); btFichaId = ''; closeSheet();
+  toast(g && !gCalOk() ? 'Bloque borrado. Su evento sale de Google Calendar al conectar Google.' : 'Bloque de tiempo borrado.');
+}
+
+// ---------- El editor (crear o editar): el borrador vive en btEd mientras la hoja está abierta (el selector vuelve a él).
+function btEditor(b = null, pre = {}) {
+  pre = pre && typeof pre === 'object' ? pre : {};
+  if (!b && typeof pre.id === 'string') b = btGet(pre.id);
+  const p = btProximaMedia();
+  if (b) btEd = { id: b.id, t: b.t, fecha: b.fecha, h: b.h, min: b.min, items: b.items.map(i => ({ ...i })), nota: b.nota };
+  else {
+    const items = btItemsDe(pre.items, btF(pre.fecha) || p.fecha), h0 = btH(String(pre.h ?? pre.hora ?? '')) || (items[0] && btHoraPropia(items[0])) || '';
+    const min0 = +pre.min >= 15 && +pre.min <= 720 ? Math.round(+pre.min) : items[0] ? btMinPropios(items[0]) || 60 : 60;
+    btEd = { id: '', t: btS(pre.t, 80), fecha: btF(pre.fecha) && pre.fecha >= today() ? pre.fecha : h0 ? today() : p.fecha, h: h0 || p.h, min: min0, items, nota: btNota(pre.nota) };
+  }
+  btFichaId = '';
+  btPintarEditor();
+}
+function btPintarEditor() {
+  const E = btEd; if (!E) return;
+  const t = today(), man = dayKey(addDays(new Date(), 1)), otro = E.fecha !== t && E.fecha !== man, enChip = BT_MIN.includes(E.min);
+  const fin = btFin(E);
+  showSheet(`<h2>${E.id ? 'Editar el bloque de tiempo' : 'Nuevo bloque de tiempo'}</h2>
+    <div class="field"><label for="bt-e-t">Nombre</label><input id="bt-e-t" maxlength="80" value="${esc(E.t)}" placeholder="Estudio profundo · Recados · Tarde de proyecto"></div>
+    <div class="field"><label>Día</label><div class="chips" id="bt-e-dias"><button type="button" class="chip${E.fecha === t ? ' on' : ''}" data-f="${t}">Hoy</button><button type="button" class="chip${E.fecha === man ? ' on' : ''}" data-f="${man}">Mañana</button><button type="button" class="chip${otro ? ' on' : ''}" data-f="otro">Otro día</button></div>
+      <input type="date" id="bt-e-f" min="${t}" value="${esc(E.fecha)}" style="margin-top:10px" ${otro ? '' : 'hidden'}></div>
+    <div class="field"><label for="bt-e-h">Hora de inicio</label>${horaInput('bt-e-h', E.h)}${franjaChips('bt-e-h', E.h)}</div>
+    <div class="field"><label>Duración</label><div class="chips" id="bt-e-min">${BT_MIN.map(m => `<button type="button" class="chip${E.min === m ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div>
+      <div class="bt-fin"><label for="bt-e-fin">o hasta las</label><input type="time" id="bt-e-fin" value="${esc(fin.h)}"></div>
+      <p class="meta bt-rango" id="bt-e-rango">${esc(btEdRangoTxt(E))}</p></div>
+    <div class="field"><label>Lo que va dentro</label>
+      ${E.items.length ? `<div class="rows" id="bt-e-items">${E.items.map((i, k) => { const f = btFuente(i, E.fecha); return `<div class="row bt-ed-it"><span class="t"><div>${esc(f.vigente)}</div><small>${esc([BT_TIPO[i.tipo], f.sub && f.sub !== f.vigente ? f.sub : ''].filter(Boolean).join(' · '))}</small></span><button type="button" class="link" data-bt-e-q="${k}">Quitar</button></div>`; }).join('')}</div>` : '<p class="meta" style="margin:0">Nada todavía: también puede ser un hueco reservado.</p>'}
+      <p class="more"><button type="button" class="link" id="bt-e-add">+ Añadir</button></p></div>
+    <div class="field"><label for="bt-e-nota">Nota <span class="meta">(opcional)</span></label><textarea id="bt-e-nota" maxlength="300" rows="2" style="min-height:60px" placeholder="Dónde, con qué, qué dejar listo antes">${esc(E.nota)}</textarea></div>
+    <p class="meta red" id="bt-e-err"></p>
+    <div class="actions">${E.id ? '<button class="link red" id="bt-e-del">Borrar</button>' : ''}<button class="link" id="bt-e-x">Cancelar</button><button class="primary" id="bt-e-ok">Guardar</button></div>`);
+  const body = $('#sheet-body'); activarFranjas(body);
+  const q = s => body.querySelector(s), rango = () => { const el = q('#bt-e-rango'); if (el) el.textContent = btEdRangoTxt(E); };
+  const fin2 = () => { const i = q('#bt-e-fin'); if (i && btH(E.h)) i.value = btFin(E).h; };
+  q('#bt-e-t').addEventListener('input', () => { E.t = q('#bt-e-t').value; });
+  q('#bt-e-nota').addEventListener('input', () => { E.nota = q('#bt-e-nota').value; });
+  q('#bt-e-dias').addEventListener('click', e => { const c = e.target.closest('[data-f]'); if (!c) return; q('#bt-e-dias').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); const inp = q('#bt-e-f'); if (c.dataset.f === 'otro') { inp.hidden = false; inp.focus(); } else { inp.hidden = true; E.fecha = c.dataset.f; inp.value = E.fecha; } rango(); });
+  q('#bt-e-f').addEventListener('change', () => { const f = btF(q('#bt-e-f').value); if (f) E.fecha = f; rango(); });
+  const hora = () => { const h = btH(q('#bt-e-h').value); if (h) E.h = h; fin2(); rango(); };
+  q('#bt-e-h').addEventListener('change', hora); q('#bt-e-h').addEventListener('input', hora);
+  q('#bt-e-min').addEventListener('click', e => { const c = e.target.closest('[data-m]'); if (!c) return; E.min = +c.dataset.m; q('#bt-e-min').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); fin2(); rango(); });
+  q('#bt-e-fin').addEventListener('change', () => {
+    const f = btH(q('#bt-e-fin').value); if (!f || !btH(E.h)) return;
+    let m = toMin(f) - toMin(E.h); if (m <= 0) m += 1440;
+    E.min = Math.max(15, Math.min(720, m)); q('#bt-e-min').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', +x.dataset.m === E.min)); fin2(); rango();
+  });
+  body.querySelectorAll('[data-bt-e-q]').forEach(x => x.onclick = () => { E.items.splice(+x.dataset.btEQ, 1); btPintarEditor(); });
+  q('#bt-e-add').onclick = () => btSelector({ fecha: E.fecha, ya: new Set(E.items.map(i => `${i.tipo}|${i.ref}`)), titulo: 'Añadir al bloque de tiempo',
+    alListo: L => { for (const i of btItemsDe(L, E.fecha)) if (E.items.length < 30 && !E.items.some(y => y.tipo === i.tipo && y.ref === i.ref)) E.items.push(i); btPintarEditor(); }, alCancelar: () => btPintarEditor() });
+  q('#bt-e-x').onclick = () => { const id = E.id; btEd = null; if (id && btGet(id)) btFicha(id); else closeSheet(); };
+  q('#bt-e-del')?.addEventListener('click', () => { const b = btGet(E.id); if (b) { btEd = null; btPedirBorrar(b); } });
+  q('#bt-e-ok').onclick = () => {
+    E.t = q('#bt-e-t').value; E.nota = q('#bt-e-nota').value;
+    const h = btH(q('#bt-e-h').value); if (h) E.h = h;
+    if (!q('#bt-e-f').hidden) { const f = btF(q('#bt-e-f').value); if (!f) { q('#bt-e-err').textContent = 'Elige el día del bloque.'; return; } E.fecha = f; }
+    try {
+      const d = { t: E.t, fecha: E.fecha, h: E.h, min: E.min, items: E.items, nota: E.nota };
+      const b = E.id ? btEditar(E.id, d) : btCrear(d), nuevo = !E.id;
+      btEd = null; closeSheet();
+      toast(nuevo ? `Bloque de tiempo creado: «${b.t}», ${btDiaTxt(b.fecha).toLowerCase()} a las ${fmtHora(b.h)}.` : 'Bloque de tiempo guardado.');
+    } catch (e) { q('#bt-e-err').textContent = e.message; }
+  };
+}
+function btEdRangoTxt(E) { if (!btH(E.h)) return ''; const fin = btFin(E); return `De ${fmtHora(E.h)} a ${fmtHora(fin.h)}${fin.fecha !== E.fecha ? ' del día siguiente' : ''} · ${fmtMin(E.min)}`; }
+sheet.addEventListener('close', () => { if (!sheet.open) { btEd = null; btSel = null; btFichaId = ''; } });
+
+// ---------- El selector agrupado (con buscador): lo de dentro, marcado; [Añadir {n}] y [Cancelar].
+function btSelectorDe(id) {
+  const b = btGet(id); if (!b) { irA('bloques'); return; }
+  btSelector({ fecha: b.fecha, ya: new Set(b.items.map(i => `${i.tipo}|${i.ref}`)), titulo: `Añadir a «${b.t}»`,
+    alListo: L => { try { btAgregar(b.id, L); toast(`Agregado a «${b.t}».`); } catch (e) { toast(e.message); } btFicha(b.id); }, alCancelar: () => btFicha(b.id) });
+}
+function btSelector(ctx) {
+  btSel = { fecha: btF(ctx.fecha) || today(), ya: ctx.ya instanceof Set ? ctx.ya : new Set(), titulo: ctx.titulo || 'Añadir al bloque de tiempo', alListo: ctx.alListo, alCancelar: ctx.alCancelar, sel: new Map(), q: '', abiertos: null };
+  showSheet(`<h2>${esc(btSel.titulo)}</h2>
+    <div class="field"><input type="search" id="bt-s-q" placeholder="Buscar en rutas, iniciativas, hábitos, tareas…" aria-label="Buscar" enterkeyhint="search" autocomplete="off"></div>
+    <div id="bt-s-lista"></div>
+    <div class="actions"><button class="link" id="bt-s-x">Cancelar</button><button class="primary" id="bt-s-ok" disabled>Añadir</button></div>`);
+  const body = $('#sheet-body'), S = btSel;
+  btPintarLista();
+  const inp = body.querySelector('#bt-s-q');
+  inp.addEventListener('input', () => { S.q = inp.value; btPintarLista(); });
+  body.querySelector('#bt-s-lista').addEventListener('change', e => {
+    const c = e.target.closest?.('input[data-bt-k]'); if (!c || c.disabled) return;
+    const k = c.dataset.btK; if (c.checked) { const [tipo, ...r] = k.split('|'); S.sel.set(k, { tipo, ref: r.join('|') }); } else S.sel.delete(k);
+    btSelBoton();
+  });
+  body.querySelector('#bt-s-lista').addEventListener('toggle', e => { const d = e.target; if (d?.dataset?.g && !S.q) { S.abiertos ||= new Set(); if (d.open) S.abiertos.add(d.dataset.g); else S.abiertos.delete(d.dataset.g); } }, true);
+  body.querySelector('#bt-s-x').onclick = () => { const f = S.alCancelar; btSel = null; if (f) f(); else closeSheet(); };
+  body.querySelector('#bt-s-ok').onclick = () => { if (!S.sel.size) return; const L = [...S.sel.values()], f = S.alListo; btSel = null; f?.(L); };
+}
+function btSelBoton() { const b = $('#bt-s-ok'); if (!b || !btSel) return; const n = btSel.sel.size; b.disabled = !n; b.textContent = n ? `Añadir ${n}` : 'Añadir'; }
+function btPintarLista() {
+  const S = btSel, el = $('#bt-s-lista'); if (!S || !el) return;
+  const O = btOpciones(S.fecha, S.q), f = S.fecha;
+  const fila = o => { const k = `${o.tipo}|${o.ref}`, ya = S.ya.has(k), on = ya || S.sel.has(k), v = btFuente(o, f), pista = btPista(o, f);
+    return `<label class="bt-op${o.tipo === 'est' ? ' bt-sub' : ''}${ya ? ' ya' : ''}"><input type="checkbox" data-bt-k="${esc(k)}" ${on ? 'checked' : ''} ${ya ? 'disabled' : ''} aria-label="${esc(v.vigente)}"><span class="t"><div>${esc(v.vigente)}</div>${ya || pista ? `<small>${esc(ya ? 'Ya está dentro' : pista)}</small>` : ''}</span></label>`; };
+  const mas = [['Prioridades de hoy', O.mas.prioridades], ['Pasos de proyecto', O.mas.proyectos], ['Planes', O.mas.planes], ['Vida espiritual', O.mas.espiritual], ['Objetivos', O.mas.objetivos]];
+  const nMas = mas.reduce((n, [, L]) => n + L.length, 0);
+  const G = [['rutas', 'Rutas', O.rutas], ['ini', 'Iniciativas', O.iniciativas], ['hab', 'Hábitos', O.habitos], ['tar', 'Tareas', O.tareas]];
+  // Sin buscar, los cinco grupos siempre (el vacío, plegado y con una línea); buscando, solo los que coinciden.
+  const VACIO = { rutas: 'Sin rutas de estudio activas.', ini: f === today() ? 'Sin iniciativas hoy.' : 'Las iniciativas son de cada día: se eligen ese día.', hab: 'Aún no hay hábitos.', tar: 'Nada pendiente.', mas: 'Nada más por ahora.' };
+  const abierto = (g, n) => S.q ? n > 0 : n > 0 && (S.abiertos ? S.abiertos.has(g) : g !== 'mas');
+  const grupo = (g, titulo, n, cuerpo) => (S.q && !n) ? '' : `<details class="bt-grupo" data-g="${g}"${abierto(g, n) ? ' open' : ''}><summary>${titulo} · ${n}</summary>${n ? cuerpo : `<p class="meta" style="margin:4px 0 10px">${esc(VACIO[g])}</p>`}</details>`;
+  const html = G.map(([g, titulo, L]) => grupo(g, titulo, L.filter(o => o.tipo !== 'est').length || L.length, L.map(fila).join(''))).join('')
+    + grupo('mas', 'Más', nMas, mas.filter(([, L]) => L.length).map(([t, L]) => `<p class="bt-sg">${t}</p>${L.map(fila).join('')}`).join(''));
+  el.innerHTML = html || `<p class="empty">Nada coincide con «${esc(S.q)}».</p>`;
+  btSelBoton();
+}
+
+// ---------- «Agregar a un bloque de tiempo» (para una o varias cosas): los bloques de hoy y próximos (hasta 8) o uno nuevo con ellas dentro.
+function btAgregarSheet(items) {
+  const L0 = (Array.isArray(items) ? items : [items]).filter(i => i && typeof i === 'object' && BT_TIPO[i.tipo] && i.ref != null && i.ref !== '').map(i => ({ tipo: i.tipo, ref: String(i.ref) })).slice(0, 30);
+  if (!L0.length) { irA('bloques'); return; }
+  const nombre = btFuente(L0[0], today()).vigente, que = L0.length > 1 ? `«${nombre}» y ${L0.length - 1} más` : `«${nombre}»`, ahora = Date.now();
+  const B = btLista(today()).filter(b => btFin(b).ms > ahora).slice(0, 8);
+  btFichaId = '';
+  showSheet(`<h2>Agregar ${esc(que)} a…</h2>
+    ${B.length ? `<div class="rows" id="bt-a-rows">${B.map(b => { const ya = L0.every(i => b.items.some(x => x.tipo === i.tipo && x.ref === i.ref)); return `<button class="row" data-bt-a="${esc(b.id)}" ${ya ? 'disabled' : ''}><span class="t"><div>${esc(b.t)}</div><small>${esc(btDiaTxt(b.fecha))} · ${esc(btRango(b))} · ${ya ? 'ya está dentro' : b.items.length ? `${btCosas(b.items.length)} dentro` : 'hueco reservado'}</small></span><span class="tag">${ya ? '✓' : '+'}</span></button>`; }).join('')}</div>` : '<p class="meta">Aún no hay bloques de tiempo de hoy en adelante.</p>'}
+    <div class="actions stack"><button class="primary" id="bt-a-nuevo">Crear bloque de tiempo con ${esc(que)}</button><button class="link" id="bt-a-x">Cerrar</button></div>`);
+  const body = $('#sheet-body');
+  body.querySelectorAll('[data-bt-a]').forEach(x => x.onclick = () => {
+    const b = btGet(x.dataset.btA); if (!b) return;
+    try { btAgregar(b.id, L0); } catch (e) { toast(e.message); return; }
+    toast(`Agregado a «${b.t}».`);
+    showSheet(`<h2>Agregado a «${esc(b.t)}».</h2><p class="meta">${esc(btDiaTxt(b.fecha))} · ${esc(btRango(b))} · ${btCosas(b.items.length)} dentro.</p>
+      <div class="actions stack"><button class="primary" id="bt-a-ver">Abrir el bloque</button><button class="link" id="bt-a-x">Cerrar</button></div>`);
+    $('#bt-a-ver').onclick = () => btFicha(b.id);
+    $('#bt-a-x').onclick = closeSheet;
+  });
+  $('#bt-a-nuevo').onclick = () => btEditor(null, { items: L0 });
+  $('#bt-a-x').onclick = closeSheet;
+}
+
+// ---------- La fila de chips para los formularios de creación: «Bloque de tiempo: Ninguno · {t} {hora} (hasta 4) · + Nuevo».
+function btChipsHtml(pref, sel = '') {
+  const ahora = Date.now(), B = btLista(today()).filter(b => btFin(b).ms > ahora).slice(0, 4);
+  sel = sel === 'nuevo' || B.some(b => b.id === sel) ? sel : '';
+  const chip = (v, t) => `<button type="button" class="chip${v === sel ? ' on' : ''}" data-bt-chip="${esc(v)}" aria-pressed="${v === sel}">${esc(t)}</button>`;
+  return `<div class="field bt-chips" data-bt-pref="${esc(pref)}" data-sel="${esc(sel)}"><label>Bloque de tiempo</label><div class="chips">${chip('', 'Ninguno')}${B.map(b => chip(b.id, `${b.t} ${b.fecha === today() ? '' : b.fecha === dayKey(addDays(new Date(), 1)) ? 'mañana ' : fmtFecha(b.fecha) + ' '}${fmtHora(b.h)}`)).join('')}${chip('nuevo', '+ Nuevo')}</div></div>`;
+}
+function btLeerChips(body, pref) {
+  const sel = `[data-bt-pref="${CSS.escape(String(pref))}"]`, box = (body && body.querySelector ? body.querySelector(sel) : null) || document.querySelector(sel) || ov.querySelector(sel);
+  const v = box ? box.dataset.sel || '' : '';
+  return v === 'nuevo' || btGet(v) ? v : '';
+}
+document.addEventListener('click', e => {
+  const el = (e.composedPath && e.composedPath()[0]) || e.target, c = el && el.closest ? el.closest('[data-bt-chip]') : null, box = c && c.closest('[data-bt-pref]');
+  if (!c || !box) return;
+  box.dataset.sel = c.dataset.btChip || '';
+  box.querySelectorAll('[data-bt-chip]').forEach(x => { const on = x === c; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+}, true);
+
+// ---------- Inicio, Agenda y asistente
+INI_ESTADO.bloques = () => {
+  const L = btLista(today(), today()); if (!L.length) return 'Reserva tiempo para lo importante';
+  const ahora = Date.now(), sig = L.find(b => btFin(b).ms > ahora);
+  return `Hoy: ${L.length} ${L.length === 1 ? 'bloque' : 'bloques'}${sig ? ` · siguiente: ${fmtHora(sig.h)} ${sig.t}` : ''}`;
+};
+AG_TIPO.bt = 'Bloque de tiempo'; AG_MIN.bt = 60;
+IA_TOOLS.push(
+  iaTool('bloques_tiempo_ver', 'Devuelve los bloques de tiempo de hoy y de los próximos días (huecos reservados con nombre, día, hora de inicio y de fin y minutos), con lo que va dentro de cada uno (tareas, hábitos, iniciativas, rutas y bloques de estudio, prioridades, pasos de proyecto, planes, normas de Vida espiritual y objetivos, con su tipo y si está hecho) y si cada bloque ya está en su Google Calendar.', {}),
+  iaTool('bloque_tiempo_crear', 'Crea un bloque de tiempo: un hueco reservado con lo que va dentro, que entra en la Agenda y, si Google Calendar está conectado, va a su calendario con la lista en la descripción. Úsala solo si la persona lo pidió o aceptó.', {
+    titulo: S('Nombre del bloque, o vacío para usar el de lo primero que va dentro.'), fecha: S('Día del bloque, AAAA-MM-DD, de hoy en adelante.'), hora_inicio: S('HH:MM en 24 h.'),
+    minutos: { type: 'integer', description: 'Duración en minutos (15 a 720).' },
+    incluir: { type: 'array', items: { type: 'string' }, description: 'Nombres de lo que va dentro, tal como están en la app (máximo 30). Se buscan entre las tareas pendientes, los hábitos, las iniciativas de hoy, las rutas de estudio, las prioridades de hoy, los planes, las normas de Vida espiritual y los objetivos. Puede ir vacía.' } }),
+);
+Object.assign(IA_ACCION, { bloques_tiempo_ver: 'Miró tus bloques de tiempo', bloque_tiempo_crear: 'Creó un bloque de tiempo' });
+function btToolBloque(b) {
+  const fin = btFin(b), g = btGEstado(b);
+  return { id: b.id, titulo: b.t, fecha: b.fecha, hora_inicio: b.h, hora_fin: fin.h, minutos: b.min,
+    dentro: b.items.map(i => { const f = btFuente(i, b.fecha); return { tipo: BT_TIPO[i.tipo], nombre: f.vigente, hecho: f.hecho, ...(f.existe ? {} : { ya_no_esta: true }) }; }),
+    en_google_calendar: g.k === 'ok', ...(g.k === 'error' ? { error_google: b.gcal.error } : {}), ...(b.nota ? { nota: b.nota } : {}) };
+}
+function btToolVer() {
+  const L = btLista(today()).slice(0, 30);
+  return { google_calendar_conectado: gCalOk(), bloques: L.map(btToolBloque), ...(L.length ? {} : { nota: 'Aún no hay bloques de tiempo de hoy en adelante. Se crean en el apartado Bloques de tiempo, o con bloque_tiempo_crear si la persona lo pide.' }) };
+}
+// Busca un nombre entre lo que se puede meter en un bloque: primero el nombre exacto (sin tildes ni mayúsculas), después el que lo contiene.
+function btBuscar(nombre, fecha) {
+  const q = btSin(nombre); if (!q) return null;
+  const C = [];
+  try { for (const x of HT().tareas.items.filter(x => x && !x.hecha)) C.push({ tipo: 'tarea', ref: x.id, n: [x.titulo] }); } catch {}
+  try { for (const h of HT().habits.filter(h => h && !h.rutina)) C.push({ tipo: 'habito', ref: h.id, n: [h.nombre] }); } catch {}
+  try { for (const x of ini4Semana().items) { const k = INI4.find(([c]) => c === x.k); if (k) C.push({ tipo: 'ini', ref: x.k, n: [x.t, `Iniciativa de ${k[1]}`, k[1]].filter(Boolean) }); } } catch {}
+  try { for (const r of (window.est?.rutas?.() || []).filter(r => r && !r.archivada)) C.push({ tipo: 'ruta', ref: r.id, n: [r.nombre, window.est.materia?.(r.materia)?.nombre].filter(Boolean) }); } catch {}
+  try { if (ES.prioridades?.fecha === today()) for (const x of ES.prioridades.items || []) C.push({ tipo: 'prio', ref: x.id, n: [x.t] }); } catch {}
+  try { for (const p of (ES.planes || []).filter(p => p && !p.hecho)) C.push({ tipo: 'plan', ref: p.id, n: [p.titulo, `${p.titulo}${p.con ? ' con ' + p.con : ''}`] }); } catch {}
+  try { for (const n of espD().normas.filter(n => n && n.on)) C.push({ tipo: 'norma', ref: n.id, n: [n.t, espNombre(n, fecha || today())] }); } catch {}
+  try { for (const o of objetivosActivos()) C.push({ tipo: 'objetivo', ref: o.id, n: [o.t] }); } catch {}
+  const x = C.find(c => c.ref === nombre) || C.find(c => c.n.some(s => btSin(s) === q)) || C.find(c => c.n.some(s => btSin(s).includes(q)));
+  return x ? { tipo: x.tipo, ref: x.ref } : null;
+}
+function btToolCrear(a) {
+  a = a && typeof a === 'object' ? a : {};
+  const fecha = String(a.fecha || '').trim(), items = [], fuera = [];
+  for (const n of (Array.isArray(a.incluir) ? a.incluir : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 30)) {
+    const it = btBuscar(n, btF(fecha)); if (!it) { fuera.push(n); continue; }
+    if (!items.some(x => x.tipo === it.tipo && x.ref === it.ref)) items.push(it);
+  }
+  const b = btCrear({ t: a.titulo, fecha, h: String(a.hora_inicio || '').trim(), min: a.minutos, items });
+  return { creado: btToolBloque(b), ...(fuera.length ? { no_encontrados: fuera, nota: 'Lo no encontrado no entró: puede añadirse desde la ficha del bloque.' } : {}),
+    google_calendar: gCalOk() ? 'Va a su Google Calendar con la lista en la descripción.' : 'Google Calendar no está conectado: el bloque queda guardado y va a su calendario al conectar Google.' };
+}
+
+// ---------- Contrato para el resto de la app (área C) y las pruebas: window.bt.
+window.bt = {
+  lista: (desde = today(), hasta = '') => btLista(desde, hasta).map(btCopia),
+  bloque: id => btCopia(btGet(id)),
+  hoy: () => btLista(today(), today()).map(btCopia),
+  crear: d => btCopia(btCrear(d)),
+  editar: (id, cambios) => btCopia(btEditar(id, cambios)),
+  borrar: id => btBorrar(id),
+  agregar: (id, items) => btCopia(btAgregar(id, items)),
+  quitar: (id, tipo, ref) => btCopia(btQuitar(id, tipo, ref)),
+  opciones: (fecha = today(), texto = '') => btOpciones(fecha, texto),
+  vivo: (item, fecha) => btVivo(item, btF(fecha) || (item && item.fecha) || today()),
+  etiquetaTipo: tipo => BT_TIPO[tipo] || '',
+  descripcion: b => btDescripcion(typeof b === 'string' ? btGet(b) : b),
+  sincronizar: (id = '') => btSincronizar(id),
+  marcarDentro: (id, tipo, ref, hecho) => btMarcarDentro(id, tipo, ref, hecho),
+  escuchar: fn => { if (typeof fn !== 'function') return () => {}; btOyentes.push(fn); return () => { btOyentes = btOyentes.filter(f => f !== fn); }; },
+  chips: (pref, sel = '') => btChipsHtml(pref, sel),
+  leerChips: (body, pref) => btLeerChips(body, pref),
+  eventoId: id => btEvId(id),
+  ui: {},
+  agregarSheet: items => window.bt.ui.agregarSheet ? window.bt.ui.agregarSheet(items) : irA('bloques'),
+  abrir: (id = '') => window.bt.ui.abrir ? window.bt.ui.abrir(id) : irA('bloques'),
+};
+Object.assign(window.bt.ui, {
+  abrir: (id = '') => { if (id && btGet(id)) btFicha(id); else irA('bloques'); },
+  editor: (pre = {}) => btEditor(null, pre),
+  agregarSheet: items => btAgregarSheet(items),
+  selector: id => btSelectorDe(id),
+});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') btAuto(); });
+setInterval(() => { if (!btListo || !btArrancado) return; const ok = !!gCalOk(); if (ok && btGOk === false) btAuto(); btGOk = ok; }, 2500);
+btListo = true;
+btArranque();
+
+// ====================================================================
+// 2.16 (C) · «Agregar a un bloque de tiempo» en las hojas de Enfoque, la Agenda, Estudio y Vida espiritual (bloques_spec.md).
+// Las fichas pintan btcAccion(tipo, ref) (de mod216_C_ht.js) solo si existe window.bt, y un toque abre la hoja «Agregar a un bloque
+// de tiempo» del área B (window.bt.agregarSheet([{ tipo, ref }])). Los formularios de creación pintan btcChips(pref) y, al guardar,
+// btcTras(btcLeer(body, pref), { tipo, ref }) pone lo recién creado en el bloque elegido o abre el editor con ello dentro.
+// Sin window.bt, nada de esto aparece. Sin XP nuevo; nada se guarda al pintar.
+// ====================================================================
+// El aviso va tras el del formulario («En la agenda.», «Ruta creada…», «Plan guardado.»): si ese sigue a la vista, se suma a él.
+btcAvisoFn = msg => { const el = $('#toast'), prev = el && el.classList.contains('on') ? el.textContent.trim() : ''; toast(prev && prev.length <= 90 && !prev.includes(msg) ? `${prev} ${msg}` : msg); };
+// Un solo oyente para todas las hojas (la hoja vive en #view-overlays): el atributo es propio, no choca con los de cada hoja.
+ov.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-btc-tipo]'); if (!b) return;
+  btcAbrir([btcItemDe(b)]);
+});
+// Un ítem de la Agenda, según su tipo, como elemento de un bloque. Un evento de Google, una cosa suelta o un bloque de tiempo no se agregan.
+function btcDeAgenda(it) {
+  if (!it || typeof it !== 'object') return null;
+  const ref = typeof it.ref === 'string' || typeof it.ref === 'number' ? String(it.ref) : '';
+  const T = { habito: 'habito', tarea: 'tarea', ini: 'ini', prio: 'prio', plan: 'plan', estudio: 'est' };
+  if (it.tipo === 'ini' && ref) { const sub = ini4Semana().items.find(x => x && x.k === ref)?.t || it.t || ''; return { tipo: 'ini', ref, ...(sub ? { sub: String(sub) } : {}) }; }   // con su texto
+  if (T[it.tipo] && ref) return { tipo: T[it.tipo], ref };
+  if (it.tipo === 'libre' && typeof it.esp === 'string' && it.esp) return { tipo: 'norma', ref: it.esp };   // una norma de Vida espiritual
+  return null;
+}
+function btcAgItem(it) { const x = btcDeAgenda(it); return x ? btcAccion(x.tipo, x.ref, 'link', '', x.sub || '') : ''; }
+// La ruta de Estudio: mientras está activa (ni archivada ni con el examen ya pasado).
+function btcRuta(r) { return r && !r.archivada && !(euF(r.fecha) && r.fecha < today()) ? btcAccion('ruta', r.id) : ''; }
+// Vida espiritual, el editor del plan («Tu plan de vida» la primera vez, en la pestaña, y «Ajustar mi plan», en la hoja): la fila de chips
+// sale cuando el borrador tiene una norma propia nueva, todavía sin guardar.
+function btcEspChips(B) {
+  if (!btcHay() || !Array.isArray(B) || (B !== espBorrHoja && B !== espBorrIn)) return '';
+  const ids = new Set(espD().normas.map(n => n.id));
+  return B.some(n => n && n.k === 'propia' && !ids.has(n.id)) ? btcChips('esp-bt', B.btcSel || '') : '';
+}
+// cont: donde vive el editor; borr: su borrador. En captura, antes que el editor (que guarda y, en la hoja, la cierra).
+const btcEspClick = (cont, borr) => e => {
+  const B = borr(), C = cont(); if (!B || !C || !C.contains(e.target)) return;
+  // Lo elegido en la fila se recuerda en el borrador: añadir otra norma repinta el editor y no lo pierde.
+  if (e.target.closest?.('.esp-editor')) { setTimeout(() => { if (B === borr() && C.querySelector('.esp-editor')) B.btcSel = btcLeer(C, 'esp-bt'); }, 0); return; }
+  if (!e.target.closest?.('#esp-ed-ok')) return;
+  // «Guardar mi plan»: las normas propias que nacen al guardar entran en el bloque elegido (o en uno nuevo).
+  const sel = btcLeer(C, 'esp-bt'); if (!sel) return;
+  const antes = new Set(espD().normas.map(n => n.id));
+  setTimeout(() => { const nuevas = espD().normas.filter(n => n.k === 'propia' && n.on && !antes.has(n.id)); if (nuevas.length) btcTras(sel, nuevas.map(n => ({ tipo: 'norma', ref: n.id }))); }, 0);
+};
+ov.addEventListener('click', btcEspClick(() => $('#sheet-body'), () => espBorrHoja), true);
+espW.addEventListener('click', btcEspClick(() => espW, () => espD().configurado ? null : espBorrIn), true);
+
+// ====================================================================
+// 2.16.0 · Prioridades sin límite y en orden (prioridades_spec.md): las que la persona quiera, y la primera es siempre la más importante.
+// - XP por lugar, una vez por prioridad (x.premiada): la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10. Sin inflar: en el día hay
+//   un solo 40 y dos de 25 (lo ya dado se apunta en ES.prioridades.premios); subir otra al primer lugar después no repite el de la 1.
+// - «Organizar mi día» (paso de las horas): el editor «Prioridades de hoy|mañana, en orden» (↑ ↓ ×, un campo y [Añadir]). Hoy escribe
+//   directo en ES.prioridades (como prioForm); mañana, en org.prios = [{ id, t, h }] (org.rana es la primera, para el bloque protegido) y
+//   se guarda en ES.agendaPlan.prios con ES.agendaPlan.rana = la primera (el notificador, otros teléfonos y el bloque protegido).
+// - El bloque protegido (F25) sigue siendo de la prioridad 1 (hoy, la primera pendiente; mañana, la primera): si al ordenar, quitar o
+//   añadir cambia cuál es, el bloque pasa a la nueva con su hora.
+// - Al llegar el día (agAplicarPlan), entran todas en ES.prioridades en su orden, delante de las que ya hubiera, sin duplicar por id.
+// Todo son declaraciones de función: se pueden llamar desde cualquier render, sin depender del orden de carga.
+// ====================================================================
+
+// ---------- XP de una prioridad recién hecha, por su lugar
+// Un solo 40 y dos de 25 al día: si ese tramo ya se dio, vale el siguiente (nunca se resta nada).
+function prioTramo(dados, n) {
+  const c = v => dados.filter(x => x === v).length;
+  if (n === 40 && c(40) >= 1) n = 25;
+  if (n === 25 && c(25) >= 2) n = 10;
+  return n;
+}
+function prioXp(P, idx) {
+  const lugar = i => i === 0 ? 40 : i <= 2 ? 25 : 10;
+  if (!Array.isArray(P.premios)) {   // un día empezado antes de 2.16: lo ya premiado ocupa los primeros tramos (así nada se repite)
+    P.premios = [];
+    P.items.forEach((y, i) => { if (y.premiada && i !== idx) P.premios.push(prioTramo(P.premios, 40)); });
+  }
+  const n = prioTramo(P.premios, lugar(idx));
+  P.premios.push(n);
+  return [n, n === 40 ? 'La más importante, primero' : 'Prioridad hecha'];
+}
+
+// ---------- Las prioridades de un plan de mañana: la lista (agendaPlan.prios) o, de un plan de antes, la rana
+function prioPlanLista(P) {
+  const L = Array.isArray(P?.prios) ? P.prios : P?.rana?.t ? [P.rana] : [], vistos = new Set();
+  return L.filter(x => x && typeof x === 'object' && typeof x.t === 'string' && x.t.trim() && x.id && !vistos.has(String(x.id)) && vistos.add(String(x.id)))
+    .slice(0, 30).map(x => ({ id: String(x.id), t: x.t.trim().slice(0, 100) }));
+}
+// Al llegar el día: todas, en su orden, delante de las que ya hubiera (una que ya estaba con ese id conserva lo suyo).
+function prioDelPlan(P) {
+  const L = prioPlanLista(P); if (!L.length) return;
+  if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] };
+  const ya = new Map(ES.prioridades.items.map(x => [x.id, x])), ids = new Set(L.map(x => x.id));
+  ES.prioridades.items = [...L.map(x => ya.get(x.id) || { id: x.id, t: x.t, hecho: false, origen: 'Elegida anoche' }), ...ES.prioridades.items.filter(x => !ids.has(x.id))];
+}
+
+// ---------- El asistente: agregar al final (numero 0) o en ese lugar (1, 2, 3…)
+function prioIaAgregar(P, a) {
+  const t = String(a?.texto ?? '').trim().slice(0, 100);
+  if (!t) throw new Error('Falta el texto de la prioridad.');
+  const x = { id: crypto.randomUUID(), t, hecho: false, origen: 'Asistente' }, n = Math.trunc(+a?.numero) || 0;
+  if (n >= 1 && n <= P.items.length) P.items.splice(n - 1, 0, x); else P.items.push(x);
+}
+
+// ---------- «Organizar mi día»: el estado de mañana (org.prios) y org.rana como la primera
+function prioOrgInit(P) {
+  const hDe = id => ((P?.items || []).find(i => i.tipo === 'prio' && i.ref === id) || {}).h || '';
+  org.prios = prioPlanLista(P).map(x => ({ id: x.id, t: x.t, h: hDe(x.id) }));
+  Object.defineProperty(org, 'rana', { configurable: true, enumerable: false,
+    get() { return this.prios[0] || null; },
+    set(v) {
+      if (!v) { this.prios.shift(); return; }
+      const i = this.prios.findIndex(x => x.id === v.id);
+      if (i >= 0) this.prios[i] = { ...this.prios[i], ...v }; else this.prios.unshift({ id: v.id || crypto.randomUUID(), t: String(v.t || ''), h: v.h || '' });
+    } });
+}
+function prioHoy() { if (ES.prioridades.fecha !== today()) ES.prioridades = { fecha: today(), items: [] }; return ES.prioridades; }
+// La lista que se edita: la de mañana (org.prios) o la de hoy (ES.prioridades.items, la misma de Enfoque).
+function prioOrgLista() { return org.manana ? (org.prios ||= []) : prioHoy().items; }
+function prioOrgPrimera() { const L = org.manana ? org.prios || [] : prioHoy().items.filter(i => !i.hecho); return L[0]?.id || null; }
+function prioOrgHora(id) { return org.manana ? ((org.prios || []).find(x => x.id === id) || {}).h || '' : org.prioH[id] || ''; }
+function prioOrgClave(id) { return (org.manana ? 'rana:' : 'prio:') + id; }
+// Las prioridades 2, 3… de mañana en la lista de horas (la 1 entra como siempre: 45 min o el bloque protegido).
+function prioOrgResto(L) {
+  (org.prios || []).slice(1).forEach((x, j) => { if (x.t) L.push({ key: 'rana:' + x.id, tipo: 'prio', t: x.t, etq: `Prioridad ${j + 2}`, h: x.h || '', min: AG_MIN.prio }); });
+}
+function prioOrgGuardarResto(mk) { (org.prios || []).slice(1).forEach(x => { if (x.t) mk('prio', x.id, x.t, x.h, AG_MIN.prio); }); }
+function prioOrgPlan() { return (org.prios || []).filter(x => x.t).slice(0, 30).map(x => ({ id: x.id, t: x.t })); }
+// Para el reparto automático: entre prioridades, su orden (la 1 primero).
+function prioOrgN(e) {
+  if (e?.tipo !== 'prio' || !org) return 0;
+  const k = String(e.key || ''), id = k.slice(k.indexOf(':') + 1), i = (org.manana ? org.prios || [] : ES.prioridades.items).findIndex(x => x.id === id);
+  return i < 0 ? 0 : i;
+}
+
+// ---------- El bloque protegido es de la prioridad 1
+// Lo escrito en la caja del bloque («¿Qué es lo más importante de hoy?») aún no está en la lista: al tocar el editor entra como la 1.
+function prioOrgNueva() { const F = org?.foco; return !org?.manana && F?.on && !F.ref && F.nueva && F.nuevaId ? F : null; }
+function prioOrgFijar() {
+  const F = prioOrgNueva(); if (!F) return;
+  const P = prioHoy();
+  if (!P.items.some(x => x.id === F.nuevaId)) P.items.unshift({ id: F.nuevaId, t: F.nueva, hecho: false, origen: 'Bloque protegido' });
+  F.ref = F.nuevaId; F.nuevaId = ''; F.nueva = '';
+}
+function prioOrgFocoAntes() {
+  const F = org?.foco; if (!F) return null;
+  const id = F.on ? agbFocoRef() : null, k = id ? prioOrgClave(id) : '';
+  return { primera: prioOrgPrimera(), id, k, h: id ? prioOrgHora(id) : '', auto: !!k && org.auto.has(k), hPrev: F.hPrev || '' };
+}
+function prioOrgFocoSigue(antes) {
+  const F = org?.foco; if (!F || !antes) return;
+  if (!org.manana) {
+    // Hoy: si cambió cuál es la primera pendiente (o la del bloque ya no está), el bloque pasa a la nueva primera.
+    const primera = prioOrgPrimera(), sigue = !!F.ref && prioHoy().items.some(x => x.id === F.ref);
+    if (!(F.nueva && F.nuevaId && !F.ref) && (primera !== antes.primera || (F.ref && !sigue))) F.ref = primera;
+    if (!F.ref && !F.nuevaId) F.nuevaId = crypto.randomUUID();
+  }
+  if (!F.on || !antes.id) return;
+  const id = agbFocoRef(); if (!id || id === antes.id) return;
+  // La nueva prioridad 1 toma la hora del bloque; la de antes vuelve a la hora que tenía antes del bloque (o se reparte sola).
+  const k = prioOrgClave(id);
+  F.hPrev = prioOrgHora(id);
+  orgSetHora(k, antes.h); if (antes.auto || !antes.h) org.auto.add(k); else org.auto.delete(k);
+  if (prioOrgLista().some(x => x.id === antes.id)) { orgSetHora(antes.k, antes.hPrev); if (antes.hPrev) org.auto.delete(antes.k); else org.auto.add(antes.k); }
+}
+
+// ---------- El editor del paso 4
+function prioOrgFilas() {
+  if (org.manana) return (org.prios || []).map(x => ({ id: x.id, t: x.t }));
+  const N = prioOrgNueva(), L = prioHoy().items.map(x => ({ id: x.id, t: x.t, hecho: !!x.hecho }));
+  return N ? [{ id: N.nuevaId, t: N.nueva }, ...L] : L;
+}
+function prioOrgHtml() {
+  if (!org) return '';
+  const L = prioOrgFilas();
+  return `<div class="field" id="og-prios" style="margin:0 0 16px"><label>Prioridades de ${org.manana ? 'mañana' : 'hoy'}, en orden</label>
+    ${L.length ? `<div class="og-plist" style="border-bottom:1px solid var(--line)">${L.map((x, i) => `<div class="row" data-og-prio="${esc(x.id)}"><span class="tag" style="font-weight:600;width:14px;color:${i === 0 ? 'var(--red)' : 'var(--muted)'}">${i + 1}</span><span class="t"><div style="${x.hecho ? 'text-decoration:line-through' : ''}">${esc(x.t)}</div>${i === 0 ? '<small>La más importante</small>' : x.hecho ? '<small>Hecha</small>' : ''}</span>
+      ${i ? `<button type="button" class="link" data-og-sube="${i}" aria-label="Subir">↑</button>` : ''}${i < L.length - 1 ? `<button type="button" class="link" data-og-baja="${i}" aria-label="Bajar">↓</button>` : ''}<button type="button" class="x" data-og-quita="${i}" aria-label="Quitar">×</button></div>`).join('')}</div>` : ''}
+    <div style="display:flex;gap:10px;margin-top:8px"><input id="og-pt" maxlength="100" enterkeyhint="done" placeholder="${L.length ? 'Otra prioridad' : 'Terminar la portada del proyecto'}"><button type="button" class="link" id="og-padd">Añadir</button></div>
+    <p class="meta red" id="og-perr" style="margin:4px 0 0"></p></div>`;
+}
+function prioOrgAgregar(t) {
+  const id = crypto.randomUUID();
+  if (org.manana) { (org.prios ||= []).push({ id, t, h: '' }); org.auto.add('rana:' + id); }
+  else prioHoy().items.push({ id, t, hecho: false, origen: 'Prioridad' });
+}
+// Un cambio en la lista: lo escrito en el bloque entra primero, el bloque sigue a la prioridad 1, hoy se guarda (como prioForm) y las
+// horas se reparten en su orden.
+function prioOrgCambio(fn, pintar = true) {
+  const antes = prioOrgFocoAntes();
+  prioOrgFijar(); fn(prioOrgLista()); prioOrgFocoSigue(antes);
+  if (!org.manana) { guardar(); renderE(); }
+  orgAutoHoras(false);
+  if (pintar) organizarDia(4, true);
+}
+function prioOrgWire() {
+  const box = $('#sheet-body')?.querySelector('#og-prios'); if (!box || !org) return;
+  const err = t => { const p = box.querySelector('#og-perr'); if (p) p.textContent = t; };
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-og-sube],[data-og-baja],[data-og-quita]'); if (!b) return;
+    if (b.dataset.ogQuita !== undefined) { const i = +b.dataset.ogQuita; return prioOrgCambio(L => { const [x] = L.splice(i, 1); if (x && org.manana) org.auto.delete('rana:' + x.id); }); }
+    const i = +(b.dataset.ogSube ?? b.dataset.ogBaja), j = b.dataset.ogSube !== undefined ? i - 1 : i + 1;
+    prioOrgCambio(L => { if (L[i] && L[j]) [L[i], L[j]] = [L[j], L[i]]; });
+  });
+  const add = () => {
+    const i = box.querySelector('#og-pt'), t = i.value.trim();
+    if (!t) { i.focus(); return; }
+    if (nPalabras(t) < 2) { err('Escribe verbo + qué: «Enviar la propuesta a Luis».'); i.focus(); return; }
+    prioOrgCambio(() => prioOrgAgregar(t));
+  };
+  box.querySelector('#og-padd').addEventListener('click', add);
+  box.querySelector('#og-pt').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+}
+// «Listo» con algo escrito y sin «Añadir»: entra igual (si es verbo + qué); si no, se queda en el paso con el aviso.
+function prioOrgPendiente() {
+  const box = $('#sheet-body')?.querySelector('#og-prios'), i = box?.querySelector('#og-pt'), t = i?.value.trim() || '';
+  if (!t) return true;
+  if (nPalabras(t) < 2) { const p = box.querySelector('#og-perr'); if (p) p.textContent = 'Escribe verbo + qué: «Enviar la propuesta a Luis».'; i.focus(); return false; }
+  prioOrgCambio(() => prioOrgAgregar(t), false);
+  return true;
+}
 
 // ====================================================================
 // Notificaciones: llegan aunque la app esté cerrada. El teléfono se suscribe aquí (Web Push) y la
