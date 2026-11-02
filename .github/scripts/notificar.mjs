@@ -253,11 +253,17 @@ function estTexto(b, materia, temas) {
   const cuerpo = b.tipo === 'ligero' ? 'Repaso ligero' : b.tipo === 'simulacro' ? 'Simulacro' : b.tipo === 'repaso' ? `Repaso: ${tt}` : b.tipo === 'practica' ? `Ejercicios: ${tt}` : tt;
   return [materia, cuerpo].filter(Boolean).join(' · ');
 }
+// 2.17.1 · La jerarquía de las rutas (como la app): las de E.estudio.orden en ese orden; las demás detrás, por fecha de examen.
+function estJerarquia(L, orden) {
+  const pos = new Map((Array.isArray(orden) ? orden : []).filter(v => typeof v === 'string').slice(0, 40).map((id, i) => [id, i]));
+  const P = r => pos.has(r.id) ? pos.get(r.id) : 1e9, F = r => typeof r.fecha === 'string' ? r.fecha : '';
+  return L.slice().sort((a, b) => P(a) - P(b) || (F(a) < F(b) ? -1 : F(a) > F(b) ? 1 : 0) || ((+a.creado || 0) - (+b.creado || 0)));
+}
 function estudioDe(st, fecha) {
   let M = ESTUDIO.get(st); if (!M) ESTUDIO.set(st, M = new Map());
   if (M.has(fecha)) return M.get(fecha);
   const out = { bloques: [], examenes: [] }, E = st.enfoque || {}, D = E.estudio && typeof E.estudio === 'object' ? E.estudio : {}, mats = acota(D.materias, 20);
-  for (const r of acota(D.rutas, 40)) {
+  for (const r of estJerarquia(acota(D.rutas, 40), D.orden)) {   // 2.17.1 · en el orden de la jerarquía (E.estudio.orden)
     try {
       if (r.archivada || !/^\d{4}-\d\d-\d\d$/.test(r.fecha || '') || typeof r.id !== 'string') continue;
       const materia = sinPunto(estTx((mats.find(m => m.id === r.materia) || {}).nombre)), nombre = sinPunto(estTx(r.nombre)), temas = acota(r.temas, 30), hechos = r.hechos && typeof r.hechos === 'object' && !Array.isArray(r.hechos) ? r.hechos : {};
@@ -270,7 +276,7 @@ function estudioDe(st, fecha) {
       }
     } catch {}
   }
-  out.bloques.sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : 1); out.examenes.sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+  out.bloques.sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : (a.h || '99') > (b.h || '99') ? 1 : 0); out.examenes.sort((a, b) => a.fecha < b.fecha ? -1 : 1);
   M.set(fecha, out); return out;
 }
 // 2.13 · Identidad: una sola línea dentro del resumen si alguna identidad (E.identidades, con iden en hábitos, iniciativas y agenda)
