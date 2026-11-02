@@ -610,7 +610,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.17.0';
+const APP_VERSION = '2.17.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -993,7 +993,7 @@ function mergeStates(a, b) {
       for (const i of x) { const o = m.get(i.id); if (!o) { m.set(i.id, i); continue; } const gana = (+i.cambiado || 0) >= (+o.cambiado || 0) ? i : o, otro = gana === i ? o : i;
         m.set(i.id, (+otro.notion?.en || 0) > (+gana.notion?.en || 0) ? { ...gana, notion: otro.notion } : gana); }
       return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), ...xpFusion(eN, eO, dias),   /* 2.17 (XP) · por día y referencia, la más reciente; base de la copia con baseHasta más reciente */
-    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estFusion(eN.estudio, eO.estudio, dead), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
+    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
     enfoqueLog: [...new Map([...(eO.enfoqueLog || []), ...(eN.enfoqueLog || [])].sort((x, y) => y.b - x.b).map(x => [x.a, x])).values()].sort((x, y) => x.a - y.a).slice(-12),
@@ -2404,10 +2404,21 @@ function estNorm(x) {
     for (let k = 0; k < 7; k++) { const v = pd[k]; porDia[k] = v === null || v === undefined || v === '' || !Number.isFinite(+v) ? null : Math.max(0, Math.min(480, Math.round(+v))); }
     const temas = A(r.temas).filter(t => t && typeof t === 'object').map(t => ({ id: ID(t.id), t: S(t.t, 80), peso: [1, 2, 3].includes(+t.peso) ? +t.peso : 2, hecho: !!t.hecho })).filter(t => t.t).slice(0, 30);
     const temaIds = new Set(temas.map(t => t.id));
-    const plan = A(r.plan).filter(b => b && typeof b === 'object').map(b => ({ id: ID(b.id, 80), d: F(b.d), h: H(b.h), min: N(b.min, 25, 5, 240), tema: typeof b.tema === 'string' && temaIds.has(b.tema) ? b.tema : '', tipo: TIPOS.includes(b.tipo) ? b.tipo : 'estudio', ej: Z(b.ej, 10000), t: S(b.t, 100) })).filter(b => b.d).slice(0, 600);
+    const plan0 = A(r.plan).filter(b => b && typeof b === 'object').map(b => ({ id: ID(b.id, 80), d: F(b.d), h: H(b.h), min: N(b.min, 25, 5, 240), tema: typeof b.tema === 'string' && temaIds.has(b.tema) ? b.tema : '', tipo: TIPOS.includes(b.tipo) ? b.tipo : 'estudio', ej: Z(b.ej, 10000), t: S(b.t, 100), ...(b.hFija === true && H(b.h) ? { hFija: true } : {}) })).filter(b => b.d);
     // hechos: también con claves que ya no están en el plan (registro), acotados a 400 por ruta (se quedan los más recientes).
-    const hIn = O(r.hechos), hk = Object.keys(hIn).filter(k => hIn[k] && typeof hIn[k] === 'object').map(k => [k.slice(0, 80), hIn[k]]).sort((a, b) => Z(b[1].en) - Z(a[1].en)).slice(0, 400);
+    const hIn = O(r.hechos), hk = Object.keys(hIn).filter(k => hIn[k] && typeof hIn[k] === 'object').map(k => [k.slice(0, 80), hIn[k]]).sort((a, b) => Z(b[1].en) - Z(a[1].en)).slice(0, 1600);   // 2.17.1 (D) · 1600, como el plan
     const hechos = {}; for (const [k, v] of hk) hechos[k] = { en: Z(v.en), min: Z(v.min, 1440), ej: Z(v.ej, 10000), nota: T(v.nota, 200) };
+    // 2.17.1 (D) · deshechos = { id: ms }: el bloque se desmarcó a esa hora; un hecho anotado antes (o a la vez) no cuenta. Si el hecho es
+    // posterior, la marca ya no hace falta. Como mucho 400, las más recientes.
+    const deshechos = {}; for (const [k, v] of Object.entries(O(r.deshechos)).map(([k, v]) => [k.slice(0, 80), Z(v)]).filter(([k, v]) => v > 0 && !(hechos[k] && hechos[k].en > v)).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 400)) { deshechos[k] = v; delete hechos[k]; }
+    // 2.17.1 (D) · El plan, hasta 1600 bloques (el motor arma como mucho unos 1300: 60 días de 480 min en bloques de 25, repasos, simulacro
+    // y víspera). Si sobra, se quedan siempre los hechos y los de hoy en adelante, y de los pasados sin hacer (registro), los más recientes.
+    let plan = plan0;
+    if (plan.length > 1600) {
+      const d0 = new Date(), hoyK = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`, vivo = b => !!hechos[b.id] || b.d >= hoyK;
+      const nV = plan.filter(vivo).length, reg = new Set(plan.filter(b => !vivo(b)).sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0).slice(0, Math.max(0, 1600 - nV)));
+      plan = plan.filter(b => vivo(b) || reg.has(b)).slice(-2000);
+    }
     const pendientes = A(r.pendientes).filter(p => p && typeof p === 'object').map(p => ({ id: ID(p.id), t: S(p.t, 100), clase: ['tarea', 'entrega'].includes(p.clase) ? p.clase : 'tarea', fecha: F(p.fecha), hora: H(p.hora), min: N(p.min, 0, 0, 480), hecha: !!p.hecha, en: Z(p.en), tareaId: SID(p.tareaId), cambiado: Z(p.cambiado) })).filter(p => p.t).slice(0, 100);
     const notion = r.notion && typeof r.notion === 'object' && r.notion.id ? { id: String(r.notion.id).slice(0, 80), url: /^https:\/\//.test(r.notion.url || '') ? String(r.notion.url).slice(0, 300) : '', en: Z(r.notion.en) } : null;
     // 2.15.1 · gcal sin las claves que apuntan a un evento apartado o ya borrado (con marca «ev:{id}»: la fusión une los mapas y la copia del otro
@@ -2416,11 +2427,12 @@ function estNorm(x) {
     const gcal = {}; for (const [k, v] of [...gv.filter(e => !gb(e) && (e[0].startsWith('ev:') || !gx.has(e[1].split('|')[0]))), ...gv.filter(gb).sort((x, y) => x[1] < y[1] ? 1 : x[1] > y[1] ? -1 : x[0] < y[0] ? -1 : 1).slice(0, 200)].slice(0, 700)) gcal[k.slice(0, 80)] = v.slice(0, 120);
     return { id: ID(r.id), area: S(r.area, 20) || 'estudio', materia: SID(r.materia), nombre: S(r.nombre, 80), tipo: r.tipo === 'examen' ? 'examen' : 'examen', fecha: F(r.fecha), hora: H(r.hora), lugar: S(r.lugar, 60), temas,
       config: { diasAntes: N(c.diasAntes, 14, 1, 60), minDia: N(c.minDia, cfg.minDia, 15, 480), porDia, horaPref: H(c.horaPref) || cfg.horaPref, bloqueMin: BLQ.includes(+c.bloqueMin) ? +c.bloqueMin : cfg.bloqueMin, ejDia: N(c.ejDia, 0, 0, 200), vispera: VISP.includes(c.vispera) ? c.vispera : cfg.vispera, repasos: typeof c.repasos === 'boolean' ? c.repasos : cfg.repasos },
-      plan, hechos, pendientes, iden: SID(r.iden), obj: SID(r.obj), habito: SID(r.habito), notion, gcal,
+      plan, hechos, deshechos, pendientes, iden: SID(r.iden), obj: SID(r.obj), habito: SID(r.habito), notion, gcal,
       aviso: r.aviso && typeof r.aviso === 'object' && +r.aviso.faltan > 0 && +r.aviso.faltan <= 1440 ? { faltan: Math.round(+r.aviso.faltan) } : null,
       resultado: r.resultado && typeof r.resultado === 'object' && T(r.resultado.nota, 200) ? { nota: T(r.resultado.nota, 200), en: Z(r.resultado.en) } : null,
       creado: Z(r.creado), cambiado: Z(r.cambiado), replan: Z(r.replan), archivada: !!r.archivada };
   }).slice(0, 40);
+  { const jo = estJerNorm(x); if (jo) return { materias, rutas, cfg, ...jo }; }   // 2.17.1 (R) · la jerarquía de las rutas
   return { materias, rutas, cfg };
 }
 // Fusión entre teléfonos: a = la copia más reciente, b = la otra, dead = ids borrados en cualquiera de las dos.
@@ -2428,6 +2440,49 @@ function estNorm(x) {
 // salvo hechos (unión; por clave, la entrada de mayor `en`), pendientes (unión por id; por id, la de mayor `cambiado`),
 // gcal (unión de mapas; manda la ganadora), notion (la de mayor `en`) y tema.hecho (visto si la unión de hechos lo completa).
 // cfg: la de la copia más reciente. Marcar un bloque o tocar un pendiente no sube ruta.cambiado: no compiten con editar la ruta.
+// 2.17.1 (D) · Los bloques hechos de la otra copia que el plan ganador ya no tiene (el otro teléfono replanificó o editó la ruta sin conocer
+// la marca): vuelven al plan tal cual, y sus minutos salen de los bloques pendientes del mismo tema que el ganador repartió desde hoy (primero
+// los del mismo día; un bloque que queda en menos de 10 min se quita). Un repaso, simulacro o repaso ligero hecho quita el pendiente del mismo
+// tipo y tema. Determinista: misma entrada, mismo plan, en los dos teléfonos.
+function estFusionPlan(gp, pp, hechos, hoy) {
+  const ok = v => !!v && typeof v === 'object', ids = new Set(gp.map(b => b.id)), cmp = (x, y) => x < y ? -1 : x > y ? 1 : 0;
+  const extra = pp.filter(b => typeof b.d === 'string' && b.d && ok(hechos[b.id]) && !ids.has(b.id));
+  if (!extra.length) return gp;
+  let plan = gp.map(b => ({ ...b }));
+  const est = t => t === 'estudio' || t === 'practica' || !t;
+  for (const x of extra) {
+    const orden = (a, b) => (a.d === x.d ? 0 : 1) - (b.d === x.d ? 0 : 1) || cmp(a.d, b.d) || cmp(a.h || '99:99', b.h || '99:99') || cmp(String(a.id), String(b.id));
+    if (est(x.tipo)) {
+      if (x.tema) {
+        const cand = plan.filter(b => b.tema === x.tema && est(b.tipo) && !ok(hechos[b.id]) && b.d >= hoy).sort(orden);
+        let falta = Math.max(0, Math.round(+x.min || 0));
+        for (const b of cand) { if (falta <= 0) break; const q = Math.min(falta, Math.max(0, +b.min || 0)); b.min = Math.max(0, (+b.min || 0) - q); falta -= q; }
+        const fuera = new Set(cand.filter(b => b.min < 10)); if (fuera.size) plan = plan.filter(b => !fuera.has(b));
+      }
+    } else {
+      const c = plan.filter(b => b.tipo === x.tipo && (b.tema || '') === (x.tema || '') && !ok(hechos[b.id]) && b.d >= hoy).sort(orden)[0];
+      if (c) plan = plan.filter(b => b !== c);
+    }
+    plan.push({ ...x });
+  }
+  return plan.sort((a, b) => cmp(a.d, b.d) || cmp(a.h || '99:99', b.h || '99:99') || cmp(String(a.id), String(b.id)));
+}
+// 2.17.1 (R) · ES.estudio.orden: ids de ruta (≤ 40, sin repetir, se guardan tal cual; al leer se ignoran los que no existen) y ordenEn (ms).
+function estJerNorm(x) {
+  if (!x || typeof x !== 'object' || (!Array.isArray(x.orden) && !(+x.ordenEn > 0))) return null;
+  const orden = [...new Set((Array.isArray(x.orden) ? x.orden : []).filter(v => typeof v === 'string' && v).map(v => v.slice(0, 40)))].slice(0, 40);
+  const n = Math.round(+x.ordenEn);
+  return { orden, ordenEn: Number.isFinite(n) && n > 0 ? Math.min(9e15, n) : 0 };
+}
+// Entre teléfonos: la copia con mayor ordenEn (a igualdad, a, la más reciente). F es lo que devolvió estFusion.
+function estJerFusion(F, a, b) {
+  F = F && typeof F === 'object' ? F : {};
+  const tiene = v => !!v && typeof v === 'object' && Array.isArray(v.orden);
+  const ta = tiene(a) ? +a.ordenEn || 0 : -1, tb = tiene(b) ? +b.ordenEn || 0 : -1;
+  if (ta < 0 && tb < 0) return F;
+  const g = ta >= tb ? a : b;
+  return { ...F, orden: g.orden.slice(0, 40), ordenEn: +g.ordenEn || 0 };
+}
 function estFusion(a, b, dead) {
   a = a && typeof a === 'object' ? a : {}; b = b && typeof b === 'object' ? b : {};
   dead = dead instanceof Set ? dead : new Set(Array.isArray(dead) ? dead : []);
@@ -2448,13 +2503,18 @@ function estFusion(a, b, dead) {
     const g = n(r.cambiado) >= n(o.cambiado) ? r : o, p = g === r ? o : r;
     const hechos = { ...O(p.hechos) };
     for (const [k, v] of Object.entries(O(g.hechos))) if (!hechos[k] || n(v && v.en) >= n(hechos[k] && hechos[k].en)) hechos[k] = v;
+    // 2.17.1 (D) · deshacer también viaja: marcas de borrado (unión, la más reciente) que quitan el hecho anotado antes o a la vez.
+    const deshechos = { ...O(p.deshechos) }; for (const [k, v] of Object.entries(O(g.deshechos))) if (n(v) > n(deshechos[k])) deshechos[k] = v;
+    const muertos = new Set(); for (const [k, v] of Object.entries(deshechos)) { if (!(n(v) > 0)) { delete deshechos[k]; continue; } if (!hecho(hechos[k])) continue; if (n(hechos[k].en) > n(v)) delete deshechos[k]; else { delete hechos[k]; muertos.add(k); } }
     const pm = new Map(); for (const x of L(p.pendientes)) pm.set(x.id, x);
     for (const x of L(g.pendientes)) { const y = pm.get(x.id); if (!y || n(x.cambiado) >= n(y.cambiado)) pm.set(x.id, x); }
     // Un tema que solo se completa con la unión (sus bloques se marcaron en el otro teléfono) queda visto; si la ganadora ya lo
     // tenía completo con sus propios hechos y sin visto, fue decisión suya (lo desmarcó en Temas) y se respeta.
-    const rd = desdeDe(g), gh = O(g.hechos), plan = L(g.plan);
-    const temas = Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true } : t) : g.temas;
-    rutas.set(r.id, { ...g, temas, hechos, pendientes: [...pm.values()].filter(x => !dead.has(x.id)), gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
+    const rd = desdeDe(g), gh = O(g.hechos), plan = estFusionPlan(L(g.plan), L(p.plan), hechos, hoy);   // 2.17.1 (D) · con los hechos de la otra copia
+    // 2.17.1 (D) · y un tema visto por un bloque que se deshizo en el otro teléfono vuelve a pendiente.
+    const temas = Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true }
+      : t && typeof t === 'object' && t.hecho && muertos.size && plan.some(b => b.tema === t.id && muertos.has(b.id)) && !visto(plan, t, hechos, rd) ? { ...t, hecho: false } : t) : g.temas;
+    rutas.set(r.id, { ...g, plan, temas, hechos, deshechos, pendientes: [...pm.values()].filter(x => !dead.has(x.id)), gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
   }
   return { materias: byId(L(a.materias), L(b.materias)), rutas: [...rutas.values()].filter(r => !dead.has(r.id)).map(r => ({ ...r, pendientes: L(r.pendientes).filter(x => !dead.has(x.id)) })), cfg: a.cfg && typeof a.cfg === 'object' ? a.cfg : b.cfg };
 }
@@ -4528,7 +4588,7 @@ function showSheet(html) {
   if (!sheet.open) sheet.showModal();
 }
 const closeSheet = () => sheet.open && sheet.close();
-sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
+sheet.addEventListener('click', e => { if (e.target === sheet && !euWizAtras()) closeSheet(); });   // 2.17.1 (U) · en «Nueva ruta», un paso atrás
 let toastT = 0;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2800); }
 const buzz = p => { try { if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(p); } catch {} };
@@ -4729,7 +4789,7 @@ function finishFocus(completa) {
   bump('enfoque', mins, k); bump('interrupciones', s.ints, k); if (completa) bump('sesiones', 1, k);
   const exFin = exFocoFin(s, mins, completa);   // 2.14 (X) · una sesión de un bloque de estudio completa (o casi) lo deja hecho
   const e2a = e2aSesionFin(s, mins, completa);
-  if (mins) xpGanar(Math.min(90, mins) + (completa && !s.ints ? 20 : 0), completa && !s.ints ? 'Enfoque sin interrupciones' : 'Minutos de enfoque'); if (s.impulsos) bump('impulsos', s.impulsos, k);
+  if (mins) xpGanar(Math.min(90, mins) + (completa && !s.ints ? 20 : 0), completa && !s.ints ? 'Enfoque sin interrupciones' : 'Minutos de enfoque', '', s.tipo === 'estudio' ? { cat: 'estudio' } : undefined);   // 2.17.1 (U) · la sesión de estudio cuenta para Estudio if (s.impulsos) bump('impulsos', s.impulsos, k);
   ES.sesion = null; guardar();
   $('#focus').hidden = true; renderE();
   if (completa) buzz([60, 80, 60, 80, 120]);
@@ -4742,7 +4802,7 @@ function finishFocus(completa) {
     <div class="field"><label>¿Te perdiste algo importante mientras no mirabas?</label><div class="chips" id="fr-fomo"><button class="chip" data-f="si">Sí</button><button class="chip" data-f="no">No, nada</button></div></div>
     ${e2aVueltaHtml(s, pr)}
     <div class="actions stack">
-      ${e2aPausaHtml(e2a)}${pr ? `<button class="primary" id="fr-step">Paso hecho: definir el siguiente</button><button class="outline" id="fr-keep">Sigue pendiente: guardar nota</button>` : s.que ? `<button class="primary" data-goview="hoy">Marcarlo en Hábitos</button>` : ''}
+      ${e2aPausaHtml(e2a)}${pr ? `<button class="primary" id="fr-step">Paso hecho: definir el siguiente</button><button class="outline" id="fr-keep">Sigue pendiente: guardar nota</button>` : s.tipo === 'estudio' ? (exFin && !exFin.marcado ? '' : `<button class="primary" data-goview="estudio">Ver Estudio</button>`) : s.que ? `<button class="primary" data-goview="hoy">Marcarlo en Hábitos</button>` : ''}
       ${exFocoFinHtml(exFin)}
       <button class="${s.que ? 'link' : 'primary'}" id="fr-again">Otra sesión</button>
       <button class="link" id="fr-close">Cerrar</button>
@@ -6136,7 +6196,7 @@ const IA_TOOLS = [
     que: S('Qué quiere lograr (verbo + qué).'), metrica: S('Cómo se mide.'), meta: { type: 'number', description: 'Número meta (mayor que 0).' }, unidad: S('Unidad: lecciones, libros, $, sesiones…'), fecha_limite: S('AAAA-MM-DD.'),
     area: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social', 'espiritual', 'salud', 'finanzas', 'orden', 'otro'] }, por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso o rutina semanal, o vacío.') }),
   iaTool('objetivo_avance', 'Registra un avance en un objetivo activo (por su nombre o id).', { objetivo: S('Nombre o id del objetivo.'), cantidad: { type: 'number', description: 'Cuánto avanzó, en su unidad.' }, nota: S('Nota breve o vacío.') }),
-  iaTool('estudio_ver', 'Devuelve las rutas de estudio activas (examen, días que faltan, temas y bloques hechos, bloques sin hacer, aviso de «no cabe todo»), los bloques de hoy con su id, hora, minutos, ejercicios y si están hechos, y las tareas y entregas pendientes.', {}),
+  iaTool('estudio_ver', 'Devuelve las rutas de estudio activas en el orden de importancia de la persona (rango 1, la más importante), con examen, días que faltan, temas y bloques hechos, bloques sin hacer y el aviso de «no cabe todo», los bloques de hoy con su id, hora, minutos, ejercicios y si están hechos, y las tareas y entregas pendientes.', {}),
   iaTool('estudio_ruta', 'Crea una ruta de estudio hasta un examen (materia, fecha, temas): reparte los temas en bloques por día con hora, minutos y ejercicios. Úsala solo si la persona lo pidió o aceptó.', {
     materia: S('Materia (se crea si no existe).'), examen: S('Nombre del examen: «Parcial 2».'), fecha: S('Fecha del examen, AAAA-MM-DD.'), hora: S('HH:MM en 24 h o vacío.'),
     temas: { type: 'array', items: { type: 'string' }, description: 'Temas que entran, uno por texto (máximo 30).' }, dias_antes: { type: 'integer', description: 'Días previos al examen para estudiar (1 a 60); 0 para el valor por defecto.' },
@@ -8046,7 +8106,7 @@ function organizarDia(paso = 1, sigue = false) {
   }
   if (paso === 3) {
     const on = Object.values(org.ini).filter(o => o?.on).length;
-    showSheet(`${pieOrg(3, 'Iniciativas')}<h2>Las iniciativas de ${cuando}</h2>
+    showSheet(`${pieOrg(3, 'Iniciativas')}<h2>Las iniciativas ${M ? agpDe(org.dest) : 'de hoy'}</h2>
       <p class="note">Mínimo ${ES.minIni} al día; la espiritual, todos los días; la social, ${ES.minSocial} días a la semana (${socialDiasSemana()} de ${ES.minSocial} esta semana). Ya hay una propuesta por categoría: toca el círculo para ponerla o quitarla, o «Cambiar» para elegir otra o crear la tuya.</p>
       <div class="rows" id="og-ini">${INI4.map(([k, n, d]) => { const o = org.ini[k], ok = !M && !!ini4Semana().items[iniIdx(k)]?.hecho;
         return `<div class="row"><button class="box" data-ion="${k}" aria-label="Poner o quitar" style="${ok ? boxHecho : boxSt(o?.on)};width:22px;height:22px" ${ok ? 'disabled' : ''}></button>
@@ -8425,10 +8485,18 @@ const agHost = document.getElementById('view-agenda');
 const agR = agHost.attachShadow({ mode: 'open' });
 const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_CSS + `
   .ag-it { padding: 11px 0; } .ag-it.ok .t div { text-decoration: line-through; color: var(--muted); }
+  .ag-it.ag-est .t div { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
   .ag-now { display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 4px 0; }
   .ag-now::before, .ag-now::after { content: ''; flex: 1; height: 1.5px; background: var(--accent); opacity: .6; }
   .ag-top { margin: 0 0 12px; } button.tag { color: var(--muted); padding: 8px 0 8px 10px; }`;
 const agW = document.createElement('div'); agW.className = 'enf'; agR.append(agStyle, agW);
+// 2.17.1 (U) · Un bloque de estudio muestra primero lo que toca (el tema) y después la materia: dos bloques de la misma materia se
+// distinguen aunque el título se corte. Lo demás, su texto tal cual.
+function agTituloEst(it) {
+  const t = String(it?.t || ''); if (!it || it.tipo !== 'estudio') return t;
+  const b = exBloque(it.ref), m = b && typeof b.materia === 'string' ? b.materia : '';
+  return m && t.startsWith(m + ' · ') && t.length > m.length + 3 ? `${t.slice(m.length + 3)} · ${m}` : t;
+}
 function renderAg() {
   if (!agW) return;
   cargarAgenda();
@@ -8436,8 +8504,8 @@ function renderAg() {
   const conH = its.filter(i => i.h).sort(agOrden), sinH = its.filter(i => !i.h);
   const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length, P = planManana(), tarde = now >= 18 * 60;
   const fila = it => { const ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, s = smartDe(agSmartSrc(it)), fo = !!it.foco;
-    return `<div class="row ag-it${ok ? ' ok' : ''}${fo ? ' ag-foco' : ''}">${agRkHtml(it, its)}<button class="box" data-chk="${esc(it.id)}" aria-label="Hecha" style="${ok ? 'background:var(--green);border-color:var(--green)' : ''};width:20px;height:20px"></button>
-      <button class="t" data-open="${esc(it.id)}" style="text-align:left"><div>${esc(fo ? agbFocoTitulo(it) : it.t)}</div><small>${fo ? 'Los avisos de la app callan en este bloque' : esc(agEtqCat(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''} ${smartDots(s)}${tardeIt ? ' · <span class="amber">pasó la hora</span>' : ''}</small></button>
+    return `<div class="row ag-it${ok ? ' ok' : ''}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}">${agRkHtml(it, its)}<button class="box" data-chk="${esc(it.id)}" aria-label="Hecha" style="${ok ? 'background:var(--green);border-color:var(--green)' : ''};width:20px;height:20px"></button>
+      <button class="t" data-open="${esc(it.id)}" style="text-align:left"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}</div><small>${fo ? 'Los avisos de la app callan en este bloque' : esc(agEtqCat(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''} ${smartDots(s)}${tardeIt ? ' · <span class="amber">pasó la hora</span>' : ''}</small></button>
       <button class="tag" data-open="${esc(it.id)}" style="${tardeIt ? 'color:var(--amber)' : ''}">${it.h ? fmtHora(it.h) : 'Poner hora'}</button></div>`; };
   const filas = []; let marcado = false;
   for (const it of conH) { if (!marcado && toMin(it.h) > now) { filas.push(`<div class="ag-now"><span>Ahora · ${fmtHora(hhmm(new Date()))}</span></div>`); marcado = true; } filas.push(fila(it)); }
@@ -8464,7 +8532,7 @@ function renderAg() {
   agW.querySelector('#ag-copy')?.addEventListener('click', agCopiarAyer);
   agW.querySelector('#ag-man')?.addEventListener('click', organizarManana);
   agW.querySelector('#ag-obj-add').onclick = () => objetivoForm();
-  agW.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => { const it = agItems().find(x => x.id === b.dataset.chk); if (it) agMarcar(it); });
+  agW.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => { const it = agItems().find(x => x.id === b.dataset.chk); if (!it) return; if (it.tipo === 'estudio' && !agHecho(it) && exPedirEj(it)) return; agMarcar(it); });   // 2.17.1 (U) · con ejercicios, pregunta cuántos (como la ficha)
   agW.querySelectorAll('[data-open]').forEach(b => b.onclick = () => agItemSheet(agItems().find(x => x.id === b.dataset.open)));
   agW.querySelectorAll('[data-obj]').forEach(b => b.onclick = () => objetivoSheet(ES.objetivos.find(o => o.id === b.dataset.obj)));
   agbMananasWire();
@@ -8497,7 +8565,8 @@ window.xpSorpresa = ref => {
   }, 1400);
 };
 // Texto de progreso según el tramo: lo que llevas si aún no vas por la mitad; lo que falta si ya pasaste.
-const llevasFaltan = (hecho, total, unidad, meta) => hecho / Math.max(1, total) < .5 ? `Llevas ${hecho} de ${total} ${unidad}` : `Te faltan ${Math.max(0, +(total - hecho).toFixed(2))} ${unidad}${meta ? ' ' + meta : ''}`;
+// 2.17.1 (U) · unidad puede ser [singular, plural]: concuerda con el número que se muestra.
+const llevasFaltan = (hecho, total, unidad, meta) => { const u = n => Array.isArray(unidad) ? unidad[n === 1 ? 0 : 1] : unidad, f = Math.max(0, +(total - hecho).toFixed(2)); return hecho / Math.max(1, total) < .5 ? `Llevas ${hecho} de ${total} ${u(total)}` : `Te faltan ${f} ${u(f)}${meta ? ' ' + meta : ''}`; };
 // ---------- Estoy procrastinando: cuatro salidas, una sola elección.
 function porQueDe(t) {
   const it = agItems().find(x => x.t === t), src = it ? agSmartSrc(it) : {};
@@ -11517,7 +11586,9 @@ function jdToolCrear(a) {
 // Evidencia, sin cifras: práctica repartida (Cepeda et al., 2006), ponerse a prueba (Roediger y Karpicke, 2006) y la
 // revisión de técnicas de estudio (Dunlosky et al., 2013).
 // ---------- API (window.est) · una línea por función ----------
-// rutas(todas = false)          → rutas activas (sin archivar) por fecha de examen; con todas, también las archivadas. Objetos reales del estado.
+// rutas(todas = false)          → rutas activas (sin archivar) en el orden de la jerarquía (2.17.1: ES.estudio.orden; sin orden, por fecha de examen;
+//                                 las de examen ya pasado detrás); con todas, también las archivadas, al final. Objetos reales del estado.
+// orden() → ids en ese orden · ordenar(ids) → guarda la jerarquía y avisa ('ruta') · rango(id) → 1, 2, 3… entre las que vienen (0 si no).
 // ruta(id)                      → la ruta o null. materias(todas = false) → materias activas por nombre. materia(id) → la materia o null.
 // crear(datos)                  → crea y planifica: { materia (id) | materiaNombre, nombre, fecha, hora, lugar, temas: [texto | { t, peso }],
 //                                 config: {…parcial…}, iden, habito, obj }; lanza Error en español si la fecha es anterior a hoy, no hay temas
@@ -11566,7 +11637,13 @@ const estHHMM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m 
 const estCmp = (x, y) => x < y ? -1 : x > y ? 1 : 0;
 const estD = () => { if (!ES.estudio || typeof ES.estudio !== 'object' || !Array.isArray(ES.estudio.rutas)) ES.estudio = estNorm(ES.estudio); return ES.estudio; };
 const estTodas = () => estD().rutas;
-const estRutas = (todas = false) => estTodas().filter(r => todas || !r.archivada).sort((a, b) => estCmp(a.fecha, b.fecha) || ((a.creado || 0) - (b.creado || 0)));
+// 2.17.1 (R) · La jerarquía: primero las que están en ES.estudio.orden (en ese orden), después las demás por fecha; las de examen ya
+// pasado, detrás de las que vienen; las archivadas, al final. El sort es estable: a igual puesto, por fecha de examen y creación.
+const estRutas = (todas = false) => {
+  const hoy = today(), o = Array.isArray(estD().orden) ? estD().orden : [], pos = new Map(o.map((id, i) => [id, i]));
+  const P = r => r.archivada ? 3e9 : r.fecha < hoy ? 2e9 : pos.has(r.id) ? pos.get(r.id) : 1e9;
+  return estTodas().filter(r => todas || !r.archivada).sort((a, b) => estCmp(a.fecha, b.fecha) || ((a.creado || 0) - (b.creado || 0))).sort((a, b) => P(a) - P(b));
+};
 const estRuta = id => (typeof id === 'string' && estTodas().find(r => r.id === id)) || null;
 const estMaterias = (todas = false) => estD().materias.filter(m => todas || !m.archivada).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 const estMateria = id => (typeof id === 'string' && estD().materias.find(m => m.id === id)) || null;
@@ -11628,119 +11705,223 @@ function estTemasDe(lista, previos = []) {
 //    tema o, al replanificar, lo que faltaba) supera lo que cabe: aviso = { faltan: minutos por día que harían falta } y el plan se hace con
 //    lo que cabe (los temas de menor peso pierden más). Nunca cambia la configuración por su cuenta.
 // 7. Examen pasado (fecha < hoy): no se planifica; quedan el registro y la ruta «para cerrar». De noche (20:00 o más) se reparte desde mañana.
+// 2.17.1 (E) · El motor, rehecho para el primer día de uso real:
+// · Cada tema pendiente recibe al menos un bloque de 15 min mientras quepan (si no, el aviso dice cuáles quedan fuera: los de menos peso
+//   y, a igual peso, los últimos de la lista). Ningún minuto se pierde ni se duplica al redondear: lo necesario suma lo que cabe y el resto
+//   corto de un tema pasa al siguiente.
+// · Los repasos solo reservan lo que de verdad se pone (y nunca le quitan a un tema su bloque); hoy cuenta solo lo que cabe entre la primera
+//   hora libre (ahora, redondeado a 5 min, o la hora preferida) y las 23:00; los bloques nunca pasan de bloqueMin.
+// · «Ejercicios: tema» solo en un tema que ya se estudió antes (otro día o antes ese mismo día).
+// · Un bloque que sigue en su día con el mismo tema conserva su id (y la hora que fijó la persona): la Agenda, los bloques de tiempo y lo
+//   oculto siguen apuntando a él.
+// · El aviso sale de lo que de verdad no cupo; faltan = los minutos por día con los que ya cabe todo (probados), y más de 480 si ni así.
 function estPlanificar(r, desde = today(), opts = {}) {
   if (!r || typeof r !== 'object') return [];
   if (!Array.isArray(r.plan)) r.plan = []; if (!r.hechos || typeof r.hechos !== 'object') r.hechos = {}; if (!Array.isArray(r.temas)) r.temas = [];
-  const hoy = today(), c = r.config || {}, cfg = estD().cfg, hechos = r.hechos;
+  const hoy = today(), c = r.config || {}, cfg = estD().cfg, hechos = r.hechos, desde0 = desde, planAntes = r.plan, sim = !!(opts && opts.sim);
   desde = estF(desde) || hoy; if (desde < hoy) desde = hoy;
   if (desde === hoy && new Date().getHours() >= 20) desde = estDia(hoy, 1);
   // Lo que se conserva: bloques hechos y bloques anteriores al reparto (registro, aunque no se hicieran; de noche, también los de hoy).
-  const fijos = r.plan.filter(b => hechos[b.id] || b.d < desde), usados = new Set(r.plan.map(b => b.id));
+  const fijos = r.plan.filter(b => hechos[b.id] || b.d < desde), usados = new Set([...r.plan.map(b => b.id), ...Object.keys(hechos)]);
   const fin = r.fecha ? estDia(r.fecha, -1) : '';
   if (!estF(r.fecha) || r.fecha < hoy) { r.plan = fijos; estOrdenarPlan(r); r.aviso = null; return r.plan; }
+  // Los bloques que se descartan, por día, clase y tema: prestan su id (y su hora fijada) al bloque nuevo que ocupa su lugar.
+  const fijoSet = new Set(fijos), claveB = b => `${b.d}|${b.tipo === 'practica' ? 'estudio' : b.tipo}|${b.tema || ''}`, viejos = new Map();
+  for (const b of r.plan) if (!fijoSet.has(b)) { const k = claveB(b); if (!viejos.has(k)) viejos.set(k, []); viejos.get(k).push(b); }
   // 1. Ventana y minutos por día.
   const diasAntes = Math.max(1, +c.diasAntes || 14), ini = [desde, estDia(r.fecha, -diasAntes)].sort().pop();
   const minDe = f => { const v = c.porDia ? c.porDia[estWd(f)] : null; return v === null || v === undefined ? (+c.minDia || cfg.minDia) : +v; };
-  const dias = [];
-  for (let f = ini, i = 0; f <= fin && i < 400; f = estDia(f, 1), i++) { if (cfg.descanso.includes(estWd(f))) continue; const m = minDe(f); if (m >= 15) dias.push({ f, cap: m }); }
   const pend = r.temas.filter(t => !t.hecho);
   const bloqueMin = [25, 50, 90].includes(+c.bloqueMin) ? +c.bloqueMin : cfg.bloqueMin, ejDia = Math.max(0, +c.ejDia || 0), repasos = c.repasos !== false, horaPref = estH(c.horaPref) || cfg.horaPref;
-  // Lo ya hecho (hoy o por adelantado) descuenta de los minutos de su día.
+  const ahora = new Date(), ahoraMin = Math.ceil((ahora.getHours() * 60 + ahora.getMinutes()) / 5) * 5, FIN = 23 * 60;
+  // La primera hora libre de un día: la preferida (hoy, no antes de ahora) y después de lo que ese día ya tiene hora.
+  const t0De = f => { let t = estMinutos(horaPref); if (f === hoy && ahoraMin > t) t = ahoraMin; for (const b of fijos) if (b.d === f && estH(b.h)) t = Math.max(t, estMinutos(b.h) + b.min + 10); return t; };
+  // Minutos que se pueden poner en bloques de 15 a bloqueMin: L de capacidad, T de tiempo (cada bloque gasta sus minutos y 10 de pausa).
+  // Un tema, en un día, toma bloques de bloqueMin y como mucho uno más corto (de 15 o más): con 60 min y bloques de 50, un bloque de 50.
+  const nBl = v => Math.ceil(v / bloqueMin), partible = v => v >= 15 && (v % bloqueMin === 0 || v % bloqueMin >= 15), P = v => { v = Math.floor(v); while (v >= 15 && !partible(v)) v--; return v >= 15 ? v : 0; };
+  const caben = (L, T) => { let best = 0; for (let k = 1; k <= 60 && 15 * k <= L && 25 * k <= T; k++) { const v = Math.min(L, T - 10 * k, k * bloqueMin); if (v >= 15 * k && v > best) best = v; } return best; };
+  const dias = [];
+  for (let f = ini, i = 0; f <= fin && i < 400; f = estDia(f, 1), i++) { if (cfg.descanso.includes(estWd(f))) continue; const m = minDe(f); if (m >= 15) dias.push({ f, cap: m, tb: 0, hoy: f === hoy }); }
+  // Lo ya hecho (hoy o por adelantado) descuenta de los minutos de su día; hoy, además, solo lo que cabe antes de las 23:00.
   for (const d of dias) d.cap = Math.max(0, d.cap - fijos.filter(b => b.d === d.f && hechos[b.id]).reduce((n, b) => n + b.min, 0));
+  for (const d of dias) if (d.hoy) { d.tb = Math.max(0, FIN - t0De(hoy) + 10); d.cap = caben(d.cap, d.tb); }
   // 2. Víspera.
-  const nuevos = new Map(), poner = (f, b) => { if (!nuevos.has(f)) nuevos.set(f, []); nuevos.get(f).push(b); };
   const vispera = ['ligero', 'normal', 'libre'].includes(c.vispera) ? c.vispera : cfg.vispera, evo = dias.length > 1 && dias[dias.length - 1].f === fin ? dias[dias.length - 1] : null;
-  let estudio = dias.filter(d => d.cap >= 15);
-  if (evo && vispera !== 'normal') { estudio = estudio.filter(d => d !== evo); if (vispera === 'ligero' && evo.cap >= 15 && !fijos.some(b => b.d === evo.f && b.tipo === 'ligero' && hechos[b.id])) poner(evo.f, { d: evo.f, h: '', min: Math.min(30, evo.cap), tema: '', tipo: 'ligero', ej: 0, t: 'Repaso ligero' }); }
+  let estudio = dias.filter(d => d.cap >= 15), ligero = null;
+  if (evo && vispera !== 'normal') { estudio = estudio.filter(d => d !== evo); if (vispera === 'ligero' && evo.cap >= 15 && !fijos.some(b => b.d === evo.f && b.tipo === 'ligero' && hechos[b.id])) ligero = { d: evo.f, h: '', min: Math.min(30, evo.cap), tema: '', tipo: 'ligero', ej: 0, t: 'Repaso ligero' }; }
   const nDias = estudio.length, ultimo = nDias ? estudio[nDias - 1] : null;
   // Con víspera «normal» la víspera es un día de estudio más: el simulacro y el tope de los repasos van el último día antes de ella.
   const simDia = evo && ultimo === evo && nDias >= 2 ? estudio[nDias - 2] : ultimo;
-  // 3. Reservas: simulacro (4 días o más) y una estimación de los repasos.
-  const res = new Map(), uso = new Map(), libre = d => Math.max(0, d.cap - (res.get(d.f) || 0) - (uso.get(d.f) || 0));
-  const simMin = repasos && nDias >= 4 && !fijos.some(b => b.tipo === 'simulacro' && hechos[b.id] && b.d >= desde) ? Math.min(bloqueMin, simDia.cap) : 0; if (simMin) res.set(simDia.f, simMin);
-  // Repasos de los temas ya vistos: dos días después de su último bloque hecho, si aún no tienen repaso (hecho o ya pasado) y cae antes
-  // de la víspera; se reservan como los demás y cuentan en lo necesario (así el aviso «no cabe» sigue siendo cierto).
-  const repasosDe = [], yaRep = new Set(fijos.filter(b => b.tipo === 'repaso' && b.tema).map(b => b.tema));
-  if (repasos && nDias >= 3) for (const t of r.temas) {
-    if (!t.hecho || yaRep.has(t.id)) continue;
-    const ultH = fijos.filter(b => b.tema === t.id && hechos[b.id] && (b.tipo === 'estudio' || b.tipo === 'practica')).map(b => b.d).sort().pop(); if (!ultH) continue;
-    const f2 = estDia(ultH, 2), d2 = estudio.find(d => d.f >= f2);
-    if (d2 && d2.f <= simDia.f) { const m = Math.min(20, libre(d2)); if (m >= 10) { res.set(d2.f, (res.get(d2.f) || 0) + m); repasosDe.push({ f: d2.f, t, min: m }); } }
-  }
-  const repEst = repasos && nDias >= 3 ? 20 * pend.length + repasosDe.reduce((n, x) => n + x.min, 0) : 0, reservas = simMin + repEst;
-  const capacidad = Math.max(0, estudio.reduce((n, d) => n + d.cap, 0) - reservas);
-  // 4. Lo necesario y el reparto por peso (descontando lo ya hecho de cada tema).
+  const simBase = repasos && nDias >= 4 && !fijos.some(b => b.tipo === 'simulacro' && hechos[b.id] && b.d >= desde) ? Math.min(bloqueMin, simDia.cap) : 0;
+  // 4. Lo ya hecho de cada tema, lo que faltaba (al replanificar) y el orden de prioridad (más peso; a igual peso, antes en la lista).
   const hechoDe = {}; for (const b of fijos) if (hechos[b.id] && b.tema && (b.tipo === 'estudio' || b.tipo === 'practica')) hechoDe[b.tema] = (hechoDe[b.tema] || 0) + b.min;
   const nec = opts && opts.necesario && typeof opts.necesario === 'object' ? opts.necesario : null;
-  const r5 = m => Math.max(0, Math.round(m / 5) * 5);
-  let needs;
-  if (nec) needs = pend.map(t => ({ t, need: r5(Number.isFinite(+nec[t.id]) ? +nec[t.id] : bloqueMin) }));
-  else {
-    const W = pend.reduce((n, t) => n + t.peso, 0) || 1, C = pend.reduce((n, t) => n + (hechoDe[t.id] || 0), 0), E = capacidad + C;
-    needs = pend.map(t => ({ t, need: Math.max(0, E * t.peso / W - (hechoDe[t.id] || 0)) }));
-    const tot = needs.reduce((n, x) => n + x.need, 0);
-    if (tot > capacidad && tot > 0) for (const x of needs) x.need = x.need * capacidad / tot;
-    for (const x of needs) x.need = r5(x.need);
-  }
+  const pri = pend.map((t, i) => ({ t, i })).sort((a, b) => b.t.peso - a.t.peso || a.i - b.i).map(x => x.t);
   // Lo necesario: al replanificar, lo que faltaba; en un reparto fresco, un bloque por tema (menos lo que ese tema ya tiene hecho).
-  const minimo = nec ? needs.reduce((n, x) => n + x.need, 0) : pend.reduce((n, t) => n + Math.max(0, bloqueMin - (hechoDe[t.id] || 0)), 0);
-  let deficit = needs.reduce((n, x) => n + x.need, 0) - capacidad;
-  if (deficit > 0) {   // no cabe: se recorta, más a los temas de menor peso, sin bajar de 15 min mientras se pueda
-    for (let it = 0; it < 4 && deficit > 0; it++) {
-      const cand = needs.filter(x => x.need > 15); if (!cand.length) break;
-      const W = cand.reduce((n, x) => n + 1 / x.t.peso, 0), D = deficit;
-      for (const x of cand) { const q = Math.min(x.need - 15, Math.round(D / x.t.peso / W / 5) * 5, deficit); x.need -= q; deficit -= q; }
+  const necDe = t => { const v = Math.round(+nec[t.id]); return Number.isFinite(v) ? (v > 0 ? Math.max(15, v) : 0) : Math.max(15, bloqueMin); };
+  const minimo = nec ? pend.reduce((n, t) => n + necDe(t), 0) : pend.reduce((n, t) => n + Math.max(15, bloqueMin - (hechoDe[t.id] || 0)), 0);
+  const armar = (K, conSim, extra = 0) => {
+    const out = new Map(), poner = (f, b) => { if (!out.has(f)) out.set(f, []); out.get(f).push(b); };
+    const res = new Map(), uso = new Map(), tus = new Map();
+    const capL = d => Math.max(0, d.cap - (res.get(d.f) || 0) - (uso.get(d.f) || 0)), tL = d => d.hoy ? d.tb - (tus.get(d.f) || 0) : 1e9;
+    const libre = d => caben(capL(d), tL(d)), reservar = (d, m) => { res.set(d.f, (res.get(d.f) || 0) + m); if (d.hoy) tus.set(d.f, (tus.get(d.f) || 0) + m + 10); };
+    const simMin = conSim ? simBase : 0; if (simMin) reservar(simDia, simMin);
+    // 3. Repasos de los temas ya vistos: dos días después de su último bloque hecho, si aún no tienen repaso y cae antes de la víspera.
+    const repasosDe = [], yaRep = new Set(fijos.filter(b => b.tipo === 'repaso' && b.tema).map(b => b.tema));
+    const repasoEn = (ult, t) => { const f2 = estDia(ult, 2), d2 = estudio.find(d => d.f >= f2); if (!d2 || d2.f > simDia.f) return false; const m = Math.min(20, capL(d2), tL(d2) - 10); if (m < 10) return false; reservar(d2, m); repasosDe.push({ f: d2.f, t, min: m }); return true; };
+    if (repasos && nDias >= 3) for (const t of r.temas) {
+      if (!t.hecho || yaRep.has(t.id)) continue;
+      const ultH = fijos.filter(b => b.tema === t.id && hechos[b.id] && (b.tipo === 'estudio' || b.tipo === 'practica')).map(b => b.d).sort().pop(); if (ultH) repasoEn(ultH, t);
     }
-    if (deficit > 0) for (const x of needs.slice().sort((a, b) => a.t.peso - b.t.peso)) { const q = Math.min(x.need, deficit); x.need -= q; deficit -= q; if (deficit <= 0) break; }
-  }
-  // Colocar: temas en orden, días en orden, bloques de bloqueMin; el repaso del tema se reserva dos días después de su último bloque.
-  let di = 0;
-  const colocar = (x, desdeDia) => {
-    let ult = '';
-    for (let i = desdeDia; i < nDias && x.need > 0; i++) {
-      const d = estudio[i];
-      while (x.need > 0) {   // el tema llena el día (bloques de bloqueMin) y sigue al siguiente
-        const l = libre(d); if (l < 15) break;
-        let m = Math.min(bloqueMin, l, x.need);
-        if (m < 15) m = 15; else if (x.need > m && x.need - m < 15 && l >= x.need) m = x.need;
-        if (x.need >= l && l - m < 15) m = l;   // el resto del día (menos de 15 min) no se pierde: lo absorbe este bloque
-        poner(d.f, { d: d.f, h: '', min: m, tema: x.t.id, tipo: 'estudio', ej: 0, t: x.t.t }); uso.set(d.f, (uso.get(d.f) || 0) + m); x.need -= m; ult = d.f; di = i;
+    const S0 = estudio.reduce((n, d) => n + libre(d), 0), S = Math.max(0, S0 - 20 * K + extra);
+    // El reparto: cabe un bloque de 15 por tema para los primeros por prioridad; lo demás, por peso (fresco) o lo que faltaba (replanificar).
+    const needs = pend.map((t, i) => ({ t, i, need: 0, o: 0, puesto: 0 })), cabenN = Math.floor(S / 15);
+    const dentro = new Set(pri.slice(0, cabenN).map(t => t.id)), suma = () => needs.reduce((n, x) => n + x.need, 0);
+    const recortar = tope => {   // sin bajar de 15 a nadie: más a los de menor peso
+      let D = suma() - tope;
+      for (let it = 0; it < 60 && D > 0; it++) {
+        const cand = needs.filter(x => x.need > 15); if (!cand.length) break;
+        const W = cand.reduce((n, x) => n + 1 / x.t.peso, 0), D0 = D;
+        for (const x of cand.sort((a, b) => a.t.peso - b.t.peso || b.i - a.i)) { if (D <= 0) break; const q = Math.min(x.need - 15, Math.max(5, Math.ceil(D0 / x.t.peso / W / 5) * 5), D); x.need -= q; D -= q; }
       }
+    };
+    if (nec) {
+      for (const x of needs) { x.need = necDe(x.t); x.o = x.need; }
+      if (suma() > S) { const act = pri.filter(t => needs[pend.indexOf(t)].need > 0), keep = new Set(act.slice(0, cabenN).map(t => t.id)); for (const x of needs) if (!keep.has(x.t.id)) x.need = 0; recortar(S); }
+    } else {
+      const W = pend.reduce((n, t) => n + t.peso, 0) || 1, C = pend.reduce((n, t) => n + (hechoDe[t.id] || 0), 0), E = S + C;
+      const e = needs.map(x => dentro.has(x.t.id) ? Math.max(0, E * x.t.peso / W - (hechoDe[x.t.id] || 0)) : 0), T = Math.floor(S / 5) * 5;
+      let tot = e.reduce((n, v) => n + v, 0);
+      if (tot <= 0) { for (const x of needs) if (dentro.has(x.t.id)) e[x.i] = x.t.peso; tot = e.reduce((n, v) => n + v, 0); }
+      if (tot > 0) {
+        const q = e.map(v => v * T / tot / 5), fl = q.map(Math.floor); let resto = T / 5 - fl.reduce((n, v) => n + v, 0);
+        const orden = needs.map(x => x.i).sort((a, b) => (q[b] - fl[b]) - (q[a] - fl[a]) || a - b);
+        for (const i of orden) { if (resto <= 0) break; if (e[i] > 0) { fl[i]++; resto--; } }
+        for (const x of needs) x.need = fl[x.i] * 5;
+      }
+      for (const x of needs) if (dentro.has(x.t.id) && x.need < 15) x.need = 15;
+      recortar(T);
     }
-    return ult;
+    // Colocar: temas en orden, días en orden; cada día el tema toma lo que cabe en bloques de 15 a bloqueMin (el último, el más corto).
+    let di = 0, repN = 0;
+    const siguiente = x => needs.find(y => y.i > x.i && y.need > 0) || null;
+    // Los minutos de un tema en un día, en bloques de bloqueMin y como mucho uno más corto (si ya tenía bloques ese día, se rehacen juntos).
+    const partir = (d, x, take) => {
+      const lista = out.get(d.f) || [], mios = lista.filter(b => b.tipo === 'estudio' && b.tema === x.t.id), antes = mios.reduce((n, b) => n + b.min, 0);
+      const junto = mios.length && partible(antes + take), tot = junto ? antes + take : take, k = nBl(tot), ms = Array.from({ length: k }, () => bloqueMin); ms[k - 1] = tot - (k - 1) * bloqueMin;
+      if (junto) { const pos = lista.indexOf(mios[0]); out.set(d.f, lista.filter(b => !mios.includes(b))); out.get(d.f).splice(pos, 0, ...ms.map(m => ({ d: d.f, h: '', min: m, tema: x.t.id, tipo: 'estudio', ej: 0, t: x.t.t }))); }
+      else for (const m of ms) poner(d.f, { d: d.f, h: '', min: m, tema: x.t.id, tipo: 'estudio', ej: 0, t: x.t.t });
+      uso.set(d.f, (uso.get(d.f) || 0) + take); if (d.hoy) tus.set(d.f, (tus.get(d.f) || 0) + take + 10 * (k - (junto ? mios.length : 0)));
+      x.need -= take; x.puesto += take;
+    };
+    // Huecos de 15 min que quedan en un día (hoy, también por la hora) y temas que aún esperan su primer bloque.
+    const huecos = (d, dc = 0, dt = 0) => { const cl = capL(d) - dc; if (cl < 15) return 0; return d.hoy ? Math.max(0, Math.min(Math.floor(cl / 15), Math.floor((tL(d) - dt) / 25))) : Math.floor(cl / 15); };
+    const esperan = x => needs.filter(y => y.i > x.i && y.need >= 15 && !(y.puesto > 0)).length;
+    const colocar = (x, desdeDia, fresco, suelto) => {
+      let ult = '';
+      for (let i = desdeDia; i < nDias && x.need >= 15; i++) {
+        const d = estudio[i], L = libre(d); if (L < 15) continue;
+        // Si el tema ya tiene bloques ese día, lo nuevo se junta con ellos (bloques de bloqueMin y como mucho uno más corto).
+        const antes = (out.get(d.f) || []).filter(b => b.tipo === 'estudio' && b.tema === x.t.id).reduce((n, b) => n + b.min, 0), Q = v => antes ? Math.max(0, P(antes + v) - antes) : P(v);
+        let take = Q(Math.min(x.need, L));
+        // Que los temas que vienen detrás conserven sitio para su primer bloque de 15 min.
+        const q = suelto ? 0 : esperan(x); let resto = 0; if (q) for (let j = i + 1; j < nDias; j++) resto += huecos(estudio[j]);
+        const deja = t => !q || resto + huecos(d, t, t + 10 * nBl(t)) >= q;
+        if (!deja(take)) { let t = take; while (t > 15 && !deja(t)) t = Q(t - 5); if (deja(t)) take = t; else if (x.puesto > 0) continue; }
+        const rest = x.need - take, sg = siguiente(x);
+        // Un resto de menos de 15 no cabe en ningún bloque: en un reparto fresco pasa al tema siguiente; si no, se dejan 15 para después.
+        if (!suelto && rest > 0 && rest < 15 && !(fresco && sg)) { const t2 = Q(x.need - 15); if (t2 > 0 && (antes || t2 >= 15) && t2 <= take) take = t2; else if (i < nDias - 1) continue; }
+        if (take <= 0 || (!antes && take < 15)) continue;
+        // El hueco corto que quedaría en el día (menos de 15) lo toma el tema, si con eso no deja al siguiente sin su bloque.
+        if (fresco && !suelto && x.need - take === 0 && L > take && L - take < 15 && partible(antes + L) && deja(L)) { const rs = caben(capL(d) - take, tL(d) - take - 10 * nBl(take)); if (rs < 15 && (!sg || sg.need - (L - take) >= 15)) take = L; }
+        partir(d, x, take); ult = d.f; di = Math.max(di, i);
+      }
+      return ult;
+    };
+    for (const x of needs) {
+      if (!(x.need >= 15)) continue;
+      const ult = colocar(x, di, !nec, false);
+      if (!nec && x.need !== 0 && x.need > -15 && x.need < 15) { const sg = siguiente(x); if (sg) { sg.need += x.need; x.need = 0; } }   // el resto corto pasa al tema siguiente
+      if (repasos && ult && nDias >= 3 && repN < K && repasoEn(ult, x.t)) repN++;
+    }
+    for (const x of needs) if (x.need >= 15) colocar(x, 0, false, true);   // lo que no cupo en orden, en los huecos que quedan
+    const resto = needs.reduce((n, x) => n + Math.max(0, x.need), 0);   // lo que no cupo (en un reparto fresco, por los huecos cortos de cada día)
+    // Reparto fresco: lo que las reservas no llegaron a usar (o un hueco de 15 o más) es para el tema que se estudia ese día o justo antes.
+    if (!nec) for (let i = 0; i < nDias; i++) {
+      const d = estudio[i], L = libre(d); if (L < 15) continue;
+      let x = null; for (let j = i; j >= 0 && !x; j--) { const bs = (out.get(estudio[j].f) || []).filter(b => b.tipo === 'estudio'); if (bs.length) x = needs.find(y => y.t.id === bs[bs.length - 1].tema); }
+      x = x || needs.find(y => y.puesto > 0); if (!x) continue;
+      const antes = (out.get(d.f) || []).filter(b => b.tipo === 'estudio' && b.tema === x.t.id).reduce((n, b) => n + b.min, 0), t = antes ? Math.max(0, P(antes + L) - antes) : P(L);
+      if (t > 0 && (antes || t >= 15)) partir(d, x, t);
+    }
+    if (simMin) poner(simDia.f, { d: simDia.f, h: '', min: simMin, tema: '', tipo: 'simulacro', ej: ejDia || 10, t: 'Simulacro' });
+    for (const x of repasosDe) poner(x.f, { d: x.f, h: '', min: x.min, tema: x.t.id, tipo: 'repaso', ej: 0, t: estS(`Repaso: ${x.t.t}`, 100) });
+    if (ligero) poner(ligero.d, { ...ligero });
+    const sin = needs.filter(x => (nec ? x.o > 0 : true) && !(x.puesto > 0)).map(x => x.t), deficit = needs.reduce((n, x) => n + Math.max(0, x.o - x.puesto), 0);
+    return { out, repN, sin, deficit, S0, simMin, K, conSim, extra, resto, libres: estudio.reduce((n, d) => n + libre(d), 0), reservas: simMin + repasosDe.reduce((n, x) => n + x.min, 0) };
   };
-  for (const x of needs) {
-    const ult = colocar(x, di);
-    if (repasos && ult && nDias >= 3) {
-      const f2 = estDia(ult, 2), d2 = estudio.find(d => d.f >= f2);
-      if (d2 && d2.f <= simDia.f) { const m = Math.min(20, libre(d2)); if (m >= 10) { res.set(d2.f, (res.get(d2.f) || 0) + m); repasosDe.push({ f: d2.f, t: x.t, min: m }); } }
-    }
+  // Cuántos repasos reservar: solo los que caben después de lo necesario y los que de verdad se ponen (se prueba hasta que coincide).
+  const run0 = armar(0, true);
+  let K = repasos && nDias >= 3 ? Math.min(pend.length, Math.floor(Math.max(0, run0.S0 - minimo) / 20)) : 0, run = K ? armar(K, true) : run0;
+  for (let it = 0; it < 12 && K > 0; it++) {
+    let K2 = Math.min(K, run.repN);
+    if (run.sin.length) K2 = Math.min(K2, K - run.sin.length);
+    if (nec && run.deficit >= 15) K2 = Math.min(K2, K - Math.ceil(run.deficit / 20));
+    K2 = Math.max(0, K2); if (K2 === K) break;
+    K = K2; run = K ? armar(K, true) : run0;
   }
-  for (const x of needs) if (x.need >= 15) colocar(x, 0);   // lo que no cupo en orden, en los huecos que dejaron las reservas (restos menores se dejan)
-  const sinColocar = needs.reduce((n, x) => n + x.need, 0);
-  // 3 (bis). Repasos y simulacro, ya reservados.
-  for (const x of repasosDe) poner(x.f, { d: x.f, h: '', min: x.min, tema: x.t.id, tipo: 'repaso', ej: 0, t: estS(`Repaso: ${x.t.t}`, 100) });
-  if (simMin) poner(simDia.f, { d: simDia.f, h: '', min: simMin, tema: '', tipo: 'simulacro', ej: ejDia || 10, t: 'Simulacro' });
+  if (run.sin.length && simBase) { const sinSim = armar(0, false); if (sinSim.sin.length < run.sin.length) run = sinSim; }   // antes un bloque por tema que el simulacro
+  // Reparto fresco: si los huecos cortos de los días dejaron minutos sin sitio, se reparte un poco menos (todos pierden en proporción, no solo el último).
+  if (!nec) for (let it = 0; it < 3 && run.resto >= 15; it++) { const c2 = armar(run.K, run.conSim, run.extra - run.resto); if (c2.sin.length > run.sin.length || c2.resto >= run.resto) break; run = c2; }
   // 4 (bis). Ejercicios del día, orden dentro del día, horas e ids.
   const rango = { repaso: 0, estudio: 1, practica: 1, simulacro: 2, ligero: 3 };
-  const ahora = new Date(), ahoraMin = Math.ceil((ahora.getHours() * 60 + ahora.getMinutes()) / 10) * 10;
-  const plan = [...fijos];
-  for (const f of [...nuevos.keys()].sort()) {
-    const bs = nuevos.get(f);
+  const plan = [...fijos], vistos = new Set();
+  const dias2 = [...run.out.keys()].sort();
+  for (const f of dias2) {
+    const bs = run.out.get(f);
+    for (const b of fijos) if (b.d <= f && b.tema && (b.tipo === 'estudio' || b.tipo === 'practica')) vistos.add(b.tema);
     const sb = bs.filter(b => b.tipo === 'estudio');
-    if (ejDia > 0 && sb.length) { const u = sb[sb.length - 1]; u.ej = ejDia; if (sb.length >= 2) { u.tipo = 'practica'; u.t = estS(`Ejercicios: ${u.t}`, 100); } }
-    bs.sort((a, b) => rango[a.tipo] - rango[b.tipo]);
-    let t = estMinutos(horaPref); if (f === hoy && ahoraMin > t) t = ahoraMin;
-    for (const b of fijos) if (b.d === f && estH(b.h)) t = Math.max(t, estMinutos(b.h) + b.min + 10);   // después de lo ya hecho ese día
-    let n = 0;
-    for (const b of bs) {
-      if (t + b.min <= 23 * 60) { b.h = estHHMM(t); t += b.min + 10; } else b.h = '';
-      while (usados.has(`${r.id}:${f}:${n}`)) n++;
-      b.id = `${r.id}:${f}:${n}`; usados.add(b.id); plan.push(b);
+    if (ejDia > 0 && sb.length) {
+      let u = null; for (let i = sb.length - 1; i >= 0 && !u; i--) if (vistos.has(sb[i].tema) || sb.slice(0, i).some(x => x.tema === sb[i].tema)) u = sb[i];
+      if (u && sb.length >= 2) { u.ej = ejDia; u.tipo = 'practica'; u.t = estS(`Ejercicios: ${u.t}`, 100); } else sb[sb.length - 1].ej = ejDia;
     }
+    for (const b of sb) vistos.add(b.tema);
+    bs.sort((a, b) => rango[a.tipo] - rango[b.tipo]);
+    // ids: el del bloque que ocupaba ese lugar (mismo día, clase y tema); si no hay, uno nuevo que no se recicla con otro tema.
+    for (const b of bs) {
+      const q = viejos.get(claveB(b)), v = q && q.length ? q.shift() : null;
+      if (v) { b.id = v.id; if (v.hFija && estH(v.h)) b.hF = v.h; }
+      else { const base = `${r.id}:${f}:${b.tipo === 'practica' ? 'e' : b.tipo[0]}${String(b.tema || '').slice(0, 8)}`; let j = 0; while (usados.has(j ? `${base}.${j}` : base)) j++; b.id = j ? `${base}.${j}` : base; }
+      usados.add(b.id);
+    }
+    // Horas: desde la primera hora libre, seguidas con 10 min entre bloques; las que fijó la persona se respetan si siguen valiendo.
+    const t0 = t0De(f), ocup = fijos.filter(b => b.d === f && estH(b.h)).map(b => [estMinutos(b.h), estMinutos(b.h) + b.min]);
+    const horas = conFijas => {
+      const occ = ocup.slice(), fx = new Map();
+      if (conFijas) for (const b of bs) if (b.hF) { const s = estMinutos(b.hF), e = s + b.min; if ((f !== hoy || s >= ahoraMin) && e <= FIN && !occ.some(([a, z]) => s < z + 10 && a < e + 10)) { occ.push([s, e]); fx.set(b, s); } }
+      let t = t0, ok = true; const hs = new Map();
+      for (const b of bs) {
+        if (fx.has(b)) { hs.set(b, fx.get(b)); continue; }
+        let s = t; for (let g = 0; g < 50; g++) { const o = occ.find(([a, z]) => s < z + 10 && a < s + b.min + 10); if (!o) break; s = o[1] + 10; }
+        if (s + b.min <= FIN) { hs.set(b, s); occ.push([s, s + b.min]); t = s + b.min + 10; } else { hs.set(b, -1); ok = false; }
+      }
+      return { hs, ok, fx };
+    };
+    let H = horas(true); if (!H.ok && H.fx.size) { const H2 = horas(false); if (H2.ok) H = H2; }
+    for (const b of bs) { const s = H.hs.get(b); b.h = s >= 0 ? estHHMM(s) : ''; if (H.fx.has(b)) b.hFija = true; delete b.hF; plan.push(b); }
   }
   r.plan = plan; estOrdenarPlan(r);
-  r.aviso = pend.length && fin >= desde && (minimo > capacidad || sinColocar > 15) ? { faltan: Math.min(1440, Math.max(5, Math.ceil((minimo + reservas) / Math.max(1, nDias) / 5) * 5)) } : null;
+  // El aviso: algún tema sin bloque, lo necesario no cabe o (al replanificar) no cupo lo que faltaba de cada tema.
+  const av = pend.length > 0 && fin >= desde && (run.sin.length > 0 || (nec ? run.deficit >= 15 : minimo > run.S0));
+  if (!av) r.aviso = null;
+  else if (sim) r.aviso = { faltan: 1 };
+  else {
+    const cur = Math.max(15, Math.round(+c.minDia || cfg.minDia)), prueba = v => { const x = { ...r, config: { ...c, minDia: v }, plan: planAntes, aviso: null }; estPlanificar(x, desde0, { ...(opts || {}), sim: true }); return !x.aviso; };
+    let faltan = 0;
+    if (cur < 480 && prueba(480)) { let lo = cur, hi = 480; for (let it = 0; it < 12 && hi - lo > 5; it++) { const mid = Math.round((lo + hi) / 10) * 5; if (mid >= hi || mid <= lo) break; if (prueba(mid)) hi = mid; else lo = mid; } faltan = hi; }
+    else faltan = Math.min(1440, Math.max(485, Math.ceil((minimo + run.reservas) / Math.max(1, nDias) / 5) * 5));
+    r.aviso = { faltan };
+  }
   return r.plan;
 }
 // Replanificar: lo hecho y lo pasado se conservan; lo que faltaba de cada tema (bloques no hechos, pasados o futuros) vuelve al reparto desde hoy.
@@ -11749,8 +11930,9 @@ function estReplanificar(id) {
   const hoy = today();
   if (r.fecha && r.fecha >= hoy) {
     // Lo que faltaba: bloques no hechos que siguen vivos (de hoy en adelante, o pasados que ninguna replanificación repartió aún).
+    const de = new Date().getHours() >= 20 ? estDia(hoy, 1) : hoy; if (de > estDia(r.fecha, -1)) return r;   // 2.17.1 (E) · ya no quedan días que repartir
     const nec = {}, rd = estReplanDesde(r); for (const t of r.temas) if (!t.hecho) nec[t.id] = 0;
-    for (const b of r.plan) if (!r.hechos[b.id] && b.tema && nec[b.tema] !== undefined && (b.tipo === 'estudio' || b.tipo === 'practica') && (b.d >= hoy || b.d >= rd)) nec[b.tema] += b.min;
+    for (const b of r.plan) if (!r.hechos[b.id] && b.tema && nec[b.tema] !== undefined && (b.tipo === 'estudio' || b.tipo === 'practica') && (b.d >= de || b.d >= rd)) nec[b.tema] += b.min;   // 2.17.1 (E) · desde el mismo «desde» que el motor
     const bloqueMin = r.config.bloqueMin || estD().cfg.bloqueMin;
     for (const t of r.temas) if (!t.hecho && !(nec[t.id] > 0)) nec[t.id] = bloqueMin;   // un tema pendiente sin minutos vivos (sin bloques, o recortado a cero) vuelve con un bloque
     estPlanificar(r, hoy, { necesario: nec });
@@ -11763,7 +11945,11 @@ function estMateriaCrear(d = {}, guardarYa = true) {
   const D = estD(), nombre = estS(d.nombre, 40); if (!nombre) throw new Error('Escribe el nombre de la materia.');
   const ya = D.materias.find(m => m.nombre.toLowerCase() === nombre.toLowerCase());
   if (ya) { if (ya.archivada) { ya.archivada = false; if (guardarYa) guardar(); estAvisar('materia', ya); } return ya; }
-  if (D.materias.length >= 20) throw new Error('Ya hay 20 materias: archiva alguna para crear otra.');
+  if (D.materias.length >= 20) {   // 2.17.1 (D) · archivar no libera cupo: se libera una materia sin rutas (primero las archivadas, luego la más antigua)
+    const libre = D.materias.filter(x => !D.rutas.some(r => r.materia === x.id)).sort((a, b) => (+b.archivada - +a.archivada) || ((a.creado || 0) - (b.creado || 0)))[0];
+    if (!libre) throw new Error('Ya hay 20 materias con rutas guardadas: elige una de las que ya tienes, o borra una ruta antigua desde su ficha para liberar su materia.');
+    D.materias.splice(D.materias.indexOf(libre), 1); forget(libre.id);
+  }
   const m = { id: crypto.randomUUID(), nombre, color: typeof d.color === 'string' && d.color && COLORS.includes(d.color) ? d.color : '', iden: estS(d.iden, 60), habito: estS(d.habito, 60), creado: Date.now(), archivada: false };
   D.materias.push(m); if (guardarYa) guardar(); estAvisar('materia', m); return m;
 }
@@ -11779,10 +11965,10 @@ function estCrear(datos = {}) {
   const D = estD(), hoy = today();
   const fecha = estF(datos.fecha); if (!fecha || fecha < hoy) throw new Error('La fecha del examen va de hoy en adelante.');
   const temas = estTemasDe(datos.temas); if (!temas.length) throw new Error('Añade al menos un tema.');
+  if (D.rutas.length >= 40) throw new Error('Ya hay 40 rutas guardadas, contando las archivadas: borra alguna antigua desde su ficha para crear otra.');   // 2.17.1 (D) · antes de crear la materia
   let m = estMateria(datos.materia);
   if (!m && estS(datos.materiaNombre, 40)) m = estMateriaCrear({ nombre: datos.materiaNombre, color: datos.materiaColor }, false);   // avisa ('materia', m) si es nueva
   if (!m) throw new Error('Elige o escribe una materia.');
-  if (D.rutas.length >= 40) throw new Error('Ya hay 40 rutas: archiva o borra alguna para crear otra.');
   const r = estNormRuta({ id: crypto.randomUUID(), area: 'estudio', materia: m.id, nombre: estS(datos.nombre, 80) || 'Examen', tipo: 'examen', fecha, hora: datos.hora, lugar: datos.lugar, temas,
     config: { ...estD().cfg, ...(datos.config && typeof datos.config === 'object' ? datos.config : {}) }, plan: [], hechos: {}, pendientes: [], iden: datos.iden, obj: datos.obj, habito: datos.habito,
     notion: null, gcal: {}, aviso: null, resultado: null, creado: Date.now(), cambiado: Date.now(), replan: 0, archivada: false });
@@ -11821,9 +12007,15 @@ function estMarcar(id, hecho = true, { min, ej, nota } = {}) {
   const r = estRutaDeBloque(id, true); if (!r) return null;
   const b = r.plan.find(x => x.id === id), antes = !hecho && r.hechos[id] && typeof r.hechos[id] === 'object' ? { ...r.hechos[id] } : null;   // 2.14.1 (X) · lo anotado, para el oyente al deshacer
   if (hecho) {
-    r.hechos[id] = { en: Date.now(), min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : b.ej, nota: String(nota ?? '').trim().slice(0, 200) };
-    const ks = Object.keys(r.hechos); if (ks.length > 400) for (const k of ks.sort((x, y) => (r.hechos[x].en || 0) - (r.hechos[y].en || 0)).slice(0, ks.length - 400)) delete r.hechos[k];
-  } else delete r.hechos[id];
+    const dz = r.deshechos && typeof r.deshechos === 'object' ? r.deshechos : null;   // 2.17.1 (D) · el hecho nuevo va después de la marca de borrado
+    r.hechos[id] = { en: Math.max(Date.now(), dz ? (+dz[id] || 0) + 1 : 0), min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : b.ej, nota: String(nota ?? '').trim().slice(0, 200) };
+    if (dz) delete dz[id];
+    const ks = Object.keys(r.hechos); if (ks.length > 1600) for (const k of ks.sort((x, y) => (r.hechos[x].en || 0) - (r.hechos[y].en || 0)).slice(0, ks.length - 1600)) delete r.hechos[k];
+  } else {
+    // 2.17.1 (D) · deshacer deja una marca de borrado con su hora (deshechos), para que la copia del otro teléfono no lo devuelva al sincronizar.
+    const t0 = antes ? +antes.en || 0 : 0; delete r.hechos[id];
+    if (antes) { const D = r.deshechos && typeof r.deshechos === 'object' && !Array.isArray(r.deshechos) ? r.deshechos : (r.deshechos = {}); D[id] = Math.max(Date.now(), t0 + 1); const dk = Object.keys(D); if (dk.length > 400) for (const k of dk.sort((x, y) => D[x] - D[y]).slice(0, dk.length - 400)) delete D[k]; }
+  }
   estTemaHecho(r, b.tema);
   guardar();
   const eb = estEnriquecer(r, b); if (antes) eb.anterior = antes; estAvisar('bloque', eb, !!hecho); return eb;
@@ -11832,7 +12024,7 @@ function estMover(id, fecha, hora) {
   const r = estRutaDeBloque(id, true); if (!r) return null;
   const b = r.plan.find(x => x.id === id), hoy = today(); fecha = estF(fecha);
   if (fecha && fecha >= hoy && r.fecha && fecha < r.fecha) b.d = fecha;
-  if (hora !== undefined) b.h = estH(hora);
+  if (hora !== undefined) { b.h = estH(hora); if (b.h) b.hFija = true; else delete b.hFija; }   // 2.17.1 (E)
   estOrdenarPlan(r); r.cambiado = Date.now(); guardar();
   const eb = estEnriquecer(r, b); estAvisar('bloque', eb, null); return eb;
 }
@@ -11896,7 +12088,7 @@ function estCalendario(anio, mes0) {
 }
 function estResumenIA() {
   const activas = estRutas(); if (!activas.length) return null;
-  const rutas = activas.slice(0, 10).map(r => { const s = estResumen(r.id); return { id: r.id, nombre: r.nombre, materia: estMatNombre(r), examen: r.fecha, hora: r.hora, dias: s.diasRestantes, temas: `${s.temasHechos} de ${s.temasTotal}`, bloques: `${s.bloquesHechos} de ${s.bloquesTotal}`, sinHacer: s.sinHacer, aviso: s.aviso ? `No cabe todo: harían falta ${s.aviso.faltan} min por día` : '' }; });
+  const rutas = activas.slice(0, 10).map(r => { const s = estResumen(r.id); return { id: r.id, rango: estJerRango(r.id) || null, nombre: r.nombre, materia: estMatNombre(r), examen: r.fecha, hora: r.hora, dias: s.diasRestantes, temas: `${s.temasHechos} de ${s.temasTotal}`, bloques: `${s.bloquesHechos} de ${s.bloquesTotal}`, sinHacer: s.sinHacer, aviso: s.aviso ? `No cabe todo: harían falta ${s.aviso.faltan} min por día` : '' }; });
   const hoy = estBloquesDe().slice(0, 12).map(b => ({ id: b.id, texto: estTexto(b), hora: b.h, min: b.min, ej: b.ej, hecho: b.hecho }));
   const pendientes = estPendientes().slice(0, 20).map(p => ({ id: p.id, texto: p.t, clase: p.clase, fecha: p.fecha, hora: p.hora, ruta: p.rutaNombre }));
   return { rutas, hoy, pendientes, sinHacer: rutas.reduce((n, r) => n + r.sinHacer, 0), aviso: rutas.filter(r => r.aviso).map(r => `${r.nombre}: ${r.aviso}`) };
@@ -11918,6 +12110,25 @@ const estAPI = {
   diaSheet: fecha => estAPI.ui.diaSheet?.(fecha),
 };
 window.est = estAPI;
+// 2.17.1 (R) · La jerarquía de las rutas.
+function estJerOrden() { return estRutas().map(r => r.id); }
+function estJerRango(id) { const hoy = today(), i = estRutas().filter(r => r.fecha >= hoy).findIndex(r => r.id === id); return i + 1; }
+function estJerOrdenar(ids) {
+  const L = estJerOrden(), en = new Set(L);
+  const want = [...new Set((Array.isArray(ids) ? ids : []).filter(id => typeof id === 'string' && en.has(id)))];
+  const nuevo = [...want, ...L.filter(id => !want.includes(id))].slice(0, 40), D = estD();
+  D.orden = nuevo; D.ordenEn = Date.now();
+  guardar(); estAvisar('ruta', { orden: nuevo.slice() });
+  return nuevo.slice();
+}
+// Una ruta nueva va al final: antes de crearla, la jerarquía de ahora queda escrita (no cambia nada de lo que se ve ni sube ordenEn,
+// así un orden elegido en otro teléfono sigue ganando la fusión) y la nueva, que no está en la lista, queda detrás.
+function estCrearAlFinal(datos) {
+  const D = estD(), ids = estJerOrden().slice(0, 40), prev = D.orden;
+  if (ids.length) D.orden = ids;
+  try { return estCrear(datos); } catch (e) { if (prev === undefined) delete D.orden; else D.orden = prev; throw e; }
+}
+Object.assign(estAPI, { crear: estCrearAlFinal, orden: estJerOrden, ordenar: estJerOrdenar, rango: estJerRango });
 
 // ====================================================================
 // 2.14 (T) · Estudio, la pestaña: la ruta hasta el examen vista desde la persona. Host #view-estudio con shadow root y
@@ -11966,6 +12177,8 @@ const EU_CSS = `
   .eu-tema { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
   .eu-tema .t { flex: 1; min-width: 40%; }
   .eu-tema .chips { gap: 4px; } .eu-tema .chip { padding: 4px 9px; font-size: .78rem; }
+  .eu-tema [data-tx] { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; margin-left: auto; padding: 0 6px; font-size: 1.1rem; }
+  .eu-tema [data-tx][data-conf] { font-size: .85rem; }
   .eu-sw { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
   .eu-sw.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg) inset; }
   .eu-libre { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
@@ -12001,11 +12214,16 @@ const euPie = (n, t) => `<p class="paso">Paso ${n} de 4 · ${t}</p><div class="m
 // las claves de hechos que no son bloques, la fusión entre teléfonos se queda con la más reciente y no suma minutos ni ejercicios. El aviso se
 // calla mientras el motor no escriba otra cifra, y nunca sale con el examen hoy o pasado (ya no quedan días que repartir).
 const EU_AVK = 'aviso';
+// 2.17.1 (E) · El aviso «no cabe»: la cifra que hace falta (o «ni con 480»), los temas que se quedaron sin bloques y el botón que nunca baja los minutos.
+const euAvSin = r => { const hoy = today(); return (r.temas || []).filter(t => t && !t.hecho && !(r.plan || []).some(b => b.tema === t.id && (b.tipo === 'estudio' || b.tipo === 'practica') && b.d >= hoy)).map(t => t.t); };
+const euAvSubirN = (r, cur) => { cur = Math.max(15, Math.round(+cur || +r?.config?.minDia || 90)); const f = Math.round(+r?.aviso?.faltan || 0); return cur >= 480 ? 0 : Math.min(480, f > cur ? f : cur + 5); };
+const euAvSubirT = (r, cur, corto) => { const n = euAvSubirN(r, cur); return !n ? '' : +r.aviso?.faltan > 480 ? 'Subir al máximo (480 min)' : corto ? 'Subir minutos' : `Subir a ${n} min`; };
+const euAvTexto = r => { const f = Math.round(+r?.aviso?.faltan || 0), sin = euAvSin(r); return `${f > 480 ? 'No cabe todo, ni con 480 min por día: puedes quitar temas o mover la fecha.' : `No cabe todo: harían falta ${f} min por día.`}${sin.length ? ` Sin bloques: ${sin.slice(0, 8).join(', ')}${sin.length > 8 ? '…' : ''}.` : ''}`; };   // texto plano: esc() al pintar
 const euAvCallado = r => String(r.hechos?.[EU_AVK]?.nota ?? '') === String(r.aviso?.faltan ?? '-');
 const euAvisoVivo = (r, s) => !!r.aviso && Number.isFinite(+r.aviso.faltan) && +r.aviso.faltan > 0 && !!s && s.diasRestantes > 0 && !euAvCallado(r);
 function euAvCallar(r) { if (!r?.aviso || !r.hechos || typeof r.hechos !== 'object') return; r.hechos[EU_AVK] = { en: Date.now(), min: 0, ej: 0, nota: String(r.aviso.faltan) }; guardar(); }
 // Progreso de bloques: con todo hecho, «{n} de {n} bloques» en verde (como la ficha del objetivo); si no, la regla llevas/faltan.
-const euProgBl = s => s.bloquesHechos >= s.bloquesTotal ? `<span class="green">${s.bloquesTotal} de ${euBlT(s.bloquesTotal)}</span>` : esc(llevasFaltan(s.bloquesHechos, s.bloquesTotal, 'bloques'));
+const euProgBl = s => s.bloquesHechos >= s.bloquesTotal ? `<span class="green">${s.bloquesTotal} de ${euBlT(s.bloquesTotal)}</span>` : esc(llevasFaltan(s.bloquesHechos, s.bloquesTotal, ['bloque', 'bloques']));
 // El tema de un bloque de estudio o práctica cuando es su último bloque sin hacer de hoy en adelante (si no, null): al quitarlo, el tema queda visto.
 function euUltimoDelTema(r, b) {
   if (!r || !b || !b.tema || (b.tipo !== 'estudio' && b.tipo !== 'practica')) return null;
@@ -12087,11 +12305,18 @@ function euMarcar(id, ej, pintar) {
   toast(`Hecho: ${b.hechoInfo?.min || b.min} min${b.hechoInfo?.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}${b.materia ? ` de ${b.materia}` : ''}.`); buzz(20);
   pintar?.();
 }
-function euReplan(id, pintar) { const E = EU(); if (!E || !E.replanificar(id)) return; const s = E.resumen(id); toast(s?.aviso ? `Repartido desde hoy. No cabe todo: harían falta ${s.aviso.faltan} min por día.` : 'Repartido desde hoy.'); pintar?.(); }
+// 2.17.1 (E) · De las 20:00 en adelante el reparto empieza mañana; la víspera de noche (o el día del examen) ya no queda nada que repartir.
+const euNocheUltima = f => { const hoy = today(), de = new Date().getHours() >= 20 ? euDia(hoy, 1) : hoy; return !!euF(f) && f >= hoy && de > euDia(f, -1); };
+function euReplan(id, pintar) {
+  const E = EU(), r0 = E?.ruta(id); if (!E || !r0) return;
+  if (euNocheUltima(r0.fecha)) { toast('Ya no quedan días para repartir antes del examen.'); return; }
+  if (!E.replanificar(id)) return; const r = E.ruta(id), t = `Repartido desde ${new Date().getHours() >= 20 ? 'mañana' : 'hoy'}.`;
+  toast(r?.aviso ? `${t} ${euAvTexto(r)}` : t); pintar?.();
+}
 // El aviso «no cabe» tiene tres salidas: subir los minutos por día a los que harían falta, quitar temas (la ficha) o dejarlo así.
 function euAviso(k, id, pintar) {
   const E = EU(), r = E?.ruta(id); if (!r) return;
-  if (k === 'subir') { const n = Math.min(480, Math.max(15, +r.aviso?.faltan || r.config.minDia)); E.editar(id, { config: { minDia: n } }); toast(`Minutos por día: ${n}.`); }
+  if (k === 'subir') { const n = euAvSubirN(r); if (!n) { toast('Ya está en el máximo: 480 min por día.'); return; } E.editar(id, { config: { minDia: n } }); toast(`Minutos por día: ${n}.`); }   // 2.17.1 (E) · nunca baja
   else if (k === 'temas') { euRutaSheet(id, 'temas'); return; }
   else euAvCallar(r);
   pintar?.();
@@ -12117,7 +12342,7 @@ function euCardHtml(r) {
   const E = EU(), s = E.resumen(r.id) || {}, m = E.materia(r.materia), lun = lunes(), dom = euDia(lun, 6);
   let semPlan = 0, semHecho = 0; for (const b of r.plan) if (b.d >= lun && b.d <= dom && !E.repartido?.(r, b)) { semPlan += b.min; if (r.hechos[b.id]) semHecho += r.hechos[b.id].min || b.min; }
   const pct = s.bloquesTotal ? Math.round(s.bloquesHechos / s.bloquesTotal * 100) : 0;
-  const av = euAvisoVivo(r, s) ? `<p class="meta amber">No cabe todo: harían falta ${r.aviso.faltan} min por día.</p><div class="chips eu-av" style="margin-top:8px"><button class="chip" data-av="subir" data-id="${esc(r.id)}">Subir minutos</button><button class="chip" data-av="temas" data-id="${esc(r.id)}">Quitar temas</button><button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : '';
+  const avT = euAvSubirT(r, r.config.minDia, true), av = euAvisoVivo(r, s) ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips eu-av" style="margin-top:8px">${avT ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(avT)}</button>` : ''}<button class="chip" data-av="temas" data-id="${esc(r.id)}">Quitar temas</button><button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : '';
   return `<div class="eu-card" data-id="${esc(r.id)}">
     <div class="top"><b>${esc(r.nombre)}</b><span class="tag">${esc(m ? m.nombre : '')}</span></div>
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` · ${esc(fmtHora(r.hora))}` : ''}${euF(r.fecha) ? ` · ${euDiasT(s.diasRestantes)}` : ''}</p>
@@ -12140,7 +12365,7 @@ function renderEstudio() {
     euWireTab(); return;
   }
   euW.innerHTML = `${cab}${euHoyHtml(E.hoy())}
-    ${activas.length ? `<h3 style="margin-top:8px">Tus rutas</h3>${activas.slice(0, 40).map(euCardHtml).join('')}` : '<p class="empty">Ninguna ruta activa: la siguiente empieza con «Nueva ruta».</p>'}
+    ${activas.length ? `${euRkCab(activas)}${activas.slice(0, 40).map((r, i) => euRankWrap(r, i)).join('')}` : '<p class="empty">Ninguna ruta activa: la siguiente empieza con «Nueva ruta».</p>'}
     <p class="more"><button class="link" id="eu-nueva2">+ Nueva ruta</button></p>
     ${ant.length ? `<details class="eu-sec" id="eu-ant"><summary>Anteriores (${ant.length})</summary><div class="rows">${ant.slice(0, 30).map(r => `<div class="row"><span class="dot" style="--c:${esc(E.materia(r.materia)?.color || 'var(--empty)')}"></span><span class="t"><div>${esc(r.nombre)} · ${esc(E.materia(r.materia)?.nombre || '')}</div><small>Examen ${esc(euFC(r.fecha))} · ${r.archivada ? 'archivada' : 'para cerrar'}${r.resultado ? ' · con tu nota' : ''}</small></span><button class="link" data-ver="${esc(r.id)}">Ver ruta</button></div>`).join('')}</div></details>` : ''}
     ${euOtrasHtml()}${EU_PIE}`;
@@ -12158,9 +12383,24 @@ function euWireTab() {
 
 // ---------- Nueva ruta: hoja en cuatro pasos (examen · temas · tiempo · plan). El borrador vive en euN hasta guardar.
 let euN = null;
+let euLeerPaso = null;   // 2.17.1 (U) · lee los campos del paso que está en la hoja (al cerrarla, lo escrito queda en euN)
+const euWizEnHoja = () => !!sheet.open && !!euBody()?.querySelector('[aria-label="Avance de la ruta nueva"]');
+const euWizLleno = N => !!N && !!(N.nombre || N.fecha || N.materiaNombre || N.lugar || N.temas?.length);
+// 2.17.1 (U) · Atrás del teléfono, Esc o un toque fuera con el asistente en la hoja: vuelve un paso (true). En el paso 1 con algo escrito
+// pregunta antes de descartar (true); si ya lo está preguntando o no hay nada escrito, deja cerrar (false): el borrador queda en euN.
+function euWizAtras() {
+  if (!euN || !euWizEnHoja()) return false;
+  const bd = euBody(), back = bd.querySelector('#eu-back'); if (back) { back.click(); return true; }
+  const conf = bd.querySelector('#eu-descartar'); if (!conf || !conf.hidden) return false;
+  try { euLeerPaso?.(); } catch {} if (!euWizLleno(euN)) return false;
+  conf.hidden = false; bd.querySelector('#eu-p1-acc').hidden = true; return true;
+}
+sheet.addEventListener('cancel', e => { if (e.cancelable && euWizAtras()) e.preventDefault(); });
+sheet.addEventListener('close', () => { if (euN && euBody()?.querySelector('[aria-label="Avance de la ruta nueva"]')) { try { euLeerPaso?.(); } catch {} } });
 function euNuevaRuta(pre = {}) {
   const E = EU(); if (!E) { toast('El motor de estudio no está en esta versión.'); return; }
   pre = pre && typeof pre === 'object' ? pre : {};
+  if (euN && !Object.keys(pre).length) { if (euWizLleno(euN) || (euN.paso || 1) > 1) toast('Sigues con la ruta que dejaste a medias.'); euPaso(Math.min(4, Math.max(1, +euN.paso || 1))); return; }   // 2.17.1 (U) · el borrador vivo se reabre en su paso
   const c = E.cfg(), mats = E.materias(), porDia = {}; for (let k = 0; k < 7; k++) porDia[k] = null;
   const pc = pre.config && typeof pre.config === 'object' ? pre.config : {};
   const materiaNombre = euS(pre.materiaNombre, 40), materia = E.materia(pre.materia) ? pre.materia : !materiaNombre && mats.length === 1 ? mats[0].id : '';
@@ -12170,7 +12410,7 @@ function euNuevaRuta(pre = {}) {
     config: { minDia: euNum(pc.minDia, c.minDia, 15, 480), horaPref: euH(pc.horaPref) || c.horaPref, bloqueMin: [25, 50, 90].includes(+pc.bloqueMin) ? +pc.bloqueMin : c.bloqueMin, ejDia: euNum(pc.ejDia, c.ejDia, 0, 200), vispera: ['ligero', 'normal', 'libre'].includes(pc.vispera) ? pc.vispera : c.vispera, repasos: typeof pc.repasos === 'boolean' ? pc.repasos : c.repasos, diasAntes: euNum(pc.diasAntes, 0, 1, 60), porDia } };
   euPaso(1);
 }
-function euPaso(n) { if (!euN) return; euN.paso = n; [euPaso1, euPaso2, euPaso3, euPaso4][n - 1](); const sb = euBody(); if (sb) sb.scrollTop = 0; }
+function euPaso(n) { if (!euN) return; euN.paso = n; euLeerPaso = null; [euPaso1, euPaso2, euPaso3, euPaso4][n - 1](); const sb = euBody(); if (sb) sb.scrollTop = 0; }
 function euPaso1() {
   const E = EU(), N = euN, mats = E.materias(), hoy = today();
   showSheet(`${euPie(1, 'Examen')}<h2>¿Para qué examen?</h2>
@@ -12184,12 +12424,16 @@ function euPaso1() {
     ${euIdnChips(N.iden)}
     ${euHabSelect('eu-hab', N.habito)}
     ${btcChips('eu-bt', N.bt || '')}
-    <div class="actions"><button class="link" id="eu-cancel">Cancelar</button><button class="primary" id="eu-next">Siguiente</button></div>`);
+    <div class="actions" id="eu-p1-acc"><button class="link" id="eu-cancel">Cancelar</button><button class="primary" id="eu-next">Siguiente</button></div>
+    <div class="actions" id="eu-descartar" hidden><span class="meta" style="margin:0">¿Descartar la ruta nueva? Lo que escribiste se borra.</span><button class="link" id="eu-desc-no">Seguir</button><button class="primary" id="eu-desc-si">Descartar</button></div>`);
   const body = euBody();
   body.querySelector('#eu-mats').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b) return; N.materia = b.dataset.m; N.nueva = !b.dataset.m; body.querySelectorAll('#eu-mats .chip').forEach(x => x.classList.toggle('on', x === b)); body.querySelector('#eu-mat-nueva').hidden = !N.nueva; if (N.nueva) body.querySelector('#eu-mat-n').focus(); });
   body.querySelector('#eu-mat-c').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; N.materiaColor = b.dataset.c; body.querySelectorAll('.eu-sw').forEach(x => x.classList.toggle('on', x === b)); });
   const leer = () => { N.materiaNombre = euS(body.querySelector('#eu-mat-n').value, 40); N.nombre = euS(body.querySelector('#eu-nombre').value, 80); N.fecha = euF(body.querySelector('#eu-fecha').value); N.hora = euH(body.querySelector('#eu-hora').value); N.lugar = euS(body.querySelector('#eu-lugar').value, 60); N.iden = euIdnLeer(body); N.habito = body.querySelector('#eu-hab').value; N.bt = btcLeer(body, 'eu-bt'); };
   body.querySelector('#eu-cancel').onclick = () => { euN = null; closeSheet(); };
+  euLeerPaso = leer;
+  body.querySelector('#eu-desc-no').onclick = () => { body.querySelector('#eu-descartar').hidden = true; body.querySelector('#eu-p1-acc').hidden = false; };
+  body.querySelector('#eu-desc-si').onclick = () => { euN = null; closeSheet(); };
   body.querySelector('#eu-next').onclick = () => { leer(); if (N.nueva ? !N.materiaNombre : !N.materia) { toast('Elige o escribe una materia.'); return; } if (!N.fecha || N.fecha < hoy) { toast('La fecha del examen va de hoy en adelante.'); return; } euPaso(2); };
 }
 const euPesosHtml = temas => temas.map((t, i) => `<div class="eu-tema"><span class="t">${esc(t.t)}</span>${euPickChips('eu-peso-' + i, [[1, 'ligero'], [2, 'normal'], [3, 'pesado']], t.peso)}</div>`).join('');
@@ -12207,7 +12451,7 @@ function euPaso2() {
   euWire(body); pintarPesos();
   ta.addEventListener('input', () => { leerTemas(); pintarPesos(); });
   body.querySelector('#eu-add-tema').onclick = () => { if (ta.value && !ta.value.endsWith('\n')) ta.value += '\n'; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); };
-  const leer = () => { leerTemas(); N.config.ejDia = euNum(body.querySelector('#eu-ej').value, 0, 0, 200); };
+  const leer = () => { leerTemas(); N.config.ejDia = euNum(body.querySelector('#eu-ej').value, 0, 0, 200); }; euLeerPaso = leer;
   body.querySelector('#eu-back').onclick = () => { leer(); euPaso(1); };
   body.querySelector('#eu-next').onclick = () => { leer(); if (!N.temas.length) { toast('Añade al menos un tema.'); return; } euPaso(3); };
 }
@@ -12236,7 +12480,7 @@ function euPaso3() {
   showSheet(`${euPie(3, 'Tiempo')}<h2>¿Cuánto y cuándo?</h2>${euTiempoHtml('eu', c, hasta)}
     <div class="actions"><button class="link" id="eu-back">Atrás</button><button class="primary" id="eu-next">Ver el plan</button></div>`);
   const body = euBody(); euWire(body); activarFranjas(body); euTiempoWire(body, 'eu');
-  const leer = () => { Object.assign(N.config, euTiempoLeer(body, 'eu', c)); };
+  const leer = () => { Object.assign(N.config, euTiempoLeer(body, 'eu', c)); }; euLeerPaso = leer;
   body.querySelector('#eu-back').onclick = () => { leer(); euPaso(2); };
   body.querySelector('#eu-next').onclick = () => { leer(); euPaso(4); };
 }
@@ -12252,12 +12496,12 @@ function euPaso4() {
   const E = EU(), N = euN, r = euCopia(); E.planificar(r);
   const plan = r.plan, dias = new Set(plan.map(b => b.d)), min = plan.reduce((n, b) => n + b.min, 0), ej = plan.reduce((n, b) => n + b.ej, 0), hoy = today();
   showSheet(`${euPie(4, 'Plan')}<h2>Tu plan</h2>
-    <p class="note" id="eu-resumen"><b>${euBlT(plan.length)} · ${euHorasT(min)}${ej ? ` · ${euEjT(ej)}` : ''} en ${euPl(dias.size, 'día', 'días')}</b>${plan.length ? '' : ' · No hay días para repartir: revisa la fecha, los días previos o los días libres.'}</p>
-    ${r.aviso ? `<div id="eu-av"><p class="meta amber" style="margin:0 0 8px">No cabe todo: harían falta ${r.aviso.faltan} min por día.</p><div class="chips" style="margin:0 0 16px"><button type="button" class="chip" id="eu-av-subir">Subir a ${r.aviso.faltan} min</button><button type="button" class="chip" id="eu-av-temas">Quitar temas</button><button type="button" class="chip" id="eu-av-igual">Empezar igual</button></div></div>` : ''}
+    <p class="note" id="eu-resumen"><b>${euBlT(plan.length)} · ${euHorasT(min)}${ej ? ` · ${euEjT(ej)}` : ''} en ${euPl(dias.size, 'día', 'días')}</b>${plan.length ? '' : euNocheUltima(N.fecha) ? ' · Ya es de noche y el examen es mañana: no quedan días para repartir. Si quieres, haz un repaso ligero ahora.' : ' · No hay días para repartir: revisa la fecha, los días previos o los días libres.'}</p>
+    ${r.aviso ? `<div id="eu-av"><p class="meta amber" style="margin:0 0 8px">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 16px">${euAvSubirT(r, N.config.minDia) ? `<button type="button" class="chip" id="eu-av-subir">${esc(euAvSubirT(r, N.config.minDia))}</button>` : ''}<button type="button" class="chip" id="eu-av-temas">Quitar temas</button><button type="button" class="chip" id="eu-av-igual">Empezar igual</button></div></div>` : ''}
     ${euPlanDiasHtml(plan, [hoy, euDia(hoy, 1)], b => `<div class="row eu-b"><span class="t"><div>${b.h ? esc(fmtHora(b.h)) + ' · ' : ''}${esc(b.t)}</div><small>${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''} · ${EU_TIPO[b.tipo] || 'Estudio'}</small></span></div>`)}
     <div class="actions"><button class="link" id="eu-back">Atrás</button><button class="primary" id="eu-save">Guardar la ruta</button></div>`);
   const body = euBody();
-  body.querySelector('#eu-av-subir')?.addEventListener('click', () => { N.config.minDia = Math.min(480, Math.max(15, r.aviso.faltan)); euPaso(4); });
+  body.querySelector('#eu-av-subir')?.addEventListener('click', () => { const n = euAvSubirN(r, N.config.minDia); if (n) N.config.minDia = n; euPaso(4); });   // 2.17.1 (E) · nunca baja
   body.querySelector('#eu-av-temas')?.addEventListener('click', () => euPaso(2));
   body.querySelector('#eu-av-igual')?.addEventListener('click', () => { body.querySelector('#eu-av').hidden = true; });
   body.querySelector('#eu-back').onclick = () => euPaso(3);
@@ -12265,7 +12509,7 @@ function euPaso4() {
     try {
       const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, iden: N.iden, habito: N.habito, obj: N.obj });
       if (ruta.aviso && body.querySelector('#eu-av')?.hidden) euAvCallar(ruta);   // «Empezar igual»: la tarjeta nueva no vuelve a preguntar
-      const n = ruta.plan.filter(b => b.d === hoy).length; euN = null; closeSheet(); toast(`Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio(); btcTras(N.bt, { tipo: 'ruta', ref: ruta.id });
+      const n = ruta.plan.filter(b => b.d === hoy).length, m = ruta.plan.filter(b => b.d === euDia(hoy, 1)).length, noche = new Date().getHours() >= 20; euN = null; closeSheet(); toast(!ruta.plan.length && euNocheUltima(ruta.fecha) ? 'Ruta creada. Mañana es el examen: si quieres, haz un repaso ligero ahora.' : noche && !n ? `Ruta creada. Empieza mañana: ${euBlT(m)}.` : `Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio(); btcTras(N.bt, { tipo: 'ruta', ref: ruta.id });
     } catch (e) { toast(e?.message || 'No se pudo crear la ruta.'); }
   };
 }
@@ -12284,7 +12528,7 @@ function euRutaSheet(id, sec = '') {
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` a las ${esc(fmtHora(r.hora))}` : ''}${r.lugar ? ` · ${esc(r.lugar)}` : ''}</p>
     <p class="meta" id="eu-f-res">Temas vistos ${s.temasHechos} de ${s.temasTotal} · ${s.bloquesTotal ? euProgBl(s) : 'sin bloques'} · ${s.minHechos} de ${s.minPlan} min${s.ejPlan || s.ejHechos ? ` · ${s.ejHechos} de ${s.ejPlan} ejercicios` : ''}</p>
     ${s.diasRestantes > 0 ? `<p class="meta">${s.alDia ? '<span class="green">Al día</span>' : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
-    ${euAvisoVivo(r, s) ? `<p class="meta amber">No cabe todo: harían falta ${r.aviso.faltan} min por día.</p><div class="chips" style="margin:0 0 12px"><button class="chip" data-av="subir" data-id="${esc(r.id)}">Subir minutos</button><button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : ''}
+    ${euAvisoVivo(r, s) ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 12px">${euAvSubirT(r, c.minDia, true) ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(euAvSubirT(r, c.minDia, true))}</button>` : ''}<button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : ''}
     ${pasado ? `<h3 id="eu-despues">Después del examen</h3><p class="meta">¿Cómo te fue? Unas líneas para ti.</p><textarea id="eu-res" class="eu-res" rows="3" maxlength="200" placeholder="Lo que salió bien y lo que cambiarías la próxima vez">${esc(r.resultado?.nota || '')}</textarea>
       <div class="actions" style="margin-top:0"><button class="link" id="eu-res-ok">Guardar</button>${!r.archivada ? '<button class="primary" id="eu-res-arch">Archivar la ruta</button>' : ''}</div>` : ''}
     ${!pasado ? `<h3>Bloques de hoy</h3>${s.hoy.length ? `<div class="rows" id="eu-f-hoy">${s.hoy.map(b => euBloqueRow(b)).join('')}</div>` : '<p class="empty">Hoy no hay bloques de esta ruta.</p>'}` : ''}
@@ -12322,7 +12566,9 @@ function euRutaSheet(id, sec = '') {
   const editarTemas = (ts, msg) => { try { E.editar(id, { temas: ts }); if (msg) toast(msg); pintar(); } catch (e) { toast(e?.message || 'No se pudo cambiar.'); } };
   body.querySelectorAll('[data-tv]').forEach(ch => ch.onchange = () => { const ts = temas(); if (!ts[+ch.dataset.tv]) return; ts[+ch.dataset.tv].hecho = ch.checked; editarTemas(ts, ch.checked ? 'Tema visto: sus bloques salen del plan.' : 'El tema vuelve al reparto.'); });
   body.querySelectorAll('#eu-f-temas [data-pick]').forEach((c, i) => c.addEventListener('pick', e => { const ts = temas(); if (!ts[i]) return; ts[i].peso = +e.detail; editarTemas(ts, 'Peso cambiado: el plan se volvió a repartir.'); }));
-  body.querySelectorAll('[data-tx]').forEach(b => b.onclick = () => { const ts = temas(); if (ts.length <= 1) { toast('Una ruta necesita al menos un tema.'); return; } ts.splice(+b.dataset.tx, 1); editarTemas(ts, 'Tema quitado: el plan se volvió a repartir.'); });
+  body.querySelectorAll('[data-tx]').forEach(b => b.onclick = () => { const ts = temas(); if (ts.length <= 1) { toast('Una ruta necesita al menos un tema.'); return; }
+    if (!b.dataset.conf) { b.dataset.conf = '1'; b.textContent = '¿Quitar?'; b.setAttribute('aria-label', 'Toca otra vez para quitar el tema'); setTimeout(() => { if (b.isConnected && b.dataset.conf) { delete b.dataset.conf; b.textContent = '×'; b.setAttribute('aria-label', 'Quitar tema'); } }, 3000); return; }   // 2.17.1 (U) · un segundo toque, como las tareas
+    ts.splice(+b.dataset.tx, 1); editarTemas(ts, 'Tema quitado: el plan se volvió a repartir.'); });
   body.querySelector('#eu-tema-add').onclick = () => { const t = euS(body.querySelector('#eu-tema-n').value, 80); if (!t) return; const ts = temas(); if (ts.length >= 30) { toast('Una ruta admite 30 temas.'); return; } ts.push({ t, peso: 2, hecho: false }); editarTemas(ts, 'Tema añadido: el plan se volvió a repartir.'); };
   // Tareas y entregas.
   body.querySelector('#eu-p-ok').onclick = () => {
@@ -12365,6 +12611,17 @@ function euQuitarBloque(id) {
   r.plan.splice(i, 1); r.cambiado = Date.now();   // el bloque sale; replanificar guarda, avisa y reparte lo que queda
   E.replanificar(r.id); return t ? { tema: t.t } : true;
 }
+// 2.17.1 (U) · «Mover a otro día»: la primera hora libre de ese día para el bloque, desde su hora (hoy, no antes de ahora), sin pisar otro
+// bloque de estudio y con 10 min de margen, como reparte el planificador. '' = sin hora (la reparte la Agenda) si no queda sitio antes de las 23:00.
+function euHoraLibre(b, f) {
+  const E = EU(), h0 = euH(b?.h); if (!E || !b || !h0 || !euF(f)) return '';
+  const dur = Math.max(5, Math.round(+b.min || 0)), otros = [];
+  for (const x of E.bloquesDe(f)) if (x && x.id !== b.id && euH(x.h)) { const a = toMin(x.h); otros.push([a, a + Math.max(5, Math.round(+x.min || 0))]); }
+  let m = toMin(h0); if (f === today()) m = Math.max(m, Math.ceil(nowMin() / 5) * 5);
+  for (let k = 0; k < 60; k++) { const c = otros.find(([a, z]) => m < z + 10 && m + dur + 10 > a); if (!c) break; m = c[1] + 10; }
+  if (m > 23 * 60 || m + dur > 24 * 60 - 1) return '';
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
 function euBloqueSheet(id) {
   const E = EU(), b = E ? euBloqueDe(id) : null; if (!b) { toast('Ese bloque ya no está en el plan.'); return; }
   const hoy = today(), r = E.ruta(b.ruta), pasado = b.d < hoy && !b.hecho, viva = !!r && !r.archivada && r.fecha > hoy && !!euF(r.fecha), ult = viva && !b.hecho ? euUltimoDelTema(r, b) : null;
@@ -12372,7 +12629,7 @@ function euBloqueSheet(id) {
     <p class="meta">${esc(r?.nombre || b.rutaNombre || '')} · ${esc(euCuando(b.d))}${b.h ? ` · ${esc(fmtHora(b.h))}` : ' · sin hora'} · ${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''} · ${b.hecho ? `<span class="green">hecho${euHechoEl(b.hechoInfo?.en)}</span>` : pasado ? '<span class="amber">quedó sin hacer: se reparte al replanificar</span>' : 'pendiente'}</p>
     ${!b.hecho ? `<div class="actions stack" style="margin-top:6px"><button class="primary" id="eu-b-go">Empezar ${b.min} min sin teléfono</button>${b.ej ? euEjChips('eu-b-ej', b.ej) : ''}<button class="outline" id="eu-b-ok">Hecho</button></div>`
       : `<p class="meta">${b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}${b.hechoInfo.nota ? ` · ${esc(b.hechoInfo.nota)}` : ''}` : ''}</p><div class="actions" style="margin-top:0"><button class="link" id="eu-b-undo">Desmarcar</button></div>`}
-    ${viva && !b.hecho ? `<details class="eu-sec" id="eu-b-mover"><summary>Mover a otro día</summary><div class="field" style="margin-top:8px"><label>Día</label><input type="date" id="eu-b-f" min="${hoy}" max="${esc(euDia(r.fecha, -1))}" value="${esc(b.d >= hoy ? b.d : hoy)}"></div><div class="field"><label>Hora <span class="meta">(vacía = la reparte la Agenda)</span></label><input type="time" id="eu-b-fh" value="${esc(b.h)}"></div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-mv">Mover</button></div></details>
+    ${viva && !b.hecho ? `<details class="eu-sec" id="eu-b-mover"><summary>Mover a otro día</summary><div class="field" style="margin-top:8px"><label>Día</label><input type="date" id="eu-b-f" min="${hoy}" max="${esc(euDia(r.fecha, -1))}" value="${esc(b.d >= hoy ? b.d : hoy)}"></div><div class="field"><label>Hora <span class="meta">(vacía = la reparte la Agenda)</span></label><input type="time" id="eu-b-fh" value="${esc(euHoraLibre(b, b.d >= hoy ? b.d : hoy))}"></div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-mv">Mover</button></div></details>
       <details class="eu-sec" id="eu-b-hora"><summary>Cambiar hora</summary><div class="field" style="margin-top:8px"><label>Hora</label>${franjaChips('eu-b-h', b.h)}${horaInput('eu-b-h', b.h)}</div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-ch">Cambiar hora</button></div></details>` : ''}
     <div class="actions" id="eu-b-acc"><button class="link" id="eu-b-ruta">Ver la ruta</button>${b.hecho ? '' : btcAccion('est', id)}${viva && !b.hecho ? '<button class="link" id="eu-b-quitar">Quitar del plan</button>' : ''}<button class="primary" id="eu-b-cerrar">Cerrar</button></div>
     <div class="actions" id="eu-b-qconf" hidden><span class="meta" style="margin:0">${ult ? `Es el último bloque de «${esc(ult.t)}»: el tema queda como visto y lo demás se vuelve a repartir. Puedes cambiarlo en Temas.` : 'Sale del plan y lo demás se vuelve a repartir.'}</span><button class="link" id="eu-b-qno">Cancelar</button><button class="primary" id="eu-b-qsi">Quitar</button></div>`);
@@ -12381,7 +12638,11 @@ function euBloqueSheet(id) {
   body.querySelector('#eu-b-go')?.addEventListener('click', () => euEmpezar(id));
   body.querySelector('#eu-b-ok')?.addEventListener('click', () => euMarcar(id, b.ej ? euNum(euPickLeer(body, 'eu-b-ej', b.ej), b.ej, 0, 10000) : undefined, pintar));
   body.querySelector('#eu-b-undo')?.addEventListener('click', () => { E.marcar(id, false); toast('Vuelve a pendiente.'); pintar(); });
-  body.querySelector('#eu-b-mv')?.addEventListener('click', () => { const f = euF(body.querySelector('#eu-b-f').value); if (!f || f < hoy || f >= r.fecha) { toast('El día va de hoy a la víspera del examen.'); return; } E.moverBloque(id, f, euH(body.querySelector('#eu-b-fh').value)); toast(`Movido a ${euCuando(f).toLowerCase()}.`); pintar(); });
+  const mvF = body.querySelector('#eu-b-f'), mvH = body.querySelector('#eu-b-fh'); let mvAuto = true;   // 2.17.1 (U) · la hora sigue al día hasta que la cambias tú
+  mvH?.addEventListener('input', () => { mvAuto = false; });
+  const mvDia = () => { const f = euF(mvF.value); if (mvAuto && f) mvH.value = euHoraLibre(b, f); };
+  mvF?.addEventListener('input', mvDia); mvF?.addEventListener('change', mvDia);
+  body.querySelector('#eu-b-mv')?.addEventListener('click', () => { const f = euF(body.querySelector('#eu-b-f').value); if (!f || f < hoy || f >= r.fecha) { toast('El día va de hoy a la víspera del examen.'); return; } const hv = euH(mvH.value); if (f === today() && hv && toMin(hv) < nowMin()) { toast('Esa hora de hoy ya pasó. Elige otra o déjala vacía para que la reparta la Agenda.'); mvAuto = true; mvH.value = euHoraLibre(b, f); return; } E.moverBloque(id, f, hv); toast(`Movido a ${euCuando(f).toLowerCase()}.`); pintar(); });
   body.querySelector('#eu-b-ch')?.addEventListener('click', () => { E.moverBloque(id, '', euH(body.querySelector('#eu-b-h').value)); toast('Hora cambiada.'); pintar(); });
   body.querySelector('#eu-b-quitar')?.addEventListener('click', () => { body.querySelector('#eu-b-qconf').hidden = false; body.querySelector('#eu-b-acc').hidden = true; });
   body.querySelector('#eu-b-qno')?.addEventListener('click', () => { body.querySelector('#eu-b-qconf').hidden = true; body.querySelector('#eu-b-acc').hidden = false; });
@@ -12555,8 +12816,9 @@ function exOrgPaso3Html() {
       <span class="t"><div style="white-space:normal;overflow-wrap:anywhere">Estudio · ${esc(exTexto(b))}${ok ? ' <span class="green">· hecho</span>' : ''}</div><small style="white-space:normal;overflow-wrap:anywhere">${esc(exEtiqueta(b))} · ${esc(exExamenTxt(b))}</small></span>
       ${horaInput('oe-' + esc(id).replace(/[^\w-]/g, '_'), o.h, `data-te="${esc(id)}"`)}</div>`; }).join('');
   if (!rows) return '';
-  return `<h3 style="margin-top:18px">Bloques de estudio de ${cuando}</h3>
-    <p class="note">Vienen de tus rutas, con su hora. Toca una fila para dejarla fuera de la agenda de ${cuando}; el bloque sigue en la ruta.</p>
+  const deC = org.manana ? agpDe(org.dest) : 'de hoy';   // 2.17.1 (U) · «del jueves…»
+  return `<h3 style="margin-top:18px">Bloques de estudio ${deC}</h3>
+    <p class="note">Vienen de tus rutas, con su hora. Toca una fila para dejarla fuera de la agenda ${deC}; el bloque sigue en la ruta.</p>
     <div class="rows" id="og-est">${rows}</div>`;
 }
 function exOrgPaso3Wire(filas, horas) {
@@ -12645,7 +12907,7 @@ function exFocoFinHtml(f) {
   if (!f) return '';
   if (f.marcado) return `<p class="meta green" id="fr-est" style="margin:0">Bloque de estudio hecho: ${esc(exTexto(f.b))}.</p>`;
   return `<p class="meta" id="fr-est" style="margin:0">El bloque «${esc(exTexto(f.b))}» sigue pendiente (${fmtMin(f.mins)} de ${fmtMin(f.b.min)}).</p>
-      <button class="outline" id="fr-est-si">Marcar el bloque hecho igual</button><button class="link" id="fr-est-no">Dejarlo pendiente</button>`;
+      <button class="primary" id="fr-est-si">Marcar el bloque hecho igual</button><button class="link" id="fr-est-no">Dejarlo pendiente</button>`;
 }
 function exFocoFinWire(f) {
   if (!f || f.marcado) return;
@@ -13490,7 +13752,7 @@ function atrasSync() {
 // vuelve a Inicio.
 function atrasPaso() {
   const x = atrasArriba();
-  if (x?.k === 'dialogo') x.el.close();
+  if (x?.k === 'dialogo') { if (!(x.el === sheet && euWizAtras())) x.el.close(); }   // 2.17.1 (U) · en «Nueva ruta», un paso atrás
   else if (x?.k === 'cele') closeCelebration();
   else if (x?.k === 'puerta') { closeGate(); renderE(); }
   else if (mvFoco()) toast('La sesión sigue: la terminas desde su pantalla');
@@ -15503,7 +15765,7 @@ function orgOrdenInit(base) {
 // La lista en orden de jerarquía: lo ya ordenado primero; lo nuevo entra en su sitio por tipo; las prioridades, en sus puestos y en su orden.
 function orgOrdenar(L) {
   const ORD = { prio: 0, estudio: 0.5, ini: 1, tarea: 2, habito: 3, libre: 4 };   // como orgAutoHoras desde 2.14
-  const def = (a, b) => (ORD[a.tipo] ?? 9) - (ORD[b.tipo] ?? 9) || prioOrgN(a) - prioOrgN(b);
+  const def = (a, b) => (ORD[a.tipo] ?? 9) - (ORD[b.tipo] ?? 9) || prioOrgN(a) - prioOrgN(b) || orgEstRk(a) - orgEstRk(b);   // 2.17.1 (R) · estudio: por rango de la ruta
   const pos = new Map((org?.orden || []).map((k, i) => [k, i]));
   const R = L.filter(e => pos.has(e.key)).sort((a, b) => pos.get(a.key) - pos.get(b.key));
   for (const e of L.filter(e => !pos.has(e.key)).sort(def)) { const i = R.findIndex(x => def(e, x) < 0); if (i < 0) R.push(e); else R.splice(i, 0, e); }
@@ -15699,6 +15961,66 @@ function agRkGuardar() {
   const b = document.createElement('style'); b.textContent = css; agR.appendChild(b);
 }
 window.agendarDia = (d, paso = 1) => agpAbrir(d, paso);
+
+// ====================================================================
+// 2.17.1 (R) · Estudio: las rutas enumeradas y en jerarquía. «Las rutas también deben estar enumeradas y se pueden jerarquizar»;
+// «el primero siempre va a ser el más importante». En «Tus rutas», el número grande a la izquierda de cada tarjeta (el 1, resaltado)
+// y «Reordenar»: la hoja con la lista arrastrable de 2.17 (⠿ y ↑ ↓). Guarda con window.est.ordenar; sin XP.
+// ====================================================================
+function orgEstRk(e) {
+  if (!e || e.tipo !== 'estudio' || typeof e.key !== 'string') return 0;
+  try { const b = window.est?.bloque?.(e.key.slice(4)), n = b && typeof window.est.rango === 'function' ? window.est.rango(b.ruta) : 0; return n > 0 ? n : 99; } catch { return 99; }
+}
+function euRkHay() { const E = EU(); return !!(E && typeof E.ordenar === 'function'); }
+function euRankWrap(r, i) { return `<div class="eu-rk-w" data-rk-id="${esc(r.id)}">${orgRk(i + 1)}${euCardHtml(r)}</div>`; }
+function euRkCab(activas) {
+  const varias = activas.length > 1 && euRkHay();
+  return `<div class="eu-rk-h"><h3 style="margin-top:8px">Tus rutas</h3>${varias ? '<button class="link" id="eu-rk">Reordenar</button>' : ''}</div>${varias ? '<p class="meta eu-rk-n">En orden de importancia: la 1, la más importante.</p>' : ''}`;
+}
+var euRkSel = null;
+function euRkAbrir() {
+  const E = EU(); if (!E || typeof E.ordenar !== 'function') return;
+  const hoy = today(), L = E.rutas().filter(r => r.fecha >= hoy);
+  if (L.length < 2) { toast('Con una sola ruta no hay nada que ordenar.'); return; }
+  euRkSel = { ids: L.slice(0, 40).map(r => r.id) };
+  euRkPintar();
+}
+function euRkPintar() {
+  const S = euRkSel, E = EU(); if (!S || !E) return;
+  const por = new Map(E.rutas().map(r => [r.id, r]));
+  S.ids = S.ids.filter(id => por.has(id));
+  const n = S.ids.length;
+  showSheet(`<h2>Reordenar tus rutas</h2>
+    <p class="note">La 1, la más importante. Arrastra desde ⠿ o usa ↑ ↓.</p>
+    <div class="rows og-orden" id="eu-rk-lista">${S.ids.map((id, i) => { const r = por.get(id), m = E.materia(r.materia);
+      return `<div class="row og-r" data-ok="${esc(id)}">${orgRk(i + 1)}<span class="t"><div>${esc(r.nombre)}</div><small>${esc([m ? m.nombre : '', r.fecha ? `Examen ${euFC(r.fecha)}` : ''].filter(Boolean).join(' · '))}</small></span>${orgMv(i, n)}</div>`; }).join('')}</div>
+    <div class="actions"><button class="link" id="eu-rk-x">Cancelar</button><button class="primary" id="eu-rk-ok">Guardar el orden</button></div>`);
+  const body = $('#sheet-body');
+  ordWire(body.querySelector('#eu-rk-lista'), K => { S.ids = K; const top = $('#sheet-body').scrollTop; euRkPintar(); $('#sheet-body').scrollTop = top; });
+  body.querySelector('#eu-rk-x').onclick = () => { euRkSel = null; closeSheet(); };
+  body.querySelector('#eu-rk-ok').onclick = () => {
+    const S2 = euRkSel; euRkSel = null; if (!S2) return;
+    let ok = false; try { ok = !!EU()?.ordenar(S2.ids); } catch {}
+    closeSheet(); if (view === 'estudio') renderEstudio();
+    toast(ok ? 'Orden guardado.' : 'No pude guardar el orden.');
+  };
+}
+if (typeof euW !== 'undefined' && euW) euW.addEventListener('click', e => { if (e.target.closest?.('#eu-rk')) euRkAbrir(); });
+if (typeof euR !== 'undefined' && euR) {
+  const st = document.createElement('style');
+  st.textContent = `
+  .og-rk { flex: none; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 800; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--text); }
+  .og-rk.uno { background: var(--text); color: var(--bg); }
+  .eu-rk-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .eu-rk-h .link { flex: none; }
+  .eu-rk-n { margin: 0 0 10px; }
+  .eu-rk-w { display: flex; align-items: flex-start; gap: 8px; }
+  .eu-rk-w > .og-rk { margin-top: 10px; }
+  .eu-rk-w > .eu-card { flex: 1; min-width: 0; }
+  .eu-rk-w > .eu-card .top b { min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 359px) { .eu-rk-w { gap: 6px; } .eu-rk-w > .og-rk { width: 32px; height: 32px; font-size: 1.3rem; } }`;
+  euR.appendChild(st);
+}
 
 // ====================================================================
 // 2.17.0 · Área XP (ámbito de Enfoque): XP en toda la app, con deshacer, y niveles por categoría (ola2/v217_spec.md, secciones 4 y 5).
@@ -15917,14 +16239,20 @@ function xpEstRef(b, A) {
   return { ref: 'est:' + xpHash(k + t), k, t, mio: !!mio };
 }
 const xpTemas = new Map();   // tema → visto, lo último que vio este teléfono (para dar y quitar solo en el cambio)
+const xpTemaRuta = new Map();   // 2.17.1 (D) · tema → ruta, para quitar el XP de un tema visto que se quita de su ruta
 function xpTemasRevisar(r, b) {
   for (const t of (r && Array.isArray(r.temas) ? r.temas : []).slice(0, 60)) {
     if (!t || typeof t.id !== 'string') continue;
     const ahora = !!t.hecho; let antes = xpTemas.get(t.id);
     if (antes === undefined) antes = b && b.tema === t.id ? !ahora : ahora;
-    xpTemas.set(t.id, ahora);
+    xpTemas.set(t.id, ahora); if (r && typeof r.id === 'string') xpTemaRuta.set(t.id, r.id);
     if (!antes && ahora) xpGanar(15, `Tema visto: ${String(t.t || '').slice(0, 60)}`, 'tema:' + t.id, { cat: 'estudio', unica: true });
     else if (antes && !ahora) xpQuitar('tema:' + t.id, { cualquierDia: true, m: `Tema visto: ${String(t.t || '').slice(0, 60)}` });
+  }
+  // 2.17.1 (D) · un tema que ya no está en su ruta (quitado con «×» o en el otro teléfono): su «Tema visto» se va.
+  if (r && typeof r.id === 'string' && Array.isArray(r.temas)) {
+    const vivos = new Set(r.temas.map(t => t && t.id));
+    for (const [id, rid] of [...xpTemaRuta]) if (rid === r.id && !vivos.has(id)) { if (xpTemas.get(id)) xpQuitar('tema:' + id, { cualquierDia: true, m: 'Tema visto' }); xpTemas.delete(id); xpTemaRuta.delete(id); }
   }
 }
 function xpEstOyente(ev, obj, extra) {
@@ -15933,10 +16261,13 @@ function xpEstOyente(ev, obj, extra) {
   if (ev === 'bloque' && (extra === true || extra === false) && typeof obj.id === 'string') {
     const A = ES.agendaHoy && ES.agendaHoy.fecha === hoy ? ES.agendaHoy : null, x = xpEstRef(obj, A);
     if (extra) {
-      const legado = !!(A && exPremiado(A, obj.id) && !xpEntrada(x.ref) && !xpActivoAlgunDia(x.ref));
+      // 2.17.1 (D) · una vez por hueco en todo el libro; lo deshecho vuelve al día en que se dio (sin XP nuevo ni otro día con actividad).
+      // «Legado» (premiado antes del libro) solo si el hueco no tiene ninguna entrada en el libro, de ningún día.
+      let dia = ''; for (const k of Object.keys(ES.xpLog || {}).sort().reverse()) if (ES.xpLog[k] && ES.xpLog[k][x.ref]) { dia = k; break; }
+      const legado = !!(A && exPremiado(A, obj.id) && !dia);
       if (A) { exPremiar(A, obj.id); if (x.k) exPremiar(A, `${x.k}${x.t}>${obj.id}`); }
-      if (!legado) xpGanar(10, 'Bloque de estudio', x.ref, { cat: 'estudio' });
-    } else xpQuitar(x.ref);
+      if (!legado) xpGanar(10, 'Bloque de estudio', x.ref, { cat: 'estudio', unica: true, ...(dia && dia < hoy ? { dia } : {}) });
+    } else xpQuitar(x.ref, { cualquierDia: true, m: 'Bloque de estudio' });   // 2.17.1 (D) · también lo dado otro día
     try { const r = typeof obj.ruta === 'string' ? E?.ruta?.(obj.ruta) : null; if (r) xpTemasRevisar(r, obj); } catch {}
   } else if (ev === 'ruta' && typeof obj.id === 'string' && !obj.borrada) {
     try { const r = E?.ruta?.(obj.id); if (r) xpTemasRevisar(r, null); } catch {}
@@ -15948,7 +16279,7 @@ function xpEstOyente(ev, obj, extra) {
 }
 try {
   if (window.est && typeof window.est.escuchar === 'function') {
-    for (const r of (typeof window.est.rutas === 'function' ? window.est.rutas(true) : []) || []) for (const t of (r && Array.isArray(r.temas) ? r.temas : [])) if (t && typeof t.id === 'string') xpTemas.set(t.id, !!t.hecho);
+    for (const r of (typeof window.est.rutas === 'function' ? window.est.rutas(true) : []) || []) for (const t of (r && Array.isArray(r.temas) ? r.temas : [])) if (t && typeof t.id === 'string') { xpTemas.set(t.id, !!t.hecho); if (typeof r.id === 'string') xpTemaRuta.set(t.id, r.id); }
     window.est.escuchar(xpEstOyente);
   }
 } catch (e) { console.warn('XP: el oyente de Estudio no se pudo registrar', e); }
