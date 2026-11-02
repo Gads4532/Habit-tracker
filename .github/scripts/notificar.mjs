@@ -205,8 +205,12 @@ function btCuerpoAviso(C, b) {
   const L = acota(b?.items, 30).map(nombre).map(sinPunto).filter(Boolean).slice(0, 2);
   return `${L.length ? L.join(' · ') + '. ' : ''}¿Empiezas, lo mueves o lo dejas?`;
 }
+// 2.17 (O) · El plan de un día: agendaPlanes[fecha] o agendaPlan de esa fecha; si están los dos, el organizado más tarde (empate: agendaPlanes).
+const planDe = (E, f) => { const X = E && E.agendaPlanes && typeof E.agendaPlanes === 'object' && !Array.isArray(E.agendaPlanes) ? E.agendaPlanes[f] : null;
+  const p = X && typeof X === 'object' && Array.isArray(X.items) ? { ...X, fecha: f } : null, q = E?.agendaPlan?.fecha === f && Array.isArray(E.agendaPlan.items) ? E.agendaPlan : null;
+  return !p ? q : !q ? p : (+q.organizado || 0) > (+p.organizado || 0) ? q : p; };
 const agendaDe = (C, fecha) => {
-  const E = C.st.enfoque || {}, A = E.agendaHoy?.fecha === fecha ? E.agendaHoy : null, P = E.agendaPlan?.fecha === fecha ? E.agendaPlan : null;
+  const E = C.st.enfoque || {}, A = E.agendaHoy?.fecha === fecha ? E.agendaHoy : null, P = planDe(E, fecha);
   const deA = acota(A?.items, 80).map(it => ({ ...it, enFuente: true, org: altaDe(it, A.organizado) })).concat(btFaltan(E, A, fecha));
   const fant = acota(A?.antes, 30).filter(x => hmOk(x.h) && +x.hasta > 0).map(x => ({ ...x, id: x.id || x.ref, enFuente: true, org: altaDe(x, A.organizado), fantasma: +x.hasta }));
   const orgAt = [A?.primero, A?.organizado, P?.organizado].map(x => +x || 0).filter(Boolean).map(x => x < 1e11 ? 1 : x);
@@ -222,7 +226,7 @@ const agendaDe = (C, fecha) => {
 // Prioridades de un día: las del teléfono si son de ese día; si no, las que se eligieron la víspera (agendaPlan.prios, en orden; de un
 // teléfono de antes, la rana).
 const prioPlan = P => { const L = acota(P?.prios, 30).filter(x => typeof x.t === 'string' && x.t.trim()); return L.length ? L.map(x => ({ id: x.id, t: x.t, hecho: false })) : P?.rana?.t ? [{ id: P.rana.id, t: P.rana.t, hecho: false }] : null; };
-const prioDe = (E, fecha) => E.prioridades?.fecha === fecha ? acota(E.prioridades.items, 20) : E.agendaPlan?.fecha === fecha ? prioPlan(E.agendaPlan) : null;
+const prioDe = (E, fecha) => E.prioridades?.fecha === fecha ? acota(E.prioridades.items, 20) : planDe(E, fecha) ? prioPlan(planDe(E, fecha)) : null;
 // La fuente de cada cosa de la agenda: si se borró o se vació, no se avisa (ni sale en el resumen ni como «reservado»);
 // el texto y la hora salen de ahí (si la editaste, el aviso la sigue). Una tarea borrada hoy después de su aviso sigue
 // contando hasta la hora en que se borró (borradosEn, lo anota la app).
@@ -499,7 +503,7 @@ function candidatos(C, fecha) {
       const B = acota(E.buenas, 200).filter(x => x.d === fecha);
       if (actual(at) ? B.length : B.some(x => +x.en > 0 && +x.en <= at)) return null;
       // Si mañana ya está organizado, lo primero que tiene hora y sigue en pie (lo borrado o ya hecho no se da por reservado, F6).
-      const m = masDias(fecha, 1), P = E.agendaPlan?.fecha === m ? E.agendaPlan : null;
+      const m = masDias(fecha, 1), P = planDe(E, m);
       const nom = it => it.tipo === 'habito' ? habito(it.ref)?.nombre || '' : it.tipo === 'tarea' ? acota(st.tareas?.items, 2000).find(x => x.id === it.ref && !x.hecha)?.titulo || '' : it.t;
       const r = acota(P?.items, 80).filter(it => hmOk(it.h) && sinPunto(nom(it))).sort((a, b) => a.h < b.h ? -1 : 1)[0];
       const res = r ? `Mañana ${alas(r.h)} tienes reservado: ${sinPunto(nom(r))}.` : '';
