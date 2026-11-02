@@ -410,6 +410,9 @@
   @media (prefers-reduced-motion: reduce) { #hb-toast { transition: none !important; } }
   /* Durante la sesión de enfoque (html.mv-quieto), lo que queda detrás de su pantalla no se anima. */
   .mv-quieto main *, .mv-quieto main *::before, .mv-quieto main *::after { animation: none !important; transition: none !important; }
+  /* 2.15.1 · Y los diálogos de la hoja principal (#form-dialog y #msg-dialog están fuera de <main>): lo que se abra encima de la pantalla
+     de enfoque (el aviso «Crear cuenta» al abrir, por ejemplo) aparece y se va sin animación, como la hoja de #view-overlays. */
+  .mv-quieto dialog, .mv-quieto dialog::backdrop { animation: none !important; transition: none !important; }
 </style>
 </head>
 <body>
@@ -594,7 +597,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.15.0';
+const APP_VERSION = '2.15.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -936,7 +939,7 @@ function unirAgendaHist(eN, eO, out) {
       : it.tipo === 'tarea' ? out.tareas.items.some(x => x.id === it.ref && x.hecha && !(+x.hechaEn && dayKey(new Date(+x.hechaEn)) > k))
       : it.tipo === 'ini' ? [eN, eO].some(e => lista(e.iniHist?.[k]).includes(it.ref) || (e.iniciativas4?.dia === k && lista(e.iniciativas4.items).some(x => x?.k === it.ref && x.hecho)))
       : it.tipo === 'plan' ? pl.some(x => x?.id === it.ref && x.hecho) : false);
-    if (lista(v.items).length) H[k] = unir(lista(v.items).filter(it => it && typeof it === 'object').map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: hecho(it), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })), H[k]);   // 2.13 · con su iden (voto)
+    if (lista(v.items).length) H[k] = unir(lista(v.items).filter(it => it && typeof it === 'object').map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: hecho(it), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.esp ? { esp: it.esp } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })), H[k]);   // 2.13 · con su iden (voto)
   }
   return H;
 }
@@ -2376,7 +2379,10 @@ function estNorm(x) {
     const hechos = {}; for (const [k, v] of hk) hechos[k] = { en: Z(v.en), min: Z(v.min, 1440), ej: Z(v.ej, 10000), nota: T(v.nota, 200) };
     const pendientes = A(r.pendientes).filter(p => p && typeof p === 'object').map(p => ({ id: ID(p.id), t: S(p.t, 100), clase: ['tarea', 'entrega'].includes(p.clase) ? p.clase : 'tarea', fecha: F(p.fecha), hora: H(p.hora), min: N(p.min, 0, 0, 480), hecha: !!p.hecha, en: Z(p.en), tareaId: SID(p.tareaId), cambiado: Z(p.cambiado) })).filter(p => p.t).slice(0, 100);
     const notion = r.notion && typeof r.notion === 'object' && r.notion.id ? { id: String(r.notion.id).slice(0, 80), url: /^https:\/\//.test(r.notion.url || '') ? String(r.notion.url).slice(0, 300) : '', en: Z(r.notion.en) } : null;
-    const gcal = {}; for (const [k, v] of Object.entries(O(r.gcal)).slice(0, 700)) if (typeof v === 'string' && v) gcal[k.slice(0, 80)] = v.slice(0, 120);
+    // 2.15.1 · gcal sin las claves que apuntan a un evento apartado o ya borrado (con marca «ev:{id}»: la fusión une los mapas y la copia del otro
+    // teléfono las devolvía); primero lo vivo y como mucho 200 marcas de borrado («-» y la hora): las más recientes, y las mismas en los dos teléfonos.
+    const gv = Object.entries(O(r.gcal)).slice(0, 1500).filter(([k, v]) => typeof v === 'string' && v), gx = new Set(gv.filter(([k]) => k.startsWith('ev:')).map(([k]) => k.slice(3))), gb = ([k, v]) => k.startsWith('ev:') && v[0] === '-';
+    const gcal = {}; for (const [k, v] of [...gv.filter(e => !gb(e) && (e[0].startsWith('ev:') || !gx.has(e[1].split('|')[0]))), ...gv.filter(gb).sort((x, y) => x[1] < y[1] ? 1 : x[1] > y[1] ? -1 : x[0] < y[0] ? -1 : 1).slice(0, 200)].slice(0, 700)) gcal[k.slice(0, 80)] = v.slice(0, 120);
     return { id: ID(r.id), area: S(r.area, 20) || 'estudio', materia: SID(r.materia), nombre: S(r.nombre, 80), tipo: r.tipo === 'examen' ? 'examen' : 'examen', fecha: F(r.fecha), hora: H(r.hora), lugar: S(r.lugar, 60), temas,
       config: { diasAntes: N(c.diasAntes, 14, 1, 60), minDia: N(c.minDia, cfg.minDia, 15, 480), porDia, horaPref: H(c.horaPref) || cfg.horaPref, bloqueMin: BLQ.includes(+c.bloqueMin) ? +c.bloqueMin : cfg.bloqueMin, ejDia: N(c.ejDia, 0, 0, 200), vispera: VISP.includes(c.vispera) ? c.vispera : cfg.vispera, repasos: typeof c.repasos === 'boolean' ? c.repasos : cfg.repasos },
       plan, hechos, pendientes, iden: SID(r.iden), obj: SID(r.obj), habito: SID(r.habito), notion, gcal,
@@ -7178,7 +7184,7 @@ function agenda() {
   if (ES.agendaHoy.fecha !== today()) {
     const A = ES.agendaHoy;
     ini4Semana();   // primero se archivan las iniciativas de ayer (para el historial)
-    if (A.fecha && A.items.length) { const H = { ...(ES.agendaHist || {}) }; H[A.fecha] = A.items.map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: agHecho(it, A.fecha), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })); ES.agendaHist = H; }
+    if (A.fecha && A.items.length) { const H = { ...(ES.agendaHist || {}) }; H[A.fecha] = A.items.map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: agHecho(it, A.fecha), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.esp ? { esp: it.esp } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })); ES.agendaHist = H; }
     ES.agendaHoy = { fecha: today(), items: [], organizado: 0, completa: false, ocultos: [] };
   }
   // Lo organizado la víspera (en este teléfono o en otro) pasa a ser la agenda de hoy mientras hoy no se haya organizado.
@@ -7312,7 +7318,7 @@ function agMarcar(it, hecho = !agHecho(it), extra = {}) {
   else if (it.tipo === 'ini') iniMarcar(iniIdx(it.ref), hecho);
   else if (it.tipo === 'prio') prioMarcar(it.ref, hecho);
   else if (it.tipo === 'plan') { if (f) { f.hecho = hecho; if (hecho) f.resultado = 'si'; } }
-  else { it.hecho = hecho; if (hecho && it.tipo === 'libre' && !it.premiado) { it.premiado = true; xpGanar(10, 'Agenda cumplida'); } }
+  else { it.hecho = hecho; if (hecho && it.tipo === 'libre' && !it.premiado && !it.esp) { it.premiado = true; xpGanar(10, 'Agenda cumplida'); } }
   if (it.esp && it.tipo === 'libre') espDesdeAgenda(it, hecho);   // 2.15 (V) · marcar el ítem marca su norma, y desmarcarlo la desmarca
   if (it.obj && it.tipo === 'libre') objAvance(it.obj, hecho ? 1 : -1, it.t, 'it:' + it.id);   // las tareas suman desde completeTask, se marquen donde se marquen
   guardar(); renderE(); renderAg(); agCompleta();
@@ -7512,7 +7518,7 @@ function orgDesdeHist(fecha) {
     if (it.tipo === 'habito' && org.hab.has(it.ref)) org.hab.set(it.ref, { on: true, h: it.h || org.hab.get(it.ref).h });
     if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x && !x.hecha) org.tar.set(x.id, { on: true, h: it.h || '' }); }
     if (it.tipo === 'ini' && !org.ini[it.ref]?.hecha) org.ini[it.ref] = { t: it.t, exito: org.ini[it.ref]?.t === it.t ? org.ini[it.ref].exito : EXITO_DEF[it.ref] || '', min: it.min || AG_MIN.ini, h: it.h || '', por: '', paso: '', obj: '', iden: it.iden || '', on: true, src: 'ayer' };
-    if (it.tipo === 'libre' && !org.libres.some(x => x.t === it.t)) org.libres.push({ id: crypto.randomUUID(), tipo: 'libre', ref: '', t: it.t, h: it.h || '', min: it.min || AG_MIN.libre, hecho: false, iden: it.iden || '' });
+    if (it.tipo === 'libre' && !org.libres.some(x => x.t === it.t || (!!it.esp && x.esp === it.esp))) org.libres.push({ id: crypto.randomUUID(), tipo: 'libre', ref: '', t: it.t, h: it.h || '', min: it.min || AG_MIN.libre, hecho: false, iden: it.iden || '', ...espDeHist(it, org.dest) });
   }
 }
 const pieOrg = (n, t) => `<p class="paso">Paso ${n} de 4 · ${t}${org?.manana ? ' · mañana' : ''}</p><div class="meter-bar" id="og-barra" role="progressbar" aria-label="Avance de la organización" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${[40, 60, 80, 100][n - 1]}" style="height:4px;margin:0 0 14px"><i style="width:${[40, 60, 80, 100][n - 1]}%"></i></div>`;
@@ -7620,7 +7626,7 @@ function orgLista() {
   for (const [id, o] of org.tar) if (o.on) { const x = s.tareas.items.find(y => y.id === id); if (x) L.push({ key: 'tar:' + id, tipo: 'tarea', t: x.titulo, etq: 'Tarea', h: o.h || '', min: x.hecha ? x.min || AG_MIN.tarea : agbMin('tar:' + id, 'tarea', x.min || AG_MIN.tarea), hecho: !!x.hecha }); }
   for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) L.push({ key: 'hab:' + id, tipo: 'habito', t: h.nombre, etq: agbCorto() && h.minima ? `Hábito · primero 2 min: ${h.minima}` : 'Hábito', h: o.h || '', min: h.modo === 'tiempo' ? h.meta : AG_MIN.habito, hecho: !M && ['full', 'min'].includes(s.log[id]?.[D]) }); }
   exOrgLista(L);   // 2.14 (X)
-  for (const it of org.libres) L.push({ key: 'lib:' + it.id, tipo: 'libre', t: it.t, etq: it.cat ? `Extra de ${iniNombre(it.cat).toLowerCase()}` : 'Agenda', h: it.h || '', min: it.hecho ? it.min || AG_MIN.libre : agbMin('lib:' + it.id, 'libre', it.min || AG_MIN.libre), hecho: !!it.hecho });
+  for (const it of org.libres) L.push({ key: 'lib:' + it.id, tipo: 'libre', t: it.t, etq: it.esp ? 'Vida espiritual' : it.cat ? `Extra de ${iniNombre(it.cat).toLowerCase()}` : 'Agenda', h: it.h || '', min: it.hecho ? it.min || AG_MIN.libre : agbMin('lib:' + it.id, 'libre', it.min || AG_MIN.libre), hecho: !!it.hecho });
   for (const pl of ES.planes.filter(p => p.fecha === D && !p.hecho)) L.push({ key: 'plan:' + pl.id, tipo: 'plan', t: `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, etq: 'Plan', h: pl.hora, min: 60, fijo: true });
   if (!M) for (const it of agenda().items.filter(i => i.tipo === 'evento')) L.push({ key: 'ev:' + it.id, tipo: 'evento', t: it.t, etq: 'Calendario', h: it.h, min: it.min, fijo: true });
   return L.sort(agOrden);
@@ -11941,6 +11947,21 @@ const exItemDe = id => (ES.agendaHoy?.fecha === today() ? (ES.agendaHoy.items ||
 // mover el bloque a otro día y volver crean uno nuevo), así que el ítem solo no basta para dar los 10 XP una vez.
 const exPremiado = (A, ref) => !!(A && Array.isArray(A.estPremiados) && A.estPremiados.includes(ref));
 function exPremiar(A, ref) { if (!A || typeof ref !== 'string' || !ref) return; if (!Array.isArray(A.estPremiados)) A.estPremiados = []; if (!A.estPremiados.includes(ref)) A.estPremiados.push(ref); }
+// 2.15.1 (G) · El hueco del bloque en su día. Replanificar o editar la ruta rehacen el bloque de hoy con otro id (mismo día, tipo y tema), así
+// que el id solo no basta: cada premio abre un hueco de ese día, tipo y tema («h|{ruta}|{día}|{tipo}|{tema}|{id que lo abrió}>{id}») y un
+// bloque sin premiar hereda, sin XP, el primero cuyos bloques ya no están en el plan (era él, con otro id). Dos bloques del mismo tema hoy
+// son dos huecos: el que sigue en el plan (hecho o no) ocupa el suyo.
+const exHuecoK = b => b && typeof b.ruta === 'string' && b.ruta && typeof b.d === 'string' && b.d ? `h|${b.ruta}|${b.d}|${b.tipo || ''}|${b.tema || ''}|` : '';
+function exHuecoLibre(A, k) {
+  const ocupado = new Map();
+  for (const x of A && Array.isArray(A.estPremiados) ? A.estPremiados : []) {
+    if (typeof x !== 'string' || !x.startsWith(k)) continue;
+    const r = x.slice(k.length), i = r.lastIndexOf('>'); if (i <= 0) continue;
+    const t = r.slice(0, i); ocupado.set(t, !!ocupado.get(t) || !!exBloque(r.slice(i + 1)));
+  }
+  for (const [t, o] of ocupado) if (!o) return t;
+  return '';
+}
 // 2.14.1 (X) · El bloque (entre ids) del que la iniciativa de estudio es espejo: el de su texto propuesto, «Estudiar {texto del bloque}», y,
 // si guarda est, ese mismo; '' si la persona la cambió por otra (un est que quedó de antes no basta).
 function exEspejoDe(o, ids) {
@@ -11978,7 +11999,7 @@ function exAgMarcar(it, hecho, extra = {}) {
   it.hecho = !!hecho;
   // 2.14.1 (X) · Una vez por bloque y día: ni un ítem nuevo del mismo bloque (quitado y vuelto, apagado y encendido, movido y vuelto) vuelve a premiar.
   const A = ES.agendaHoy && ES.agendaHoy.fecha === today() ? ES.agendaHoy : null, ya = !!it.premiado || exPremiado(A, it.ref);
-  if (hecho) { it.premiado = true; exPremiar(A, it.ref); if (!ya) xpGanar(10, 'Bloque de estudio'); }
+  if (hecho) { it.premiado = true; exPremiar(A, it.ref); const k = ya ? '' : exHuecoK(b), t = k ? exHuecoLibre(A, k) : ''; if (k) exPremiar(A, `${k}${t || it.ref}>${it.ref}`); if (!ya && !t) xpGanar(10, 'Bloque de estudio'); }   // 2.15.1 (G) · y una vez por hueco del día
   if (it.obj) objAvance(it.obj, hecho ? 1 : -1, it.t, 'it:' + it.id);
 }
 // «¿Cuántos ejercicios?»: chips 0 … ej (acotados) antes de marcar un bloque con ejercicios. Devuelve true si abrió la hoja.
@@ -12389,12 +12410,15 @@ async function gCalBorrar(id) {
 // Google); uno puesto con 2.14.0 se compara con la fecha y hora con que este teléfono vio la ruta. Nada de esto sube ruta.cambiado: la fusión
 // une gcal por mapa.
 const ES_EV = 'ev:';
+// 2.15.1 · Lo que Google ya borró no sale del mapa: su marca queda con «-» y la hora («ev:{id}» = «-…»), para que la fusión con la copia de
+// otro teléfono no devuelva la clave del bloque con ese evento (estNorm la quita). Una marca así no cuenta, no se reintenta y no se borra otra vez.
+const esGcBorrado = v => String(v || '').startsWith('-');
 const esExClave = r => `${esF(r.fecha)}|${esH(r.hora)}`;
 const esExId = v => String(v || '').split('|')[0];
 const esExVisto = new Map();
 const esExViejo = (r, g) => { if (!g.examen) return false; const v = String(g.examen), i = v.indexOf('|'); return i >= 0 ? v.slice(i + 1) !== esExClave(r) : esExVisto.has(r.id) && esExVisto.get(r.id) !== esExClave(r); };
 const esGcFuera = (r, g) => { const ids = new Set((Array.isArray(r.plan) ? r.plan : []).map(b => b && b.id)); return Object.keys(g).filter(k => k !== 'examen' && !k.startsWith(ES_EV) && !ids.has(k)); };
-const esGcApartados = g => Object.keys(g).filter(k => k.startsWith(ES_EV));
+const esGcApartados = g => Object.keys(g).filter(k => k.startsWith(ES_EV) && !esGcBorrado(g[k]));   // 2.15.1 · sin lo ya borrado
 const esGcPorBorrar = r => { const g = esGcal(r); return esGcApartados(g).length + esGcFuera(r, g).length + (esExViejo(r, g) ? 1 : 0); };
 const esGcBorrarTxt = (r, luego) => { const n = esGcPorBorrar(r); return !n ? '' : ` ${n === 1 ? `Un evento que ya no coincide con el plan ${luego ? 'se borrará' : 'se borra'}` : `${n} eventos que ya no coinciden con el plan ${luego ? 'se borrarán' : 'se borran'}`} de tu calendario${luego ? ' al conectar Google' : ''}.`; };
 // Aparta lo que ya no coincide; devuelve cuántas claves movió.
@@ -12419,8 +12443,8 @@ function esGcalLimpiar(r, { alPintar = false, callado = false } = {}) {
     let fallo = '', n = 0;
     try {
       for (const k of esGcApartados(vivo()).slice(0, 80)) {
-        const id = vivo()[k]; if (!id) continue;
-        try { await gCalBorrar(id); delete vivo()[k]; n++; } catch (e) { fallo = e?.message || 'Google Calendar no respondió.'; break; }
+        const id = vivo()[k]; if (!id || esGcBorrado(id)) continue;
+        try { await gCalBorrar(id); vivo()[k] = '-' + Date.now().toString(36); n++; } catch (e) { fallo = e?.message || 'Google Calendar no respondió.'; break; }
       }
       if (n) guarda();
       if (fallo && !callado) toast(`Google Calendar: ${fallo} Los eventos que no se borraron siguen en tu calendario.`);
@@ -12440,7 +12464,7 @@ function esGcalMovido(b) {
 // no existe para borrarlos después.
 function esGcalBorrarRuta(r) {
   const g = r && r.gcal && typeof r.gcal === 'object' && !Array.isArray(r.gcal) ? r.gcal : {};
-  const ids = [...new Set(Object.values(g).map(esExId).filter(Boolean))].slice(0, 200);
+  const ids = [...new Set(Object.values(g).map(esExId).filter(v => v && !esGcBorrado(v) && !esGcBorrado(g[ES_EV + v])))].slice(0, 200);
   if (!ids.length) return;
   if (!gCalOk()) { setTimeout(() => toast(`Ruta borrada. ${ids.length === 1 ? 'Su evento sigue' : `Sus ${ids.length} eventos siguen`} en Google Calendar (el permiso de Google caducó): puedes borrarlos allí.`), 0); return; }
   (async () => {
@@ -12941,6 +12965,7 @@ document.addEventListener('input', e => {
 const atrasDialogos = [sheet, document.getElementById('form-dialog'), document.getElementById('msg-dialog')].filter(Boolean);
 const atrasPila = [];   // diálogos abiertos, el último arriba
 let atrasIgnora = false, atrasIgnoraT = 0;
+let atrasToque = false, atrasCW = null, atrasVigiaOn = false;   // 2.15.1 · un toque desde el último recorrido del historial; el vigía de Atrás
 const atrasTiene = () => history.state?.op === 'app';
 function atrasArriba() {
   for (let i = atrasPila.length - 1; i >= 0; i--) if (atrasPila[i].open) return { k: 'dialogo', el: atrasPila[i] };
@@ -12952,10 +12977,12 @@ function atrasArriba() {
 const atrasHaceFalta = () => view !== 'inicio' || !!atrasArriba() || mvFoco();
 // Pone la entrada si hace falta y no la hay; la quita (con history.back(), y ese popstate se ignora) si ya no hace falta.
 function atrasSync() {
-  if (mvArranque || atrasIgnora) return;
+  if (mvArranque) return;
+  atrasVigia();
+  if (atrasIgnora) return;
   const falta = atrasHaceFalta(), tiene = atrasTiene();
   try {
-    if (falta && !tiene) history.pushState({ op: 'app' }, '');
+    if (falta && !tiene) { history.pushState({ op: 'app' }, ''); if (!atrasToque) { atrasVigiaOn = true; atrasVigia(); } }   // 2.15.1 · sin un toque, Chromium la salta
     else if (!falta && tiene) {
       atrasIgnora = true; clearTimeout(atrasIgnoraT);
       atrasIgnoraT = setTimeout(() => { if (atrasIgnora) { atrasIgnora = false; atrasSync(); } }, 1500);
@@ -12963,17 +12990,44 @@ function atrasSync() {
     }
   } catch {}
 }
-addEventListener('popstate', e => {
-  if (atrasIgnora) { atrasIgnora = false; clearTimeout(atrasIgnoraT); atrasSync(); return; }
-  if (mvArranque) return;
-  if (e.state?.op === 'app') { atrasSync(); return; }   // «Adelante» del navegador: nada que hacer
+// 2.15.1 · Lo que hace un Atrás, llegue por el historial (popstate) o como petición de cierre (el vigía): cierra lo de arriba (hoja o
+// diálogo, la celebración o la puerta); con la sesión de enfoque en pantalla no la termina y lo dice; sin nada abierto y fuera de Inicio,
+// vuelve a Inicio.
+function atrasPaso() {
   const x = atrasArriba();
   if (x?.k === 'dialogo') x.el.close();
   else if (x?.k === 'cele') closeCelebration();
   else if (x?.k === 'puerta') { closeGate(); renderE(); }
   else if (mvFoco()) toast('La sesión sigue: la terminas desde su pantalla');
   else if (view !== 'inicio') irA('inicio');
-  atrasSync();
+}
+// 2.15.1 · El vigía. Chromium salta una entrada puesta sin un toque desde el último recorrido del historial (al abrir la app fuera de
+// Inicio, con ?v= o «Abrir la app en», o con la sesión de enfoque en curso; al llegar un aviso con la app abierta después de usar Atrás):
+// el Atrás de la barra o del sistema sale de la app (la intervención contra la manipulación del historial). En Android ese Atrás llega
+// antes como petición de cierre y un CloseWatcher la recibe aunque no haya activación: hace lo mismo que Atrás (atrasPaso) hasta que
+// llegas a Inicio sin nada abierto, y ahí se quita. Mientras está, el Atrás del sistema no recorre el historial, así que nunca se
+// atiende dos veces. Solo con pantalla táctil (en el escritorio la flecha Atrás no es una petición de cierre: queda como antes) y nunca con
+// un diálogo abierto (uno creado sin activación se agrupa con el del diálogo y un solo Atrás cerraría los dos): se quita y vuelve al cerrarse.
+addEventListener('click', e => { if (e.isTrusted) atrasToque = true; }, true);
+function atrasVigia() {
+  if (atrasVigiaOn && !atrasHaceFalta()) atrasVigiaOn = false;
+  const quiere = atrasVigiaOn && !atrasDialogos.some(d => d.open);
+  if (!quiere && atrasCW) { const w = atrasCW; atrasCW = null; try { w.destroy(); } catch {} }
+  else if (quiere && !atrasCW && typeof CloseWatcher === 'function' && matchMedia('(pointer: coarse)').matches) {
+    try { const w = new CloseWatcher(); w.onclose = () => { if (atrasCW === w) atrasCW = null; atrasPaso(); atrasSync(); }; atrasCW = w; } catch {}
+  }
+}
+addEventListener('popstate', e => {
+  atrasToque = false;   // 2.15.1 · Chromium deja de contar el toque de antes de un recorrido del historial al poner una entrada nueva
+  if (atrasIgnora) { atrasIgnora = false; clearTimeout(atrasIgnoraT); atrasSync(); return; }
+  if (mvArranque) return;
+  if (e.state?.op === 'app') { atrasSync(); return; }   // «Adelante» del navegador: nada que hacer
+  atrasPaso();
+  // 2.15.1 · Si todavía hace falta la entrada (sigues fuera de Inicio o con algo abierto), se vuelve a la que quedó delante con forward() y
+  // ese popstate se ignora (si no llega, a los 1,5 s se pone como antes). Una entrada nueva, creada sin un toque después de un Atrás, Chromium
+  // la marca para saltarla y el siguiente Atrás de verdad saldría de la app.
+  if (atrasHaceFalta()) { atrasIgnora = true; clearTimeout(atrasIgnoraT); atrasIgnoraT = setTimeout(() => { if (atrasIgnora) { atrasIgnora = false; atrasSync(); } }, 1500); try { history.forward(); } catch {} }
+  else atrasSync();
 });
 // Cerrar una hoja con Atrás no mueve la sección: el navegador no restaura el desplazamiento al recorrer el historial.
 try { history.scrollRestoration = 'manual'; } catch {}
@@ -13155,6 +13209,17 @@ function espMarcar(id, hecho, o = {}) {
 }
 // Desde agMarcar: el ítem ya cambió; aquí solo la norma (agMarcar guarda y repinta después).
 function espDesdeAgenda(it, hecho) { if (it && typeof it.esp === 'string' && it.esp) espMarcar(it.esp, hecho, { desdeAgenda: true, sinGuardar: true }); }
+// 2.15.1 · El id del ítem de una norma en la Agenda de un día: fijo por día y norma (dos teléfonos no lo duplican) y, si ese id ya se
+// quitó alguna vez, el siguiente que no esté en los borrados ('-2', '-3'…), como la lista «Estudio»: un id borrado no vuelve, porque la
+// fusión une los borrados de las dos copias y lo quitaría otra vez. Dos teléfonos con los mismos borrados eligen el mismo.
+function espIdAgenda(f, nid) {
+  const base = `esp-${f}-${nid}`, dead = new Set(Array.isArray(HT().borrados) ? HT().borrados : []);
+  let id = base; for (let k = 2; dead.has(id) && k < 1000; k++) id = `${base}-${k}`;
+  return id;
+}
+// 2.15.1 · «Copiar la de ayer»: el ítem de una norma que sigue en el plan vuelve enlazado a ella (su id de ese día, sin el XP del ítem
+// libre); si la norma ya no está, vuelve como un ítem suelto más.
+function espDeHist(it, f) { const id = it && typeof it.esp === 'string' ? it.esp : ''; return id && espD().normas.some(n => n && n.id === id) ? { id: espIdAgenda(f, id), esp: id, premiado: true } : {}; }
 // «Ponerlo en mi agenda de hoy»: las pendientes con hora, como ítems libres con `esp` (id fijo por día y norma: dos teléfonos no las
 // duplican), con la identidad de Bienestar si la hay y sin el XP del ítem libre (premiado: el XP es el de la iniciativa).
 // Sin duplicar: si ya hay un ítem con ese `esp` hoy no se añade; uno suelto con el mismo nombre (copiado de ayer) se enlaza.
@@ -13164,8 +13229,8 @@ function espPonerEnAgenda() {
   for (const x of L) {
     if (A.items.some(it => it && it.tipo === 'libre' && it.esp === x.n.id)) continue;
     const suelto = A.items.find(it => it && it.tipo === 'libre' && !it.esp && it.t === x.nombre);
-    if (suelto) { suelto.esp = x.n.id; if (suelto.hecho) espMarcar(x.n.id, true, { desdeAgenda: true, sinGuardar: true }); n++; continue; }
-    A.items.push({ id: `esp-${t}-${x.n.id}`, tipo: 'libre', ref: '', t: x.nombre, h: x.n.h, min: x.n.min || 0, hecho: false, esp: x.n.id, iden: B ? B.id : '', premiado: true, alta: Date.now() });
+    if (suelto) { suelto.esp = x.n.id; suelto.premiado = true; if (suelto.hecho) espMarcar(x.n.id, true, { desdeAgenda: true, sinGuardar: true }); n++; continue; }
+    A.items.push({ id: espIdAgenda(t, x.n.id), tipo: 'libre', ref: '', t: x.nombre, h: x.n.h, min: x.n.min || 0, hecho: false, esp: x.n.id, iden: B ? B.id : '', premiado: true, alta: Date.now() });
     n++;
   }
   if (n) guardar();
@@ -13275,8 +13340,9 @@ function espBorrador(primera) {
   const E = espD(), B = [], t = today();
   for (const c of ESP_CAT) { const n = E.normas.find(x => x.k === c.k); B.push(n ? { ...n } : { id: 'esp-' + c.k, k: c.k, t: c.t, h: c.h, min: c.min, freq: c.freq, dia: c.dia ?? 6, fecha: '', on: false, orden: B.length }); }
   for (const n of E.normas.filter(x => x.k === 'propia').sort((a, b) => (+a.orden || 0) - (+b.orden || 0))) B.push({ ...n });
-  for (const n of B) if (n.fecha && (n.freq === 'mensual' || n.freq === 'anual')) n.fecha = espProxima(n, t) || n.fecha;   // se ve la próxima
+  for (const n of B) if (n.fecha && (n.freq === 'mensual' || n.freq === 'anual')) { const p = espProxima(n, t); if (p && p.slice(8) !== n.fecha.slice(8)) n.ancla = { f: n.fecha, v: p, freq: n.freq }; n.fecha = p || n.fecha; }   // se ve la próxima; si quedó recortada (31 → 28), sin tocarla se guarda la de antes
   if (primera && !E.normas.length) espAplicarProp(B, 'empezar');
+  B.propias0 = new Set(E.normas.filter(x => x.k === 'propia').map(x => x.id));   // 2.15.1 · las propias que había al abrir el editor
   return B;
 }
 function espAplicarProp(B, p) {
@@ -13345,9 +13411,10 @@ function espEdClick(e, B, cont, guardarFn) {
 function espGuardarPlan(B, enHoja) {
   if (!ES.espiritu || typeof ES.espiritu !== 'object' || !Array.isArray(ES.espiritu.normas)) ES.espiritu = espNorm(null);
   const E = ES.espiritu, primera = !E.configurado;
-  const L = B.map((n, i) => ({ ...n, t: n.k === 'propia' ? String(n.t || '').replace(/\s+/g, ' ').trim().slice(0, 60) : n.t, on: !!n.on && (!(n.freq === 'mensual' || n.freq === 'anual') || !!n.fecha), orden: i })).filter(n => n.t);
-  for (const n of E.normas) if (n.k === 'propia' && !L.some(x => x.id === n.id)) forget(n.id);   // una propia quitada no vuelve con la nube
-  E.normas = espNorm({ normas: L }).normas;
+  const L = B.map((n, i) => ({ ...n, t: n.k === 'propia' ? String(n.t || '').replace(/\s+/g, ' ').trim().slice(0, 60) : n.t, on: !!n.on && (!(n.freq === 'mensual' || n.freq === 'anual') || !!n.fecha), orden: i, ...(n.ancla && n.fecha === n.ancla.v && n.freq === n.ancla.freq ? { fecha: n.ancla.f } : {}) })).filter(n => n.t);
+  const P0 = B.propias0 instanceof Set ? B.propias0 : new Set(E.normas.filter(n => n.k === 'propia').map(n => n.id)), fuera = n => n.k === 'propia' && !L.some(x => x.id === n.id);
+  for (const n of E.normas) if (fuera(n) && P0.has(n.id)) forget(n.id);   // una propia quitada no vuelve con la nube
+  E.normas = espNorm({ normas: [...L, ...E.normas.filter(n => fuera(n) && !P0.has(n.id))] }).normas;   // 2.15.1 · la que llegó de otro teléfono con la hoja abierta se queda
   if (!E.configurado) E.configurado = Date.now();
   guardar();
   espBorrIn = null; espBorrHoja = null;
