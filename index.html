@@ -621,7 +621,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.18.0';
+const APP_VERSION = '2.19.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8751,7 +8751,10 @@ const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_C
   .ag-it.ag-est .t div { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
   .ag-now { display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 4px 0; }
   .ag-now::before, .ag-now::after { content: ''; flex: 1; height: 1.5px; background: var(--accent); opacity: .6; }
-  .ag-top { margin: 0 0 12px; } button.tag { color: var(--muted); padding: 8px 0 8px 10px; }`;
+  .ag-top { margin: 0 0 12px; } button.tag { color: var(--muted); padding: 8px 0 8px 10px; }
+  .ag-pest { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0 10px; margin: 0 0 4px; border-bottom: 1px solid var(--line); }
+  .ag-pest .chip { font-variant-numeric: tabular-nums; } .ag-pest .chip small { color: inherit; opacity: .7; font-size: .8em; margin-left: 4px; }
+  .ag-pest-fin { margin: 10px 0 0; }`;
 const agW = document.createElement('div'); agW.className = 'enf'; agR.append(agStyle, agW);
 // 2.17.1 (U) · Un bloque de estudio muestra primero lo que toca (el tema) y después la materia: dos bloques de la misma materia se
 // distinguen aunque el título se corte. Lo demás, su texto tal cual.
@@ -8760,11 +8763,32 @@ function agTituloEst(it) {
   const b = exBloque(it.ref), m = b && typeof b.materia === 'string' ? b.materia : '';
   return m && t.startsWith(m + ' · ') && t.length > m.length + 3 ? `${t.slice(m.length + 3)} · ${m}` : t;
 }
+// 2.19 (P) · Pestañas de la Agenda: la jerarquía del día es una sola (el número de cada fila es su puesto entre todo), pero al marcar se ve
+// una clase de cosa a la vez para no saturar la pantalla. Solo salen las pestañas con algo hoy, con «hechas/total»; se abre en la primera
+// con algo pendiente (Prioridades, Tareas, Hábitos…) y la elegida se recuerda en este teléfono durante el día. «Todo» es la lista entera.
+const AG_PEST = [['todo', 'Todo'], ['prio', 'Prioridades'], ['tarea', 'Tareas'], ['habito', 'Hábitos'], ['ini', 'Iniciativas'], ['estudio', 'Estudio'], ['esp', 'Espiritual'], ['bt', 'Bloques'], ['plan', 'Planes'], ['evento', 'Calendario'], ['otro', 'Otras']];
+const AG_PEST_KEY = 'ag-pestana';
+function agPestDe(it) { if (!it) return 'otro'; if (it.foco || it.tipo === 'prio') return 'prio'; if (it.tipo === 'libre') return typeof it.esp === 'string' && it.esp ? 'esp' : 'otro'; return AG_PEST.some(([k]) => k === it.tipo) ? it.tipo : 'otro'; }
+function agPestGuardada() { try { const v = JSON.parse(localStorage.getItem(AG_PEST_KEY) || 'null'); return v && v.d === today() && AG_PEST.some(([k]) => k === v.k) ? v.k : ''; } catch { return ''; } }
+function agPestPoner(k) { try { localStorage.setItem(AG_PEST_KEY, JSON.stringify({ d: today(), k })); } catch {} }
+function agPestActual(its) {
+  const hay = new Set(its.map(agPestDe)), g = agPestGuardada();
+  if (g && (g === 'todo' || hay.has(g))) return g;
+  const pend = AG_PEST.find(([k]) => k !== 'todo' && k !== 'evento' && its.some(it => agPestDe(it) === k && !agHecho(it)));
+  return pend ? pend[0] : 'todo';
+}
+function agPestHtml(its, act) {
+  const hay = AG_PEST.filter(([k]) => k === 'todo' || its.some(it => agPestDe(it) === k));
+  if (hay.length <= 2) return '';   // una sola clase de cosa: sin pestañas
+  return `<div class="chips ag-pest" role="tablist" aria-label="Qué ver de tu agenda">${hay.map(([k, n]) => { const L = k === 'todo' ? its.filter(it => it.tipo !== 'evento') : its.filter(it => agPestDe(it) === k), h = L.filter(it => agHecho(it)).length;
+    return `<button type="button" class="chip${k === act ? ' on' : ''}" role="tab" aria-selected="${k === act}" data-ag-pest="${k}">${esc(n)}<small>${k === 'evento' ? L.length : `${h}/${L.length}`}</small></button>`; }).join('')}</div>`;
+}
 function renderAg() {
   if (!agW) return;
   cargarAgenda();
   const A = agenda(), its = agItems(), sinEv = its.filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt'), hechas = sinEv.filter(it => agHecho(it)).length, org0 = !!A.organizado, now = nowMin();
-  const conH = its.filter(i => i.h).sort(agOrden), sinH = its.filter(i => !i.h);
+  const pest = its.length ? agPestActual(its) : 'todo', vis = pest === 'todo' ? its : its.filter(it => agPestDe(it) === pest), pestHtml = agPestHtml(its, pest);   // 2.19 (P)
+  const conH = vis.filter(i => i.h).sort(agOrden), sinH = vis.filter(i => !i.h);
   const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length, P = planManana(), tarde = now >= 18 * 60;
   const fila = it => { const ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, s = smartDe(agSmartSrc(it)), fo = !!it.foco;
     return `<div class="row ag-it${ok ? ' ok' : ''}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}">${agRkHtml(it, its)}<button class="box" data-chk="${esc(it.id)}" aria-label="Hecha" style="${ok ? 'background:var(--green);border-color:var(--green)' : ''};width:20px;height:20px"></button>
@@ -8781,8 +8805,10 @@ function renderAg() {
       <div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="${org0 ? 'link' : 'primary'}" id="ag-org">${org0 ? 'Reorganizar' : 'Organizar mi día · 2 min'}</button><button class="link" id="ag-add">+ Añadir</button>${its.length > 1 ? '<button class="link" id="ag-rk">Reordenar</button>' : ''}</div>`
     : `<div class="interv"><b>Tu día aún no tiene agenda</b><p>Dos minutos y lo importante queda con hora.</p>
       <div class="row-b"><button class="primary" id="ag-org">Organizar mi día</button>${hayAyer ? '<button class="link" id="ag-copy">Copiar la de ayer</button>' : ''}<button class="link" id="ag-add">Añadir una cosa</button></div></div>`}</div>
+    ${pestHtml}
     ${filas.length ? `<div class="rows">${filas.join('')}</div>` : ''}
     ${sinH.length ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows">${sinH.map(fila).join('')}</div><p class="meta">Toca «Poner hora»: con hora se cumple más.</p>` : ''}
+    ${pestHtml && pest !== 'todo' && vis.length && vis.every(it => agHecho(it)) && pest !== 'evento' ? `<p class="meta green ag-pest-fin">Todo hecho en ${esc((AG_PEST.find(([k]) => k === pest) || [])[1] || '').toLowerCase()}.${its.some(it => it.tipo !== 'evento' && !agHecho(it)) ? ' Lo que queda está en las otras pestañas.' : ''}</p>` : ''}
     ${mananaCard ? `<div style="margin-top:18px">${mananaCard}</div>` : ''}
     ${agpHtml()}
     ${agbBrechaHtml()}
@@ -8791,6 +8817,7 @@ function renderAg() {
       <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p>${window.mtAgendaHtml?.() || ''}</section>
     ${agbMananasHtml()}`;
   agW.querySelector('#ag-org').onclick = () => organizarDia();
+  agW.querySelectorAll('[data-ag-pest]').forEach(b => b.onclick = () => { agPestPoner(b.dataset.agPest); renderAg(); });   // 2.19 (P)
   agW.querySelector('#ag-add').onclick = () => agAddSheet();
   agW.querySelector('#ag-copy')?.addEventListener('click', agCopiarAyer);
   agW.querySelector('#ag-man')?.addEventListener('click', organizarManana);
