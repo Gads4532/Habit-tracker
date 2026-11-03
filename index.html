@@ -4674,7 +4674,8 @@ function renderE() { renderXp(); renderAhora(); renderInterv(); renderAgenda(); 
 // La gamificación mueve la motivación y la conducta con efectos pequeños a moderados (Sailer y Homner, 2020); por eso premia
 // lo que la evidencia dice que funciona y no castiga: sin rachas rotas ni puntos negativos.
 const NIVELES = ['Novato', 'Aprendiz', 'Constante', 'Enfocado', 'Con rumbo', 'Imparable', 'Maestro', 'Leyenda'];
-const xpParaNivel = L => 250 * (L - 1) * L;                  // 2.19 (X) · mucho más exigente: 0, 500, 1500, 3000, 5000, 7500…
+const xpNuevo = () => +ES.xpReinicio2190 > 0;   // 2.19 (X) · las reglas nuevas, desde la vuelta a Novato (el 4 de noviembre de 2026 o después)
+const xpParaNivel = L => (xpNuevo() ? 250 : 50) * (L - 1) * L;   // desde Novato, mucho más exigente: 500, 1500, 3000, 5000…; antes 100, 300, 600…
 const nivelDe = total => { let L = 1; while (xpParaNivel(L + 1) <= total) L++; return L; };
 const nivelNombre = L => L <= NIVELES.length ? NIVELES[L - 1] : `Leyenda ${L - NIVELES.length + 1}`;
 // 2.19 (X) · El XP que cuenta: lo ganado menos lo perdido (nunca menos de 0). El nivel sube y baja con él.
@@ -8714,7 +8715,7 @@ function objetivoSheet(o) {
 }
 
 // ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (un número, hoy, antes de dormir).
-const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Si después lo marcas para ese día, se devuelve.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
+const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ...(xpNuevo() ? [] : [['Desde el 4 de noviembre, lo que queda sin hacer resta', null]]), ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Si después lo marcas para ese día, se devuelve.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
   ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Mínimo de ${ES.minIni} iniciativas en el día`, 40], ['Las 5 iniciativas', 50], [`Social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho, en Estudio, la Agenda, el enfoque o el asistente (una vez por bloque)', 10], ['Tema de una ruta visto', 15], ['Tarea o entrega de una ruta', 'como una tarea'], ['Normas de Vida espiritual', 'cuentan en tu iniciativa espiritual del día'], ['Lo de dentro de un bloque de tiempo', 'lo suyo; el bloque no suma aparte'],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
@@ -8723,7 +8724,7 @@ const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marc
 function xpSheet() {
   const T = xpTotal(), L = nivelDe(T), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
   showSheet(`<h2>Nivel ${L} · ${esc(nivelNombre(L))}</h2>
-    <p class="note">${T} XP en total. Para el nivel ${L + 1} (${esc(nivelNombre(L + 1))}) faltan <b style="color:var(--text)">${b - T} XP</b>. Cada nivel pide 250 × L × (L − 1) XP en total: 500, 1500, 3000, 5000, 7500… Lo que queda sin hacer resta, y si el XP baja, el nivel también.</p>
+    <p class="note">${T} XP en total. Para el nivel ${L + 1} (${esc(nivelNombre(L + 1))}) faltan <b style="color:var(--text)">${b - T} XP</b>. ${xpNuevo() ? 'Cada nivel pide 250 × L × (L − 1) XP en total: 500, 1500, 3000, 5000, 7500… Lo que queda sin hacer resta, y si el XP baja, el nivel también.' : 'Cada nivel pide 50 × L × (L − 1) XP en total: 100, 300, 600, 1000, 1500… Desde el 4 de noviembre: vuelta a Novato, niveles mucho más exigentes y lo que quede sin hacer resta.'}</p>
     <div class="meter"><span>Meta de hoy: ${metaHoy()} XP antes de dormir${metaHoy() !== ES.metaXp ? ` (día corto; la de siempre, ${ES.metaXp})` : ''}</span><b class="${hoy >= metaHoy() ? 'green' : ''}">${hoy} de ${metaHoy()}</b></div><div class="meter-bar"><i style="width:${Math.min(100, hoy / metaHoy() * 100)}%"></i></div>
     <p class="meta" id="xs-sem">${esc(xmSemanaLinea())}. Cinco de siete: dos días libres por semana, sin romper nada.</p>
     ${nochesXpLinea()}
@@ -16394,7 +16395,10 @@ if (typeof euR !== 'undefined' && euR) {
 // - Niveles por categoría (window.cat?.de en cada premio): Principiante → Maestro con XP y días con actividad a la vez; sin castigos.
 // ====================================================================
 const XP_RANGOS = ['Principiante', 'Aprendiz', 'Intermedio', 'Avanzado', 'Experto', 'Maestro'];
-const XP_R_XP = [0, 750, 2500, 6000, 12500, 25000], XP_R_D = [0, 10, 30, 60, 120, 240];   // 2.19 (X) · más exigentes
+const XP_R_XP = [0, 300, 1000, 2500, 5000, 10000], XP_R_D = [0, 5, 15, 30, 60, 120];
+// 2.19 (X) · Desde la vuelta a Novato, más exigentes (se cambian en el sitio: el resto del código lee los mismos arreglos).
+function xpUmbrales() { const n = xpNuevo(); XP_R_XP.splice(0, 6, ...(n ? [0, 750, 2500, 6000, 12500, 25000] : [0, 300, 1000, 2500, 5000, 10000])); XP_R_D.splice(0, 6, ...(n ? [0, 10, 30, 60, 120, 240] : [0, 5, 15, 30, 60, 120])); }
+xpUmbrales();
 const XP_CAT_N = { estudio: 'Estudio', proyecto: 'Proyecto', laboral: 'Trabajo', social: 'Social', espiritual: 'Espiritual', salud: 'Salud', otro: 'Otro' };
 const xpCatNombre = c => { try { return window.cat?.nombre?.(c) || XP_CAT_N[c] || ''; } catch { return XP_CAT_N[c] || ''; } };
 const xpMiles = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -16555,7 +16559,7 @@ window.xpLibro = { stats: xpCatStats, rango: c => { const st = xpCatStats()[c]; 
 // - Nunca baja de 0: cada pérdida resta como mucho el XP que queda. Un hábito marcado después para ese día devuelve lo que restó (n = 0).
 // - Al bajar de nivel se dice; volver a subir se celebra otra vez (visto baja con el nivel).
 // ====================================================================
-const XP_PEN = 10;
+const XP_PEN = 10, XP_INICIO = '2026-11-04';   // «Mañana empezamos con el cambio de XP» (dicho el 3 de noviembre de 2026)
 function xpPenPoner(dia, ref, n, c, m) {
   const P = (ES.xpPen && typeof ES.xpPen === 'object') ? ES.xpPen : (ES.xpPen = {});
   if (P[dia]?.[ref]) return 0;
@@ -16573,7 +16577,7 @@ function xpHabitoDebia(h, d) {
 }
 function xpCastigos() {
   const r0 = +ES.xpReinicio2190 || 0; if (!r0) return [];
-  const ayer = dayKey(addDays(new Date(), -1)), desdeR = dayKey(addDays(new Date(r0), 1)), tope = dayKey(addDays(new Date(), -14));
+  const ayer = dayKey(addDays(new Date(), -1)), r0d = dayKey(new Date(r0)), desdeR = r0d > XP_INICIO ? r0d : XP_INICIO, tope = dayKey(addDays(new Date(), -14));   // desde el día de la vuelta a Novato, entero
   let d = ES.xpPenHasta ? dayKey(addDays(new Date(ES.xpPenHasta + 'T12:00'), 1)) : desdeR;
   if (d < desdeR) d = desdeR; if (d < tope) d = tope;
   const out = [];
@@ -16613,11 +16617,12 @@ window.xpPenLevantar = () => {
 // La vuelta a Novato: una sola vez por cuenta (con cuenta, solo después de combinar con la nube; el otro teléfono la recibe al sincronizar).
 function xpReiniciar() {
   if (+ES.xpReinicio2190 > 0) return false;
-  const hoy = today();
+  const hoy = today(); if (hoy < XP_INICIO) return false;   // hasta el 4 de noviembre, todo como antes
   ES.xpReinicio2190 = Date.now();
   ES.xp = { total: 0, base: 0, baseHasta: hoy, antes: 0, baseCat: {}, diasCat: {}, visto: 1, vistoCat: {} };
   ES.xpLog = {}; ES.xpPen = {}; ES.xpPenBase = 0; ES.xpPenHasta = dayKey(addDays(new Date(), -1));
   ES.dias[hoy] = { ...dayOf(hoy), xp: 0 };
+  xpUmbrales();
   return true;
 }
 let xpArrancando = false;
@@ -16625,6 +16630,7 @@ window.xpArranque = () => {
   if (xpArrancando || !(nubeLista || !(auth || window.claude?.use))) return;
   xpArrancando = true;
   try {
+    xpUmbrales();   // la vuelta a Novato pudo llegar de otro teléfono
     const nuevo = xpReiniciar(), L0 = nivelDe(xpTotal()), P = xpCastigos(), L1 = nivelDe(xpTotal());
     if (L1 < L0 || L1 < (+ES.xp.visto || 0)) ES.xp.visto = L1;   // volver a subir se celebra otra vez
     if (nuevo || P.length) { guardar(); renderXp(); try { renderAll(); } catch {} }
@@ -16652,7 +16658,7 @@ function xpAvisoPerdido(P, L0, L1) {
   if (sheet.open) { toast(`−${tot} XP por lo que quedó sin hacer${L1 < L0 ? ` · nivel ${L1}` : ''}.`); setTimeout(() => { if (!sheet.open) ver(); }, 4500); } else ver();
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') window.xpArranque?.(); });
-setInterval(() => { if (ES.xpPenHasta && ES.xpPenHasta < dayKey(addDays(new Date(), -1))) window.xpArranque?.(); }, 60000);
+setInterval(() => { if ((!xpNuevo() && today() >= XP_INICIO) || (ES.xpPenHasta && ES.xpPenHasta < dayKey(addDays(new Date(), -1)))) window.xpArranque?.(); }, 60000);
 // ---------- Tareas (y tareas o entregas de una ruta): +5, una vez por tarea y día, dentro del tope de 50 al día.
 // Una tarea espejo de un pendiente de Estudio usa la referencia del pendiente: marcarla en Tareas o en Estudio cuenta una vez.
 const xpRefTarea = x => x && x.est && typeof x.est === 'object' && !x.est.examen && typeof x.est.id === 'string' && x.est.id ? 'pe:' + x.est.id : 't:' + (x?.id || '');
