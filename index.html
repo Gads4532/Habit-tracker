@@ -768,7 +768,7 @@ function normEnfoque(e) {
   e.pacto ||= { semana: '', texto: '' };
   e.reto7 ||= { inicio: '' };
   e.retoInicio ||= hoy;
-  e.xp ||= { total: 0 }; e.xp.total = +e.xp.total || 0; xpLibroNorm(e, hoy); /* 2.17 (XP) · el libro de XP (deshacer), migración y poda */ e.metaXp = [50, 100, 150, 200].includes(+e.metaXp) ? +e.metaXp : 100;
+  e.xp ||= { total: 0 }; e.xp.total = +e.xp.total || 0; xpLibroNorm(e, hoy); /* 2.17 (XP) · el libro de XP (deshacer), migración y poda */ xpPenNorm(e, hoy); /* 2.19 (X) · lo que se pierde */ e.metaXp = [50, 100, 150, 200].includes(+e.metaXp) ? +e.metaXp : 100;
   if (!Array.isArray(e.pizarras)) e.pizarras = [];
   for (const b of e.pizarras) { if (!Array.isArray(b.els)) b.els = []; b.nombre ||= 'Pizarra'; }
   if (!Array.isArray(e.diario)) e.diario = [];
@@ -892,6 +892,7 @@ const elapsedOf = h => { const t = state.timers[h.id]; return t ? t.acum + (t.st
 const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function save() {
   window.avAntesDeGuardar?.();   // 2.12 · avisos: lo que llegó desde una notificación y las horas de los hábitos
+  window.xpPenLevantar?.();   // 2.19 (X) · un hábito marcado para un día que ya restó devuelve su XP
   window.mtTrasGuardar?.();   // 2.18 (M) · lo recién creado desde «Crear algo nuevo para esta meta» queda vinculado
   state.cambiado = Date.now();
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
@@ -1005,7 +1006,7 @@ function mergeStates(a, b) {
     pizarras: byId(eN.pizarras, eO.pizarras), diario: ((x, y) => { const m = new Map(y.map(i => [i.id, i]));
       for (const i of x) { const o = m.get(i.id); if (!o) { m.set(i.id, i); continue; } const gana = (+i.cambiado || 0) >= (+o.cambiado || 0) ? i : o, otro = gana === i ? o : i;
         m.set(i.id, (+otro.notion?.en || 0) > (+gana.notion?.en || 0) ? { ...gana, notion: otro.notion } : gana); }
-      return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), ...xpFusion(eN, eO, dias),   /* 2.17 (XP) · por día y referencia, la más reciente; base de la copia con baseHasta más reciente */
+      return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), ...xpFusion(eN, eO, dias), ...xpPenFusion(eN, eO),   /* 2.19 (X) · pérdidas y vuelta a Novato · 2.17 (XP) · por día y referencia, la más reciente; base de la copia con baseHasta más reciente */
     objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
@@ -1053,7 +1054,7 @@ let cloudRef = null, writing = false, dirty = false, pending = false;
 // Mientras, queda en memoria (si cierras antes, se vuelve a aplicar al abrir). Sin cuenta, o con la nube ya combinada, se guarda enseguida.
 let nubeLista = false, guardarTras = false;
 function guardarAlPintar(fn = save) { if (nubeLista || !(auth || window.claude?.use)) fn(); else guardarTras = true; }
-function nubeCombinada() { nubeLista = true; if (guardarTras) { guardarTras = false; save(); } }
+function nubeCombinada() { nubeLista = true; if (guardarTras) { guardarTras = false; save(); } setTimeout(() => window.xpArranque?.(), 0); }   // 2.19 (X) · Novato y lo que quedó sin hacer, ya con la nube combinada
 const SYNC_TEXT = { ok: '· Guardado en la nube', saving: '· Guardando en la nube…', local: '· Solo en este teléfono', error: '· Pendiente de subir; se reintenta solo', wait: '· Conectando…', notable: '· Falta preparar la base de datos' };
 const setSync = st => {
   const hora = st === 'ok' && savedAt ? ' ' + new Date(savedAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -3142,7 +3143,8 @@ function xpFusion(a, b, dias) {
   const ha = xpEsDia(xa.baseHasta) ? xa.baseHasta : '', hb = xpEsDia(xb.baseHasta) ? xb.baseHasta : '';
   const uno = !xa.mig !== !xb.mig;   // 2.17f (XP) · una sola pasó por la fusión de 2.16: manda la otra (su base y su baseHasta)
   const B = uno ? (xa.mig ? xb : xa) : ha > hb ? xa : hb > ha ? xb : (xpNum(xa.base) >= xpNum(xb.base) ? xa : xb), desde = uno ? (B === xa ? ha : hb) : ha > hb ? ha : hb;
-  const La = a?.xpLog && typeof a.xpLog === 'object' ? a.xpLog : {}, Lb = b?.xpLog && typeof b.xpLog === 'object' ? b.xpLog : {}, L = {};
+  const rA = +a?.xpReinicio2190 || 0, rB = +b?.xpReinicio2190 || 0, rR = Math.max(rA, rB);   // 2.19 (X) · la vuelta a Novato
+  const La = xpSinAntesDe(a?.xpLog && typeof a.xpLog === 'object' ? a.xpLog : {}, rR), Lb = xpSinAntesDe(b?.xpLog && typeof b.xpLog === 'object' ? b.xpLog : {}, rR), L = {};
   for (const k of new Set([...Object.keys(La), ...Object.keys(Lb)])) {
     if (!xpEsDia(k) || (desde && k < desde)) continue;
     const ma = La[k] && typeof La[k] === 'object' ? La[k] : {}, mb = Lb[k] && typeof Lb[k] === 'object' ? Lb[k] : {};
@@ -3153,6 +3155,7 @@ function xpFusion(a, b, dias) {
     L[k] = m;
   }
   const mx = (p, q) => Object.fromEntries([...new Set([...Object.keys(p || {}), ...Object.keys(q || {})])].map(c => [c, Math.max(xpNum(p?.[c]), xpNum(q?.[c]))]));
+  if (rA !== rB) { const R = rA > rB ? xa : xb; return xpFusionReinicio(R, L, dias, R === xa ? ha : hb); }   // 2.19 (X) · manda la copia reiniciada
   const xp = { base: xpNum(B.base), baseHasta: desde || xpHoyK(), antes: xpNum(B.antes), baseCat: { ...(B.baseCat || {}) }, diasCat: { ...(B.diasCat || {}) },
     visto: Math.max(xpNum(xa.visto), xpNum(xb.visto)), vistoCat: mx(xa.vistoCat, xb.vistoCat) };
   if (uno) { let U = 0; for (const m of Object.values(L)) for (const v of Object.values(m || {})) if (v) U += xpNum(v.n) > 0 ? xpNum(v.n) : xpNum(v.x);
@@ -3164,6 +3167,55 @@ function xpFusion(a, b, dias) {
     dias[k] = { ...(dias[k] || {}), xp: xpSumaDia(L[k]) + (k === xp.baseHasta ? xp.antes : 0) };
   }
   return { xp, xpLog: L };
+}
+// ====================================================================
+// 2.19.0 (X) · XP que se pierde (nivel superior: lo llaman normEnfoque y mergeStates). «Volvamos a novato y haremos los niveles mucho más
+// exigentes… por cada día que pase sin hacer un hábito se pierde XP. También se pierde si no se hace la tarea en el día de la agenda… Al
+// perder XP se bajaría de nivel.» Las pérdidas van en su propio libro, aparte del de premios (que no sabe de números negativos):
+// ES.xpPen = { 'AAAA-MM-DD': { ref: { n, t, c, m } } } (ph:{hábito}:{día}, pt:{tarea}:{día}; n = lo que quitó, 0 si se levantó), ES.xpPenBase
+// (lo podado a los 180 días) y ES.xpPenHasta (el último día ya revisado). El XP que cuenta es ES.xp.total − las pérdidas (xpTotal, nunca < 0).
+// ES.xpReinicio2190 (ms): la vuelta a Novato, una sola vez por cuenta; lo ganado antes de ese momento no vuelve con la fusión.
+// ====================================================================
+function xpPenNorm(e, hoy) {
+  const P0 = e.xpPen && typeof e.xpPen === 'object' && !Array.isArray(e.xpPen) ? e.xpPen : {}, P = {}, cut = xpDiaMenos(hoy, 180);
+  let base = xpNum(e.xpPenBase);
+  for (const k of Object.keys(P0).sort()) {
+    const m = P0[k]; if (!xpEsDia(k) || !m || typeof m !== 'object' || Array.isArray(m)) continue;
+    const d = {}; let i = 0;
+    for (const [r, v] of Object.entries(m)) { if (!r || r.length > 160 || !v || typeof v !== 'object') continue; d[r] = { n: xpNum(v.n), t: Math.max(0, +v.t || 0), c: xpCats().includes(v.c) ? v.c : '', ...(typeof v.m === 'string' && v.m ? { m: v.m.slice(0, 80) } : {}) }; if (++i >= 300) break; }
+    if (k < cut) { for (const v of Object.values(d)) base += v.n; continue; }
+    if (Object.keys(d).length) P[k] = d;
+  }
+  e.xpPen = P; e.xpPenBase = base;
+  e.xpPenHasta = xpEsDia(e.xpPenHasta) ? e.xpPenHasta : '';
+  e.xpReinicio2190 = Math.max(0, +e.xpReinicio2190 || 0);
+}
+function xpPenFusion(a, b) {
+  const Pa = a?.xpPen && typeof a.xpPen === 'object' ? a.xpPen : {}, Pb = b?.xpPen && typeof b.xpPen === 'object' ? b.xpPen : {}, P = {};
+  const r = Math.max(+a?.xpReinicio2190 || 0, +b?.xpReinicio2190 || 0);
+  for (const k of new Set([...Object.keys(Pa), ...Object.keys(Pb)])) {
+    const ma = Pa[k] || {}, mb = Pb[k] || {}, m = {};
+    for (const ref of new Set([...Object.keys(mb), ...Object.keys(ma)])) { const x = ma[ref], y = mb[ref], v = !x ? y : !y ? x : ((+y.t || 0) > (+x.t || 0) ? y : x); if (v && (+v.t || 0) >= r) m[ref] = v; }
+    if (Object.keys(m).length) P[k] = m;
+  }
+  const ha = xpEsDia(a?.xpPenHasta) ? a.xpPenHasta : '', hb = xpEsDia(b?.xpPenHasta) ? b.xpPenHasta : '';
+  // Tras la vuelta a Novato, lo podado de antes no cuenta: la base de las pérdidas es la de la copia que ya se reinició.
+  const base = (+a?.xpReinicio2190 || 0) === (+b?.xpReinicio2190 || 0) ? Math.max(xpNum(a?.xpPenBase), xpNum(b?.xpPenBase)) : xpNum(((+a?.xpReinicio2190 || 0) > (+b?.xpReinicio2190 || 0) ? a : b)?.xpPenBase);
+  return { xpPen: P, xpPenBase: base, xpPenHasta: ha > hb ? ha : hb, xpReinicio2190: r };
+}
+function xpFusionReinicio(R, L, dias, desde) {
+  for (const k of Object.keys(L)) if (desde && k < desde) delete L[k];
+  const xp = { base: xpNum(R.base), baseHasta: desde || xpHoyK(), antes: 0, baseCat: { ...(R.baseCat || {}) }, diasCat: { ...(R.diasCat || {}) }, visto: xpNum(R.visto), vistoCat: { ...(R.vistoCat || {}) } };
+  xp.total = xp.base + xpSumaLibro(L);
+  if (dias && typeof dias === 'object') for (const k of Object.keys(L)) if (k >= xp.baseHasta) dias[k] = { ...(dias[k] || {}), xp: xpSumaDia(L[k]) };
+  return { xp, xpLog: L };
+}
+// La vuelta a Novato en la fusión: del libro de premios sale lo anotado antes del reinicio (un teléfono que aún no se enteró lo traería de vuelta).
+function xpSinAntesDe(L, r) {
+  if (!(r > 0)) return L;
+  const out = {};
+  for (const [k, m] of Object.entries(L || {})) { const d = {}; for (const [ref, v] of Object.entries(m || {})) if (v && (+v.t || 0) >= r) d[ref] = v; if (Object.keys(d).length) out[k] = d; }
+  return out;
 }
 // Desmarcar un hábito (o saltarlo) quita lo que dio hoy: su XP, el «volviste» y la sorpresa (dependen de él) y la rutina completa.
 function hbXpDesmarca(h, value) {
@@ -4622,9 +4674,13 @@ function renderE() { renderXp(); renderAhora(); renderInterv(); renderAgenda(); 
 // La gamificación mueve la motivación y la conducta con efectos pequeños a moderados (Sailer y Homner, 2020); por eso premia
 // lo que la evidencia dice que funciona y no castiga: sin rachas rotas ni puntos negativos.
 const NIVELES = ['Novato', 'Aprendiz', 'Constante', 'Enfocado', 'Con rumbo', 'Imparable', 'Maestro', 'Leyenda'];
-const xpParaNivel = L => 50 * (L - 1) * L;                   // 0, 100, 300, 600, 1000, 1500…
+const xpParaNivel = L => 250 * (L - 1) * L;                  // 2.19 (X) · mucho más exigente: 0, 500, 1500, 3000, 5000, 7500…
 const nivelDe = total => { let L = 1; while (xpParaNivel(L + 1) <= total) L++; return L; };
 const nivelNombre = L => L <= NIVELES.length ? NIVELES[L - 1] : `Leyenda ${L - NIVELES.length + 1}`;
+// 2.19 (X) · El XP que cuenta: lo ganado menos lo perdido (nunca menos de 0). El nivel sube y baja con él.
+function xpPenSuma() { let s = +ES.xpPenBase || 0; for (const m of Object.values(ES.xpPen || {})) for (const v of Object.values(m || {})) s += Math.max(0, +v?.n || 0); return s; }
+function xpTotal() { return Math.max(0, (+ES.xp?.total || 0) - xpPenSuma()); }
+function xpPerdidoDesde(dias) { const d0 = dayKey(addDays(new Date(), -dias)); let s = 0; for (const [k, m] of Object.entries(ES.xpPen || {})) if (k >= d0) for (const v of Object.values(m || {})) s += Math.max(0, +v?.n || 0); return s; }
 const xpHoy = (k = today()) => dayOf(k).xp || 0;
 function rachaXp() { let n = 0; for (let i = 0; i < 400; i++) { const k = dayKey(addDays(new Date(), -i)); if (xpHoy(k) >= metaHoy(k)) n++; else if (i) break; } return n; }
 let xpPopT = 0;
@@ -4639,7 +4695,7 @@ function subirNivel(L) {
 }
 function renderXp() {
   const el = $('#xp'); if (!el) return;
-  const T = ES.xp.total, L = nivelDe(T), a = xpParaNivel(L), b = xpParaNivel(L + 1), hoy = xpHoy(), meta = metaHoy();
+  const T = xpTotal(), L = nivelDe(T), a = xpParaNivel(L), b = xpParaNivel(L + 1), hoy = xpHoy(), meta = metaHoy();
   el.innerHTML = `<div class="xp"><div class="lv">${L}</div><div class="t"><b>${esc(nivelNombre(L))}</b><small>${esc(llevasFaltan(T - a, b - a, 'XP', `para el nivel ${L + 1}`))}</small>
     <div class="bar"><i style="width:${Math.min(100, (T - a) / (b - a) * 100)}%"></i></div><small class="xm-sem">${esc(xmSemanaLinea())}</small></div>
     <div class="hoy"><b class="${hoy >= meta ? 'ok' : ''}">${hoy} / ${meta}</b>XP hoy</div></div>${xmPregunta14()}`;
@@ -6056,7 +6112,7 @@ function datosSheet() {
   showSheet(`<h2>Tus datos</h2>
     <p class="note">Lo que la app ha registrado (últimos 180 días). Medir el avance ayuda a cumplir (Harkin et al., 2016).</p>
     <dl class="woop">
-      <dt>Nivel</dt><dd>${nivelDe(ES.xp.total)} · ${esc(nivelNombre(nivelDe(ES.xp.total)))} · ${ES.xp.total} XP en total · ${sum('xp')} en 180 días${datosSemanasMeta()}</dd>
+      <dt>Nivel</dt><dd>${nivelDe(xpTotal())} · ${esc(nivelNombre(nivelDe(xpTotal())))} · ${xpTotal()} XP en total · ${sum('xp')} en 180 días${datosSemanasMeta()}</dd>
       <dt>Descanso con propósito</dt><dd>${fmtMin(sum('descanso'))} en 180 días</dd>
       <dt>Enfoque</dt><dd>${fmtMin(sum('enfoque'))} en ${sum('sesiones')} sesiones completas · ${sum('interrupciones')} interrupciones · ${sum('impulsos')} impulsos surfeados</dd>
       <dt>Surfear el impulso</dt><dd>${surfTxt()}</dd>
@@ -6476,7 +6532,7 @@ function iaEstado() {
   const ks = Array.from({ length: 7 }, (_, i) => dayKey(addDays(new Date(), i - 6))), sum = f => ks.reduce((a, k) => a + (dayOf(k)[f] || 0), 0);
   return {
     nombre: HT().nombre || '',
-    xp: { nivel: nivelDe(ES.xp.total), titulo: nivelNombre(nivelDe(ES.xp.total)), total: ES.xp.total, hoy: xpHoy(), meta_diaria: metaHoy(), racha_dias: rachaXp(), semanas_con_meta: xmSemanasN(), dias_con_meta_esta_semana: xmSemanaDias() },
+    xp: { nivel: nivelDe(xpTotal()), titulo: nivelNombre(nivelDe(xpTotal())), total: xpTotal(), perdido_7_dias: xpPerdidoDesde(7), hoy: xpHoy(), meta_diaria: metaHoy(), racha_dias: rachaXp(), semanas_con_meta: xmSemanasN(), dias_con_meta_esta_semana: xmSemanaDias() },
     prioridades_hoy: ES.prioridades.items.map((x, i) => ({ numero: i + 1, texto: x.t, hecha: !!x.hecho })),
     habitos_pendientes_hoy: p.habits.map(h => ({ nombre: h.nombre, version_2_min: h.minima || '', hora: (h.horas || [])[0] || '' })),
     tareas_pendientes: [...p.due, ...p.sinFecha.slice(0, 20)].map(x => ({ id: x.id, titulo: x.titulo, fecha: x.fecha || '', vencida: !!x.fecha && x.fecha < today() })),
@@ -8538,7 +8594,7 @@ function agAddSheet(tipo = '') {
   const b = $('#sheet-body'); activarFranjas(b);
   $('#aa-tipos').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) agAddSheet(c.dataset.k); });
   $('#aa-close').onclick = closeSheet;
-  const poner = (t, ref, txt, h, min, extra = {}) => { A.items.push({ id: crypto.randomUUID(), tipo: t, ref, t: txt, h: h || '', min: min || AG_MIN[t], hecho: false, ...extra }); guardar(); renderE(); renderAg(); agCompleta(); closeSheet(); toast('En la agenda.'); };
+  const poner = (t, ref, txt, h, min, extra = {}) => { const nuevo = { id: crypto.randomUUID(), tipo: t, ref, t: txt, h: h || '', min: min || AG_MIN[t], hecho: false, ...extra }; A.items.push(nuevo); if (agPestGuardada() !== 'todo') agPestPoner(agPestDe(nuevo)); guardar(); renderE(); renderAg(); agCompleta(); closeSheet(); toast('En la agenda.'); };
   b.querySelectorAll('[data-ha]').forEach(x => x.onclick = () => { const h = s.habits.find(y => y.id === x.dataset.ha); poner('habito', h.id, h.nombre, (h.horas || [])[0], h.modo === 'tiempo' ? h.meta : AG_MIN.habito); });
   b.querySelectorAll('[data-x]').forEach(x => x.onclick = () => { const t = s.tareas.items.find(y => y.id === x.dataset.x); poner('tarea', t.id, t.titulo, t.hora, t.min || AG_MIN.tarea, { exito: t.exito || '', iden: t.iden || '' }); });
   b.querySelectorAll('.rows [data-k]').forEach(x => x.onclick = () => { const k = x.dataset.k; iniElegir(k, r => {
@@ -8658,16 +8714,16 @@ function objetivoSheet(o) {
 }
 
 // ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (un número, hoy, antes de dormir).
-const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null, 'Deshacer no es un castigo: nada resta por un día sin hacer ni por una racha.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
+const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Si después lo marcas para ese día, se devuelve.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
   ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Mínimo de ${ES.minIni} iniciativas en el día`, 40], ['Las 5 iniciativas', 50], [`Social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho, en Estudio, la Agenda, el enfoque o el asistente (una vez por bloque)', 10], ['Tema de una ruta visto', 15], ['Tarea o entrega de una ruta', 'como una tarea'], ['Normas de Vida espiritual', 'cuentan en tu iniciativa espiritual del día'], ['Lo de dentro de un bloque de tiempo', 'lo suyo; el bloque no suma aparte'],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
   ['Escribir, llamar o proponer un plan', '20–25'], ['Paso de proyecto', 30], ['Misión social', 25], ['Práctica de Bienestar (una vez al día cada una)', '5–15'], ['Chequeo de ánimo', 5],
   ['Objetivo SMART creado', 15], ['Avance en un objetivo (uno al día por objetivo)', 5], ['Objetivo cumplido', 100], ['Tres cosas buenas', 10], ['Journaling', 10], ['Noche sin teléfono en el cuarto (una por mañana)', 10], ['Un cambio en tu teléfono (una vez por paso)', 10], ['Día dentro de tu presupuesto (uno al día)', 10], ['Plan de rescate', 20]];
 function xpSheet() {
-  const T = ES.xp.total, L = nivelDe(T), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
+  const T = xpTotal(), L = nivelDe(T), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
   showSheet(`<h2>Nivel ${L} · ${esc(nivelNombre(L))}</h2>
-    <p class="note">${T} XP en total. Para el nivel ${L + 1} (${esc(nivelNombre(L + 1))}) faltan <b style="color:var(--text)">${b - T} XP</b>. Cada nivel pide 50 × L × (L − 1) XP en total: 100, 300, 600, 1000, 1500…</p>
+    <p class="note">${T} XP en total. Para el nivel ${L + 1} (${esc(nivelNombre(L + 1))}) faltan <b style="color:var(--text)">${b - T} XP</b>. Cada nivel pide 250 × L × (L − 1) XP en total: 500, 1500, 3000, 5000, 7500… Lo que queda sin hacer resta, y si el XP baja, el nivel también.</p>
     <div class="meter"><span>Meta de hoy: ${metaHoy()} XP antes de dormir${metaHoy() !== ES.metaXp ? ` (día corto; la de siempre, ${ES.metaXp})` : ''}</span><b class="${hoy >= metaHoy() ? 'green' : ''}">${hoy} de ${metaHoy()}</b></div><div class="meter-bar"><i style="width:${Math.min(100, hoy / metaHoy() * 100)}%"></i></div>
     <p class="meta" id="xs-sem">${esc(xmSemanaLinea())}. Cinco de siete: dos días libres por semana, sin romper nada.</p>
     ${nochesXpLinea()}
@@ -8768,20 +8824,22 @@ function agTituloEst(it) {
 // con algo pendiente (Prioridades, Tareas, Hábitos…) y la elegida se recuerda en este teléfono durante el día. «Todo» es la lista entera.
 const AG_PEST = [['todo', 'Todo'], ['prio', 'Prioridades'], ['tarea', 'Tareas'], ['habito', 'Hábitos'], ['ini', 'Iniciativas'], ['estudio', 'Estudio'], ['esp', 'Espiritual'], ['bt', 'Bloques'], ['plan', 'Planes'], ['evento', 'Calendario'], ['otro', 'Otras']];
 const AG_PEST_KEY = 'ag-pestana';
-function agPestDe(it) { if (!it) return 'otro'; if (it.foco || it.tipo === 'prio') return 'prio'; if (it.tipo === 'libre') return typeof it.esp === 'string' && it.esp ? 'esp' : 'otro'; return AG_PEST.some(([k]) => k === it.tipo) ? it.tipo : 'otro'; }
-function agPestGuardada() { try { const v = JSON.parse(localStorage.getItem(AG_PEST_KEY) || 'null'); return v && v.d === today() && AG_PEST.some(([k]) => k === v.k) ? v.k : ''; } catch { return ''; } }
-function agPestPoner(k) { try { localStorage.setItem(AG_PEST_KEY, JSON.stringify({ d: today(), k })); } catch {} }
+function agPestDe(it) { if (!it) return 'otro'; if (it.foco || it.tipo === 'prio') return 'prio'; if (it.tipo === 'libre') return typeof it.esp === 'string' && it.esp ? 'esp' : (it.cat && INI4.some(([k]) => k === it.cat)) ? 'ini' : 'otro'; return AG_PEST.some(([k]) => k === it.tipo) ? it.tipo : 'otro'; }
+let agPestMem = null;   // la elegida también en memoria (sin almacenamiento, tocar una pestaña igual la cambia)
+function agPestGuardada() { const ok = v => v && v.d === today() && AG_PEST.some(([k]) => k === v.k) ? v.k : ''; if (ok(agPestMem)) return agPestMem.k; try { return ok(JSON.parse(localStorage.getItem(AG_PEST_KEY) || 'null')); } catch { return ''; } }
+function agPestPoner(k) { agPestMem = { d: today(), k }; try { localStorage.setItem(AG_PEST_KEY, JSON.stringify(agPestMem)); } catch {} }
 function agPestActual(its) {
   const hay = new Set(its.map(agPestDe)), g = agPestGuardada();
   if (g && (g === 'todo' || hay.has(g))) return g;
   const pend = AG_PEST.find(([k]) => k !== 'todo' && k !== 'evento' && its.some(it => agPestDe(it) === k && !agHecho(it)));
-  return pend ? pend[0] : 'todo';
+  const k = pend ? pend[0] : 'todo'; agPestPoner(k);   // queda fijada: al marcar lo último, la vista no salta sola
+  return k;
 }
 function agPestHtml(its, act) {
   const hay = AG_PEST.filter(([k]) => k === 'todo' || its.some(it => agPestDe(it) === k));
   if (hay.length <= 2) return '';   // una sola clase de cosa: sin pestañas
-  return `<div class="chips ag-pest" role="tablist" aria-label="Qué ver de tu agenda">${hay.map(([k, n]) => { const L = k === 'todo' ? its.filter(it => it.tipo !== 'evento') : its.filter(it => agPestDe(it) === k), h = L.filter(it => agHecho(it)).length;
-    return `<button type="button" class="chip${k === act ? ' on' : ''}" role="tab" aria-selected="${k === act}" data-ag-pest="${k}">${esc(n)}<small>${k === 'evento' ? L.length : `${h}/${L.length}`}</small></button>`; }).join('')}</div>`;
+  return `<div class="chips ag-pest" role="tablist" aria-label="Qué ver de tu agenda">${hay.map(([k, n]) => { const L = k === 'todo' ? its.filter(it => it.tipo !== 'evento' && it.tipo !== 'bt') : its.filter(it => agPestDe(it) === k), h = L.filter(it => agHecho(it)).length;
+    return `<button type="button" class="chip${k === act ? ' on' : ''}" role="tab" aria-selected="${k === act}" aria-label="${esc(n)}, ${k === 'evento' ? L.length : `${h} de ${L.length} hechas`}" data-ag-pest="${k}">${esc(n)}<small>${k === 'evento' ? L.length : `${h}/${L.length}`}</small></button>`; }).join('')}</div>`;
 }
 function renderAg() {
   if (!agW) return;
@@ -8805,10 +8863,10 @@ function renderAg() {
       <div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="${org0 ? 'link' : 'primary'}" id="ag-org">${org0 ? 'Reorganizar' : 'Organizar mi día · 2 min'}</button><button class="link" id="ag-add">+ Añadir</button>${its.length > 1 ? '<button class="link" id="ag-rk">Reordenar</button>' : ''}</div>`
     : `<div class="interv"><b>Tu día aún no tiene agenda</b><p>Dos minutos y lo importante queda con hora.</p>
       <div class="row-b"><button class="primary" id="ag-org">Organizar mi día</button>${hayAyer ? '<button class="link" id="ag-copy">Copiar la de ayer</button>' : ''}<button class="link" id="ag-add">Añadir una cosa</button></div></div>`}</div>
-    ${pestHtml}
+    <div class="ag-lista">${pestHtml}
     ${filas.length ? `<div class="rows">${filas.join('')}</div>` : ''}
     ${sinH.length ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows">${sinH.map(fila).join('')}</div><p class="meta">Toca «Poner hora»: con hora se cumple más.</p>` : ''}
-    ${pestHtml && pest !== 'todo' && vis.length && vis.every(it => agHecho(it)) && pest !== 'evento' ? `<p class="meta green ag-pest-fin">Todo hecho en ${esc((AG_PEST.find(([k]) => k === pest) || [])[1] || '').toLowerCase()}.${its.some(it => it.tipo !== 'evento' && !agHecho(it)) ? ' Lo que queda está en las otras pestañas.' : ''}</p>` : ''}
+    ${pestHtml && pest !== 'todo' && vis.length && vis.every(it => agHecho(it)) && pest !== 'evento' ? `<p class="meta green ag-pest-fin">Todo hecho en ${esc((AG_PEST.find(([k]) => k === pest) || [])[1] || '').toLowerCase()}.${its.some(it => it.tipo !== 'evento' && !agHecho(it)) ? ' Lo que queda está en las otras pestañas.' : ''}</p>` : ''}</div>
     ${mananaCard ? `<div style="margin-top:18px">${mananaCard}</div>` : ''}
     ${agpHtml()}
     ${agbBrechaHtml()}
@@ -8817,7 +8875,8 @@ function renderAg() {
       <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p>${window.mtAgendaHtml?.() || ''}</section>
     ${agbMananasHtml()}`;
   agW.querySelector('#ag-org').onclick = () => organizarDia();
-  agW.querySelectorAll('[data-ag-pest]').forEach(b => b.onclick = () => { agPestPoner(b.dataset.agPest); renderAg(); });   // 2.19 (P)
+  agW.querySelectorAll('[data-ag-pest]').forEach(b => b.onclick = () => { const k = b.dataset.agPest; agPestPoner(k); renderAg();   // 2.19 (P)
+    const p = agW.querySelector('.ag-pest'); if (p && p.getBoundingClientRect().top <= 1) p.scrollIntoView({ block: 'start' }); agW.querySelector(`[data-ag-pest="${k}"]`)?.focus({ preventScroll: true }); });
   agW.querySelector('#ag-add').onclick = () => agAddSheet();
   agW.querySelector('#ag-copy')?.addEventListener('click', agCopiarAyer);
   agW.querySelector('#ag-man')?.addEventListener('click', organizarManana);
@@ -9786,7 +9845,7 @@ function xmPorGustoSheet() {
 // ---------- Al subir de nivel (F22): el siguiente tramo y una línea de historia basada en actos.
 // Un tramo es un día con tu meta: el nivel L + 1 pide ceil(XP del nivel ÷ meta de hoy) tramos; el de hoy se cierra llegando a la meta.
 function xmNivelNota(L) {
-  const T = ES.xp.total, a = xpParaNivel(L), b = xpParaNivel(L + 1), m = Math.max(1, metaHoy()), N = Math.ceil((b - a) / m);
+  const T = xpTotal(), a = xpParaNivel(L), b = xpParaNivel(L + 1), m = Math.max(1, metaHoy()), N = Math.ceil((b - a) / m);
   const i = Math.min(N, Math.floor(Math.max(0, T - a) / m) + 1);
   const cierre = xpHoy() < m ? 'Lo cierras hoy si llegas a tu meta.' : 'Lo cierras mañana si llegas a tu meta.';
   const hist = xmHistoria(L);
@@ -16335,7 +16394,7 @@ if (typeof euR !== 'undefined' && euR) {
 // - Niveles por categoría (window.cat?.de en cada premio): Principiante → Maestro con XP y días con actividad a la vez; sin castigos.
 // ====================================================================
 const XP_RANGOS = ['Principiante', 'Aprendiz', 'Intermedio', 'Avanzado', 'Experto', 'Maestro'];
-const XP_R_XP = [0, 300, 1000, 2500, 5000, 10000], XP_R_D = [0, 5, 15, 30, 60, 120];
+const XP_R_XP = [0, 750, 2500, 6000, 12500, 25000], XP_R_D = [0, 10, 30, 60, 120, 240];   // 2.19 (X) · más exigentes
 const XP_CAT_N = { estudio: 'Estudio', proyecto: 'Proyecto', laboral: 'Trabajo', social: 'Social', espiritual: 'Espiritual', salud: 'Salud', otro: 'Otro' };
 const xpCatNombre = c => { try { return window.cat?.nombre?.(c) || XP_CAT_N[c] || ''; } catch { return XP_CAT_N[c] || ''; } };
 const xpMiles = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -16380,6 +16439,7 @@ function xpCatStats() {
     const s = {}; for (const v of Object.values(m || {})) if (v && v.c && v.n > 0) s[v.c] = (s[v.c] || 0) + v.n;
     for (const [c, n] of Object.entries(s)) if (out[c]) { out[c].xp += n; out[c].d++; }
   }
+  for (const m of Object.values(ES.xpPen || {})) for (const v of Object.values(m || {})) if (v && v.c && out[v.c] && v.n > 0) out[v.c].xp = Math.max(0, out[v.c].xp - v.n);   // 2.19 (X) · lo perdido también baja el rango
   return out;
 }
 function xpRangoDe(st) { let i = 0; while (i + 1 < XP_RANGOS.length && st.xp >= XP_R_XP[i + 1] && st.d >= XP_R_D[i + 1]) i++; return i; }
@@ -16424,7 +16484,7 @@ function xpLibroGanar(cant, motivo, ref, o) {
     if (act(ref) || (o.unica && xpActivoAlgunDia(ref))) return false;
   }
   const cat = xpCatDe(ref, o), S0 = cat ? xpCatStats()[cat] : null, r0 = S0 ? xpRangoDe(S0) : 0;
-  const antes = nivelDe(ES.xp.total), metaAntes = xpHoy() >= metaHoy();
+  const antes = nivelDe(xpTotal()), metaAntes = xpHoy() >= metaHoy();
   const L = dia === today() ? xpLibroHoy(true) : ((ES.xpLog ||= {})[dia] ||= {}), key = ref || 'x:' + crypto.randomUUID().slice(0, 8), prev = L[key];
   L[key] = { ...(prev && typeof prev === 'object' ? prev : {}), n: cant, t: Date.now(), c: cat, m: String(motivo || '').slice(0, 80), ...(o.padre ? { p: String(o.padre).slice(0, 160) } : {}) };
   delete L[key].x;
@@ -16433,7 +16493,7 @@ function xpLibroGanar(cant, motivo, ref, o) {
   ES.xp.total = Math.max(0, (+ES.xp.total || 0) + suma); bump('xp', suma, dia); guardar();
   xmPop(suma, motivo);
   renderXp();
-  const ahora = nivelDe(ES.xp.total), visto = Math.max(+ES.xp.visto || 0, antes);
+  const ahora = nivelDe(xpTotal()), visto = Math.max(+ES.xp.visto || 0, antes);
   let rango = -1;
   if (cat) { const r1 = xpRangoDe(xpCatStats()[cat]), vc = ES.xp.vistoCat?.[cat] ?? r0; if (r1 > r0 && r1 > vc) { rango = r1; ES.xp.vistoCat = { ...(ES.xp.vistoCat || {}), [cat]: r1 }; } }
   if (ahora > visto) {
@@ -16486,6 +16546,113 @@ function xpSemanaRevisar() {
 }
 window.xpQuitar = xpQuitar; window.xpDeshecho = xpDeshecho; window.xpActivo = xpActivo;
 window.xpLibro = { stats: xpCatStats, rango: c => { const st = xpCatStats()[c]; return st ? { ...st, rango: XP_RANGOS[xpRangoDe(st)], i: xpRangoDe(st) } : null; }, RANGOS: XP_RANGOS };
+// ====================================================================
+// 2.19.0 (X) · Lo que queda sin hacer resta, y el nivel baja con el XP. Vuelta a Novato (una vez por cuenta) y niveles más exigentes.
+// - Cada día ya cerrado (desde el día siguiente a la vuelta a Novato, hasta 14 días atrás) se revisa una sola vez (ES.xpPenHasta):
+//   un hábito programado que quedó sin hacer, también con «Hoy no», resta 10 (ph:{id}:{día}); no restan un día justificado o protegido,
+//   un hábito «por gusto» (sinXp), una rutina ni los días antes de crearlo. Una tarea que estaba en la agenda de ese día y no se hizo ese día
+//   resta 10 (pt:{id}:{día}); si la tarea ya no existe, no.
+// - Nunca baja de 0: cada pérdida resta como mucho el XP que queda. Un hábito marcado después para ese día devuelve lo que restó (n = 0).
+// - Al bajar de nivel se dice; volver a subir se celebra otra vez (visto baja con el nivel).
+// ====================================================================
+const XP_PEN = 10;
+function xpPenPoner(dia, ref, n, c, m) {
+  const P = (ES.xpPen && typeof ES.xpPen === 'object') ? ES.xpPen : (ES.xpPen = {});
+  if (P[dia]?.[ref]) return 0;
+  const q = Math.max(0, Math.min(n, xpTotal()));
+  (P[dia] ||= {})[ref] = { n: q, t: Date.now(), c: xpCats().includes(c) ? c : '', m: String(m || '').slice(0, 80) };
+  return q;
+}
+function xpHabitoDebia(h, d) {
+  if (!h || h.rutina || h.archivado || h.sinXp) return false;
+  if (h.creado && h.creado > d) return false;
+  if (!isSched(h, d)) return false;
+  const v = mark(h, d); if (v === 'full' || v === 'min') return false;
+  try { if (isJust(h, d)) return false; } catch {}
+  return true;
+}
+function xpCastigos() {
+  const r0 = +ES.xpReinicio2190 || 0; if (!r0) return [];
+  const ayer = dayKey(addDays(new Date(), -1)), desdeR = dayKey(addDays(new Date(r0), 1)), tope = dayKey(addDays(new Date(), -14));
+  let d = ES.xpPenHasta ? dayKey(addDays(new Date(ES.xpPenHasta + 'T12:00'), 1)) : desdeR;
+  if (d < desdeR) d = desdeR; if (d < tope) d = tope;
+  const out = [];
+  for (let i = 0; d <= ayer && i < 20; d = dayKey(addDays(new Date(d + 'T12:00'), 1)), i++) {
+    for (const h of (HT().habits || [])) {
+      if (!xpHabitoDebia(h, d)) continue;
+      let c = ''; try { c = window.cat?.de?.('habito', h) || ''; } catch {}
+      const n = xpPenPoner(d, `ph:${h.id}:${d}`, XP_PEN, c, `Hábito sin hacer: ${h.nombre}`);
+      out.push({ d, tipo: 'Hábito', t: h.nombre, n });
+    }
+    const A = ES.agendaHoy?.fecha === d ? ES.agendaHoy.items : ES.agendaHist?.[d];
+    const vistas = new Set();
+    for (const it of Array.isArray(A) ? A : []) {
+      if (!it || it.tipo !== 'tarea' || vistas.has(it.ref)) continue; vistas.add(it.ref);
+      const x = (HT().tareas?.items || []).find(y => y && y.id === it.ref); if (!x) continue;
+      const hecha = x.hecha && (+x.hechaEn > 0 ? dayKey(new Date(+x.hechaEn)) <= d : true);
+      if (hecha || it.hecho) continue;
+      let c = ''; try { c = window.cat?.de?.('tarea', x) || ''; } catch {}
+      const n = xpPenPoner(d, `pt:${x.id}:${d}`, XP_PEN, c, `Tarea de la agenda sin hacer: ${x.titulo}`);
+      out.push({ d, tipo: 'Tarea', t: x.titulo, n });
+    }
+    ES.xpPenHasta = d;
+  }
+  return out;
+}
+// Un hábito marcado (después) para un día que ya había restado: lo restado vuelve. Corre al guardar; solo toca lo que cambia.
+window.xpPenLevantar = () => {
+  try {
+    const P = ES.xpPen; if (!P || typeof P !== 'object') return;
+    for (const [d, m] of Object.entries(P)) for (const [ref, v] of Object.entries(m || {})) {
+      if (!v || !(v.n > 0) || !ref.startsWith('ph:')) continue;
+      const id = ref.slice(3, ref.length - 11), h = (HT().habits || []).find(x => x && x.id === id);
+      if (h && !xpHabitoDebia(h, d)) { v.n = 0; v.t = Date.now(); }
+    }
+  } catch {}
+};
+// La vuelta a Novato: una sola vez por cuenta (con cuenta, solo después de combinar con la nube; el otro teléfono la recibe al sincronizar).
+function xpReiniciar() {
+  if (+ES.xpReinicio2190 > 0) return false;
+  const hoy = today();
+  ES.xpReinicio2190 = Date.now();
+  ES.xp = { total: 0, base: 0, baseHasta: hoy, antes: 0, baseCat: {}, diasCat: {}, visto: 1, vistoCat: {} };
+  ES.xpLog = {}; ES.xpPen = {}; ES.xpPenBase = 0; ES.xpPenHasta = dayKey(addDays(new Date(), -1));
+  ES.dias[hoy] = { ...dayOf(hoy), xp: 0 };
+  return true;
+}
+let xpArrancando = false;
+window.xpArranque = () => {
+  if (xpArrancando || !(nubeLista || !(auth || window.claude?.use))) return;
+  xpArrancando = true;
+  try {
+    const nuevo = xpReiniciar(), L0 = nivelDe(xpTotal()), P = xpCastigos(), L1 = nivelDe(xpTotal());
+    if (L1 < L0 || L1 < (+ES.xp.visto || 0)) ES.xp.visto = L1;   // volver a subir se celebra otra vez
+    if (nuevo || P.length) { guardar(); renderXp(); try { renderAll(); } catch {} }
+    if (nuevo) xpAvisoNovato();
+    else if (P.length) xpAvisoPerdido(P, L0, L1);
+  } finally { xpArrancando = false; }
+};
+function xpAvisoNovato() {
+  const ver = () => showSheet(`<div style="text-align:center"><p class="meta" style="margin:0">Desde hoy</p><div class="lvl-big">1</div><h2 style="margin:0">Novato</h2></div>
+    <p class="note" style="margin-top:14px">Empiezas de cero, con niveles mucho más exigentes: el nivel 2 pide ${xpParaNivel(2)} XP, el 3 ${xpParaNivel(3)} y el 5 ${xpParaNivel(5)}.</p>
+    <p class="note">Y ahora el XP también se pierde: cada día que un hábito programado queda sin hacer resta ${XP_PEN}, y cada tarea de la agenda del día que no se hizo ese día, ${XP_PEN}. Si el XP baja, el nivel baja: para subir hay que hacer, y para mantenerse, seguir haciendo.</p>
+    <p class="meta">Un día justificado o protegido y los hábitos «por gusto» no restan. Si marcas después un hábito para ese día, lo restado vuelve.</p>
+    <div class="actions"><button class="primary" id="xn-ok">Entendido</button></div>`) || $('#xn-ok') && ($('#xn-ok').onclick = closeSheet);
+  if (sheet.open) setTimeout(() => { if (!sheet.open) ver(); }, 4000); else ver();
+}
+function xpAvisoPerdido(P, L0, L1) {
+  const tot = P.reduce((s, x) => s + x.n, 0), dias = [...new Set(P.map(x => x.d))];
+  const quien = d => d === dayKey(addDays(new Date(), -1)) ? 'Ayer' : cap(fechaLarga(d));
+  const html = `<p class="meta" style="margin:0">Lo que quedó sin hacer</p><h2 style="margin:4px 0 6px">−${tot} XP</h2>
+    ${L1 < L0 ? `<p class="note red" style="margin:0 0 10px">Bajaste al nivel ${L1} · ${esc(nivelNombre(L1))}. Para volver al ${L0}, ${xpParaNivel(L0) - xpTotal()} XP.</p>` : ''}
+    ${dias.map(d => `<p class="meta" style="margin:12px 0 4px"><b style="color:var(--text)">${esc(quien(d))}</b></p><div class="rows">${P.filter(x => x.d === d).map(x => `<div class="row" style="padding:7px 0"><span class="t"><div style="white-space:normal">${esc(x.t)}</div><small>${esc(x.tipo)}</small></span><span class="tag">−${x.n}</span></div>`).join('')}</div>`).join('')}
+    <p class="meta" style="margin-top:12px">Si un hábito sí lo hiciste, márcalo para ese día en su calendario y lo restado vuelve.</p>
+    <div class="actions"><button class="primary" id="xp-pen-ok">Entendido</button></div>`;
+  const ver = () => { showSheet(html); $('#xp-pen-ok').onclick = closeSheet; };
+  if (sheet.open) { toast(`−${tot} XP por lo que quedó sin hacer${L1 < L0 ? ` · nivel ${L1}` : ''}.`); setTimeout(() => { if (!sheet.open) ver(); }, 4500); } else ver();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') window.xpArranque?.(); });
+setInterval(() => { if (ES.xpPenHasta && ES.xpPenHasta < dayKey(addDays(new Date(), -1))) window.xpArranque?.(); }, 60000);
 // ---------- Tareas (y tareas o entregas de una ruta): +5, una vez por tarea y día, dentro del tope de 50 al día.
 // Una tarea espejo de un pendiente de Estudio usa la referencia del pendiente: marcarla en Tareas o en Estudio cuenta una vez.
 const xpRefTarea = x => x && x.est && typeof x.est === 'object' && !x.est.examen && typeof x.est.id === 'string' && x.est.id ? 'pe:' + x.est.id : 't:' + (x?.id || '');
@@ -16584,7 +16751,7 @@ try {
 let xpChipHtml = '';
 function xpChip() {
   const b = document.getElementById('xp-chip'); if (!b) return;
-  const T = +ES.xp?.total || 0, L = nivelDe(T), a = xpParaNivel(L), z = xpParaNivel(L + 1), hoy = xpHoy(), meta = metaHoy();
+  const T = xpTotal(), L = nivelDe(T), a = xpParaNivel(L), z = xpParaNivel(L + 1), hoy = xpHoy(), meta = metaHoy();
   const w = Math.max(0, Math.min(100, Math.round((T - a) / Math.max(1, z - a) * 100)));
   const html = `<b>Nivel ${L} · ${esc(nivelNombre(L))}</b> <span class="xc-bar" aria-hidden="true"><i style="width:${w}%"></i></span> <span class="xc-hoy${hoy >= meta ? ' ok' : ''}">${hoy} / ${meta} XP hoy</span>`;
   if (html !== xpChipHtml) { b.innerHTML = html; xpChipHtml = html; b.setAttribute('aria-label', `Nivel ${L}, ${nivelNombre(L)}: ${hoy} de ${meta} XP hoy. Toca para ver cómo se gana.`); }
@@ -17455,6 +17622,7 @@ function avisosSheet() {
 window.renderEnfoque = () => renderE();
 window.enfoqueArranque = () => {
   e2bApertura();
+  setTimeout(() => window.xpArranque?.(), 300);   // 2.19 (X) · sin cuenta, de una vez; con cuenta, espera a la nube
   renderE();
   if (ES.sesion) { irA('enfoque'); if (focusLeft() <= 0) finishFocus(true); else { if (ES.sesion.fuera) { ES.sesion.ints++; ES.sesion.fuera = 0; guardar(); } showFocus(); } }
   else if (ES.salida) { irA('enfoque'); checkSalida(true); }
