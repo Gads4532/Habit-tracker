@@ -1061,7 +1061,7 @@ const setSync = st => {
   $('#sync').textContent = SYNC_TEXT[st] + hora;
   $('#sync').classList.toggle('bad', st === 'error' || st === 'notable');
   $('#nocloud').hidden = !!(window.claude?.use || auth);
-  try { if (view === 'inicio') window.renderInicio?.(); } catch {}   // 2.19.1 · la tarjeta de la cuenta del Inicio
+  try { if (view === 'inicio') window.pintarCuentaInicio?.(); } catch {}   // 2.19.1 · la tarjeta de la cuenta del Inicio
 };
 
 let retryTimer = 0, savedAt = 0;
@@ -1141,7 +1141,7 @@ function renderAccount() {
   $('#acct-in')?.addEventListener('click', accountForm);
   $('#nocloud-go').onclick = () => accountForm('up');
   $('#acct-out')?.addEventListener('click', signOut);
-  try { if (view === 'inicio') window.renderInicio?.(); } catch {}   // 2.19.1
+  try { if (view === 'inicio') window.pintarCuentaInicio?.(); } catch {}   // 2.19.1
 }
 
 function accountForm(mode = 'in') {
@@ -13829,8 +13829,12 @@ const INI_CSS = `
   .ini-cta .ini-cta-t { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
   .ini-cta .ini-cta-t svg { flex: none; width: 30px; height: 30px; }
   .ini-cta b { font-size: 1.18rem; font-weight: 700; line-height: 1.25; }
-  .ini-cta p { margin: 0 0 14px; font-size: .95rem; color: var(--muted); line-height: 1.45; }
+  .ini-cta p { margin: 0 0 14px; font-size: .95rem; color: var(--text); opacity: .85; line-height: 1.45; }
   .ini-cta .primary { width: 100%; min-height: 52px; font-size: 1.05rem; }
+  .ini-cta #ini-entrar, .ini-cta #ini-salir { border: 1.5px solid var(--text); color: var(--text); background: transparent; }
+  .ini-cta #ini-entrar { width: 100%; min-height: 48px; margin-top: 10px; font-size: 1rem; }
+  .ini-cta #ini-salir { min-height: 44px; padding: 0 18px; }
+  .ini-cta .ini-cta-acc span { font-size: .92rem; color: var(--text); }
   .ini-cta.ok { padding: 14px 16px; }
   .ini-cta.ok p { margin: 0; }
   .ini-cta.ok .ini-cta-acc { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
@@ -13915,12 +13919,22 @@ function iniCuentaHtml() {
   if (!auth) return `<section class="ini-cta" aria-label="Tu cuenta"><div class="ini-cta-t">${nube}<b>Guarda tu progreso en la nube</b></div>
     <p>Ahora todo está solo en este teléfono. Con una cuenta (correo y contraseña) se guarda en línea y lo ves igual en cualquier teléfono o computadora.</p>
     <button class="primary" id="ini-cuenta">Crear cuenta</button>
-    <p style="margin:12px 0 0;text-align:center">¿Ya tienes cuenta? <button class="link" id="ini-entrar">Iniciar sesión</button></p></section>`;
+    <button class="outline" id="ini-entrar">Iniciar sesión</button></section>`;
   const st = String(document.getElementById('sync')?.textContent || '').replace(/^·\s*/, '').trim(), mal = document.getElementById('sync')?.classList.contains('bad');
   return `<section class="ini-cta ok" aria-label="Tu cuenta"><div class="ini-cta-t">${nube}<b>Tu cuenta</b></div>
     <p>${esc(auth.email || '')}</p>
-    <div class="ini-cta-acc"><span class="meta${mal ? ' bad' : ''}" style="margin:0">${esc(st || 'Conectada')}</span><button class="link" id="ini-salir">Cerrar sesión</button></div></section>`;
+    <div class="ini-cta-acc"><span class="${mal ? 'bad' : ''}">${esc(st || 'Conectada')}</span><button class="outline" id="ini-salir">Cerrar sesión</button></div></section>`;
 }
+// Solo la tarjeta, y solo si cambió: el guardado y la sincronización (cada 30 s) no repintan el Inicio ni le quitan el foco a nada.
+window.pintarCuentaInicio = () => {
+  const html = iniCuentaHtml(), cur = iniW.querySelector('.ini-cta');
+  if (!html) { cur?.remove(); return; }
+  const t = document.createElement('template'); t.innerHTML = html; const nueva = t.content.firstElementChild;
+  if (cur && cur.outerHTML === nueva.outerHTML) return;
+  const foco = cur && iniR?.activeElement && cur.contains(iniR.activeElement);
+  if (cur) cur.replaceWith(nueva); else iniW.prepend(nueva);
+  if (foco) (nueva.querySelector('button') || nueva).focus?.();
+};
 document.getElementById('ir-inicio')?.addEventListener('click', () => irA('inicio'));
 window.renderInicio = renderInicio;
 
