@@ -621,7 +621,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.0';
+const APP_VERSION = '2.19.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1061,6 +1061,7 @@ const setSync = st => {
   $('#sync').textContent = SYNC_TEXT[st] + hora;
   $('#sync').classList.toggle('bad', st === 'error' || st === 'notable');
   $('#nocloud').hidden = !!(window.claude?.use || auth);
+  try { if (view === 'inicio') window.pintarCuentaInicio?.(); } catch {}   // 2.19.1 · la tarjeta de la cuenta del Inicio
 };
 
 let retryTimer = 0, savedAt = 0;
@@ -1140,6 +1141,7 @@ function renderAccount() {
   $('#acct-in')?.addEventListener('click', accountForm);
   $('#nocloud-go').onclick = () => accountForm('up');
   $('#acct-out')?.addEventListener('click', signOut);
+  try { if (view === 'inicio') window.pintarCuentaInicio?.(); } catch {}   // 2.19.1
 }
 
 function accountForm(mode = 'in') {
@@ -8829,7 +8831,11 @@ const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_C
   .ag-top { margin: 0 0 12px; } button.tag { color: var(--muted); padding: 8px 0 8px 10px; }
   .ag-pest { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0 10px; margin: 0 0 4px; border-bottom: 1px solid var(--line); }
   .ag-pest .chip { font-variant-numeric: tabular-nums; } .ag-pest .chip small { color: inherit; opacity: .7; font-size: .8em; margin-left: 4px; }
-  .ag-pest-fin { margin: 10px 0 0; }`;
+  .ag-pest-fin { margin: 10px 0 0; }
+  .ag-mas { margin-top: 30px; border-top: 1px solid var(--line); }
+  .ag-mas > summary { cursor: pointer; list-style: none; padding: 16px 0 10px; font-size: .82rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .ag-mas > summary::after { content: ' ›'; } .ag-mas[open] > summary::after { content: ' ⌄'; }
+  .ag-it .t small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }`;
 const agW = document.createElement('div'); agW.className = 'enf'; agR.append(agStyle, agW);
 // 2.17.1 (U) · Un bloque de estudio muestra primero lo que toca (el tema) y después la materia: dos bloques de la misma materia se
 // distinguen aunque el título se corte. Lo demás, su texto tal cual.
@@ -8843,6 +8849,10 @@ function agTituloEst(it) {
 // con algo pendiente (Prioridades, Tareas, Hábitos…) y la elegida se recuerda en este teléfono durante el día. «Todo» es la lista entera.
 const AG_PEST = [['todo', 'Todo'], ['prio', 'Prioridades'], ['tarea', 'Tareas'], ['habito', 'Hábitos'], ['ini', 'Iniciativas'], ['estudio', 'Estudio'], ['esp', 'Espiritual'], ['bt', 'Bloques'], ['plan', 'Planes'], ['evento', 'Calendario'], ['otro', 'Otras']];
 const AG_PEST_KEY = 'ag-pestana';
+// 2.19.1 · «La agenda… lo más simple posible para que no se vea saturada sino fácil de ver»: arriba solo el avance, las pestañas y la lista;
+// otros días, objetivos, metas y mañanas protegidas, plegados en «Más» (abierto o cerrado, recordado en el teléfono).
+function agMasAbierto() { try { return localStorage.getItem('ag-mas') === '1'; } catch { return false; } }
+function agMasPoner(v) { try { localStorage.setItem('ag-mas', v ? '1' : '0'); } catch {} }
 function agPestDe(it) { if (!it) return 'otro'; if (it.foco || it.tipo === 'prio') return 'prio'; if (it.tipo === 'libre') return typeof it.esp === 'string' && it.esp ? 'esp' : (it.extraIni && it.cat && INI4.some(([k]) => k === it.cat)) ? 'ini' : 'otro'; return AG_PEST.some(([k]) => k === it.tipo) ? it.tipo : 'otro'; }
 let agPestMem = null;   // la elegida también en memoria (sin almacenamiento, tocar una pestaña igual la cambia)
 function agPestGuardada() { const ok = v => v && v.d === today() && AG_PEST.some(([k]) => k === v.k) ? v.k : ''; if (ok(agPestMem)) return agPestMem.k; try { return ok(JSON.parse(localStorage.getItem(AG_PEST_KEY) || 'null')); } catch { return ''; } }
@@ -8869,7 +8879,7 @@ function renderAg() {
   const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length, P = planManana(), tarde = now >= 18 * 60;
   const fila = it => { const ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, s = smartDe(agSmartSrc(it)), fo = !!it.foco;
     return `<div class="row ag-it${ok ? ' ok' : ''}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}">${agRkHtml(it, its)}<button class="box" data-chk="${esc(it.id)}" aria-label="Hecha" style="${ok ? 'background:var(--green);border-color:var(--green)' : ''};width:20px;height:20px"></button>
-      <button class="t" data-open="${esc(it.id)}" style="text-align:left"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}</div><small>${fo ? 'Los avisos de la app callan en este bloque' : esc(agEtqCat(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''} ${smartDots(s)}${tardeIt ? ' · <span class="amber">pasó la hora</span>' : ''}</small></button>
+      <button class="t" data-open="${esc(it.id)}" style="text-align:left"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}</div><small>${fo ? 'Bloque protegido' : esc(agEtqCat(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''}</small></button>
       <button class="tag" data-open="${esc(it.id)}" style="${tardeIt ? 'color:var(--amber)' : ''}">${it.h ? fmtHora(it.h) : 'Poner hora'}</button></div>`; };
   const filas = []; let marcado = false;
   for (const it of conH) { if (!marcado && toMin(it.h) > now) { filas.push(`<div class="ag-now"><span>Ahora · ${fmtHora(hhmm(new Date()))}</span></div>`); marcado = true; } filas.push(fila(it)); }
@@ -8887,13 +8897,15 @@ function renderAg() {
     ${sinH.length ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows">${sinH.map(fila).join('')}</div><p class="meta">Toca «Poner hora»: con hora se cumple más.</p>` : ''}
     ${pestHtml && pest !== 'todo' && vis.length && vis.every(it => agHecho(it)) && pest !== 'evento' ? `<p class="meta green ag-pest-fin">Todo hecho en ${esc((AG_PEST.find(([k]) => k === pest) || [])[1] || '').toLowerCase()}.${its.some(it => it.tipo !== 'evento' && !agHecho(it)) ? ' Lo que queda está en las otras pestañas.' : ''}</p>` : ''}</div>
     ${mananaCard ? `<div style="margin-top:18px">${mananaCard}</div>` : ''}
+    <details class="ag-mas"${agMasAbierto() ? ' open' : ''}><summary>Más: otros días, objetivos y metas</summary>
     ${agpHtml()}
     ${agbBrechaHtml()}
-    <section style="margin-top:28px"><h3>Objetivos SMART</h3>
+    <section style="margin-top:20px"><h3>Objetivos SMART</h3>
       ${objs.length ? `<div class="rows">${objs.map(o => { const d = objDias(o), pct = objPct(o); return `<button class="row ag-obj" data-obj="${esc(o.id)}"><span class="dot" style="--c:${d !== null && d < 0 ? 'var(--red)' : 'var(--accent)'}"></span><span class="t"><div>${esc(o.t)}</div><small>${o.actual} de ${o.meta} ${esc(o.unidad)}${agbRitmoCorto(o) ? ' · ' + esc(agbRitmoCorto(o)) : ''}${d !== null ? ` · ${d < 0 ? 'vencido' : d === 0 ? 'vence hoy' : `${d} días`}` : ''}</small></span><span class="tag">${pct} %</span></button>`; }).join('')}</div>` : '<p class="empty">Un objetivo con número y fecha convierte las iniciativas en avance. Crea el primero.</p>'}
       <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p>${window.mtAgendaHtml?.() || ''}</section>
-    ${agbMananasHtml()}`;
+    ${agbMananasHtml()}</details>`;
   agW.querySelector('#ag-org').onclick = () => organizarDia();
+  agW.querySelector('.ag-mas')?.addEventListener('toggle', e => agMasPoner(e.target.open));   // 2.19.1 · se recuerda abierto o cerrado
   agW.querySelectorAll('[data-ag-pest]').forEach(b => b.onclick = () => { const k = b.dataset.agPest; agPestPoner(k); renderAg();   // 2.19 (P)
     const p = agW.querySelector('.ag-pest'); if (p && p.getBoundingClientRect().top <= 1) p.scrollIntoView({ block: 'start' }); agW.querySelector(`[data-ag-pest="${k}"]`)?.focus({ preventScroll: true }); });
   agW.querySelector('#ag-add').onclick = () => agAddSheet();
@@ -13812,7 +13824,21 @@ const INI_CSS = `
   .ini .ico svg { width: 24px; height: 24px; display: block; }
   .ini .row .t div { white-space: normal; overflow: visible; text-overflow: clip; font-weight: 500; line-height: 1.3; }
   .ini .row .t small { white-space: normal; overflow: visible; text-overflow: clip; margin-top: 2px; line-height: 1.35; }
-  .ini .chev { flex: none; color: var(--muted); font-size: 1.3rem; line-height: 1; padding-right: 2px; }`;
+  .ini .chev { flex: none; color: var(--muted); font-size: 1.3rem; line-height: 1; padding-right: 2px; }
+  .ini-cta { background: var(--soft); border-radius: 18px; padding: 18px 18px 16px; margin: 0 0 26px; }
+  .ini-cta .ini-cta-t { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
+  .ini-cta .ini-cta-t svg { flex: none; width: 30px; height: 30px; }
+  .ini-cta b { font-size: 1.18rem; font-weight: 700; line-height: 1.25; }
+  .ini-cta p { margin: 0 0 14px; font-size: .95rem; color: var(--text); opacity: .85; line-height: 1.45; }
+  .ini-cta .primary { width: 100%; min-height: 52px; font-size: 1.05rem; }
+  .ini-cta #ini-entrar, .ini-cta #ini-salir { border: 1.5px solid var(--text); color: var(--text); background: transparent; }
+  .ini-cta #ini-entrar { width: 100%; min-height: 48px; margin-top: 10px; font-size: 1rem; }
+  .ini-cta #ini-salir { min-height: 44px; padding: 0 18px; }
+  .ini-cta .ini-cta-acc span { font-size: .92rem; color: var(--text); }
+  .ini-cta.ok { padding: 14px 16px; }
+  .ini-cta.ok p { margin: 0; }
+  .ini-cta.ok .ini-cta-acc { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+  .ini-cta .bad { color: var(--red); }`;
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS; iniR.append(iniStyle, iniW); }
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
@@ -13874,12 +13900,41 @@ function renderInicio() {
   const fila = x => { const l = iniLinea(x.v);
     return `<button class="row" data-ir="${esc(x.v)}"><span class="ico" aria-hidden="true">${x.svg}</span><span class="t"><div>${esc(x.t)}</div>${l ? `<small>${esc(l)}</small>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>`; };
   const grupo = (nombre, L) => L.length ? `<h3>${esc(nombre)}</h3><div class="rows">${L.map(fila).join('')}</div>` : '';
-  let html = '';
+  let html = iniCuentaHtml();   // 2.19.1 · la cuenta, arriba y grande
   for (const [nombre, vs] of INI_GRUPOS) { const L = vs.map(v => por.get(v)).filter(Boolean); for (const x of L) usados.add(x.v); html += grupo(nombre, L); }
   html += grupo('Más', B.filter(x => !usados.has(x.v)));
   iniW.innerHTML = html || '<p class="note">Sin secciones que mostrar.</p>';
 }
-iniW.addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if (b) irA(b.dataset.ir); });
+iniW.addEventListener('click', e => {
+  if (e.target.closest('#ini-cuenta')) { accountForm('up'); return; }
+  if (e.target.closest('#ini-entrar')) { accountForm('in'); return; }
+  if (e.target.closest('#ini-salir')) { signOut(); return; }
+  const b = e.target.closest('[data-ir]'); if (b) irA(b.dataset.ir);
+});
+// 2.19.1 · «No veo la opción de agregar cuenta» → «Ponla en el inicio y grande». Sin cuenta, una tarjeta grande arriba de todo con
+// «Crear cuenta» e «Iniciar sesión»; con cuenta, el correo, el estado de la nube y «Cerrar sesión». En el asistente de Claude no sale.
+function iniCuentaHtml() {
+  if (window.claude?.use) return '';
+  const nube = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg>';
+  if (!auth) return `<section class="ini-cta" aria-label="Tu cuenta"><div class="ini-cta-t">${nube}<b>Guarda tu progreso en la nube</b></div>
+    <p>Ahora todo está solo en este teléfono. Con una cuenta (correo y contraseña) se guarda en línea y lo ves igual en cualquier teléfono o computadora.</p>
+    <button class="primary" id="ini-cuenta">Crear cuenta</button>
+    <button class="outline" id="ini-entrar">Iniciar sesión</button></section>`;
+  const st = String(document.getElementById('sync')?.textContent || '').replace(/^·\s*/, '').trim(), mal = document.getElementById('sync')?.classList.contains('bad');
+  return `<section class="ini-cta ok" aria-label="Tu cuenta"><div class="ini-cta-t">${nube}<b>Tu cuenta</b></div>
+    <p>${esc(auth.email || '')}</p>
+    <div class="ini-cta-acc"><span class="${mal ? 'bad' : ''}">${esc(st || 'Conectada')}</span><button class="outline" id="ini-salir">Cerrar sesión</button></div></section>`;
+}
+// Solo la tarjeta, y solo si cambió: el guardado y la sincronización (cada 30 s) no repintan el Inicio ni le quitan el foco a nada.
+window.pintarCuentaInicio = () => {
+  const html = iniCuentaHtml(), cur = iniW.querySelector('.ini-cta');
+  if (!html) { cur?.remove(); return; }
+  const t = document.createElement('template'); t.innerHTML = html; const nueva = t.content.firstElementChild;
+  if (cur && cur.outerHTML === nueva.outerHTML) return;
+  const foco = cur && iniR?.activeElement && cur.contains(iniR.activeElement);
+  if (cur) cur.replaceWith(nueva); else iniW.prepend(nueva);
+  if (foco) (nueva.querySelector('button') || nueva).focus?.();
+};
 document.getElementById('ir-inicio')?.addEventListener('click', () => irA('inicio'));
 window.renderInicio = renderInicio;
 
@@ -16578,7 +16633,7 @@ window.xpLibro = { stats: xpCatStats, rango: c => { const st = xpCatStats()[c]; 
 // - Nunca baja de 0: cada pérdida resta como mucho el XP que queda. Un hábito marcado después para ese día devuelve lo que restó (n = 0).
 // - Al bajar de nivel se dice; volver a subir se celebra otra vez (visto baja con el nivel).
 // ====================================================================
-const XP_PEN = 10, XP_INICIO = '2026-11-04';   // «Mañana empezamos con el cambio de XP» (dicho el 3 de noviembre de 2026)
+const XP_PEN = 10, XP_INICIO = '2026-11-04', XP_REINICIO_DESDE = '2026-11-03';   // «Ponme en nivel 1… empecemos desde 0 con las reglas comenzando mañana» (3 de noviembre de 2026): el 0 ya; lo que resta, desde el 4
 function xpPenPoner(dia, ref, n, c, m) {
   const P = (ES.xpPen && typeof ES.xpPen === 'object') ? ES.xpPen : (ES.xpPen = {});
   if (P[dia]?.[ref]) return 0;
@@ -16647,7 +16702,7 @@ window.xpPenLevantar = () => {
 // La vuelta a Novato: una sola vez por cuenta (con cuenta, solo después de combinar con la nube; el otro teléfono la recibe al sincronizar).
 function xpReiniciar() {
   if (+ES.xpReinicio2190 > 0) return false;
-  const hoy = today(); if (hoy < XP_INICIO) return false;   // hasta el 4 de noviembre, todo como antes
+  const hoy = today(); if (hoy < XP_REINICIO_DESDE) return false;   // 2.19.1 · la vuelta a Novato, desde el 3; lo que resta, desde el 4 (XP_INICIO)
   ES.xpReinicio2190 = Date.now();
   ES.xp = { total: 0, base: 0, baseHasta: hoy, antes: 0, baseCat: {}, diasCat: {}, visto: 1, vistoCat: {}, r: ES.xpReinicio2190 };
   ES.xpLog = {}; ES.xpPen = {}; ES.xpPenBase = 0; ES.xpPenBaseCat = {}; ES.xpPenHasta = dayKey(addDays(new Date(), -1));
@@ -16670,9 +16725,9 @@ window.xpArranque = () => {
   } finally { xpArrancando = false; }
 };
 function xpAvisoNovato() {
-  const ver = () => showSheet(`<div style="text-align:center"><p class="meta" style="margin:0">Desde hoy</p><div class="lvl-big">1</div><h2 style="margin:0">Novato</h2></div>
+  const ver = () => showSheet(`<div style="text-align:center"><p class="meta" style="margin:0">Desde hoy, de cero</p><div class="lvl-big">1</div><h2 style="margin:0">Novato</h2></div>
     <p class="note" style="margin-top:14px">Empiezas de cero, con niveles mucho más exigentes: el nivel 2 pide ${xpParaNivel(2)} XP, el 3 ${xpParaNivel(3)} y el 5 ${xpParaNivel(5)}.</p>
-    <p class="note">Y ahora el XP también se pierde: cada día que un hábito programado queda sin hacer resta ${XP_PEN}, y cada tarea de la agenda del día que no se hizo ese día, ${XP_PEN}. Si el XP baja, el nivel baja: para subir hay que hacer, y para mantenerse, seguir haciendo.</p>
+    <p class="note">Y ${today() < XP_INICIO ? 'desde mañana' : 'ahora'} el XP también se pierde: cada día que un hábito programado queda sin hacer resta ${XP_PEN}, y cada tarea de la agenda del día que no se hizo ese día, ${XP_PEN}. Si el XP baja, el nivel baja: para subir hay que hacer, y para mantenerse, seguir haciendo.</p>
     <p class="meta">Un día justificado o protegido y los hábitos «por gusto» no restan. Si un día no pudiste por una razón válida, justifícalo en el calendario del hábito (hasta ${JUST_PER_MONTH} al mes) y lo restado vuelve.</p>
     <div class="actions"><button class="primary" id="xn-ok">Entendido</button></div>`) || $('#xn-ok') && ($('#xn-ok').onclick = closeSheet);
   if (sheet.open) setTimeout(() => { if (!sheet.open) ver(); }, 4000); else ver();
@@ -16689,7 +16744,7 @@ function xpAvisoPerdido(P, L0, L1) {
   if (sheet.open) { toast(`−${tot} XP por lo que quedó sin hacer${L1 < L0 ? ` · nivel ${L1}` : ''}.`); setTimeout(() => { if (!sheet.open) ver(); }, 4500); } else ver();
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !(auth || window.claude?.use)) window.xpArranque?.(); });   // con cuenta, después de combinar (nubeCombinada)
-setInterval(() => { if ((!xpNuevo() && today() >= XP_INICIO) || (ES.xpPenHasta && ES.xpPenHasta < dayKey(addDays(new Date(), -1)))) window.xpArranque?.(); }, 60000);
+setInterval(() => { if ((!xpNuevo() && today() >= XP_REINICIO_DESDE) || (ES.xpPenHasta && ES.xpPenHasta < dayKey(addDays(new Date(), -1)))) window.xpArranque?.(); }, 60000);
 // ---------- Tareas (y tareas o entregas de una ruta): +5, una vez por tarea y día, dentro del tope de 50 al día.
 // Una tarea espejo de un pendiente de Estudio usa la referencia del pendiente: marcarla en Tareas o en Estudio cuenta una vez.
 const xpRefTarea = x => x && x.est && typeof x.est === 'object' && !x.est.examen && typeof x.est.id === 'string' && x.est.id ? 'pe:' + x.est.id : 't:' + (x?.id || '');
