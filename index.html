@@ -443,6 +443,7 @@
   </header>
   <div id="view-inicio" hidden></div>
   <div id="view-identidad" hidden></div>
+  <div id="view-metas" hidden></div>
   <div id="view-espiritu" hidden></div>
   <div id="view-enfoque" hidden></div>
   <div id="view-ia" hidden></div>
@@ -482,6 +483,9 @@
   </button>
   <button class="tab" data-view="identidad">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-4 3.4-7 7.5-7s7.5 3 7.5 7"/><path d="M15.5 4.5a4 4 0 0 1 0 7"/></svg>Identidad
+  </button>
+  <button class="tab" data-view="metas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20.5l6.5-11 4 6.5 2.5-4 5 8.5z"/><path d="M15 6.5V2.5l3.5 1.5L15 5.5"/></svg>Metas
   </button>
   <button class="tab" data-view="espiritu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M7 8.5h10"/></svg>Vida espiritual
@@ -617,7 +621,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.17.2';
+const APP_VERSION = '2.18.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -799,7 +803,8 @@ function normEnfoque(e) {
   if (!Array.isArray(e.objetivos)) e.objetivos = [];
   for (const o of e.objetivos) { o.id ||= crypto.randomUUID(); o.t ||= ''; o.metrica ||= ''; o.meta = +o.meta || 1; o.actual = +o.actual || 0; o.unidad ||= 'veces'; o.area ||= 'otro'; o.porque ||= ''; o.paso ||= ''; o.fecha ||= ''; o.creado ||= hoy; o.hecho = !!o.hecho; if (!Array.isArray(o.avances)) o.avances = []; for (const a of o.avances) a.n = +a.n || 0; }
   e.bienvenida = !!e.bienvenida;
-  e.bloquesT = btNormT(e.bloquesT); e.bloquesTBorrar = btNormTBorrar(e.bloquesTBorrar);   // 2.16 (B) · bloques de tiempo (≤ 300, 60 días) y eventos por quitar de Google Calendar (≤ 100)
+  e.bloquesT = btNormT(e.bloquesT); e.bloquesTBorrar = btNormTBorrar(e.bloquesTBorrar);
+  e.metas = mtNorm(e.metas);   // 2.18 (M) · metas a largo plazo (≤ 40): etapas, avances, vínculos y revisiones   // 2.16 (B) · bloques de tiempo (≤ 300, 60 días) y eventos por quitar de Google Calendar (≤ 100)
   e.espiritu = espNorm(e.espiritu);   // 2.15 (V) · Vida espiritual: normas (≤ 40), hechos (120 días), propósitos (60 días), jaculatoria, configurado
   e.estudio = estNorm(e.estudio);   // 2.14 · Estudio: materias, rutas (temas, config, plan, hechos, pendientes) y cfg; defensivo, acotado
   // 2.13 (J) · Lo que el cierre dejó para mañana por una identidad sin votos: { id, t, d }; se descarta si ya pasó el día.
@@ -867,7 +872,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -887,6 +892,7 @@ const elapsedOf = h => { const t = state.timers[h.id]; return t ? t.acum + (t.st
 const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function save() {
   window.avAntesDeGuardar?.();   // 2.12 · avisos: lo que llegó desde una notificación y las horas de los hábitos
+  window.mtTrasGuardar?.();   // 2.18 (M) · lo recién creado desde «Crear algo nuevo para esta meta» queda vinculado
   state.cambiado = Date.now();
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
   pushCloud();
@@ -1000,7 +1006,7 @@ function mergeStates(a, b) {
       for (const i of x) { const o = m.get(i.id); if (!o) { m.set(i.id, i); continue; } const gana = (+i.cambiado || 0) >= (+o.cambiado || 0) ? i : o, otro = gana === i ? o : i;
         m.set(i.id, (+otro.notion?.en || 0) > (+gana.notion?.en || 0) ? { ...gana, notion: otro.notion } : gana); }
       return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), ...xpFusion(eN, eO, dias),   /* 2.17 (XP) · por día y referencia, la más reciente; base de la copia con baseHasta más reciente */
-    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
+    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
     enfoqueLog: [...new Map([...(eO.enfoqueLog || []), ...(eN.enfoqueLog || [])].sort((x, y) => y.b - x.b).map(x => [x.a, x])).values()].sort((x, y) => x.a - y.a).slice(-12),
@@ -2751,6 +2757,87 @@ function btFusionTBorrar(a, b, Ta, Tb, dead) {
 }
 
 // ====================================================================
+// 2.18.0 (M) · Metas a largo plazo: la normalización defensiva de ES.metas (mtNorm, la llama normEnfoque) y la fusión entre teléfonos
+// (mtFusion, la llama mergeStates). Nivel superior y sin constantes declaradas después: normalize() corre al cargar el estado.
+// Contrato: ES.metas = [{ id, t (≤ 100), cat, iden, porque (≤ 160), modo ('numero' | 'etapas'), metrica (≤ 60), meta (> 0), unidad (≤ 20),
+// base (lo que ya llevabas), inicio y fecha ('AAAA-MM-DD'), avances [{ id, d, n, nota }] (≤ 400), etapas [{ id, t, senal, fecha, hecho, hechoEn,
+// orden, cambiado }] (≤ 12), vinc [{ id, tipo, ref, t, sub, etapa, en }] (≤ 60, sin repetir tipo+ref), revisiones [{ sem, d, nota, paso }] (≤ 60),
+// hecho, hechoEn, manual, archivada, orden, creado, cambiado }] (≤ 40). El avance es base + la suma de los avances (así dos teléfonos suman).
+// ====================================================================
+function mtNorm(x) {
+  const CATS = ['estudio', 'proyecto', 'laboral', 'social', 'espiritual', 'salud', 'otro'];
+  const TIPOS = ['objetivo', 'proyecto', 'habito', 'tarea', 'ruta', 'ini', 'norma', 'plan', 'bt'];
+  const S = (v, n) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '').replace(/\s+/g, ' ').trim().slice(0, n);
+  const S2 = (v, n) => (typeof v === 'string' ? v : '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
+  const F = v => {
+    if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+    const [y, m, d] = v.split('-').map(Number), D = new Date(y, m - 1, d, 12);
+    return D.getFullYear() === y && D.getMonth() === m - 1 && D.getDate() === d ? v : '';
+  };
+  const N = (v, def, lo, hi) => { const n = (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) ? +v : NaN; return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def; };
+  const ID = v => (typeof v === 'string' || typeof v === 'number') ? String(v).trim().slice(0, 60) : '';
+  const d0 = new Date(), hoy = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`;
+  const O = v => v && typeof v === 'object' && !Array.isArray(v);
+  const vistos = new Set();
+  const L = (Array.isArray(x) ? x : []).filter(O).map((m, i) => {
+    const id = ID(m.id); if (!id || vistos.has(id)) return null; vistos.add(id);
+    const av = new Set(), avances = (Array.isArray(m.avances) ? m.avances : []).filter(O).map(a => {
+      const aid = ID(a.id) || 'av-' + Math.random().toString(36).slice(2, 10), d = F(a.d), n = N(a.n, 0, -1e9, 1e9);
+      if (!d || !n || av.has(aid)) return null; av.add(aid); return { id: aid, d, n: Math.round(n * 100) / 100, nota: S(a.nota, 80) };
+    }).filter(Boolean).sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0).slice(-2000);
+    const ev0 = new Set();
+    let etapas = (Array.isArray(m.etapas) ? m.etapas : []).filter(O).map((e, k) => {
+      const eid = ID(e.id); if (!eid || ev0.has(eid)) return null; ev0.add(eid);
+      const hecho = !!e.hecho;
+      return { id: eid, t: S(e.t, 100), senal: S(e.senal, 100), fecha: F(e.fecha), hecho, hechoEn: hecho ? F(e.hechoEn) || hoy : '', orden: N(e.orden, k, -1e6, 1e6), cambiado: N(e.cambiado, 0, 0, 9e15) };
+    }).filter(Boolean);
+    if (etapas.length > 12) { const quedan = new Set(etapas.slice().sort((a, b) => b.cambiado - a.cambiado).slice(0, 12)); etapas = etapas.filter(e => quedan.has(e)); }   // las más recientes (las de la copia que ganó)
+    const ev = new Set(etapas.map(e => e.id));
+    const vk = new Set(), vinc = (Array.isArray(m.vinc) ? m.vinc : []).filter(v => O(v) && TIPOS.includes(v.tipo)).map(v => {
+      const ref = ID(v.ref), k = v.tipo + '|' + ref; if (!ref || vk.has(k)) return null; vk.add(k);
+      const et = ID(v.etapa);
+      return { id: ID(v.id) || 'mv-' + Math.random().toString(36).slice(2, 10), tipo: v.tipo, ref, t: S(v.t, 100), sub: S(v.sub, 80), etapa: et && ev.has(et) ? et : '', en: N(v.en, 0, 0, 9e15) };
+    }).filter(Boolean).slice(0, 60);
+    const rs = new Set(), revisiones = (Array.isArray(m.revisiones) ? m.revisiones : []).filter(O).map(r => {
+      const sem = F(r.sem); if (!sem || rs.has(sem)) return null; rs.add(sem);
+      return { sem, d: F(r.d) || sem, nota: S2(r.nota, 300), paso: S(r.paso, 100) };
+    }).filter(Boolean).sort((a, b) => a.sem < b.sem ? -1 : 1).slice(-60);
+    const hecho = !!m.hecho;
+    return { id, t: S(m.t, 100) || 'Meta', cat: CATS.includes(m.cat) ? m.cat : 'otro', iden: typeof m.iden === 'string' ? m.iden.slice(0, 40) : '', porque: S(m.porque, 160),
+      modo: m.modo === 'etapas' ? 'etapas' : 'numero', metrica: S(m.metrica, 60), meta: N(m.meta, 1, 0.01, 1e9), unidad: S(m.unidad, 20) || 'veces', base: N(m.base, 0, 0, 1e9),
+      inicio: F(m.inicio) || F(m.creado) || hoy, fecha: F(m.fecha), avances, etapas, vinc, revisiones,
+      hecho, hechoEn: hecho ? F(m.hechoEn) || hoy : '', manual: hecho && !!m.manual, premiada: hecho && !!m.premiada, archivada: !!m.archivada, orden: N(m.orden, i, -1e6, 1e6),
+      creado: F(m.creado) || hoy, cambiado: N(m.cambiado, 0, 0, 9e15) };
+  }).filter(Boolean);
+  return L.slice(0, 40);
+}
+// Por id gana la meta de mayor `cambiado` (a igual, la de la copia más reciente) en sus campos; los avances, las etapas (cada una, la más
+// reciente), los vínculos y las revisiones se unen. Lo borrado (la meta, un avance, una etapa o un vínculo, por su id) no vuelve.
+function mtFusion(a, b, dead) {
+  const L = v => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && x.id != null) : [];
+  dead = dead instanceof Set ? dead : new Set(Array.isArray(dead) ? dead : []);
+  const vivo = x => x && x.id != null && !dead.has(String(x.id));
+  const unir = (x, y, gana) => { const m = new Map(); for (const i of L(y)) m.set(String(i.id), i); for (const i of L(x)) { const o = m.get(String(i.id)); m.set(String(i.id), !o || !gana ? i : gana(i, o)); } return [...m.values()].filter(vivo); };
+  const m = new Map();
+  for (const x of L(b)) m.set(String(x.id), x);
+  for (const x of L(a)) {
+    const k = String(x.id), o = m.get(k);
+    if (!o) { m.set(k, x); continue; }
+    const g = (+x.cambiado || 0) >= (+o.cambiado || 0) ? x : o, otro = g === x ? o : x;
+    const vinc = []; { const vk = new Set(); for (const v of unir(g.vinc, otro.vinc).sort((p, q) => (+q.en || 0) - (+p.en || 0))) { const kk = v.tipo + '|' + v.ref; if (!vk.has(kk)) { vk.add(kk); vinc.push(v); } } }
+    const rev = new Map(); for (const r of [...(Array.isArray(otro.revisiones) ? otro.revisiones : []), ...(Array.isArray(g.revisiones) ? g.revisiones : [])]) if (r && r.sem) rev.set(r.sem, r);
+    const M = { ...g, avances: unir(g.avances, otro.avances), etapas: unir(g.etapas, otro.etapas, (p, q) => (+p.cambiado || 0) >= (+q.cambiado || 0) ? p : q), vinc, revisiones: [...rev.values()] };
+    // Lo de los dos teléfonos junto puede cumplir la meta (A +6 y B +5 de 10): se marca cumplida; su XP lo da la app al pintarla (premiada: false).
+    const E = L(M.etapas).filter(vivo), suma = (+M.base || 0) + L(M.avances).filter(vivo).reduce((s, a) => s + (+a.n || 0), 0);
+    const ok = M.modo === 'etapas' ? E.length > 0 && E.every(e => e.hecho) : suma >= (+M.meta || 1);
+    if (!M.hecho && ok) { if (otro.hecho) Object.assign(M, { hecho: true, hechoEn: otro.hechoEn, manual: !!otro.manual, premiada: !!otro.premiada }); else Object.assign(M, { hecho: true, hechoEn: '', manual: false, premiada: false }); }
+    else if (M.hecho && otro.hecho) M.premiada = !!(M.premiada || otro.premiada);
+    m.set(k, M);
+  }
+  return [...m.values()].filter(vivo).map(x => ({ ...x, avances: L(x.avances).filter(vivo), etapas: L(x.etapas).filter(vivo), vinc: L(x.vinc).filter(vivo) }));
+}
+
+// ====================================================================
 // 2.16 (C) · «Agregar a un bloque de tiempo» desde todo lo demás (bloques_spec.md, «Agregar a un bloque desde todo lo demás»).
 // El área B define window.bt (los bloques de tiempo, su apartado y su sincronización con Google Calendar). Aquí todo pasa por
 // window.bt?. y, si no existe, no se pinta nada: ni la acción ni la fila de chips, y cada formulario guarda como siempre.
@@ -2767,7 +2854,7 @@ const btcHay = () => !!window.bt && typeof window.bt === 'object';
 function btcAviso(msg) { try { (btcAvisoFn || h2Toast)(msg); } catch {} }
 function btcAccion(tipo, ref, cls = 'link', style = '', sub = '') {
   if (!btcHay() || !tipo || !ref) return '';
-  return `<button type="button" class="${cls}" data-btc-tipo="${esc(tipo)}" data-btc-ref="${esc(ref)}"${sub ? ` data-btc-sub="${esc(sub)}"` : ''}${style ? ` style="${style}"` : ''}>${BTC_TXT}</button>`;
+  return `<button type="button" class="${cls}" data-btc-tipo="${esc(tipo)}" data-btc-ref="${esc(ref)}"${sub ? ` data-btc-sub="${esc(sub)}"` : ''}${style ? ` style="${style}"` : ''}>${BTC_TXT}</button>` + (typeof window.mtAccionHtml === 'function' ? window.mtAccionHtml(tipo, ref, cls, style) : '');   // 2.18 (M) · y «Vincular a una meta»
 }
 // El elemento de un botón de la acción: { tipo, ref } y, en una iniciativa, sub = su texto (como lo guarda el bloque).
 const btcItemDe = b => ({ tipo: b.dataset.btcTipo, ref: b.dataset.btcRef, ...(b.dataset.btcSub ? { sub: b.dataset.btcSub } : {}) });
@@ -3402,7 +3489,7 @@ $('#view-cal').addEventListener('click', e => {
   }
 });
 
-function renderAll() { render(); if (view === 'inicio') window.renderInicio?.(); if (view === 'identidad') window.renderIdentidad?.(); if (view === 'espiritu') window.renderEspiritu?.(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'agenda') window.renderAgendaTab?.(); if (view === 'bloques') window.renderBloques?.(); if (view === 'estudio') window.renderEstudio?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function renderAll() { render(); if (view === 'inicio') window.renderInicio?.(); if (view === 'identidad') window.renderIdentidad?.(); if (view === 'metas') window.renderMetas?.(); if (view === 'espiritu') window.renderEspiritu?.(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (view === 'agenda') window.renderAgendaTab?.(); if (view === 'bloques') window.renderBloques?.(); if (view === 'estudio') window.renderEstudio?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -3704,7 +3791,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
   document.querySelector('.tabs .tab.on')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });   // 2.14 · la activa siempre a la vista
-  for (const v of ['inicio', 'identidad', 'espiritu', 'enfoque', 'agenda', 'bloques', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  for (const v of ['inicio', 'identidad', 'metas', 'espiritu', 'enfoque', 'agenda', 'bloques', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   renderTitle();
   renderAll();
   scrollTo(0, 0);
@@ -6323,6 +6410,7 @@ Cómo trabajas:
 - La persona define en Identidad quién quiere ser («una persona que…»; identidad_ver las lista con sus votos e identidad_crear crea una si lo pide); cuando propongas hábitos, objetivos o iniciativas, nómbralos como un voto por una de sus identidades y sugiere a cuál pertenecen; nunca prometas que la etiqueta cambie la conducta.
 - La pestaña Estudio tiene rutas hasta cada examen (materia, fecha, temas, bloques por día con hora, minutos y ejercicios): estudio_ver las lista con lo de hoy; estudio_ruta crea una si la persona lo pide; si un bloque quedó sin hacer, propone replanificar, nunca recriminar.
 - Bloques de tiempo: huecos reservados con lo que va dentro, que se ponen en su Google Calendar con la lista en la descripción; bloques_tiempo_ver los muestra y bloque_tiempo_crear crea uno si la persona lo pide.
+- Metas a largo plazo: lo que la persona quiere lograr en meses o años, SMART y dividido en etapas con fecha, vinculado con sus objetivos, proyectos, hábitos, tareas, rutas, iniciativas, normas, planes y bloques de tiempo; metas_ver las muestra, meta_crear crea una (solo si la persona lo pide o acepta) y meta_actualizar registra avances, marca etapas y vincula cosas. Un objetivo SMART es un tramo de semanas; una meta, el destino de meses o años.
 - Horas en formato de 12 horas con AM/PM; fechas como «jueves 30 de octubre».
 - Cada mensaje de la persona empieza con la fecha y la hora actuales entre corchetes: úsalas como referencia para «hoy», «mañana» o «esta tarde».`;
 
@@ -6502,6 +6590,9 @@ async function iaEjecutar(nombre, a) {
     case 'vida_espiritual_marcar': return espToolMarcar(a);
     case 'bloques_tiempo_ver': return btToolVer();   // 2.16 (B)
     case 'bloque_tiempo_crear': return btToolCrear(a);
+    case 'metas_ver': return mtToolVer();   // 2.18 (M)
+    case 'meta_crear': return mtToolCrear(a);
+    case 'meta_actualizar': return mtToolActualizar(a);
   }
   throw new Error('Herramienta desconocida.');
 }
@@ -8697,13 +8788,14 @@ function renderAg() {
     ${agbBrechaHtml()}
     <section style="margin-top:28px"><h3>Objetivos SMART</h3>
       ${objs.length ? `<div class="rows">${objs.map(o => { const d = objDias(o), pct = objPct(o); return `<button class="row ag-obj" data-obj="${esc(o.id)}"><span class="dot" style="--c:${d !== null && d < 0 ? 'var(--red)' : 'var(--accent)'}"></span><span class="t"><div>${esc(o.t)}</div><small>${o.actual} de ${o.meta} ${esc(o.unidad)}${agbRitmoCorto(o) ? ' · ' + esc(agbRitmoCorto(o)) : ''}${d !== null ? ` · ${d < 0 ? 'vencido' : d === 0 ? 'vence hoy' : `${d} días`}` : ''}</small></span><span class="tag">${pct} %</span></button>`; }).join('')}</div>` : '<p class="empty">Un objetivo con número y fecha convierte las iniciativas en avance. Crea el primero.</p>'}
-      <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p></section>
+      <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p>${window.mtAgendaHtml?.() || ''}</section>
     ${agbMananasHtml()}`;
   agW.querySelector('#ag-org').onclick = () => organizarDia();
   agW.querySelector('#ag-add').onclick = () => agAddSheet();
   agW.querySelector('#ag-copy')?.addEventListener('click', agCopiarAyer);
   agW.querySelector('#ag-man')?.addEventListener('click', organizarManana);
   agW.querySelector('#ag-obj-add').onclick = () => objetivoForm();
+  agW.querySelector('#ag-metas')?.addEventListener('click', () => irA('metas'));   // 2.18 (M)
   agW.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => { const it = agItems().find(x => x.id === b.dataset.chk); if (!it) return; if (it.tipo === 'estudio' && !agHecho(it) && exPedirEj(it)) return; agMarcar(it); });   // 2.17.1 (U) · con ejercicios, pregunta cuántos (como la ficha)
   agW.querySelectorAll('[data-open]').forEach(b => b.onclick = () => agItemSheet(agItems().find(x => x.id === b.dataset.open)));
   agW.querySelectorAll('[data-obj]').forEach(b => b.onclick = () => objetivoSheet(ES.objetivos.find(o => o.id === b.dataset.obj)));
@@ -13619,7 +13711,7 @@ const INI_CSS = `
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS; iniR.append(iniStyle, iniW); }
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
-const INI_GRUPOS = [['Organizar y hacer', ['enfoque', 'agenda', 'bloques', 'hoy', 'tareas', 'estudio']], ['Desde la base', ['identidad', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
+const INI_GRUPOS = [['Organizar y hacer', ['enfoque', 'agenda', 'bloques', 'hoy', 'tareas', 'estudio']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
 // Líneas de estado: se calculan solo al pintar, una llamada a cada helper, sin guardar nada.
 const INI_ESTADO = {
   identidad: () => {
@@ -16475,6 +16567,793 @@ function xpChip() {
 window.xpChip = xpChip;
 { const st = document.createElement('style'); st.textContent = '#xp-pop.menos { background: var(--empty); color: var(--muted); }'; ov.appendChild(st); }
 xpChip();
+
+// ====================================================================
+// 2.18.0 (M) · Metas a largo plazo: lo que quieres lograr en meses o años, con un proceso SMART en cinco pasos (específica, medible, con
+// fecha, alcanzable por etapas y relevante), dividido en etapas con fecha y vinculado con todo lo que ya hay en la app: objetivos, proyectos,
+// hábitos, tareas, rutas de Estudio, iniciativas de cada día, normas de Vida espiritual, planes y bloques de tiempo (y la identidad por la
+// que vota). «Hay que agregar una opción de poner metas con procesos SMART a largo plazo, que se puedan vincular con todos los elementos
+// existentes de la app.»
+// - Su propio apartado (#view-metas, shadow root con ENFOQUE_CSS) en «Desde la base», entre Identidad y Vida espiritual.
+// - La ficha de cada cosa vinculable muestra «Vincular a una meta» o «Meta: …» (mtAccion, que pinta btcAccion junto a lo suyo).
+// - Lo que la mueve se cuenta desde los registros reales (hábitos marcados, tareas hechas, avances de objetivos, pasos de proyecto, bloques
+//   de estudio, iniciativas, normas, planes y bloques de tiempo): nada que sincronizar, nada que se pueda inflar.
+// - XP con deshacer: meta creada +20 (una vez), avance +5 (uno al día por meta), etapa cumplida +30 (una vez por etapa), revisión de la
+//   semana +10 (una por meta y semana), meta cumplida +150 (una vez). Sin avisos push nuevos, sin culpa: una fecha que pasó solo se puede mover.
+// - Evidencia, sin cifras: Locke y Latham (2002), Bandura y Schunk (1981), Gollwitzer y Sheeran (2006), Harkin et al. (2016), Sheldon y Elliot (1999).
+// ====================================================================
+var MT_TIPO = { objetivo: 'Objetivo', proyecto: 'Proyecto', habito: 'Hábito', tarea: 'Tarea', ruta: 'Ruta de estudio', ini: 'Iniciativa', norma: 'Vida espiritual', plan: 'Plan', bt: 'Bloque de tiempo' };
+var MT_CATS = ['estudio', 'proyecto', 'laboral', 'social', 'espiritual', 'salud', 'otro'];
+var MT_PLANTILLAS = [
+  { t: 'Terminar mi carrera', cat: 'estudio', modo: 'etapas', meses: 24, etapas: ['Aprobar todas las materias de este semestre', 'Aprobar el siguiente semestre completo', 'Terminar las materias que faltan', 'Entregar el trabajo de titulación', 'Titularme'] },
+  { t: 'Hablar inglés con fluidez (nivel B2)', cat: 'estudio', modo: 'etapas', meses: 12, etapas: ['Terminar el nivel A2 de mi curso', 'Terminar el nivel B1', 'Mantener una conversación de 20 minutos en inglés', 'Aprobar un examen de nivel B2'] },
+  { t: 'Leer 24 libros', cat: 'estudio', modo: 'numero', metrica: 'Libros leídos', meta: 24, unidad: 'libros', meses: 12 },
+  { t: 'Correr un medio maratón', cat: 'salud', modo: 'etapas', meses: 6, etapas: ['Correr 5 km sin parar', 'Correr 10 km sin parar', 'Correr 15 km sin parar', 'Correr los 21 km del medio maratón'] },
+  { t: 'Bajar 8 kg', cat: 'salud', modo: 'numero', metrica: 'Kilos bajados', meta: 8, unidad: 'kg', meses: 6 },
+  { t: 'Ahorrar un fondo de emergencia', cat: 'otro', modo: 'numero', metrica: 'Dinero ahorrado', meta: 3000, unidad: '$', meses: 12 },
+  { t: 'Lanzar mi proyecto propio', cat: 'proyecto', modo: 'etapas', meses: 12, etapas: ['Definir el producto y a quién va dirigido', 'Hablar con 10 posibles clientes', 'Tener una primera versión lista', 'Conseguir el primer cliente que paga', 'Lanzarlo al público'] },
+  { t: 'Conseguir un ascenso en el trabajo', cat: 'laboral', modo: 'etapas', meses: 18, etapas: ['Acordar con mi jefe qué pide el puesto', 'Terminar el curso o la certificación que falta', 'Liderar un proyecto visible', 'Pedir la evaluación para el ascenso'] },
+  { t: 'Leer el Nuevo Testamento completo', cat: 'espiritual', modo: 'numero', metrica: 'Capítulos leídos', meta: 260, unidad: 'capítulos', meses: 12 },
+  { t: 'Cuidar mis amistades', cat: 'social', modo: 'numero', metrica: 'Planes con amigos', meta: 24, unidad: 'planes', meses: 12 },
+];
+var MT_PIE = '<p class="meta mt-pie"><b>Por qué así.</b> Una meta específica y difícil rinde más que «hacerlo lo mejor posible» (Locke y Latham, 2002); una meta lejana se sostiene mejor partida en submetas cercanas (Bandura y Schunk, 1981); lo que tiene día y hora se hace más (Gollwitzer y Sheeran, 2006); anotar el avance ayuda a llegar (Harkin et al., 2016), y las metas que encajan con lo que valoras se persiguen con más constancia (Sheldon y Elliot, 1999).</p>';
+var mtBorr = null, mtSel = null, mtNuevoPend = null, mtEnTras = false;
+
+// ---------- Datos y ayudas
+function mtTodas() { return Array.isArray(ES.metas) ? ES.metas : []; }
+function mtGet(id) { return typeof id === 'string' && id ? mtTodas().find(m => m && m.id === id) || null : null; }
+function mtActivas() { return mtTodas().filter(m => m && !m.hecho && !m.archivada).sort((a, b) => (a.orden || 0) - (b.orden || 0) || ((a.fecha || '9') < (b.fecha || '9') ? -1 : (a.fecha || '9') > (b.fecha || '9') ? 1 : 0)); }
+const mtCatN = c => xpCatNombre(c) || XP_CAT_N[c] || 'Otro';
+const mtNum = n => { const v = Math.round((+n || 0) * 100) / 100; return String(v).replace('.', ','); };
+const mtFechaTxt = f => f ? new Date(f + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+const mtFechaCorta = f => { if (!f) return ''; const x = new Date(f + 'T12:00'); return f.slice(0, 4) === today().slice(0, 4) ? x.toLocaleDateString('es', { day: 'numeric', month: 'short' }) : x.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }); };
+const mtDiasEntre = (a, b) => Math.round((Date.parse(b + 'T12:00') - Date.parse(a + 'T12:00')) / 864e5);
+const mtDias = m => m && m.fecha ? mtDiasEntre(today(), m.fecha) : null;
+const mtDiaMas = (f, n) => dayKey(addDays(new Date(f + 'T12:00'), n));
+const mtPl = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+function mtQueda(m) {
+  if (m.hecho) return `cumplida${m.hechoEn ? ' el ' + mtFechaCorta(m.hechoEn) : ''}`;
+  const d = mtDias(m); if (d === null) return 'sin fecha';
+  if (d < 0) return `la fecha era el ${mtFechaCorta(m.fecha)}`;
+  if (d === 0) return 'la fecha es hoy';
+  if (d < 60) return `quedan ${mtPl(d, 'día', 'días')}`;
+  if (d < 730) return `quedan ${mtPl(Math.round(d / 30.44), 'mes', 'meses')}`;
+  return `quedan ${mtNum(Math.round(d / 365.25 * 10) / 10)} años`;
+}
+function mtOk(m) { return m.modo === 'etapas' ? m.etapas.length > 0 && m.etapas.every(e => e.hecho) : mtActual(m) >= m.meta; }
+// n meses desde hoy, sin desbordar el fin de mes (31 de enero + 1 mes = 28 o 29 de febrero).
+const mtMasMeses = n => { const h = new Date(), y = h.getFullYear(), mo = h.getMonth() + n, ult = new Date(y, mo + 1, 0).getDate(); return dayKey(new Date(y, mo, Math.min(h.getDate(), ult), 12)); };
+// Una tarea que se repite deja una nueva (origen = la anterior): la cadena entera es la misma cosa vinculada.
+function mtCadena(ref) { const L = HT().tareas?.items || [], ids = new Set([ref]); let n = -1; while (ids.size !== n) { n = ids.size; for (const x of L) if (x && x.origen && ids.has(x.origen)) ids.add(x.id); } return L.filter(x => x && ids.has(x.id)); }
+function mtActual(m) { return Math.max(0, +((+m.base || 0) + (m.avances || []).reduce((s, a) => s + (+a.n || 0), 0)).toFixed(2)); }
+function mtEtapas(m) { return [...(m.etapas || [])].sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : (a.fecha || '9') > (b.fecha || '9') ? 1 : (a.orden || 0) - (b.orden || 0)); }
+function mtEtapaAhora(m) { return mtEtapas(m).find(e => !e.hecho) || null; }
+function mtEtapaNum(m, id) { return mtEtapas(m).findIndex(e => e.id === id) + 1; }
+// El avance: con un número (lo que llevas de la meta) o por etapas cumplidas.
+function mtProgreso(m) {
+  if (m.modo === 'etapas') { const n = m.etapas.length, h = m.etapas.filter(e => e.hecho).length; return { v: h, total: n, pct: n ? Math.round(h / n * 100) : 0, txt: n ? (h >= n ? `${n} de ${mtPl(n, 'etapa', 'etapas')}` : llevasFaltan(h, n, ['etapa', 'etapas'], 'para la meta')) : 'Sin etapas todavía', etiqueta: 'Etapas cumplidas' }; }
+  const a = mtActual(m), pct = Math.min(100, Math.round(a / Math.max(0.01, m.meta) * 100));
+  return { v: a, total: m.meta, pct, txt: a >= m.meta ? `${mtNum(a)} de ${mtNum(m.meta)} ${m.unidad}` : llevasFaltan(a, m.meta, m.unidad, 'para la meta').replace(/(\d)\.(\d)/g, '$1,$2'), etiqueta: m.metrica || 'Avance' };
+}
+function mtRitmo(m) {
+  if (m.hecho || m.modo !== 'numero') return '';
+  const d = mtDias(m), falta = m.meta - mtActual(m); if (d === null || d <= 0 || falta <= 0) return '';
+  const porMes = d > 60, x = falta / Math.max(1, porMes ? d / 30.44 : d / 7), v = x < 1 ? mtNum(Math.round(x * 10) / 10) : String(Math.ceil(x));
+  return `Para llegar a tiempo: ${v} ${m.unidad} por ${porMes ? 'mes' : 'semana'}`;
+}
+const mtSmart = m => ({ S: nPalabras(m.t) >= 2, M: m.modo === 'etapas' ? m.etapas.length >= 2 : !!(m.metrica && m.meta > 0), A: m.etapas.length >= 2 && m.etapas.every(e => nPalabras(e.t) >= 2 && e.fecha), R: !!m.porque, T: !!m.fecha });
+
+// ---------- Lo vinculado: nombre vigente, si existe, cómo abrirlo y cuánto se movió (desde los registros reales).
+function mtFuente(v) {
+  const no = { t: v.t || MT_TIPO[v.tipo] || 'Algo', sub: v.sub || '', existe: false };
+  try {
+    const s = HT(), t = today();
+    switch (v.tipo) {
+      case 'objetivo': { const o = (ES.objetivos || []).find(y => y && y.id === v.ref); if (o) return { t: o.t, sub: o.hecho ? 'Cumplido' : `${o.actual} de ${o.meta} ${o.unidad}${o.fecha ? ' · hasta el ' + mtFechaCorta(o.fecha) : ''}`, existe: true }; break; }
+      case 'proyecto': { const p = (ES.proyectos || []).find(y => y && y.id === v.ref); if (p) return { t: p.nombre || 'Proyecto', sub: p.archivado ? 'Archivado' : p.paso ? `Siguiente paso: ${p.paso}` : '', existe: true }; break; }
+      case 'habito': { const h = (s.habits || []).find(y => y && y.id === v.ref && !y.rutina); if (h) return { t: h.nombre, sub: ['full', 'min'].includes(s.log?.[h.id]?.[t]) ? 'Hecho hoy' : isSched(h, t) ? 'Toca hoy' : '', existe: true }; break; }
+      case 'tarea': { const C = mtCadena(v.ref), x = C.filter(y => !y.hecha).pop() || C.find(y => y.id === v.ref) || C.pop(); if (x) return { t: x.titulo, sub: x.hecha ? 'Hecha' : x.fecha ? `${x.fecha < t ? 'Vencida · ' : ''}${fmtFecha(x.fecha)}` : 'Sin fecha', existe: true }; break; }
+      case 'ruta': { const E = window.est, r = E?.ruta?.(v.ref); if (r) { const mat = String(E.materia?.(r.materia)?.nombre || '').trim(); return { t: r.nombre || mat || 'Ruta', sub: [mat && mat !== r.nombre ? mat : '', r.fecha ? 'examen ' + mtFechaCorta(r.fecha) : '', r.archivada ? 'archivada' : ''].filter(Boolean).join(' · '), existe: true }; } break; }
+      case 'ini': { if (INI4.some(([k]) => k === v.ref)) { const x = ini4Semana().items.find(y => y && y.k === v.ref); return { t: `Iniciativas de ${iniNombre(v.ref).toLowerCase()}`, sub: x && x.t ? `Hoy: ${x.t}${x.hecho ? ' ✓' : ''}` : 'Las de cada día', existe: true }; } break; }
+      case 'norma': { const n = espD().normas.find(y => y && y.id === v.ref); if (n) return { t: espNombre(n), sub: !n.on ? 'Fuera de tu plan' : espHecha(n.id, t) ? 'Hecha hoy' : '', existe: true }; break; }
+      case 'plan': { const p = (ES.planes || []).find(y => y && y.id === v.ref); if (p) return { t: `${cap(String(p.titulo || 'Plan'))}${p.con ? ' con ' + p.con : ''}`, sub: [p.fecha ? btDiaTxt(p.fecha) : '', p.hecho ? 'hecho' : ''].filter(Boolean).join(' · '), existe: true }; break; }
+      case 'bt': { const b = btGet(v.ref); if (b) return { t: b.t, sub: `${btDiaTxt(b.fecha)} · ${btRango(b)}`, existe: true }; break; }
+    }
+  } catch {}
+  return no;
+}
+function mtActividad(v, desde, hasta) {
+  const en = d => typeof d === 'string' && d >= desde && d <= hasta, enMs = ms => +ms > 0 && en(dayKey(new Date(+ms)));
+  const dias = () => { const L = []; for (let d = desde, k = 0; d <= hasta && k < 400; d = mtDiaMas(d, 1), k++) L.push(d); return L; };
+  try {
+    const s = HT(), t = today();
+    switch (v.tipo) {
+      case 'habito': { const L = s.log?.[v.ref] || {}; return Object.keys(L).filter(d => en(d) && ['full', 'min'].includes(L[d])).length; }
+      case 'tarea': return mtCadena(v.ref).filter(x => x.hecha && enMs(x.hechaEn)).length;
+      case 'objetivo': { const o = (ES.objetivos || []).find(y => y && y.id === v.ref); return o ? (o.avances || []).filter(a => a && en(a.d) && +a.n > 0).length : 0; }
+      case 'proyecto': { const p = (ES.proyectos || []).find(y => y && y.id === v.ref); return p ? (p.pasos || []).filter(z => z && en(z.d)).length : 0; }
+      case 'ruta': { const r = window.est?.ruta?.(v.ref); return r && r.hechos && typeof r.hechos === 'object' ? Object.entries(r.hechos).filter(([k, h]) => k !== EU_AVK && h && enMs(h.en)).length : 0; }
+      case 'ini': return dias().filter(d => d === t ? ini4Semana().items.some(x => x && x.k === v.ref && x.hecho) : Array.isArray(ES.iniHist?.[d]) && ES.iniHist[d].includes(v.ref)).length;
+      case 'norma': return dias().filter(d => espHecha(v.ref, d)).length;
+      case 'plan': { const p = (ES.planes || []).find(y => y && y.id === v.ref); return p && p.hecho && p.resultado !== 'no' && en(p.fecha) ? 1 : 0; }
+      case 'bt': { const b = btGet(v.ref); return b && en(b.fecha) && btHechoBloque(b) === true ? 1 : 0; }
+    }
+  } catch {}
+  return 0;
+}
+const mtSemanaDesde = () => mtDiaMas(today(), -6);
+// Lo que la movió en los últimos 7 días: lo vinculado que se hizo, los avances que sumaron y las etapas cumplidas.
+function mtSemana(m) {
+  const desde = mtSemanaDesde(), hasta = today();
+  return m.vinc.reduce((n, v) => n + mtActividad(v, desde, hasta), 0) + m.avances.filter(a => a.d >= desde && +a.n > 0).length + m.etapas.filter(e => e.hecho && e.hechoEn >= desde).length;
+}
+function mtAbrirFuente(v) {
+  try {
+    const s = HT();
+    switch (v.tipo) {
+      case 'objetivo': { const o = (ES.objetivos || []).find(y => y.id === v.ref); if (o) { objetivoSheet(o); return; } break; }
+      case 'proyecto': { const p = (ES.proyectos || []).find(y => y.id === v.ref); if (p) { proyectoSheet(p); return; } break; }
+      case 'habito': { const h = (s.habits || []).find(y => y.id === v.ref); if (h) { habitSheet(h); return; } break; }
+      case 'tarea': { const C = mtCadena(v.ref), x = C.filter(y => !y.hecha).pop() || C.pop(); if (x) { taskSheet(x); return; } break; }
+      case 'ruta': if (window.est?.ruta?.(v.ref)) { closeSheet(); window.est.abrir(v.ref); return; } break;
+      case 'ini': if (iniIdx(v.ref) >= 0) { ini4Sheet(iniIdx(v.ref)); return; } break;
+      case 'norma': if (espD().normas.some(n => n.id === v.ref)) { window.esp?.abrir?.(v.ref); return; } break;
+      case 'plan': { const p = (ES.planes || []).find(y => y.id === v.ref); if (p) { planSheet(p); return; } break; }
+      case 'bt': if (btGet(v.ref)) { window.bt?.abrir?.(v.ref); return; } break;
+    }
+  } catch (e) { console.warn('Metas: no se pudo abrir', e); }
+  toast('Eso ya no está en la app.');
+}
+// Las metas (no archivadas) que tienen vinculada esa cosa.
+function mtDe(tipo, ref) { ref = String(ref); return mtTodas().filter(m => m && !m.archivada && m.vinc.some(v => v.tipo === tipo && (v.ref === ref || (tipo === 'tarea' && mtCadena(v.ref).some(x => x.id === ref))))); }
+function mtVincular(m, tipo, ref, etapa = '', guardarYa = true) {
+  if (!m || !MT_TIPO[tipo] || ref == null || ref === '') return false;
+  ref = String(ref).slice(0, 60); etapa = etapa && m.etapas.some(e => e.id === etapa) ? etapa : '';
+  const ya = m.vinc.find(v => v.tipo === tipo && v.ref === ref);
+  if (ya) { if (ya.etapa === etapa) return false; ya.etapa = etapa; }
+  else { if (m.vinc.length >= 60) { toast('Una meta admite hasta 60 cosas vinculadas.'); return false; } const f = mtFuente({ tipo, ref }); m.vinc.push({ id: crypto.randomUUID(), tipo, ref, t: String(f.t || '').slice(0, 100), sub: String(f.sub || '').slice(0, 80), etapa, en: Date.now() }); }
+  m.cambiado = Date.now(); if (guardarYa) guardar();
+  return true;
+}
+function mtDesvincular(m, vid) { const v = m && m.vinc.find(x => x.id === vid); if (!v) return; forget(v.id); m.vinc = m.vinc.filter(x => x !== v); m.cambiado = Date.now(); guardar(); }
+function mtPintar() { try { if (view === 'metas') renderMetas(); if (view === 'inicio') window.renderInicio?.(); } catch {} }
+
+// ---------- Avances, etapas y cumplir (XP con deshacer, categoría de la meta)
+function mtCumplir(m, manual = false) {
+  if (m.hecho) return;
+  m.hecho = true; m.hechoEn = today(); m.manual = !!manual; m.premiada = true; m.cambiado = Date.now();
+  buzz([60, 80, 60]);
+  setTimeout(() => xpGanar(150, `Meta cumplida: ${m.t}`, 'mc:' + m.id, { cat: m.cat, unica: true, si: () => !!mtGet(m.id)?.hecho }), 900);
+  setTimeout(() => toast(`Meta cumplida: ${m.t}. La construiste etapa por etapa.`), 300);
+}
+function mtReabrir(m) { if (!m.hecho) return; m.hecho = false; m.hechoEn = ''; m.manual = false; m.premiada = false; m.cambiado = Date.now(); xpQuitar('mc:' + m.id, { cualquierDia: true }); }
+// Cumplida sola: con un número, al llegar a la meta; por etapas, con todas hechas. Si deja de cumplirse (un deshacer), vuelve a abrirse.
+function mtRevisar(m) {
+  const ok = mtOk(m);
+  if (ok && !m.hecho) mtCumplir(m);
+  else if (!ok && m.hecho && !m.manual) mtReabrir(m);
+}
+function mtAvance(m, n, nota = '') {
+  n = Math.round((+n || 0) * 100) / 100; if (!n || !m) return;
+  if (m.avances.length >= 2000) { toast('Esta meta ya tiene 2000 avances anotados: suma los siguientes en uno más grande.'); return; }
+  const yaCumplida = m.hecho;
+  m.avances.push({ id: crypto.randomUUID(), d: today(), n, nota: String(nota || '').trim().slice(0, 80) }); m.cambiado = Date.now();
+  if (n > 0 && !yaCumplida) xpGanar(5, `Avance: ${m.t}`, 'ma:' + m.id, { cat: m.cat });
+  mtRevisar(m); guardar(); mtPintar();
+}
+function mtAvanceQuitar(m, aid) {
+  const a = m.avances.find(x => x.id === aid); if (!a) return;
+  forget(a.id); m.avances = m.avances.filter(x => x !== a); m.cambiado = Date.now();
+  if (a.d === today() && !m.avances.some(x => x.d === today() && +x.n > 0)) xpQuitar('ma:' + m.id);
+  mtRevisar(m); guardar(); mtPintar();
+}
+function mtEtapaMarcar(m, e, hecho) {
+  if (!m || !e || !!e.hecho === !!hecho) return;
+  e.hecho = !!hecho; e.hechoEn = hecho ? today() : ''; e.cambiado = m.cambiado = Date.now();
+  if (hecho) { buzz(30); xpGanar(30, `Etapa cumplida: ${e.t}`, 'me:' + e.id, { cat: m.cat, unica: true }); }
+  else xpQuitar('me:' + e.id, { cualquierDia: true });
+  mtRevisar(m); guardar(); mtPintar();
+}
+
+// ---------- El apartado
+const mtHost = document.getElementById('view-metas');
+const mtR = mtHost ? mtHost.attachShadow({ mode: 'open' }) : null;
+const MT_CSS = `
+  .mt-cab { margin: 0 0 14px; }
+  .mt-card { display: block; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px 12px; margin: 0 0 10px; }
+  .mt-card:active { background: var(--soft); }
+  .mt-l1 { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: .84rem; color: var(--muted); }
+  .mt-card b { display: block; font-size: 1.05rem; font-weight: 600; line-height: 1.3; margin: 4px 0 8px; overflow-wrap: anywhere; }
+  .mt-card small { display: block; color: var(--muted); font-size: .84rem; line-height: 1.4; margin-top: 3px; overflow-wrap: anywhere; }
+  .mt-bar { display: block; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+  .mt-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .mt-card.ok .mt-bar i { background: var(--green); }
+  .mt-vacio { background: var(--soft); border-radius: 16px; padding: 14px 16px; margin: 0 0 18px; }
+  .mt-vacio b { display: block; font-size: 1.02rem; margin-bottom: 4px; }
+  .mt-vacio p { margin: 0 0 12px; font-size: .92rem; }
+  .mt-otras { margin-top: 18px; border-top: 1px solid var(--line); }
+  .mt-otras summary { cursor: pointer; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 12px 0 8px; }
+  .mt-pie { margin-top: 30px; font-size: .85rem; }
+  .mt-et, .mt-v { align-items: flex-start; }
+  .mt-et .t, .mt-v .t { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+  .mt-et .t div, .mt-v .t div { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+  .mt-et .t small, .mt-v .t small { white-space: normal; overflow-wrap: anywhere; }
+  .mt-et.ok .t div { text-decoration: line-through; color: var(--muted); }
+  .mt-et .box { flex: none; width: 22px; height: 22px; margin-top: 1px; }
+  .mt-et .mt-n { flex: none; min-width: 22px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mt-et.mt-ya .mt-n { color: var(--accent); }
+  .mt-v .mt-x { flex: none; color: var(--muted); font-size: 1.2rem; line-height: 1; padding: 2px 6px; }
+  .mt-ed { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; margin: 0 0 14px; }
+  .mt-ed .mt-n { grid-row: 1; font-weight: 700; color: var(--muted); }
+  .mt-ed input[type="text"] { grid-column: 2; grid-row: 1; min-width: 0; }
+  .mt-ed input[type="date"] { grid-column: 2; grid-row: 2; width: auto; max-width: 12em; font-size: .9rem; color: var(--muted); }
+  .mt-ed .mt-x { grid-column: 3; grid-row: 1; color: var(--muted); font-size: 1.2rem; padding: 2px 6px; }
+  .mt-sec { margin: 22px 0 6px; }
+  .mt-av { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .mt-rec { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 6px 0 0; font-size: .85rem; color: var(--muted); }
+  .mt-rec button { color: var(--muted); padding: 0 4px; }
+  .mt-rv { background: var(--soft); border-radius: 12px; padding: 10px 12px; margin: 8px 0 0; font-size: .9rem; }
+  .mt-rv li { margin: 2px 0; }`;
+if (mtR) { const st = document.createElement('style'); st.textContent = ENFOQUE_CSS + MT_CSS; mtR.appendChild(st); }
+{ const st = document.createElement('style'); st.id = 'mt-css'; st.textContent = MT_CSS; ov.appendChild(st); }
+const mtW = document.createElement('div'); mtW.className = 'enf'; if (mtR) mtR.appendChild(mtW);
+function mtCardHtml(m) {
+  const P = mtProgreso(m), e = mtEtapaAhora(m), sem = mtSemana(m), V = m.vinc.length;
+  return `<button class="mt-card${m.hecho ? ' ok' : ''}" data-mt-ver="${esc(m.id)}"><span class="mt-l1"><span>${esc(mtCatN(m.cat))}</span><span>${esc(mtQueda(m))}</span></span>
+    <b>${esc(m.t)}</b>
+    <span class="mt-bar" aria-hidden="true"><i style="width:${P.pct}%"></i></span>
+    <small>${esc(P.txt)} · ${P.pct} %</small>
+    ${!m.hecho && e ? `<small>Etapa ahora: ${esc(e.t || 'Sin nombre')}${e.fecha ? ' · ' + esc(mtFechaCorta(e.fecha)) : ''}</small>` : ''}
+    ${m.hecho ? '' : `<small>${V ? `${sem ? `Esta semana: ${mtPl(sem, 'acción', 'acciones')}` : 'Sin acciones esta semana'} · ${mtPl(V, 'cosa vinculada', 'cosas vinculadas')}` : 'Aún sin nada vinculado'}</small>`}</button>`;
+}
+function mtPremiosPendientes() {
+  const P = mtTodas().filter(m => m.hecho && !m.premiada); if (!P.length) return;
+  guardarAlPintar(() => { for (const m of P) { if (!m.hecho || m.premiada) continue; m.premiada = true; if (!m.hechoEn) m.hechoEn = today(); xpGanar(150, `Meta cumplida: ${m.t}`, 'mc:' + m.id, { cat: m.cat, unica: true }); } guardar(); });
+}
+function renderMetas() {
+  if (!mtR) return;
+  try { mtPremiosPendientes(); } catch {}
+  const A = mtActivas(), C = mtTodas().filter(m => m.hecho && !m.archivada).sort((a, b) => (b.hechoEn || '') < (a.hechoEn || '') ? -1 : 1), Ar = mtTodas().filter(m => m.archivada);
+  const cab = '<div class="mt-cab"><h2 style="margin-top:0">Metas a largo plazo</h2><p class="note">Lo que quieres lograr en meses o años, dividido en etapas y conectado con lo que haces cada día.</p></div>';
+  if (!mtTodas().length) {
+    mtW.innerHTML = `${cab}<div class="mt-vacio"><b>Aún no tienes metas a largo plazo</b><p>En cinco pasos la haces SMART: qué quieres lograr, cómo lo medirás, para cuándo, las etapas del camino y por qué te importa. Después la vinculas con tus objetivos, proyectos, hábitos, tareas, rutas de estudio y lo demás.</p>
+      <div class="row-b"><button class="primary" id="mt-primera">Crear mi primera meta</button></div></div>${MT_PIE}`;
+    return;
+  }
+  mtW.innerHTML = `${cab}<p style="margin:0 0 14px"><button class="primary" id="mt-nueva">+ Nueva meta</button></p>
+    ${A.length ? A.map(mtCardHtml).join('') : '<p class="empty">Ninguna meta en marcha.</p>'}
+    ${C.length ? `<details class="mt-otras"><summary>Cumplidas · ${C.length}</summary>${C.map(mtCardHtml).join('')}</details>` : ''}
+    ${Ar.length ? `<details class="mt-otras"><summary>Archivadas · ${Ar.length}</summary>${Ar.map(mtCardHtml).join('')}</details>` : ''}
+    ${MT_PIE}`;
+}
+window.renderMetas = () => renderMetas();
+mtW.addEventListener('click', e => {
+  const v = e.target.closest('[data-mt-ver]'); if (v) { mtFicha(v.dataset.mtVer); return; }
+  if (e.target.closest('#mt-nueva, #mt-primera')) mtNueva();
+});
+
+// ---------- La ficha de la meta
+function mtFicha(id) {
+  const m = mtGet(id); if (!m) { toast('Esa meta ya no está.'); return; }
+  const P = mtProgreso(m), E = mtEtapas(m), ahora = mtEtapaAhora(m), sem = mtSemana(m), desde = mtSemanaDesde(), lunes = xmLunes(), rev = m.revisiones.find(r => r.sem === lunes);
+  const ritmo = mtRitmo(m), sugerir = !m.hecho && m.modo === 'numero' && m.etapas.length && m.etapas.every(e => e.hecho);
+  const filaEt = (e, i) => { const n = m.vinc.filter(v => v.etapa === e.id).length, pasada = !e.hecho && e.fecha && e.fecha < today();
+    return `<div class="row mt-et${e.hecho ? ' ok' : ''}${e === ahora ? ' mt-ya' : ''}"><span class="mt-n">${i + 1}</span><button class="t" data-mt-et="${esc(e.id)}"><div>${esc(e.t || 'Etapa sin nombre')}</div><small>${esc([e.hecho ? `Cumplida el ${mtFechaCorta(e.hechoEn)}` : e.fecha ? (pasada ? `Era para el ${mtFechaCorta(e.fecha)} · toca para moverla` : `Para el ${mtFechaCorta(e.fecha)}`) : 'Sin fecha', e === ahora && !m.hecho ? 'ahora' : '', e.senal ? `Hecha cuando: ${e.senal}` : '', n ? mtPl(n, 'cosa vinculada', 'cosas vinculadas') : ''].filter(Boolean).join(' · '))}</small></button><button class="box" data-mt-et-ok="${esc(e.id)}" aria-label="${e.hecho ? 'Desmarcar' : 'Marcar cumplida'}: ${esc(e.t)}" style="${e.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></button></div>`; };
+  const filaV = v => { const f = mtFuente(v), n = mtActividad(v, desde, today()), et = v.etapa ? mtEtapaNum(m, v.etapa) : 0;
+    return `<div class="row mt-v"><button class="t" data-mt-v="${esc(v.id)}"><div>${esc(f.t)}</div><small>${esc([MT_TIPO[v.tipo], f.existe ? f.sub : 'ya no está en la app', n ? `${n} esta semana` : '', et ? `etapa ${et}` : ''].filter(Boolean).join(' · '))}</small></button><button class="mt-x" data-mt-vx="${esc(v.id)}" aria-label="Quitar el vínculo con ${esc(f.t)}">×</button></div>`; };
+  const orden = Object.keys(MT_TIPO), V = [...m.vinc].sort((a, b) => orden.indexOf(a.tipo) - orden.indexOf(b.tipo));
+  showSheet(`<p class="paso">Meta · ${esc(mtCatN(m.cat))} · ${esc(mtQueda(m))}</p><h2>${esc(m.t)}</h2>
+    <div class="meter"><span>${esc(P.etiqueta)}</span><b class="${m.hecho ? 'green' : ''}">${esc(P.txt)} · ${P.pct} %</b></div><div class="meter-bar"><i style="width:${P.pct}%"></i></div>
+    <p class="meta">${smartLinea(mtSmart(m))}</p>
+    ${jdLineaDe(m)}
+    ${m.porque ? `<p class="meta">Por qué: ${esc(m.porque)}</p>` : ''}
+    ${m.fecha ? `<p class="meta">Para el ${esc(mtFechaTxt(m.fecha))}${ritmo ? ' · ' + esc(ritmo) : ''}</p>` : ''}
+    ${m.hecho ? `<p class="meta green">Cumplida el ${esc(mtFechaTxt(m.hechoEn))}.</p>` : sugerir ? `<p class="note">Todas las etapas están cumplidas. <button class="link" id="mt-f-ya">Darla por cumplida</button></p>` : ''}
+    <h3 class="mt-sec">El proceso · ${mtPl(E.length, 'etapa', 'etapas')}</h3>
+    ${E.length ? `<div class="rows">${E.map(filaEt).join('')}</div>` : '<p class="meta">Sin etapas todavía. Parte la meta en tramos con fecha: cada uno es una submeta cercana.</p>'}
+    ${E.length < 12 ? '<p class="more" style="padding-top:4px"><button class="link" id="mt-f-et">+ Añadir etapa</button></p>' : ''}
+    <h3 class="mt-sec">Lo que la mueve</h3>
+    ${V.length ? `<p class="meta">${sem ? `Esta semana: ${mtPl(sem, 'acción', 'acciones')} por esta meta.` : 'Sin acciones esta semana todavía.'}</p><div class="rows">${V.map(filaV).join('')}</div>` : '<p class="meta">Nada vinculado todavía. Conecta lo que ya haces (objetivos, proyectos, hábitos, tareas, rutas de estudio, iniciativas, Vida espiritual, planes o bloques de tiempo) o crea algo nuevo para esta meta.</p>'}
+    <div class="actions stack" style="margin-top:10px"><button class="outline" id="mt-f-vinc">Vincular lo que ya tienes</button><button class="link" id="mt-f-nuevo">Crear algo nuevo para esta meta</button></div>
+    ${m.hecho ? '' : `<h3 class="mt-sec">Revisión de la semana</h3>${rev ? `<p class="meta green">Revisada el ${esc(fechaLarga(rev.d))}.${rev.paso ? ` Siguiente paso: ${esc(rev.paso)}.` : ''}</p>${rev.nota ? `<p class="meta" style="white-space:pre-line">${esc(rev.nota)}</p>` : ''}<p class="more" style="padding-top:0"><button class="link" id="mt-f-rev">Volver a revisarla</button></p>` : `<p class="meta">Dos minutos: qué se movió, qué aprendiste y el siguiente paso, con fecha.</p><p style="margin:6px 0 0"><button class="outline" id="mt-f-rev">Revisar la semana · 2 min</button></p>`}`}
+    ${!m.hecho && m.modo === 'numero' ? `<div class="field" style="margin-top:18px"><label>Registrar avance (${esc(m.metrica || m.unidad)})</label><div class="mt-av"><button class="chip" id="mt-f-1">+1 ${esc(m.unidad)}</button><input id="mt-f-n" type="number" inputmode="decimal" step="any" placeholder="Cantidad" style="max-width:110px"><input id="mt-f-nota" maxlength="80" placeholder="Nota (opcional)" style="flex:1;min-width:120px"><button class="link" id="mt-f-add">Sumar</button></div></div>` : ''}
+    ${m.avances.length ? `<p class="meta" style="margin-top:12px">Últimos avances</p><div class="mt-rec">${m.avances.slice(-6).reverse().map(a => `<span>${esc(mtFechaCorta(a.d))} ${a.n > 0 ? '+' : ''}${esc(mtNum(a.n))}${a.nota ? ' ' + esc(a.nota) : ''}<button class="link" data-mt-avx="${esc(a.id)}" aria-label="Quitar este avance">×</button></span>`).join('')}</div>` : ''}
+    <div class="actions">${m.hecho ? (m.manual || !mtOk(m) ? '<button class="link" id="mt-f-reabrir">Reabrir</button>' : '') : '<button class="link" id="mt-f-ya2">Darla por cumplida</button>'}<button class="link" id="mt-f-edit">Editar</button><button class="primary" id="mt-f-x">Cerrar</button></div>`);
+  const body = $('#sheet-body'), otra = () => mtFicha(m.id);
+  body.querySelectorAll('[data-mt-et-ok]').forEach(b => b.onclick = () => { const e = m.etapas.find(x => x.id === b.dataset.mtEtOk); if (e) mtEtapaMarcar(m, e, !e.hecho); otra(); });
+  body.querySelectorAll('[data-mt-et]').forEach(b => b.onclick = () => mtEtapaSheet(m.id, b.dataset.mtEt));
+  body.querySelectorAll('[data-mt-v]').forEach(b => b.onclick = () => { const v = m.vinc.find(x => x.id === b.dataset.mtV); if (v) mtAbrirFuente(v); });
+  body.querySelectorAll('[data-mt-vx]').forEach(b => b.onclick = () => { const v = m.vinc.find(x => x.id === b.dataset.mtVx); if (!v || !confirm(`¿Quitar «${mtFuente(v).t}» de esta meta? No se borra de la app.`)) return; mtDesvincular(m, v.id); mtPintar(); otra(); });
+  body.querySelectorAll('[data-mt-avx]').forEach(b => b.onclick = () => { if (!confirm('¿Quitar este avance?')) return; mtAvanceQuitar(m, b.dataset.mtAvx); otra(); });
+  $('#mt-f-et')?.addEventListener('click', () => mtEtapaSheet(m.id, ''));
+  $('#mt-f-vinc').onclick = () => mtSelector(m.id);
+  $('#mt-f-nuevo').onclick = () => mtNuevoSheet(m.id);
+  $('#mt-f-rev')?.addEventListener('click', () => mtRevision(m.id));
+  $('#mt-f-1')?.addEventListener('click', () => { mtAvance(m, 1); otra(); });
+  $('#mt-f-add')?.addEventListener('click', () => { const n = +$('#mt-f-n').value; if (!n) { $('#mt-f-n').focus(); return; } mtAvance(m, n, $('#mt-f-nota').value); otra(); });
+  const ya = () => { mtCumplir(m, true); guardar(); mtPintar(); otra(); };
+  $('#mt-f-ya')?.addEventListener('click', ya);
+  $('#mt-f-ya2')?.addEventListener('click', () => { if (confirm(`¿Dar por cumplida «${m.t}»?`)) ya(); });
+  $('#mt-f-reabrir')?.addEventListener('click', () => { mtReabrir(m); guardar(); mtPintar(); otra(); });
+  $('#mt-f-edit').onclick = () => mtForm(m.id);
+  $('#mt-f-x').onclick = () => { closeSheet(); mtPintar(); };
+}
+
+// ---------- Una etapa: qué (verbo + qué), para cuándo y cómo sabrás que está hecha; lo vinculado a ella.
+function mtEtapaSheet(mid, eid) {
+  const m = mtGet(mid); if (!m) return;
+  const e = eid ? m.etapas.find(x => x.id === eid) : null, n = e ? mtEtapaNum(m, e.id) : m.etapas.length + 1;
+  const V = e ? m.vinc.filter(v => v.etapa === e.id) : [];
+  const fDef = (() => { const U = mtEtapas(m).filter(x => x.fecha).pop(); return U ? U.fecha : mtDiaMas(today(), 30); })();
+  showSheet(`<p class="paso">${esc(m.t)}</p><h2>${e ? `Etapa ${n}` : 'Nueva etapa'}</h2>
+    <p class="sci">Una submeta cercana, con fecha, se sostiene mejor que una meta lejana sola (Bandura y Schunk, 1981).</p>
+    <div class="field"><label>Qué vas a lograr en esta etapa (verbo + qué)</label><input id="mt-e-t" maxlength="100" value="${esc(e ? e.t : '')}" placeholder="Correr 10 km sin parar · Terminar el nivel B1"></div>
+    <div class="field"><label>Para cuándo</label><input id="mt-e-f" type="date" value="${esc(e ? e.fecha : fDef)}"></div>
+    <div class="field"><label>Cómo sabrás que está hecha (opcional)</label><input id="mt-e-s" maxlength="100" value="${esc(e ? e.senal : '')}" placeholder="Tengo el certificado · lo registré en la app"></div>
+    ${e && V.length ? `<p class="meta">Vinculado a esta etapa: ${V.map(v => esc(mtFuente(v).t)).join(' · ')}</p>` : ''}
+    <p class="meta red" id="mt-e-err"></p>
+    <div class="actions">${e ? '<button class="link red" id="mt-e-del">Eliminar</button>' : ''}${e ? `<button class="link" id="mt-e-ok2">${e.hecho ? 'Desmarcar' : 'Marcar cumplida'}</button>` : ''}<button class="link" id="mt-e-x">Volver</button><button class="primary" id="mt-e-ok">Guardar</button></div>`);
+  $('#mt-e-x').onclick = () => mtFicha(m.id);
+  $('#mt-e-ok2')?.addEventListener('click', () => { mtEtapaMarcar(m, e, !e.hecho); mtFicha(m.id); });
+  $('#mt-e-del')?.addEventListener('click', () => {
+    if (!confirm(`¿Eliminar la etapa «${e.t}»? Lo vinculado a ella sigue en la meta.`)) return;
+    if (e.hecho) xpQuitar('me:' + e.id, { cualquierDia: true });
+    forget(e.id); m.etapas = m.etapas.filter(x => x !== e); for (const v of m.vinc) if (v.etapa === e.id) v.etapa = '';
+    m.cambiado = Date.now(); mtRevisar(m); guardar(); mtPintar(); mtFicha(m.id);
+  });
+  $('#mt-e-ok').onclick = () => {
+    const t = $('#mt-e-t').value.trim(), f = $('#mt-e-f').value, s = $('#mt-e-s').value.trim();
+    if (nPalabras(t) < 2) { $('#mt-e-err').textContent = 'Escribe qué vas a lograr, con verbo (por ejemplo, «Terminar el nivel B1»).'; $('#mt-e-t').focus(); return; }
+    if (!f) { $('#mt-e-err').textContent = 'Ponle una fecha: así es una submeta cercana.'; $('#mt-e-f').focus(); return; }
+    if (e) Object.assign(e, { t, fecha: f, senal: s, cambiado: Date.now() });
+    else m.etapas.push({ id: crypto.randomUUID(), t, senal: s, fecha: f, hecho: false, hechoEn: '', orden: m.etapas.length, cambiado: Date.now() });
+    m.cambiado = Date.now(); mtRevisar(m); guardar(); mtPintar(); mtFicha(m.id);
+  };
+}
+
+// ---------- Crear: el proceso SMART en cinco pasos (S, M, T, A y R). El borrador vive en mtBorr mientras la hoja está abierta.
+function mtNueva(pre = {}) {
+  if (mtTodas().length >= 40) { toast('Puedes tener hasta 40 metas, contando las cumplidas y las archivadas. Elimina alguna para crear otra.'); return; }
+  mtBorr = { paso: 0, t: '', cat: 'otro', modo: 'numero', metrica: '', meta: '', unidad: '', base: '', fecha: '', etapas: [], tocadas: false, porque: '', iden: '', primer: '', primerF: mtDiaMas(today(), 2), plantilla: null, vincPend: [], ...pre };
+  if (!mtBorr.iden) mtBorr.iden = jdPre();
+  mtPaso();
+}
+function mtLeerPaso() {
+  const B = mtBorr, b = $('#sheet-body'); if (!B || !b) return;
+  const v = id => { const el = b.querySelector('#' + id); return el ? el.value : null; };
+  if (B.paso === 0 && v('mt-n-t') !== null) { B.t = v('mt-n-t').trim(); if (B.plantilla && B.t !== B.plantilla.t) { B.plantilla = null; if (!B.tocadas) B.etapas = []; } }
+  if (B.paso === 1) { if (v('mt-n-met') !== null) B.metrica = v('mt-n-met').trim(); if (v('mt-n-meta') !== null) B.meta = v('mt-n-meta'); if (v('mt-n-uni') !== null) B.unidad = v('mt-n-uni').trim(); if (v('mt-n-base') !== null) B.base = v('mt-n-base'); }
+  if (B.paso === 2 && v('mt-n-f') !== null) B.fecha = v('mt-n-f');
+  if (B.paso === 3) {
+    b.querySelectorAll('[data-mt-ed]').forEach(r => { const e = B.etapas.find(x => x.id === r.dataset.mtEd); if (!e) return; const tt = r.querySelector('input:not([type="date"])'), ff = r.querySelector('input[type="date"]'); if (tt && tt.value !== e.t) { e.t = tt.value; B.tocadas = true; } if (ff && ff.value !== e.fecha) { e.fecha = ff.value; B.tocadas = true; } });
+    if (v('mt-n-pp') !== null) B.primer = v('mt-n-pp').trim(); if (v('mt-n-ppf') !== null) B.primerF = v('mt-n-ppf');
+  }
+  if (B.paso === 4) { if (v('mt-n-por') !== null) B.porque = v('mt-n-por').trim(); B.iden = jdLeerChips(b, 'mt'); }
+}
+// Las etapas propuestas: de 3 a 8 tramos iguales hasta la fecha; con un número, «Llegar a {x} {unidad}»; con una plantilla, sus textos.
+function mtProponer(B) {
+  const ini = today(), fin = B.fecha && B.fecha > ini ? B.fecha : mtDiaMas(ini, 365), dias = Math.max(1, mtDiasEntre(ini, fin)), meses = dias / 30.44;
+  const P = Array.isArray(B.plantilla?.etapas) ? B.plantilla.etapas : null, N = P ? P.length : meses <= 6 ? 3 : meses <= 12 ? 4 : meses <= 24 ? 6 : 8;
+  const meta = +String(B.meta).replace(',', '.') || 0, base = +String(B.base).replace(',', '.') || 0;
+  B.etapas = Array.from({ length: N }, (_, i) => {
+    const k = i + 1, f0 = mtDiaMas(ini, Math.max(1, Math.round(dias * k / N))), f = k === N || f0 > fin ? fin : f0;
+    let t = P ? P[i] : '';
+    if (!P && B.modo === 'numero' && meta > 0) { const x = base + (meta - base) * k / N; t = `Llegar a ${mtNum(x >= 20 ? Math.round(x) : Math.round(x * 10) / 10)} ${B.unidad || 'veces'}`; }
+    return { id: crypto.randomUUID(), t, fecha: f };
+  });
+  B.tocadas = false;
+}
+function mtPaso() {
+  const B = mtBorr; if (!B) return;
+  const cab = (l, t) => `<p class="paso">Paso ${B.paso + 1} de 5 · ${l}</p><h2>${t}</h2>`;
+  const nav = (sig = 'Siguiente') => `<p class="meta red" id="mt-n-err"></p><div class="actions"><button class="link" id="mt-n-atras">${B.paso ? 'Atrás' : 'Cancelar'}</button><button class="primary" id="mt-n-sig"${B.paso === 4 ? ' data-guarda' : ''}>${sig}</button></div>`;
+  const chipsCat = `<div class="field"><label>Categoría</label><div class="chips" id="mt-n-cat">${MT_CATS.map(c => `<button type="button" class="chip${B.cat === c ? ' on' : ''}" data-c="${c}">${esc(mtCatN(c))}</button>`).join('')}</div></div>`;
+  let html = '';
+  if (B.paso === 0) html = `${cab('S · Específica', '¿Qué quieres lograr?')}
+    <p class="sci">Una meta específica y difícil rinde más que «hacerlo lo mejor posible» (Locke y Latham, 2002). Piensa en meses o años.</p>
+    <div class="field"><label>Tu meta (verbo + qué)</label><input id="mt-n-t" maxlength="100" value="${esc(B.t)}" placeholder="Terminar la maestría · Correr un medio maratón · Ahorrar para el enganche"></div>
+    ${chipsCat}
+    <p class="meta" style="margin:4px 0 6px">Ejemplos para empezar</p><div class="chips" id="mt-n-pl">${MT_PLANTILLAS.map((p, i) => `<button type="button" class="chip" data-p="${i}">${esc(p.t)}</button>`).join('')}</div>
+    ${nav()}`;
+  if (B.paso === 1) html = `${cab('M · Medible', '¿Cómo sabrás que lo lograste?')}
+    <div class="chips" id="mt-n-modo" style="margin-bottom:14px"><button type="button" class="chip${B.modo === 'numero' ? ' on' : ''}" data-m="numero">Con un número</button><button type="button" class="chip${B.modo === 'etapas' ? ' on' : ''}" data-m="etapas">Por etapas cumplidas</button></div>
+    ${B.modo === 'numero' ? `<div class="field"><label>Qué cuentas</label><input id="mt-n-met" maxlength="60" value="${esc(B.metrica)}" placeholder="Libros leídos · kilos bajados · dinero ahorrado"></div>
+    <div class="times"><div class="field"><label>Meta (número)</label><input id="mt-n-meta" type="number" inputmode="decimal" min="0" step="any" value="${esc(B.meta)}" placeholder="24"></div><div class="field"><label>Unidad</label><input id="mt-n-uni" maxlength="20" value="${esc(B.unidad)}" placeholder="libros · kg · $"></div></div>
+    <div class="field"><label>Lo que ya llevas (opcional)</label><input id="mt-n-base" type="number" inputmode="decimal" min="0" step="any" value="${esc(B.base)}" placeholder="0"></div>
+    <p class="meta">Si quieres bajar algo (peso, deudas), cuenta lo que bajas: «Bajar 8 kg» con meta 8.</p>`
+    : '<p class="meta">La barra avanza con cada etapa cumplida. Las etapas las defines en el paso 4: cada una con su fecha y cómo sabrás que está hecha.</p>'}
+    ${nav()}`;
+  if (B.paso === 2) {
+    const H = [[3, '3 meses'], [6, '6 meses'], [12, '1 año'], [24, '2 años'], [36, '3 años'], [60, '5 años']], d = B.fecha ? mtDiasEntre(today(), B.fecha) : null;
+    html = `${cab('T · Con fecha', '¿Para cuándo?')}
+    <div class="chips" id="mt-n-h" style="margin-bottom:12px">${H.map(([n, t]) => { const f = mtMasMeses(n); return `<button type="button" class="chip${B.fecha === f ? ' on' : ''}" data-f="${f}">${t}</button>`; }).join('')}</div>
+    <div class="field"><label>Fecha límite</label><input id="mt-n-f" type="date" value="${esc(B.fecha)}" min="${mtDiaMas(today(), 1)}"></div>
+    <p class="meta" id="mt-n-hint">${d !== null && d > 0 && d < 90 ? 'A menos de tres meses, un objetivo SMART de la Agenda suele bastar; la meta sirve igual si la quieres por etapas.' : d !== null && d > 0 ? `${esc(mtFechaTxt(B.fecha))}: ${esc(mtQueda({ fecha: B.fecha }))}.` : ''}</p>
+    ${nav()}`;
+  }
+  if (B.paso === 3) {
+    if (!B.tocadas || !B.etapas.length) mtProponer(B);
+    html = `${cab('A · Alcanzable', 'El proceso: tus etapas')}
+    <p class="sci">Una meta lejana se sostiene mejor partida en submetas cercanas, cada una con su fecha (Bandura y Schunk, 1981). Te propongo estas; cámbialas a tu medida.</p>
+    <div id="mt-n-ets">${B.etapas.map((e, i) => `<div class="mt-ed" data-mt-ed="${esc(e.id)}"><span class="mt-n">${i + 1}</span><input type="text" maxlength="100" value="${esc(e.t)}" placeholder="Etapa ${i + 1}: verbo + qué" aria-label="Etapa ${i + 1}"><input type="date" value="${esc(e.fecha)}" aria-label="Fecha de la etapa ${i + 1}"><button type="button" class="mt-x" data-mt-edx="${esc(e.id)}" aria-label="Quitar la etapa ${i + 1}">×</button></div>`).join('')}</div>
+    <p class="more" style="padding-top:0">${B.etapas.length < 12 ? '<button type="button" class="link" id="mt-n-etadd">+ Añadir etapa</button>' : ''}${B.tocadas ? ' · <button type="button" class="link" id="mt-n-prop">Volver a proponer</button>' : ''}</p>
+    <div class="field" style="margin-top:14px"><label>Tu primer paso, esta semana (opcional)</label><input id="mt-n-pp" maxlength="100" value="${esc(B.primer)}" placeholder="Inscribirme al curso · comprar las zapatillas"><input id="mt-n-ppf" type="date" value="${esc(B.primerF)}" min="${today()}" style="margin-top:8px" aria-label="Fecha del primer paso"></div>
+    <p class="meta">El primer paso se crea como tarea, vinculada a la meta.</p>
+    ${nav()}`;
+  }
+  if (B.paso === 4) {
+    const M = mtBorrMeta(B);
+    html = `${cab('R · Relevante', '¿Por qué te importa?')}
+    <p class="sci">Las metas que encajan con lo que valoras se persiguen con más constancia (Sheldon y Elliot, 1999).</p>
+    <div class="field"><label>Por qué importa</label><input id="mt-n-por" maxlength="160" value="${esc(B.porque)}" placeholder="Para tener un trabajo que me deje tiempo con mi familia"></div>
+    ${jdChipsHtml('mt', B.iden || jdSugerir(B.t, B.cat))}
+    <div class="mt-rv"><b>${esc(M.t || 'Tu meta')}</b><br>${esc(M.modo === 'numero' ? `${mtNum(M.meta)} ${M.unidad} (${M.metrica})` : `${mtPl(M.etapas.length, 'etapa', 'etapas')} cumplidas`)} · para el ${esc(mtFechaTxt(M.fecha))}<br>${mtPl(M.etapas.length, 'etapa', 'etapas')}: ${esc(mtEtapas(M).map(e => e.t).filter(Boolean).slice(0, 3).join(' → '))}${M.etapas.length > 3 ? ' → …' : ''}${B.primer ? `<br>Primer paso: ${esc(B.primer)}` : ''}</div>
+    ${nav('Crear meta')}`;
+  }
+  showSheet(html);
+  const body = $('#sheet-body');
+  body.querySelector('#mt-n-cat')?.addEventListener('click', e => { const c = e.target.closest('[data-c]'); if (!c) return; B.cat = c.dataset.c; body.querySelectorAll('#mt-n-cat .chip').forEach(x => x.classList.toggle('on', x === c)); });
+  body.querySelector('#mt-n-pl')?.addEventListener('click', e => {
+    const c = e.target.closest('[data-p]'); if (!c) return; const p = MT_PLANTILLAS[+c.dataset.p]; if (!p) return;
+    Object.assign(B, { t: p.t, cat: p.cat, modo: p.modo, metrica: p.metrica || '', meta: p.meta || '', unidad: p.unidad || '', base: '', fecha: mtMasMeses(p.meses), plantilla: p, tocadas: false, etapas: [] });
+    mtPaso();
+  });
+  body.querySelector('#mt-n-modo')?.addEventListener('click', e => { const c = e.target.closest('[data-m]'); if (!c) return; mtLeerPaso(); B.modo = c.dataset.m; if (B.plantilla && B.modo !== B.plantilla.modo) B.plantilla = null; if (!B.tocadas) B.etapas = []; mtPaso(); });
+  body.querySelector('#mt-n-h')?.addEventListener('click', e => { const c = e.target.closest('[data-f]'); if (!c) return; B.fecha = c.dataset.f; if (!B.tocadas) B.etapas = []; mtPaso(); });
+  body.querySelector('#mt-n-f')?.addEventListener('change', () => {   // sin repintar: escribir la fecha con el teclado no se corta
+    B.fecha = $('#mt-n-f').value; if (!B.tocadas) B.etapas = [];
+    body.querySelectorAll('#mt-n-h .chip').forEach(x => x.classList.toggle('on', x.dataset.f === B.fecha));
+    const d = B.fecha ? mtDiasEntre(today(), B.fecha) : null, h = body.querySelector('#mt-n-hint');
+    if (h) h.textContent = d !== null && d > 0 && d < 90 ? 'A menos de tres meses, un objetivo SMART de la Agenda suele bastar; la meta sirve igual si la quieres por etapas.' : d !== null && d > 0 ? `${mtFechaTxt(B.fecha)}: ${mtQueda({ fecha: B.fecha })}.` : '';
+  });
+  body.querySelector('#mt-n-ets')?.addEventListener('input', () => { B.tocadas = true; });
+  body.querySelectorAll('[data-mt-edx]').forEach(x => x.onclick = () => { mtLeerPaso(); if (B.etapas.length <= 1) { toast('Una meta necesita al menos una etapa.'); return; } B.etapas = B.etapas.filter(e => e.id !== x.dataset.mtEdx); B.tocadas = true; mtPaso(); });
+  body.querySelector('#mt-n-etadd')?.addEventListener('click', () => { mtLeerPaso(); const U = B.etapas[B.etapas.length - 1]; B.etapas.push({ id: crypto.randomUUID(), t: '', fecha: U?.fecha || B.fecha || '' }); B.tocadas = true; mtPaso(); setTimeout(() => { const L = $('#sheet-body').querySelectorAll('#mt-n-ets input[type="text"]'); L[L.length - 1]?.focus(); }, 30); });
+  body.querySelector('#mt-n-prop')?.addEventListener('click', () => { mtProponer(B); mtPaso(); });
+  $('#mt-n-atras').onclick = () => { mtLeerPaso(); if (!B.paso) { mtBorr = null; closeSheet(); return; } B.paso--; mtPaso(); };
+  $('#mt-n-sig').onclick = () => {
+    mtLeerPaso();
+    const err = (id, t) => { $('#mt-n-err').textContent = t; if (id) $('#' + id)?.focus(); };
+    if (B.paso === 0 && nPalabras(B.t) < 2) return err('mt-n-t', 'Escribe tu meta con un verbo y qué: «Terminar la maestría», «Correr un medio maratón».');
+    if (B.paso === 1 && B.modo === 'numero') {
+      if (!B.metrica) return err('mt-n-met', 'Escribe qué cuentas para saber cuánto llevas.');
+      if (!(+String(B.meta).replace(',', '.') > 0)) return err('mt-n-meta', 'Pon la meta en número, mayor que 0.');
+      if (!B.unidad) return err('mt-n-uni', 'Pon la unidad: libros, kg, $, capítulos…');
+      if ((+String(B.base).replace(',', '.') || 0) >= +String(B.meta).replace(',', '.')) return err('mt-n-base', 'Lo que ya llevas tiene que ser menos que la meta.');
+    }
+    if (B.paso === 2 && !(B.fecha && B.fecha > today())) return err('mt-n-f', 'Elige una fecha desde mañana en adelante.');
+    if (B.paso === 3) {
+      const L = B.etapas.filter(e => String(e.t || '').trim() || e.fecha);
+      if (L.length < 2) return err('', 'Parte la meta en al menos dos etapas.');
+      const mal = L.findIndex(e => nPalabras(e.t) < 2 || !e.fecha);
+      if (mal >= 0) return err('', `A la etapa ${B.etapas.indexOf(L[mal]) + 1} le falta ${nPalabras(L[mal].t) < 2 ? 'qué vas a lograr (verbo + qué)' : 'su fecha'}.`);
+      const tarde = L.findIndex(e => e.fecha > B.fecha);
+      if (tarde >= 0) return err('', `La etapa ${B.etapas.indexOf(L[tarde]) + 1} cae después de la fecha de la meta (${mtFechaCorta(B.fecha)}). Muévela o cambia la fecha en el paso 3.`);
+      if (B.primer && nPalabras(B.primer) < 2) return err('mt-n-pp', 'El primer paso, con verbo y qué (o déjalo vacío).');
+      B.etapas = L.map(e => ({ ...e, t: String(e.t).trim() }));
+    }
+    if (B.paso === 4) { if (!B.porque) return err('mt-n-por', 'Escribe por qué te importa: es la R de SMART.'); return mtCrearDesdeBorr(); }
+    B.paso++; mtPaso();
+  };
+}
+function mtBorrMeta(B) {
+  const n = v => +String(v ?? '').replace(',', '.') || 0;
+  return { t: B.t, cat: B.cat, modo: B.modo, metrica: B.modo === 'numero' ? B.metrica : '', meta: B.modo === 'numero' ? Math.max(0.01, n(B.meta)) : 1, unidad: B.modo === 'numero' ? (B.unidad || 'veces') : 'etapas', base: B.modo === 'numero' ? Math.max(0, n(B.base)) : 0,
+    fecha: B.fecha, porque: B.porque, iden: B.iden, etapas: B.etapas.map((e, i) => ({ id: e.id || crypto.randomUUID(), t: String(e.t || '').trim().slice(0, 100), senal: '', fecha: e.fecha, hecho: false, hechoEn: '', orden: i, cambiado: Date.now() })) };
+}
+function mtCrearDesdeBorr() {
+  const B = mtBorr; if (!B) return;
+  if (mtTodas().length >= 40) { toast('Puedes tener hasta 40 metas, contando las cumplidas y las archivadas.'); return; }
+  const M = mtBorrMeta(B), ahora = Date.now();
+  const m = { id: crypto.randomUUID(), ...M, inicio: today(), avances: [], vinc: [], revisiones: [], hecho: false, hechoEn: '', manual: false, archivada: false, orden: mtActivas().length, creado: today(), cambiado: ahora };
+  ES.metas = [...mtTodas(), m];
+  for (const v of B.vincPend || []) mtVincular(m, v.tipo, v.ref, '', false);
+  if (B.primer) {
+    const s = HT(), x = { id: crypto.randomUUID(), lista: s.tareas.activa || 'inbox', titulo: B.primer.slice(0, 100), detalle: `Primer paso de la meta «${m.t}»`, fecha: B.primerF || '', hecha: false, creado: ahora, ...(m.iden ? { iden: m.iden } : {}) };
+    try { const c = window.cat?.sugerir?.(x.titulo, { tipo: 'tarea' }); if (typeof c === 'string' && c) x.cat = c; } catch {}
+    if (!x.cat) x.cat = m.cat;
+    s.tareas.items.push(x); mtVincular(m, 'tarea', x.id, m.etapas[0]?.id || '', false);
+  }
+  mtBorr = null;
+  xpGanar(20, 'Meta SMART a largo plazo', 'm:' + m.id, { cat: m.cat, unica: true });
+  guardar(); try { gAuto(); } catch {} if (view === 'tareas') renderTareas();
+  mtPintar(); mtFicha(m.id);
+  toast('Meta creada. Ahora vincula lo que ya haces por ella.');
+}
+
+// ---------- Editar la meta (todo en una hoja; las etapas, desde la ficha)
+function mtForm(id) {
+  const m = mtGet(id); if (!m) return;
+  showSheet(`<h2>Editar meta</h2>
+    <div class="field"><label>S · Qué quieres lograr (verbo + qué)</label><input id="mt-ed-t" maxlength="100" value="${esc(m.t)}"></div>
+    <div class="field"><label>Categoría</label><div class="chips" id="mt-ed-cat">${MT_CATS.map(c => `<button type="button" class="chip${m.cat === c ? ' on' : ''}" data-c="${c}">${esc(mtCatN(c))}</button>`).join('')}</div></div>
+    <div class="field"><label>M · Cómo se mide</label><div class="chips" id="mt-ed-modo"><button type="button" class="chip${m.modo === 'numero' ? ' on' : ''}" data-m="numero">Con un número</button><button type="button" class="chip${m.modo === 'etapas' ? ' on' : ''}" data-m="etapas">Por etapas cumplidas</button></div></div>
+    <div id="mt-ed-num"${m.modo === 'numero' ? '' : ' hidden'}>
+      <div class="field"><label>Qué cuentas</label><input id="mt-ed-met" maxlength="60" value="${esc(m.metrica)}"></div>
+      <div class="times"><div class="field"><label>Meta (número)</label><input id="mt-ed-meta" type="number" inputmode="decimal" min="0" step="any" value="${esc(m.meta)}"></div><div class="field"><label>Unidad</label><input id="mt-ed-uni" maxlength="20" value="${esc(m.modo === 'numero' ? m.unidad : '')}"></div></div>
+      <div class="field"><label>Lo que llevabas al empezar</label><input id="mt-ed-base" type="number" inputmode="decimal" min="0" step="any" value="${esc(m.base)}"></div></div>
+    <div class="field"><label>T · Fecha límite</label><input id="mt-ed-f" type="date" value="${esc(m.fecha)}"></div>
+    <div class="field"><label>R · Por qué importa</label><input id="mt-ed-por" maxlength="160" value="${esc(m.porque)}"></div>
+    ${jdChipsHtml('mt-ed', m.iden)}
+    <p class="meta red" id="mt-ed-err"></p>
+    <div class="actions"><button class="link red" id="mt-ed-del">Eliminar</button><button class="link" id="mt-ed-arch">${m.archivada ? 'Desarchivar' : 'Archivar'}</button><button class="link" id="mt-ed-x">Volver</button><button class="primary" id="mt-ed-ok">Guardar</button></div>`);
+  const body = $('#sheet-body');
+  let cat = m.cat, modo = m.modo;
+  body.querySelector('#mt-ed-cat').addEventListener('click', e => { const c = e.target.closest('[data-c]'); if (!c) return; cat = c.dataset.c; body.querySelectorAll('#mt-ed-cat .chip').forEach(x => x.classList.toggle('on', x === c)); });
+  body.querySelector('#mt-ed-modo').addEventListener('click', e => { const c = e.target.closest('[data-m]'); if (!c) return; modo = c.dataset.m; body.querySelectorAll('#mt-ed-modo .chip').forEach(x => x.classList.toggle('on', x === c)); $('#mt-ed-num').hidden = modo !== 'numero'; });
+  $('#mt-ed-x').onclick = () => mtFicha(m.id);
+  $('#mt-ed-arch').onclick = () => { m.archivada = !m.archivada; m.cambiado = Date.now(); guardar(); mtPintar(); if (m.archivada) { closeSheet(); toast('Meta archivada. Está en «Archivadas».'); } else mtFicha(m.id); };
+  $('#mt-ed-del').onclick = () => { if (!confirm(`¿Eliminar la meta «${m.t}» con sus etapas y avances? Lo vinculado no se borra de la app, pero sí el XP que dio la meta.`)) return;
+    for (const r of ['m:' + m.id, 'mc:' + m.id, ...m.etapas.map(e => 'me:' + e.id), ...m.revisiones.map(x => `mr:${m.id}:${x.sem}`)]) xpQuitar(r, { cualquierDia: true });
+    xpQuitar('ma:' + m.id);
+    forget(m.id); ES.metas = mtTodas().filter(x => x !== m); guardar(); closeSheet(); mtPintar(); toast('Meta eliminada.'); };
+  $('#mt-ed-ok').onclick = () => {
+    const n = id => +String($('#' + id).value).replace(',', '.') || 0;
+    const d = { t: $('#mt-ed-t').value.trim(), cat, modo, fecha: $('#mt-ed-f').value, porque: $('#mt-ed-por').value.trim(), iden: jdLeerChips(body, 'mt-ed') };
+    if (modo === 'numero') Object.assign(d, { metrica: $('#mt-ed-met').value.trim(), meta: n('mt-ed-meta'), unidad: $('#mt-ed-uni').value.trim(), base: Math.max(0, n('mt-ed-base')) });
+    const falta = nPalabras(d.t) < 2 ? ['mt-ed-t', 'S: qué quieres lograr, con verbo'] : modo === 'numero' && !d.metrica ? ['mt-ed-met', 'M: qué cuentas'] : modo === 'numero' && !(d.meta > 0) ? ['mt-ed-meta', 'M: la meta en número'] : modo === 'numero' && !d.unidad ? ['mt-ed-uni', 'M: la unidad'] : modo === 'numero' && d.base >= d.meta ? ['mt-ed-base', 'M: lo que llevabas tiene que ser menos que la meta'] : !d.fecha ? ['mt-ed-f', 'T: la fecha límite'] : m.etapas.some(e => e.fecha && e.fecha > d.fecha) ? ['mt-ed-f', 'T: una fecha límite que no deje etapas después'] : !d.porque ? ['mt-ed-por', 'R: por qué importa'] : null;
+    if (falta) { $('#mt-ed-err').textContent = `Para que sea SMART falta ${falta[1]}.`; $('#' + falta[0]).focus(); return; }
+    if (modo === 'etapas') { d.unidad = 'etapas'; d.metrica = ''; }
+    Object.assign(m, d, { cambiado: Date.now() }); mtRevisar(m); guardar(); mtPintar(); mtFicha(m.id);
+  };
+}
+
+// ---------- Vincular lo que ya tienes: un selector agrupado, con buscador y, si hay etapas, «Para: toda la meta / etapa n».
+function mtOpciones(q, lim = 40) {
+  q = btSin(q);
+  const s = HT(), G = [];
+  const grupo = (tipo, titulo, refs) => { const L = refs.map(ref => ({ tipo, ref: String(ref), ...mtFuente({ tipo, ref: String(ref) }) })).filter(o => o.existe && (!q || btSin(o.t).includes(q) || btSin(o.sub).includes(q))).slice(0, lim); G.push({ tipo, titulo, L }); };
+  try { grupo('objetivo', 'Objetivos', (ES.objetivos || []).filter(o => o && !o.hecho).map(o => o.id)); } catch {}
+  try { grupo('proyecto', 'Proyectos', proyectosActivos().map(p => p.id)); } catch {}
+  try { grupo('habito', 'Hábitos', (s.habits || []).filter(h => h && !h.rutina && !h.archivado).map(h => h.id)); } catch {}
+  try { grupo('tarea', 'Tareas pendientes', (s.tareas?.items || []).filter(x => x && !x.hecha).sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : 1).map(x => x.id)); } catch {}
+  try { grupo('ruta', 'Rutas de estudio', (window.est?.rutas?.() || []).filter(r => r && !r.archivada).map(r => r.id)); } catch {}
+  try { grupo('ini', 'Iniciativas de cada día', INI4.map(([k]) => k)); } catch {}
+  try { grupo('norma', 'Vida espiritual', espD().configurado ? espD().normas.filter(n => n && n.on).map(n => n.id) : []); } catch {}
+  try { grupo('plan', 'Planes', planesProximos().map(p => p.id)); } catch {}
+  try { grupo('bt', 'Bloques de tiempo', btLista(today()).map(b => b.id)); } catch {}
+  return G;
+}
+function mtSelector(mid) {
+  const m = mtGet(mid); if (!m) return;
+  mtSel = { mid, sel: new Map(), q: '', etapa: '', abiertos: null };
+  const E = mtEtapas(m);
+  showSheet(`<h2>Vincular a «${esc(m.t)}»</h2>
+    ${E.length ? `<div class="field"><label>Para</label><div class="chips" id="mt-s-et"><button type="button" class="chip on" data-e="">Toda la meta</button>${E.map((e, i) => `<button type="button" class="chip" data-e="${esc(e.id)}">Etapa ${i + 1}${e.t ? ': ' + esc(e.t.slice(0, 32)) : ''}</button>`).join('')}</div></div>` : ''}
+    <div class="field"><input type="search" id="mt-s-q" placeholder="Buscar en objetivos, proyectos, hábitos, tareas…" aria-label="Buscar" enterkeyhint="search" autocomplete="off"></div>
+    <div id="mt-s-lista"></div>
+    <div class="actions"><button class="link" id="mt-s-x">Cancelar</button><button class="primary" id="mt-s-ok" data-guarda disabled>Vincular</button></div>`);
+  const body = $('#sheet-body'), S = mtSel;
+  mtSelPintar();
+  body.querySelector('#mt-s-et')?.addEventListener('click', e => { const c = e.target.closest('[data-e]'); if (!c) return; S.etapa = c.dataset.e; body.querySelectorAll('#mt-s-et .chip').forEach(x => x.classList.toggle('on', x === c)); });
+  const inp = body.querySelector('#mt-s-q'); inp.addEventListener('input', () => { S.q = inp.value; mtSelPintar(); });
+  body.querySelector('#mt-s-lista').addEventListener('change', e => { const c = e.target.closest?.('input[data-mt-k]'); if (!c || c.disabled) return; const k = c.dataset.mtK, [tipo, ...r] = k.split('|'); if (c.checked) S.sel.set(k, { tipo, ref: r.join('|') }); else S.sel.delete(k); mtSelBoton(); });
+  body.querySelector('#mt-s-lista').addEventListener('toggle', e => { const d = e.target; if (d?.dataset?.g && !S.q) { S.abiertos ||= new Set(); if (d.open) S.abiertos.add(d.dataset.g); else S.abiertos.delete(d.dataset.g); } }, true);
+  $('#mt-s-x').onclick = () => { mtSel = null; mtFicha(mid); };
+  $('#mt-s-ok').onclick = () => {
+    const mm = mtGet(mid); if (!mm || !S.sel.size) return;
+    let n = 0; for (const x of S.sel.values()) if (mtVincular(mm, x.tipo, x.ref, S.etapa, false)) n++;
+    mtSel = null; guardar(); mtPintar(); toast(n ? `${mtPl(n, 'cosa vinculada', 'cosas vinculadas')} a «${mm.t}».` : 'Ya estaba vinculado.'); mtFicha(mid);
+  };
+}
+hechoBorradores.push(dlg => dlg === sheet && mtSel && mtSel.sel.size && $('#mt-s-ok') ? 'mt-s-ok' : null);   // «Hecho» en el selector vincula lo marcado
+function mtSelBoton() { const b = $('#mt-s-ok'); if (!b || !mtSel) return; const n = mtSel.sel.size; b.disabled = !n; b.textContent = n ? `Vincular ${n}` : 'Vincular'; }
+function mtSelPintar() {
+  const S = mtSel, el = $('#mt-s-lista'), m = S && mtGet(S.mid); if (!S || !el || !m) return;
+  const ya = new Set(m.vinc.map(v => `${v.tipo}|${v.ref}`)), G = mtOpciones(S.q);
+  const fila = o => { const k = `${o.tipo}|${o.ref}`, y = ya.has(k), on = y || S.sel.has(k);
+    return `<label class="bt-op${y ? ' ya' : ''}"><input type="checkbox" data-mt-k="${esc(k)}" ${on ? 'checked' : ''} ${y ? 'disabled' : ''} aria-label="${esc(o.t)}"><span class="t"><div>${esc(o.t)}</div>${y || o.sub ? `<small>${esc(y ? 'Ya está vinculado' : o.sub)}</small>` : ''}</span></label>`; };
+  const abierto = (g, n) => S.q ? n > 0 : n > 0 && (S.abiertos ? S.abiertos.has(g) : ['objetivo', 'proyecto', 'habito'].includes(g));
+  const html = G.filter(g => !S.q || g.L.length).map(g => `<details class="bt-grupo" data-g="${g.tipo}"${abierto(g.tipo, g.L.length) ? ' open' : ''}><summary>${esc(g.titulo)} · ${g.L.length}</summary>${g.L.length ? g.L.map(fila).join('') : '<p class="meta" style="margin:4px 0 10px">Nada por ahora.</p>'}</details>`).join('');
+  el.innerHTML = html || `<p class="empty">Nada coincide con «${esc(S.q)}».</p>`;
+  mtSelBoton();
+}
+
+// ---------- Crear algo nuevo para esta meta: el formulario de siempre y, al guardarlo, queda vinculado (mtTrasGuardar).
+function mtIdsDe(tipo) {
+  try {
+    const s = HT();
+    if (tipo === 'objetivo') return (ES.objetivos || []).map(x => x.id);
+    if (tipo === 'habito') return (s.habits || []).filter(h => !h.rutina).map(x => x.id);
+    if (tipo === 'proyecto') return (ES.proyectos || []).map(x => x.id);
+    if (tipo === 'bt') return btTodos().map(x => x.id);
+    if (tipo === 'ruta') return (window.est?.rutas?.() || []).map(x => x.id);
+    if (tipo === 'plan') return (ES.planes || []).map(x => x.id);
+  } catch {}
+  return [];
+}
+// Solo mientras siga abierto el formulario que se lanzó (la hoja o el de hábito): al cerrarse, lo que se cree después ya no se vincula.
+function mtEsperar(mid, tipo, antes, dlg) {
+  const P = { mid, tipo, antes, hasta: Date.now() + 30 * 60e3 }; mtNuevoPend = P;
+  if (dlg && dlg.open) dlg.addEventListener('close', () => setTimeout(() => { if (mtNuevoPend === P) mtNuevoPend = null; }, 600), { once: true });
+  else setTimeout(() => { if (mtNuevoPend === P && !(sheet.open || document.getElementById('form-dialog')?.open)) mtNuevoPend = null; }, 1500);
+}
+window.mtTrasGuardar = () => {
+  const P = mtNuevoPend; if (!P || mtEnTras) return;
+  if (Date.now() > P.hasta) { mtNuevoPend = null; return; }
+  const nuevos = mtIdsDe(P.tipo).filter(id => !P.antes.has(id)); if (!nuevos.length) return;
+  mtNuevoPend = null; const m = mtGet(P.mid); if (!m) return;
+  mtEnTras = true;
+  try { mtVincular(m, P.tipo, nuevos[0], '', false); } finally { mtEnTras = false; }
+  setTimeout(() => toast(`Vinculado a tu meta «${m.t}».`), 1200);
+};
+function mtNuevoSheet(mid) {
+  const m = mtGet(mid); if (!m) return;
+  const R = [['objetivo', 'Objetivo SMART', 'Un tramo de semanas, con número y fecha'], ['habito', 'Hábito', 'Lo que repites para llegar'], ['tarea', 'Tarea', 'Una cosa concreta, con fecha si quieres'], ['proyecto', 'Proyecto', 'Con el método WOOP'], ['bt', 'Bloque de tiempo', 'Un hueco en tu calendario para avanzar'], ...(window.est ? [['ruta', 'Ruta de estudio', 'Para un examen o una materia']] : []), ['plan', 'Plan con alguien', 'Si la meta es con otras personas']];
+  showSheet(`<p class="paso">${esc(m.t)}</p><h2>Crear algo nuevo para esta meta</h2>
+    <div class="rows">${R.map(([k, n, s]) => `<button class="row" data-mt-nv="${k}"><span class="t"><div>${esc(n)}</div><small>${esc(s)}</small></span><span class="chev" aria-hidden="true">›</span></button>`).join('')}</div>
+    <div id="mt-nv-tarea" hidden style="margin-top:14px"><div class="field"><label>Qué (verbo + qué)</label><input id="mt-nv-tt" maxlength="100" placeholder="Inscribirme al curso de inglés"></div><div class="field"><label>Fecha (opcional)</label><input id="mt-nv-tf" type="date"></div><div class="actions" style="margin-top:6px"><button class="primary" id="mt-nv-tok">Crear tarea</button></div></div>
+    <div class="actions"><button class="link" id="mt-nv-x">Volver</button></div>`);
+  $('#mt-nv-x').onclick = () => mtFicha(mid);
+  $('#sheet-body').querySelectorAll('[data-mt-nv]').forEach(b => b.onclick = () => {
+    const k = b.dataset.mtNv;
+    if (k === 'tarea') { $('#mt-nv-tarea').hidden = false; $('#mt-nv-tt').focus(); return; }
+    const antes = new Set(mtIdsDe(k)), fd = document.getElementById('form-dialog');
+    if (m.iden && (k === 'habito' || k === 'proyecto') && window.idn && typeof window.idn === 'object') window.idn.pre = { iden: m.iden };
+    if (k === 'objetivo') objetivoForm(null, { area: OBJ_AREAS[m.cat] ? m.cat : 'otro', iden: m.iden || '', porque: `Para mi meta: ${m.t}`.slice(0, 120) });
+    else if (k === 'habito') { const abrir = () => { closeSheet(); irA('hoy'); openForm(); mtEsperar(mid, k, antes, fd); }; if (!window.enfNoEstrenar?.(abrir)) abrir(); return; }
+    else if (k === 'proyecto') proyectoForm(null);
+    else if (k === 'bt') window.bt?.ui?.editor?.({});
+    else if (k === 'ruta') { closeSheet(); window.est?.nuevaRuta?.({}); }
+    else if (k === 'plan') planForm();
+    mtEsperar(mid, k, antes, sheet.open ? sheet : null);
+  });
+  $('#mt-nv-tok').onclick = () => {
+    const titulo = $('#mt-nv-tt').value.trim(); if (!titulo) { $('#mt-nv-tt').focus(); return; }
+    const s = HT(), x = { id: crypto.randomUUID(), lista: s.tareas.activa || 'inbox', titulo: titulo.slice(0, 100), detalle: '', fecha: $('#mt-nv-tf').value || '', hecha: false, creado: Date.now(), cat: m.cat, ...(m.iden ? { iden: m.iden } : {}) };
+    s.tareas.items.push(x); mtVincular(m, 'tarea', x.id, '', false); guardar(); try { gAuto(); } catch {} if (view === 'tareas') renderTareas();
+    toast('Tarea creada y vinculada.'); mtFicha(mid);
+  };
+}
+
+// ---------- La revisión de la semana: qué se movió (desde los registros), qué aprendiste y el siguiente paso (una tarea vinculada, con fecha).
+function mtRevision(mid) {
+  const m = mtGet(mid); if (!m) return;
+  const desde = mtSemanaDesde(), hoy = today(), lunes = xmLunes(), prev = m.revisiones.find(r => r.sem === lunes);
+  const movio = m.vinc.map(v => ({ v, n: mtActividad(v, desde, hoy) })).filter(x => x.n > 0);
+  const av = m.avances.filter(a => a.d >= desde && +a.n > 0), et = m.etapas.filter(e => e.hecho && e.hechoEn >= desde), ahora = mtEtapaAhora(m);
+  const lista = [...movio.map(x => `${MT_TIPO[x.v.tipo]}: ${mtFuente(x.v).t} (${x.n})`), ...(av.length ? [`Avances: ${av.map(a => '+' + mtNum(a.n)).join(', ')} ${m.unidad}`] : []), ...et.map(e => `Etapa cumplida: ${e.t}`)];
+  showSheet(`<p class="paso">${esc(m.t)}</p><h2>Revisión de la semana</h2>
+    <p class="meta">Últimos 7 días:</p>
+    ${lista.length ? `<ul class="mt-rv">${lista.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '<p class="mt-rv">Esta semana no se movió nada vinculado. Pasa: una semana es poco en una meta de meses. Elige un paso pequeño para la próxima.</p>'}
+    ${ahora ? `<p class="meta" style="margin-top:12px">Etapa ahora: <b style="color:var(--text);font-weight:500">${esc(ahora.t)}</b>${ahora.fecha ? ` · para el ${esc(mtFechaCorta(ahora.fecha))}` : ''}</p>` : ''}
+    <div class="field" style="margin-top:12px"><label>Qué aprendiste o qué cambia (opcional)</label><textarea id="mt-r-n" maxlength="300" rows="3" placeholder="Los martes no me da tiempo; mejor los sábados por la mañana.">${esc(prev?.nota || '')}</textarea></div>
+    <div class="field"><label>Siguiente paso concreto (verbo + qué, opcional)</label><input id="mt-r-p" maxlength="100" value="" placeholder="Agendar la cita con el asesor de tesis"><input id="mt-r-f" type="date" value="${esc(mtDiaMas(hoy, 1))}" min="${hoy}" style="margin-top:8px" aria-label="Fecha del siguiente paso"></div>
+    <p class="meta">El siguiente paso se crea como tarea, vinculada a la meta${ahora ? ' y a su etapa de ahora' : ''}.</p>
+    <p class="meta red" id="mt-r-err"></p>
+    <div class="actions"><button class="link" id="mt-r-x">Volver</button><button class="primary" id="mt-r-ok">Guardar revisión</button></div>`);
+  $('#mt-r-x').onclick = () => mtFicha(mid);
+  $('#mt-r-ok').onclick = () => {
+    const nota = $('#mt-r-n').value.trim().slice(0, 300), paso = $('#mt-r-p').value.trim().slice(0, 100), f = $('#mt-r-f').value;
+    if (paso && nPalabras(paso) < 2) { $('#mt-r-err').textContent = 'El siguiente paso, con verbo y qué (o déjalo vacío).'; $('#mt-r-p').focus(); return; }
+    if (paso) {
+      const s = HT(), x = { id: crypto.randomUUID(), lista: s.tareas.activa || 'inbox', titulo: paso, detalle: `Siguiente paso de la meta «${m.t}»`, fecha: f || '', hecha: false, creado: Date.now(), cat: m.cat, ...(m.iden ? { iden: m.iden } : {}) };
+      s.tareas.items.push(x); mtVincular(m, 'tarea', x.id, ahora?.id || '', false); try { gAuto(); } catch {} if (view === 'tareas') renderTareas();
+    }
+    m.revisiones = [...m.revisiones.filter(r => r.sem !== lunes), { sem: lunes, d: hoy, nota, paso: paso || prev?.paso || '' }].slice(-60); m.cambiado = Date.now();
+    xpGanar(10, `Revisión de la semana: ${m.t}`, `mr:${m.id}:${lunes}`, { cat: m.cat, unica: true });
+    guardar(); mtPintar(); toast(paso ? 'Revisión guardada y siguiente paso en Tareas.' : 'Revisión guardada.'); mtFicha(mid);
+  };
+}
+
+// ---------- Desde la ficha de cada cosa: «Vincular a una meta» o «Meta: …» (lo pinta btcAccion junto a «Agregar a un bloque de tiempo»).
+var MT_DE_FICHA = { tarea: 'tarea', habito: 'habito', ini: 'ini', ruta: 'ruta', proyecto: 'proyecto', plan: 'plan', norma: 'norma', objetivo: 'objetivo', bt: 'bt' };
+function mtAccion(tipo, ref, cls = 'link', style = '') {
+  try {
+    const t = MT_DE_FICHA[tipo]; if (!t || ref == null || ref === '') return '';
+    const L = mtDe(t, String(ref));
+    if (!L.length && !mtActivas().length) return '';
+    const txt = L.length ? `Meta: ${L[0].t.length > 40 ? L[0].t.slice(0, 39) + '…' : L[0].t}${L.length > 1 ? ` y ${L.length - 1} más` : ''}` : 'Vincular a una meta';
+    return `<button type="button" class="${esc(cls)}" data-mt-tipo="${esc(t)}" data-mt-ref="${esc(ref)}"${style ? ` style="${style}"` : ''}>${esc(txt)}</button>`;
+  } catch { return ''; }
+}
+function mtVincularSheet(tipo, ref) {
+  const f = mtFuente({ tipo, ref }), L = mtTodas().filter(m => !m.archivada && (!m.hecho || m.vinc.some(v => v.tipo === tipo && v.ref === ref)));
+  showSheet(`<p class="paso">${esc(MT_TIPO[tipo])}</p><h2>«${esc(f.t)}» y tus metas</h2>
+    <p class="meta">Toca una meta para vincularla o quitar el vínculo. Lo que haces aquí cuenta en «Lo que la mueve».</p>
+    ${L.length ? `<div class="rows">${L.map(m => { const on = m.vinc.some(v => v.tipo === tipo && v.ref === ref); return `<button class="row" data-mt-vs="${esc(m.id)}"><span class="t"><div>${esc(m.t)}</div><small>${esc(mtCatN(m.cat))} · ${esc(mtQueda(m))}${on ? ' · vinculada' : ''}</small></span><span class="tag">${on ? '✓' : '+'}</span></button>`; }).join('')}</div>` : '<p class="meta">Aún no tienes metas en marcha.</p>'}
+    <div class="actions stack"><button class="outline" id="mt-vs-nueva">Crear una meta nueva con esto</button>${L.some(m => m.vinc.some(v => v.tipo === tipo && v.ref === ref)) ? '<button class="link" id="mt-vs-ver">Abrir la meta</button>' : ''}<button class="link" id="mt-vs-x">Cerrar</button></div>`);
+  $('#sheet-body').querySelectorAll('[data-mt-vs]').forEach(b => b.onclick = () => {
+    const m = mtGet(b.dataset.mtVs); if (!m) return;
+    const v = m.vinc.find(x => x.tipo === tipo && x.ref === ref);
+    if (v) { mtDesvincular(m, v.id); toast(`Quitado de «${m.t}».`); } else if (mtVincular(m, tipo, ref)) toast(`Vinculado a «${m.t}».`);
+    mtPintar(); mtVincularSheet(tipo, ref);
+  });
+  $('#mt-vs-nueva').onclick = () => mtNueva({ vincPend: [{ tipo, ref }], cat: (() => { try { const c = window.cat?.de?.(tipo === 'ini' ? 'ini' : tipo, { ref, tipo, k: ref }); return MT_CATS.includes(c) ? c : 'otro'; } catch { return 'otro'; } })() });
+  $('#mt-vs-ver')?.addEventListener('click', () => { const m = mtDe(tipo, ref)[0]; if (m) mtFicha(m.id); });
+  $('#mt-vs-x').onclick = closeSheet;
+}
+{ const h = e => { const el = (e.composedPath && e.composedPath()[0]) || e.target, b = el && el.closest ? el.closest('[data-mt-tipo]') : null; if (!b) return; e.stopPropagation(); mtVincularSheet(b.dataset.mtTipo, b.dataset.mtRef); };
+  ov.addEventListener('click', h); document.addEventListener('click', e => { if (e.composedPath && e.composedPath()[0] && ov.contains?.(e.composedPath()[0])) return; h(e); }); }
+
+// ---------- Inicio, Agenda y asistente
+INI_ESTADO.metas = () => {
+  const L = mtActivas(); if (!L.length) return mtTodas().some(m => m.hecho) ? 'Todas tus metas, cumplidas' : 'Lo que quieres lograr en meses o años';
+  const e = mtEtapaAhora(L[0]);
+  return `${mtPl(L.length, 'meta', 'metas')} · ahora: ${e ? e.t : L[0].t}`;
+};
+window.mtAgendaHtml = () => mtActivas().length ? `<p class="meta" style="margin:6px 0 0">Tus metas a largo plazo: ${mtActivas().slice(0, 3).map(m => esc(m.t)).join(' · ')}. <button class="link" id="ag-metas">Ver metas</button></p>` : '';
+IA_TOOLS.push(
+  iaTool('metas_ver', 'Devuelve las metas a largo plazo (meses o años) de la persona: qué, categoría, cómo se mide y cuánto lleva, fecha límite, etapas (el proceso, cada una con fecha y si está cumplida), la etapa de ahora, lo vinculado (objetivos, proyectos, hábitos, tareas, rutas de estudio, iniciativas, normas de Vida espiritual, planes y bloques de tiempo) con cuánto se movió en los últimos 7 días, y si ya revisó la semana.', {}),
+  iaTool('meta_crear', 'Crea una meta a largo plazo SMART con sus etapas. Úsala solo si la persona lo pidió o aceptó. Todo debe ser SMART: qué con verbo, cómo se mide, al menos dos etapas con fecha, por qué importa y fecha límite.', {
+    que: S('La meta, con verbo + qué.'), categoria: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social', 'espiritual', 'salud', 'otro'] }, por_que: S('Por qué le importa.'), fecha_limite: S('AAAA-MM-DD, desde mañana.'),
+    medida: { type: 'string', enum: ['numero', 'etapas'], description: 'numero: con una cifra meta; etapas: el avance es cuántas etapas se cumplieron.' }, metrica: S('Qué se cuenta (con medida numero), o vacío.'), meta: { type: 'number', description: 'Número meta (con medida numero), o 0.' }, unidad: S('Unidad (con medida numero), o vacío.'),
+    etapas: { type: 'array', items: { type: 'object', properties: { texto: S('Qué se logra en la etapa, verbo + qué.'), fecha: S('AAAA-MM-DD, no después de la fecha límite.') }, required: ['texto', 'fecha'], additionalProperties: false }, description: 'De 2 a 12 etapas, en orden.' },
+    vincular: { type: 'array', items: { type: 'string' }, description: 'Nombres de cosas de la app que la mueven (objetivos, proyectos, hábitos, tareas, rutas, iniciativas, normas, planes o bloques de tiempo). Puede ir vacía.' } }),
+  iaTool('meta_actualizar', 'Actualiza una meta a largo plazo: registra un avance, marca o desmarca una etapa como cumplida, agrega una etapa o vincula y desvincula cosas de la app. Solo si la persona lo pide.', {
+    meta: S('Nombre o id de la meta.'), accion: { type: 'string', enum: ['avance', 'etapa_cumplida', 'etapa_deshacer', 'agregar_etapa', 'vincular', 'desvincular'] },
+    cantidad: { type: 'number', description: 'Con avance: cuánto sumar (o 0).' }, etapa: { type: 'integer', description: 'Con etapa_cumplida o etapa_deshacer: el número de la etapa (1, 2…); si no, 0.' },
+    texto: S('Con avance: una nota; con agregar_etapa: qué se logra; si no, vacío.'), fecha: S('Con agregar_etapa: AAAA-MM-DD; si no, vacío.'), nombres: { type: 'array', items: { type: 'string' }, description: 'Con vincular o desvincular: los nombres de lo que se vincula; si no, vacía.' } }),
+);
+Object.assign(IA_ACCION, { metas_ver: 'Miró tus metas', meta_crear: 'Creó una meta a largo plazo', meta_actualizar: 'Actualizó una meta' });
+function mtToolMeta(m) {
+  const P = mtProgreso(m), desde = mtSemanaDesde(), e = mtEtapaAhora(m);
+  return { id: m.id, meta: m.t, categoria: mtCatN(m.cat), medida: m.modo === 'etapas' ? 'por etapas' : `${m.metrica}: ${mtNum(m.meta)} ${m.unidad}`, avance: `${P.txt} (${P.pct} %)`, fecha_limite: m.fecha, queda: mtQueda(m), por_que: m.porque, cumplida: !!m.hecho,
+    etapas: mtEtapas(m).map((x, i) => ({ numero: i + 1, texto: x.t, fecha: x.fecha, cumplida: !!x.hecho })), etapa_ahora: e ? e.t : '', ritmo: mtRitmo(m),
+    vinculado: m.vinc.map(v => { const f = mtFuente(v); return { tipo: MT_TIPO[v.tipo], nombre: f.t, ultimos_7_dias: mtActividad(v, desde, today()), ...(f.existe ? {} : { ya_no_esta: true }) }; }),
+    acciones_ultimos_7_dias: mtSemana(m), revisada_esta_semana: m.revisiones.some(r => r.sem === xmLunes()) };
+}
+function mtToolVer() {
+  const A = mtActivas(), C = mtTodas().filter(m => m.hecho && !m.archivada).slice(-5);
+  return { metas: A.map(mtToolMeta), cumplidas: C.map(m => ({ meta: m.t, cumplida_el: m.hechoEn })), ...(A.length ? {} : { nota: 'No hay metas a largo plazo en marcha. Se crean en Metas (Inicio → Desde la base) o con meta_crear si la persona lo pide.' }) };
+}
+function mtBuscarCosa(nombre) {
+  const q = btSin(nombre); if (!q) return null;
+  const C = mtOpciones('', Infinity).flatMap(g => g.L);
+  return C.find(o => o.ref === nombre) || C.find(o => btSin(o.t) === q) || C.find(o => btSin(o.t).includes(q)) || null;
+}
+function mtToolCrear(a) {
+  a = a && typeof a === 'object' ? a : {};
+  const t = String(a.que || '').trim(), F = v => btF(String(v || '').trim()), fecha = F(a.fecha_limite), modo = a.medida === 'etapas' ? 'etapas' : 'numero';
+  if (mtTodas().length >= 40) throw new Error('Ya hay 40 metas guardadas, contando las cumplidas y las archivadas.');
+  if (nPalabras(t) < 2) throw new Error('La meta necesita verbo + qué.');
+  if (!fecha || fecha <= today()) throw new Error('Hace falta una fecha límite AAAA-MM-DD desde mañana.');
+  if (modo === 'numero' && !(+a.meta > 0 && String(a.metrica || '').trim())) throw new Error('Con medida numero hacen falta la métrica y un número meta mayor que 0.');
+  const E = (Array.isArray(a.etapas) ? a.etapas : []).map(e => ({ t: String(e?.texto || '').trim().slice(0, 100), fecha: F(e?.fecha) })).filter(e => nPalabras(e.t) >= 2 && e.fecha).slice(0, 12);
+  if (E.length < 2) throw new Error('Hacen falta al menos dos etapas con texto (verbo + qué) y fecha.');
+  if (E.some(e => e.fecha > fecha)) throw new Error('Ninguna etapa puede caer después de la fecha límite.');
+  if (!String(a.por_que || '').trim()) throw new Error('Hace falta el porqué (la R de SMART).');
+  const ahora = Date.now(), cat = MT_CATS.includes(a.categoria) ? a.categoria : 'otro';
+  const m = { id: crypto.randomUUID(), t: t.slice(0, 100), cat, iden: jdSugerir(t, cat), porque: String(a.por_que).trim().slice(0, 160), modo, metrica: modo === 'numero' ? String(a.metrica).trim().slice(0, 60) : '', meta: modo === 'numero' ? +a.meta : 1, unidad: modo === 'numero' ? (String(a.unidad || '').trim().slice(0, 20) || 'veces') : 'etapas', base: 0,
+    inicio: today(), fecha, avances: [], etapas: E.map((e, i) => ({ id: crypto.randomUUID(), t: e.t, senal: '', fecha: e.fecha, hecho: false, hechoEn: '', orden: i, cambiado: ahora })), vinc: [], revisiones: [], hecho: false, hechoEn: '', manual: false, archivada: false, orden: mtActivas().length, creado: today(), cambiado: ahora };
+  ES.metas = [...mtTodas(), m];
+  const fuera = [];
+  for (const n of (Array.isArray(a.vincular) ? a.vincular : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 30)) { const o = mtBuscarCosa(n); if (o) mtVincular(m, o.tipo, o.ref, '', false); else fuera.push(n); }
+  xpGanar(20, 'Meta SMART a largo plazo', 'm:' + m.id, { cat, unica: true });
+  guardar(); mtPintar();
+  return { creada: mtToolMeta(m), ...(fuera.length ? { no_encontrados: fuera, nota: 'Lo no encontrado no se vinculó: puede vincularse desde la ficha de la meta.' } : {}) };
+}
+function mtToolActualizar(a) {
+  a = a && typeof a === 'object' ? a : {};
+  const L = mtTodas().filter(m => !m.archivada), m = buscar(L, String(a.meta || '').trim(), 't');
+  if (!m) throw new Error(`No encontré esa meta. Metas: ${nombresDe(L, 't')}.`);
+  const E = mtEtapas(m), et = E[(a.etapa | 0) - 1];
+  switch (a.accion) {
+    case 'avance': if (m.hecho) throw new Error('Esa meta ya está cumplida: la persona puede reabrirla desde su ficha si quiere seguir sumando.'); if (m.modo !== 'numero') throw new Error('Esta meta se mide por etapas: marca una etapa con etapa_cumplida.'); if (!(+a.cantidad)) throw new Error('Hace falta una cantidad distinta de 0.'); mtAvance(m, +a.cantidad, a.texto || ''); break;
+    case 'etapa_cumplida': case 'etapa_deshacer': if (!et) throw new Error(`Esa etapa no existe. La meta tiene ${E.length}.`); mtEtapaMarcar(m, et, a.accion === 'etapa_cumplida'); break;
+    case 'agregar_etapa': {
+      const t = String(a.texto || '').trim(), f = btF(String(a.fecha || '').trim());
+      if (nPalabras(t) < 2 || !f) throw new Error('La etapa necesita texto (verbo + qué) y fecha AAAA-MM-DD.');
+      if (m.fecha && f > m.fecha) throw new Error(`La etapa no puede caer después de la fecha límite (${m.fecha}).`);
+      if (m.etapas.length >= 12) throw new Error('Una meta admite hasta 12 etapas.');
+      m.etapas.push({ id: crypto.randomUUID(), t: t.slice(0, 100), senal: '', fecha: f, hecho: false, hechoEn: '', orden: m.etapas.length, cambiado: Date.now() }); m.cambiado = Date.now(); mtRevisar(m); guardar(); mtPintar(); break;
+    }
+    case 'vincular': case 'desvincular': {
+      const fuera = [];
+      for (const n of (Array.isArray(a.nombres) ? a.nombres : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 30)) {
+        if (a.accion === 'vincular') { const o = mtBuscarCosa(n); if (o) mtVincular(m, o.tipo, o.ref, '', false); else fuera.push(n); }
+        else { const q = btSin(n), v = m.vinc.find(x => btSin(mtFuente(x).t) === q) || m.vinc.find(x => btSin(mtFuente(x).t).includes(q)); if (v) { forget(v.id); m.vinc = m.vinc.filter(x => x !== v); m.cambiado = Date.now(); } else fuera.push(n); }
+      }
+      guardar(); mtPintar();
+      return { meta: mtToolMeta(m), ...(fuera.length ? { no_encontrados: fuera } : {}) };
+    }
+    default: throw new Error('Acción desconocida.');
+  }
+  return { meta: mtToolMeta(m) };
+}
+window.mt = { lista: () => mtTodas().map(m => JSON.parse(JSON.stringify(m))), activas: () => mtActivas().map(m => m.id), de: (tipo, ref) => mtDe(tipo, ref).map(m => m.id), abrir: id => id && mtGet(id) ? mtFicha(id) : irA('metas'), nueva: pre => mtNueva(pre || {}), accion: (tipo, ref) => mtAccion(tipo, ref), actividad: (id, dias = 7) => { const m = mtGet(id); return m ? m.vinc.reduce((n, v) => n + mtActividad(v, mtDiaMas(today(), -(dias - 1)), today()), 0) : 0; },
+  herramienta: (nombre, a = {}) => nombre === 'metas_ver' ? mtToolVer() : nombre === 'meta_crear' ? mtToolCrear(a) : nombre === 'meta_actualizar' ? mtToolActualizar(a) : null };
+window.mtAccionHtml = (tipo, ref, cls, style) => mtAccion(tipo, ref, cls, style);
 
 // ====================================================================
 // Notificaciones: llegan aunque la app esté cerrada. El teléfono se suscribe aquí (Web Push) y la
