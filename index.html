@@ -621,7 +621,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.3';
+const APP_VERSION = '2.19.4';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8250,7 +8250,29 @@ function agCrearTarea(d) {
 }
 const horaInput = (id, v, extra = '') => `<input type="time" class="ag-time" id="${id}" value="${esc(v || '')}" ${extra}>`;
 const franjaChips = (id, v) => `<div class="chips ag-franjas" data-for="${id}">${FRANJAS.map(([n, h]) => `<button type="button" class="chip${v === h ? ' on' : ''}" data-h="${h}">${n} ${fmtHora(h)}</button>`).join('')}</div>`;
-const minSelect = (id, v = 25) => `<select id="${id}">${MINUTOS_AG.map(m => `<option value="${m}" ${m === v ? 'selected' : ''}>${m} min</option>`).join('')}</select>`;
+// 2.19.4 · «Al añadir algo, que pueda seleccionar el tiempo que yo quiera de duración y no solo las opciones presentes»: las duraciones de
+// siempre como chips y «Otra», que abre un campo de minutos (1 a 720). El valor vive en un input oculto con el id de siempre (#{id}), así
+// quien lo lee (+q('-m').value) no cambia. Los clics se atienden con un solo oyente para el documento y las hojas (durClick).
+const durMin = v => Math.max(1, Math.min(720, Math.round(+v || 0)));
+const minSelect = (id, v = 25) => { v = durMin(v) || 25; const otra = !MINUTOS_AG.includes(v);
+  return `<div class="dur" data-dur="${esc(id)}"><div class="chips">${MINUTOS_AG.map(m => `<button type="button" class="chip${m === v ? ' on' : ''}" data-dur-m="${m}">${m} min</button>`).join('')}<button type="button" class="chip${otra ? ' on' : ''}" data-dur-otra>Otra</button></div>
+    <div class="dur-otra" style="display:${otra ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:8px"><input type="number" inputmode="numeric" min="1" max="720" step="1" class="dur-in" aria-label="Duración en minutos" placeholder="Minutos" value="${otra ? v : ''}" style="max-width:120px"><span class="meta" style="margin:0">min (hasta 720)</span></div>
+    <input type="hidden" id="${esc(id)}" value="${v}"></div>`; };
+function durClick(e) {
+  const el = (e.composedPath && e.composedPath()[0]) || e.target, c = el && el.closest ? el.closest('[data-dur-m], [data-dur-otra]') : null, box = c && c.closest('[data-dur]');
+  if (!c || !box) return;
+  box.querySelectorAll('.chips .chip').forEach(x => x.classList.toggle('on', x === c));
+  const fila = box.querySelector('.dur-otra'), inp = box.querySelector('.dur-in'), val = box.querySelector('input[type="hidden"]');
+  if (c.hasAttribute('data-dur-otra')) { fila.style.display = 'flex'; inp.focus(); }
+  else { fila.style.display = 'none'; val.value = c.dataset.durM; }
+}
+function durInput(e) {
+  const el = (e.composedPath && e.composedPath()[0]) || e.target; if (!el || !el.classList || !el.classList.contains('dur-in')) return;
+  const box = el.closest('[data-dur]'), val = box && box.querySelector('input[type="hidden"]'); if (!val) return;
+  if (+el.value > 0) val.value = durMin(el.value);
+}
+document.addEventListener('click', durClick, true); document.addEventListener('input', durInput, true);
+setTimeout(() => { try { ov.addEventListener('click', durClick, true); ov.addEventListener('input', durInput, true); } catch {} }, 0);
 // Las franjas ponen la hora en el campo al que apuntan.
 function activarFranjas(body) {
   body.querySelectorAll('.ag-franjas').forEach(c => c.addEventListener('click', e => { const b = e.target.closest('[data-h]'); if (!b) return; const inp = body.querySelector('#' + c.dataset.for); if (inp) { inp.value = b.dataset.h; inp.dispatchEvent(new Event('change')); } c.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); }));
@@ -8282,7 +8304,8 @@ function habFormLeer(body, p) {
 }
 function tarFormHtml(p, conHora) {
   return `<div class="field"><label>S · Qué (verbo + qué + a quién)</label><input id="${p}-n" maxlength="100" placeholder="Enviar la propuesta a Luis · Pagar la luz · Llamar al dentista"></div>
-    <div class="times"><div class="field"><label>T · Hora${conHora ? '' : ' <span class="meta">(si no, se pone sola)</span>'}</label>${horaInput(p + '-h', '')}</div><div class="field"><label>A · Minutos</label>${minSelect(p + '-m')}</div></div>
+    <div class="field"><label>T · Hora${conHora ? '' : ' <span class="meta">(si no, se pone sola)</span>'}</label>${horaInput(p + '-h', '')}</div>
+    <div class="field"><label>A · Duración</label>${minSelect(p + '-m')}</div>
     ${conHora ? franjaChips(p + '-h', '') : ''}
     <div class="field"><label>M · Hecha cuando <span class="meta">(si el verbo no lo dice)</span></label><input id="${p}-ex" maxlength="80" placeholder="Enviada · pagada · cita agendada · 3 páginas escritas"></div>
     ${jdChipsHtml(p + '-jd')}${window.cat?.chips?.(p + '-cat', '') || ''}
@@ -8303,7 +8326,7 @@ function iniCrearSmart(k, cb, base = {}) {
     <p class="sci">Que no quede ambigua: un verbo y un qué concretos (S), una señal de hecho que se pueda ver (M), minutos realistas y un primer paso (A), para qué sirve (R) y la hora (T).</p>
     <div class="field"><label>S · Acción</label><div class="chips" id="is-verbos">${D.verbos.map(x => `<button type="button" class="chip${(v.verbo || D.verbos[0]) === x ? ' on' : ''}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
     ${D.campos.map(c => `<div class="field"><label>${c.letra} · ${esc(c.label)}${c.req ? '' : ' <span class="meta">(opcional)</span>'}</label><input data-k="${c.k}" maxlength="100" value="${esc(v[c.k] || '')}" placeholder="${esc(c.ph || '')}"></div>`).join('')}
-    <div class="field"><label>A · Minutos</label><div class="chips" id="is-min">${MINUTOS_AG.map(m => `<button type="button" class="chip${(base.min || 25) === m ? ' on' : ''}" data-m="${m}">${m} min</button>`).join('')}</div></div>
+    <div class="field"><label>A · Minutos</label>${minSelect('is-m', base.min || 25)}</div>
     <div class="field"><label>A · Primer paso (menos de 2 minutos) <span class="meta">(opcional)</span></label><input id="is-paso" maxlength="100" value="${esc(base.paso || '')}" placeholder="Abrir el documento · marcar el número · sacar el libro"></div>
     ${objs.length ? `<div class="field"><label>R · Objetivo al que suma <span class="meta">(opcional)</span></label><select id="is-obj"><option value="">Ninguno</option>${objs.map(o => `<option value="${esc(o.id)}" ${base.obj === o.id ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select></div>` : ''}
     ${jdChipsHtml('is', base.iden || jdPre() || jdSugerir('', k))}${org ? '' : btcChips('is-bt')}
@@ -8316,7 +8339,7 @@ function iniCrearSmart(k, cb, base = {}) {
   const prev = () => { const o = leer(); const t = D.titulo(o), ex = D.exito(o); $('#is-prev').innerHTML = o.que ? `Quedará así: <b style="color:var(--text)">${esc(t)}</b>${ex ? ` · hecha cuando: ${esc(ex)}` : ''}` : ''; };
   body.querySelectorAll('[data-k]').forEach(i => i.addEventListener('input', prev));
   $('#is-verbos').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; verbo = c.dataset.v; $('#is-verbos').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); prev(); });
-  $('#is-min').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; min = +c.dataset.m; $('#is-min').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); });
+  const leerMin = () => { min = durMin($('#is-m')?.value) || min; return min; };   // 2.19.4 · también «Otra»
   $('#is-cancel').onclick = () => cb(null);
   jdChipsWire(body, 'is');
   $('#is-ok').onclick = () => {
@@ -8324,6 +8347,7 @@ function iniCrearSmart(k, cb, base = {}) {
     if (falta) { $('#is-err').textContent = `Falta: ${falta.label.toLowerCase()}.`; body.querySelector(`[data-k="${falta.k}"]`).focus(); return; }
     const h = $('#is-hora').value;
     if (!h) { $('#is-err').textContent = 'Falta la hora: toca una franja.'; $('#is-hora').focus(); return; }
+    leerMin();
     const ini = { id: crypto.randomUUID(), t: D.titulo(o), exito: D.exito(o), por: o.porque || '', paso: $('#is-paso').value.trim(), hora: h, min, obj: $('#is-obj')?.value || '', donde: '', obst: '', plan: '', campos: o, origen: 'Mía', veces: 1, smart: true, iden: jdLeerChips(body, 'is') };
     if (!ES.catalogoIni[k].some(x => x.t === ini.t)) ES.catalogoIni[k].push(ini);
     guardar(); toast('Guardada en «Mis iniciativas».');
