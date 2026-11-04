@@ -621,7 +621,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.2';
+const APP_VERSION = '2.19.3';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3195,10 +3195,13 @@ function xpPenNorm(e, hoy) {
   e.xpPen = P; e.xpPenBase = base; e.xpPenBaseCat = baseCat;
   e.xpPenHasta = xpEsDia(e.xpPenHasta) ? e.xpPenHasta : '';
   e.xpReinicio2190 = Math.max(0, +e.xpReinicio2190 || 0);
+  e.xpRonda = Math.max(+e.xpRonda || 0, e.xpReinicio2190 > 0 ? 1 : 0);   // 2.19.3 · qué vuelta a cero es (1: Novato el 3 de noviembre; 2: «quítame el XP»)
 }
 // La vuelta a Novato que vale es la primera (la menor marca > 0): un teléfono nuevo, o uno que se reinició sin haber sincronizado, no
 // borra lo que el otro ganó después. Una copia es «de esa vuelta» si su xp.r es esa marca (una versión anterior la reescribe sin xp.r).
-function xpReinicioDe(a, b) { const L = [+a?.xpReinicio2190 || 0, +b?.xpReinicio2190 || 0].filter(x => x > 0); return L.length ? Math.min(...L) : 0; }
+// 2.19.3 · Con rondas: manda la vuelta de la ronda más alta (una vuelta a cero pedida después borra lo anterior); dentro de la misma ronda, la primera.
+function xpRondaDe(x) { return Math.max(+x?.xpRonda || 0, +x?.xpReinicio2190 > 0 ? 1 : 0); }
+function xpReinicioDe(a, b) { const ra = xpRondaDe(a), rb = xpRondaDe(b); if (ra !== rb) return +(ra > rb ? a : b)?.xpReinicio2190 || 0; const L = [+a?.xpReinicio2190 || 0, +b?.xpReinicio2190 || 0].filter(x => x > 0); return L.length ? Math.min(...L) : 0; }
 function xpPenFusion(a, b) {
   const Pa = a?.xpPen && typeof a.xpPen === 'object' ? a.xpPen : {}, Pb = b?.xpPen && typeof b.xpPen === 'object' ? b.xpPen : {}, P = {};
   const r = xpReinicioDe(a, b);
@@ -3212,7 +3215,7 @@ function xpPenFusion(a, b) {
   const okA = !r || +a?.xp?.r === r, okB = !r || +b?.xp?.r === r;   // lo podado de una copia de otra vuelta (o anterior) no cuenta
   const base = Math.max(okA ? xpNum(a?.xpPenBase) : 0, okB ? xpNum(b?.xpPenBase) : 0);
   const mc = (p, q) => Object.fromEntries([...new Set([...Object.keys(p || {}), ...Object.keys(q || {})])].map(c => [c, Math.max(xpNum(p?.[c]), xpNum(q?.[c]))]).filter(([, v]) => v > 0));
-  return { xpPen: P, xpPenBase: base, xpPenBaseCat: mc(okA ? a?.xpPenBaseCat : {}, okB ? b?.xpPenBaseCat : {}), xpPenHasta: ha > hb ? ha : hb, xpReinicio2190: r };
+  return { xpPen: P, xpPenBase: base, xpPenBaseCat: mc(okA ? a?.xpPenBaseCat : {}, okB ? b?.xpPenBaseCat : {}), xpRonda: Math.max(xpRondaDe(a), xpRondaDe(b)), xpPenHasta: ha > hb ? ha : hb, xpReinicio2190: r };
 }
 function xpDiaDe(ms) { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function xpFusionReinicio(R, L, dias, desde, r) {
@@ -4693,11 +4696,14 @@ function renderE() { renderXp(); renderAhora(); renderInterv(); renderAgenda(); 
 // (deshacer no es un castigo) y volver a marcarlo lo da otra vez; el libro (ES.xpLog) lo hace posible con dos teléfonos.
 // La gamificación mueve la motivación y la conducta con efectos pequeños a moderados (Sailer y Homner, 2020); por eso premia
 // lo que la evidencia dice que funciona y no castiga: sin rachas rotas ni puntos negativos.
-const NIVELES = ['Novato', 'Aprendiz', 'Constante', 'Enfocado', 'Con rumbo', 'Imparable', 'Maestro', 'Leyenda'];
+// 2.19.3 · Veinte niveles con nombre (la escalera de la ficha de XP); pasado el 20, «Leyenda 2», «Leyenda 3»…
+const NIVELES = ['Novato', 'Aprendiz', 'Constante', 'Enfocado', 'Con rumbo', 'Firme', 'Imparable', 'Estratega', 'Referente', 'Mentor', 'Élite', 'Titán', 'Campeón', 'Maestro', 'Gran maestro', 'Inquebrantable', 'Héroe', 'Mítico', 'Inmortal', 'Leyenda'];
+const XP_NIVELES = NIVELES;
 const xpNuevo = () => +ES.xpReinicio2190 > 0;   // 2.19 (X) · las reglas nuevas, desde la vuelta a Novato (el 4 de noviembre de 2026 o después)
 const xpParaNivel = L => (xpNuevo() ? 250 : 50) * (L - 1) * L;   // desde Novato, mucho más exigente: 500, 1500, 3000, 5000…; antes 100, 300, 600…
 const nivelDe = total => { let L = 1; while (xpParaNivel(L + 1) <= total) L++; return L; };
 const nivelNombre = L => L <= NIVELES.length ? NIVELES[L - 1] : `Leyenda ${L - NIVELES.length + 1}`;
+const nivelTramo = L => L >= 17 ? 'leyenda' : L >= 12 ? 'diamante' : L >= 7 ? 'oro' : L >= 3 ? 'plata' : 'bronce';   // el color de la insignia
 // 2.19 (X) · El XP que cuenta: lo ganado menos lo perdido (nunca menos de 0). El nivel sube y baja con él.
 function xpPenSuma() { let s = +ES.xpPenBase || 0; for (const m of Object.values(ES.xpPen || {})) for (const v of Object.values(m || {})) s += Math.max(0, +v?.n || 0); return s; }
 function xpTotal() { return Math.max(0, (+ES.xp?.total || 0) - xpPenSuma()); }
@@ -4722,6 +4728,18 @@ function renderXp() {
     <div class="hoy"><b class="${hoy >= meta ? 'ok' : ''}">${hoy} / ${meta}</b>XP hoy</div></div>${xmPregunta14()}`;
   const card = el.querySelector('.xp'); card.style.cursor = 'pointer'; card.title = 'Cómo se gana XP'; card.onclick = () => xpSheet();
   xpChip();   // 2.17 (XP) · el de la cabecera
+  xpLigaRevisar();   // 2.19.3
+}
+// 2.19.3 · Subir de liga durante la semana se celebra (una vez por liga y semana, en este teléfono); bajar no avisa aquí.
+function xpLigaRevisar() {
+  try {
+    if (!xpNuevo()) return;
+    const lun = xmLunes(today()), i = xpLigaDe(xpNetoEntre(lun, today())), k = 'xp-liga';
+    let v = null; try { v = JSON.parse(localStorage.getItem(k) || 'null'); } catch {}
+    if (!v || v.sem !== lun) { localStorage.setItem(k, JSON.stringify({ sem: lun, i })); return; }
+    if (i > v.i) { localStorage.setItem(k, JSON.stringify({ sem: lun, i })); buzz([40, 60, 40]); setTimeout(() => toast(`¡Subiste a la liga ${XP_LIGAS[i][0]} esta semana!`), 1200); }
+    else if (i < v.i) localStorage.setItem(k, JSON.stringify({ sem: lun, i }));
+  } catch {}
 }
 function renderStats() {
   const d = dayOf(), over = d.aperturas > ES.limite;
@@ -8741,21 +8759,71 @@ const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marc
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
   ['Escribir, llamar o proponer un plan', '20–25'], ['Paso de proyecto', 30], ['Misión social', 25], ['Práctica de Bienestar (una vez al día cada una)', '5–15'], ['Chequeo de ánimo', 5],
   ['Objetivo SMART creado', 15], ['Avance en un objetivo (uno al día por objetivo)', 5], ['Objetivo cumplido', 100], ['Tres cosas buenas', 10], ['Journaling', 10], ['Noche sin teléfono en el cuarto (una por mañana)', 10], ['Un cambio en tu teléfono (una vez por paso)', 10], ['Día dentro de tu presupuesto (uno al día)', 10], ['Plan de rescate', 20]];
+// 2.19.3 · «Cuando le dé clic a los niveles debo ver cuántos hay y debe ser algo competitivo… y gratificante hacer lo que debo y subir de
+// nivel.» Arriba, tu insignia, el XP y lo que falta; después la liga de la semana (Bronce → Diamante, se reinicia cada lunes), la carrera
+// contra tu semana pasada al mismo día, tus récords (mejor día y mejor semana) y la escalera de los 20 niveles con lo que pide cada uno.
+// Todo es XP neto (lo ganado menos lo que se perdió), desde la última vuelta a cero. Nada se guarda al pintar.
+const XP_LIGAS = [['Bronce', 0], ['Plata', 300], ['Oro', 600], ['Platino', 900], ['Diamante', 1200]];
+function xpNetoDia(k) { if (!(k >= (ES.xp?.baseHasta || ''))) return 0; let s = +(ES.dias?.[k]?.xp) || 0; for (const v of Object.values(ES.xpPen?.[k] || {})) s -= Math.max(0, +v?.n || 0); return s; }
+function xpNetoEntre(a, b) { let s = 0; for (let d = a, i = 0; d <= b && i < 400; d = dayKey(addDays(new Date(d + 'T12:00'), 1)), i++) s += xpNetoDia(d); return s; }
+function xpLigaDe(n) { let i = 0; while (i + 1 < XP_LIGAS.length && n >= XP_LIGAS[i + 1][1]) i++; return i; }
+function xpRecords() {
+  let dia = 0, sem = 0; const semanas = {};
+  for (const k of Object.keys(ES.dias || {})) { if (!(k >= (ES.xp?.baseHasta || '')) || k > today()) continue; const n = xpNetoDia(k); if (n > dia) dia = n; const L = xmLunes(k); semanas[L] = (semanas[L] || 0) + n; }
+  for (const n of Object.values(semanas)) if (n > sem) sem = n;
+  return { dia, sem };
+}
+const XP_SHEET_CSS = `
+  .xs-top { display: flex; gap: 16px; align-items: center; margin: 0 0 12px; }
+  .xs-ins { flex: none; width: 74px; height: 74px; border-radius: 22px; display: grid; place-items: center; font-size: 2.1rem; font-weight: 800; color: #fff; letter-spacing: -.03em; box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+  .xs-ins.bronce { background: linear-gradient(145deg, #c98a53, #8a5428); } .xs-ins.plata { background: linear-gradient(145deg, #b9c2cc, #6f7a86); }
+  .xs-ins.oro { background: linear-gradient(145deg, #f2c94c, #b8860b); } .xs-ins.diamante { background: linear-gradient(145deg, #6dd5fa, #2a7fd4); }
+  .xs-ins.leyenda { background: linear-gradient(145deg, #c471ed, #6a3093); }
+  .xs-top h2 { margin: 0; } .xs-top p { margin: 2px 0 0; color: var(--muted); font-size: .92rem; }
+  .xs-caja { background: var(--soft); border-radius: 16px; padding: 14px 16px; margin: 12px 0; }
+  .xs-caja b.k { display: block; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+  .xs-caja .big { font-size: 1.25rem; font-weight: 700; }
+  .xs-caja p { margin: 6px 0 0; font-size: .92rem; }
+  .xs-ligas { display: flex; gap: 4px; margin: 10px 0 2px; } .xs-ligas i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+  .xs-ligas i.on { background: var(--accent); }
+  .xs-rec { display: flex; gap: 10px; } .xs-rec > div { flex: 1; }
+  .xs-esc .row { padding: 9px 0; gap: 12px; } .xs-esc .n { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; font-weight: 800; color: #fff; font-size: .95rem; }
+  .xs-esc .n.bronce { background: #a8703f; } .xs-esc .n.plata { background: #8a95a1; } .xs-esc .n.oro { background: #c99a1b; } .xs-esc .n.diamante { background: #3b8fd9; } .xs-esc .n.leyenda { background: #8a45b5; }
+  .xs-esc .row.lock { opacity: .55; } .xs-esc .row.lock .n { filter: saturate(.5); }
+  .xs-esc .row.aqui { background: var(--soft); border-radius: 12px; padding-left: 8px; padding-right: 8px; }
+  .xs-esc .tag { font-variant-numeric: tabular-nums; }`;
+{ const st = document.createElement('style'); st.id = 'xs-css'; st.textContent = XP_SHEET_CSS; ov.appendChild(st); }
 function xpSheet() {
-  const T = xpTotal(), L = nivelDe(T), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
-  showSheet(`<h2>Nivel ${L} · ${esc(nivelNombre(L))}</h2>
-    <p class="note">${T} XP en total. Para el nivel ${L + 1} (${esc(nivelNombre(L + 1))}) faltan <b style="color:var(--text)">${b - T} XP</b>. ${xpNuevo() ? 'Cada nivel pide 250 × L × (L − 1) XP en total: 500, 1500, 3000, 5000, 7500… Lo que queda sin hacer resta, y si el XP baja, el nivel también.' : 'Cada nivel pide 50 × L × (L − 1) XP en total: 100, 300, 600, 1000, 1500… Desde el 4 de noviembre: vuelta a Novato, niveles mucho más exigentes y lo que quede sin hacer resta.'}</p>
-    <div class="meter"><span>Meta de hoy: ${metaHoy()} XP antes de dormir${metaHoy() !== ES.metaXp ? ` (día corto; la de siempre, ${ES.metaXp})` : ''}</span><b class="${hoy >= metaHoy() ? 'green' : ''}">${hoy} de ${metaHoy()}</b></div><div class="meter-bar"><i style="width:${Math.min(100, hoy / metaHoy() * 100)}%"></i></div>
+  const T = xpTotal(), L = nivelDe(T), a0 = xpParaNivel(L), b = xpParaNivel(L + 1), hoy = xpHoy(), r = rachaXp();
+  const t = today(), lun = xmLunes(t), semN = xpNetoEntre(lun, t), dHoy = Math.round((Date.parse(t + 'T12:00') - Date.parse(lun + 'T12:00')) / 864e5);
+  const lunP = dayKey(addDays(new Date(lun + 'T12:00'), -7)), semP = xpNetoEntre(lunP, dayKey(addDays(new Date(lunP + 'T12:00'), dHoy)));
+  const iL = xpLigaDe(semN), sigL = XP_LIGAS[iL + 1], R = xpRecords(), dif = semN - semP, N = NIVELES.length;
+  const pct = Math.min(100, Math.max(0, (T - a0) / Math.max(1, b - a0) * 100));
+  const fila = k => { const req = xpParaNivel(k), est = k < L ? 'ok' : k === L ? 'aqui' : 'lock';
+    return `<div class="row${est === 'lock' ? ' lock' : est === 'aqui' ? ' aqui' : ''}"><span class="n ${nivelTramo(k)}">${k}</span><span class="t"><div>${esc(nivelNombre(k))}${est === 'aqui' ? ' · <b>estás aquí</b>' : ''}</div><small>${k === 1 ? 'Donde empieza todo' : `${xpMiles(req)} XP en total`}${est === 'lock' && k === L + 1 ? ` · te faltan ${xpMiles(req - T)}` : ''}</small></span><span class="tag">${est === 'ok' ? '✓' : est === 'aqui' ? '◆' : '🔒'}</span></div>`; };
+  showSheet(`<div class="xs-top"><div class="xs-ins ${nivelTramo(L)}" aria-hidden="true">${L}</div><div><h2>${esc(nivelNombre(L))}</h2><p>Nivel ${L} de ${N} · ${xpMiles(T)} XP</p></div></div>
+    <div class="meter"><span>Al nivel ${L + 1}, ${esc(nivelNombre(L + 1))}</span><b>te faltan ${xpMiles(b - T)} XP</b></div><div class="meter-bar"><i style="width:${pct}%"></i></div>
+    <div class="xs-caja" id="xs-liga"><b class="k">Liga de la semana</b><span class="big">${esc(XP_LIGAS[iL][0])}</span> · ${xpMiles(semN)} XP desde el lunes
+      <div class="xs-ligas" aria-hidden="true">${XP_LIGAS.map((_, i) => `<i class="${i <= iL ? 'on' : ''}"></i>`).join('')}</div>
+      <p>${sigL ? `Para ${esc(sigL[0])}: ${xpMiles(sigL[1] - semN)} XP más esta semana.` : 'Liga más alta. Mantenla hasta el domingo.'} El lunes empieza otra.</p></div>
+    <div class="xs-caja" id="xs-carrera"><b class="k">Tú contra tu semana pasada</b>
+      <span class="big ${dif >= 0 ? 'green' : 'red'}">${dif >= 0 ? `+${xpMiles(dif)}` : `−${xpMiles(-dif)}`} XP</span>
+      <p>${dayKey(addDays(new Date(lunP + 'T12:00'), dHoy)) < (ES.xp?.baseHasta || '') ? 'Es tu primera semana desde cero: la que viene correrás contra esta. Déjale una marca difícil de alcanzar.' : dif > 0 ? `Vas por delante de ti mismo: el ${esc(fechaLarga(dayKey(addDays(new Date(lunP + 'T12:00'), dHoy))))} llevabas ${xpMiles(semP)}.` : dif === 0 ? `Empatado con tu semana pasada (${xpMiles(semP)} XP a esta altura).` : `Tu semana pasada iba ${xpMiles(-dif)} XP por delante a esta altura. Todavía la alcanzas.`}</p></div>
+    <div class="xs-caja xs-rec" id="xs-rec"><div><b class="k">Mejor día</b><span class="big">${xpMiles(R.dia)}</span> XP${hoy > 0 && xpNetoDia(t) >= R.dia ? '<p class="green">¡Hoy es tu récord!</p>' : ''}</div><div><b class="k">Mejor semana</b><span class="big">${xpMiles(R.sem)}</span> XP${semN > 0 && semN >= R.sem ? '<p class="green">¡Esta semana es tu récord!</p>' : ''}</div></div>
+    <div class="meter"><span>Meta de hoy: ${metaHoy()} XP${metaHoy() !== ES.metaXp ? ` (día corto; la de siempre, ${ES.metaXp})` : ''}</span><b class="${hoy >= metaHoy() ? 'green' : ''}">${hoy} de ${metaHoy()}</b></div><div class="meter-bar"><i style="width:${Math.min(100, hoy / metaHoy() * 100)}%"></i></div>
     <p class="meta" id="xs-sem">${esc(xmSemanaLinea())}. Cinco de siete: dos días libres por semana, sin romper nada.</p>
     ${nochesXpLinea()}
+    <h3>Los ${N} niveles</h3>
+    <p class="note" style="margin-top:0">Cada nivel pide más que el anterior (250 × L × (L − 1) XP en total). Lo que queda sin hacer resta, y si el XP baja, el nivel también: para subir hay que hacer, y para mantenerse, seguir haciendo.</p>
+    <div class="rows xs-esc">${Array.from({ length: N }, (_, i) => fila(i + 1)).join('')}</div>
+    ${L >= N ? `<p class="meta">Pasado el ${N}: Leyenda 2, Leyenda 3… sin techo.</p>` : ''}
     ${xpCatsHtml()}
-    <h3>Cómo se gana</h3>
-    <div class="rows">${xpTabla().map(([t, n, nota]) => `<div class="row" style="padding:8px 0"><span class="t"><div style="font-size:.92rem;white-space:normal">${esc(t)}</div>${nota ? `<small style="white-space:normal">${esc(nota)}</small>` : ''}</span>${n == null ? '' : `<span class="tag">${typeof n === 'number' ? '+' + n : esc(n)}</span>`}</div>`).join('')}</div>
+    <details style="margin-top:18px"><summary class="link" style="cursor:pointer">Cómo se gana y se pierde XP</summary>
+    <div class="rows">${xpTabla().map(([t2, n, nota]) => `<div class="row" style="padding:8px 0"><span class="t"><div style="font-size:.92rem;white-space:normal">${esc(t2)}</div>${nota ? `<small style="white-space:normal">${esc(nota)}</small>` : ''}</span>${n == null ? '' : `<span class="tag">${typeof n === 'number' ? '+' + n : esc(n)}</span>`}</div>`).join('')}</div></details>
     <p class="meta" id="xs-deshacer">La meta del día (50 a 200 XP) se cambia en Ajustes de Enfoque.</p>
     <div class="actions"><button class="primary" id="xs-ok">Cerrar</button></div>`);
   $('#xs-ok').onclick = closeSheet;
 }
-
 // ---------- ¿Día sin rumbo?: breve (solo agendar) o completo (plan de rescate).
 function sosSheet() {
   const tarde = nowMin() >= 18 * 60;
@@ -16700,10 +16768,15 @@ window.xpPenLevantar = () => {
   return cambio;
 };
 // La vuelta a Novato: una sola vez por cuenta (con cuenta, solo después de combinar con la nube; el otro teléfono la recibe al sincronizar).
+// 2.19.3 · «Déjame lo anotado como está pero quítame el XP»: la ronda 2 vuelve a poner el XP en 0 (también el de hoy) sin tocar nada de lo
+// marcado; una copia de la ronda 1 que llegue después no trae de vuelta lo de antes (xpReinicioDe).
+const XP_RONDA = 2;
+let xpRondaAntes = 0;
 function xpReiniciar() {
-  if (+ES.xpReinicio2190 > 0) return false;
+  if (+ES.xpReinicio2190 > 0 && xpRondaDe(ES) >= XP_RONDA) return false;
   const hoy = today(); if (hoy < XP_REINICIO_DESDE) return false;   // 2.19.1 · la vuelta a Novato, desde el 3; lo que resta, desde el 4 (XP_INICIO)
-  ES.xpReinicio2190 = Date.now();
+  xpRondaAntes = +ES.xpReinicio2190 > 0 ? xpRondaDe(ES) : 0;
+  ES.xpReinicio2190 = Date.now(); ES.xpRonda = XP_RONDA;
   ES.xp = { total: 0, base: 0, baseHasta: hoy, antes: 0, baseCat: {}, diasCat: {}, visto: 1, vistoCat: {}, r: ES.xpReinicio2190 };
   ES.xpLog = {}; ES.xpPen = {}; ES.xpPenBase = 0; ES.xpPenBaseCat = {}; ES.xpPenHasta = dayKey(addDays(new Date(), -1));
   ES.dias[hoy] = { ...dayOf(hoy), xp: 0 };
@@ -16725,6 +16798,14 @@ window.xpArranque = () => {
   } finally { xpArrancando = false; }
 };
 function xpAvisoNovato() {
+  if (xpRondaAntes > 0) {   // ya había vuelto a Novato: solo el XP a cero
+    const ver2 = () => { showSheet(`<div style="text-align:center"><p class="meta" style="margin:0">XP en cero</p><div class="lvl-big">1</div><h2 style="margin:0">Novato</h2></div>
+      <p class="note" style="margin-top:14px">Tu XP volvió a 0. Todo lo que tenías anotado (hábitos, tareas, agenda y lo demás) sigue igual.</p>
+      <p class="note">Desde aquí, cada nivel se gana: toca tu nivel para ver los ${XP_NIVELES.length} niveles, tu liga de la semana y tus récords.</p>
+      <div class="actions"><button class="link" id="xn-ver">Ver los niveles</button><button class="primary" id="xn-ok">Empezar</button></div>`); $('#xn-ok').onclick = closeSheet; $('#xn-ver').onclick = () => xpSheet(); };
+    if (sheet.open) setTimeout(() => { if (!sheet.open) ver2(); }, 4000); else ver2();
+    return;
+  }
   const ver = () => showSheet(`<div style="text-align:center"><p class="meta" style="margin:0">Desde hoy, de cero</p><div class="lvl-big">1</div><h2 style="margin:0">Novato</h2></div>
     <p class="note" style="margin-top:14px">Empiezas de cero, con niveles mucho más exigentes: el nivel 2 pide ${xpParaNivel(2)} XP, el 3 ${xpParaNivel(3)} y el 5 ${xpParaNivel(5)}.</p>
     <p class="note">Y ${today() < XP_INICIO ? 'desde mañana' : 'ahora'} el XP también se pierde: cada día que un hábito programado queda sin hacer resta ${XP_PEN}, y cada tarea de la agenda del día que no se hizo ese día, ${XP_PEN}. Si el XP baja, el nivel baja: para subir hay que hacer, y para mantenerse, seguir haciendo.</p>
