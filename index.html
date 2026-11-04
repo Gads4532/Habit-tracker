@@ -621,7 +621,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.1';
+const APP_VERSION = '2.19.2';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -13916,8 +13916,8 @@ iniW.addEventListener('click', e => {
 function iniCuentaHtml() {
   if (window.claude?.use) return '';
   const nube = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.1 4.75 4.75 0 0 0 7 18.5z"/></svg>';
-  if (!auth) return `<section class="ini-cta" aria-label="Tu cuenta"><div class="ini-cta-t">${nube}<b>Guarda tu progreso en la nube</b></div>
-    <p>Ahora todo está solo en este teléfono. Con una cuenta (correo y contraseña) se guarda en línea y lo ves igual en cualquier teléfono o computadora.</p>
+  if (!auth) return `<section class="ini-cta" aria-label="Tu cuenta"><div class="ini-cta-t">${nube}<b>Respaldo y sincronización en la nube</b></div>
+    <p>Actualmente, los datos se almacenan únicamente en este dispositivo. Al crear una cuenta con correo electrónico y contraseña, la información se respalda de forma segura y se sincroniza entre todos los dispositivos.</p>
     <button class="primary" id="ini-cuenta">Crear cuenta</button>
     <button class="outline" id="ini-entrar">Iniciar sesión</button></section>`;
   const st = String(document.getElementById('sync')?.textContent || '').replace(/^·\s*/, '').trim(), mal = document.getElementById('sync')?.classList.contains('bad');
