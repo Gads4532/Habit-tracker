@@ -3148,7 +3148,8 @@ function xpFusion(a, b, dias) {
   const B = uno ? (xa.mig ? xb : xa) : ha > hb ? xa : hb > ha ? xb : (xpNum(xa.base) >= xpNum(xb.base) ? xa : xb), desde = uno ? (B === xa ? ha : hb) : ha > hb ? ha : hb;
   const rR = xpReinicioDe(a, b), okA = rR > 0 && +xa.r === rR, okB = rR > 0 && +xb.r === rR;   // 2.19 (X) · la vuelta a Novato (la primera)
   const desdeL = rR > 0 && !(okA && okB) ? (okA ? ha : okB ? hb : xpDiaDe(rR)) : desde;   // con vuelta a Novato, el corte es el de la copia de esa vuelta
-  const La = xpSinAntesDe(a?.xpLog && typeof a.xpLog === 'object' ? a.xpLog : {}, rR), Lb = xpSinAntesDe(b?.xpLog && typeof b.xpLog === 'object' ? b.xpLog : {}, rR), L = {};
+  const corte = { ...(b?.xpCorte2193 || {}), ...(a?.xpCorte2193 || {}) };
+  const La = xpSinAntesDe(a?.xpLog && typeof a.xpLog === 'object' ? a.xpLog : {}, rR, corte), Lb = xpSinAntesDe(b?.xpLog && typeof b.xpLog === 'object' ? b.xpLog : {}, rR, corte), L = {};
   for (const k of new Set([...Object.keys(La), ...Object.keys(Lb)])) {
     if (!xpEsDia(k) || (desdeL && k < desdeL)) continue;
     const ma = La[k] && typeof La[k] === 'object' ? La[k] : {}, mb = Lb[k] && typeof Lb[k] === 'object' ? Lb[k] : {};
@@ -3195,13 +3196,19 @@ function xpPenNorm(e, hoy) {
   e.xpPen = P; e.xpPenBase = base; e.xpPenBaseCat = baseCat;
   e.xpPenHasta = xpEsDia(e.xpPenHasta) ? e.xpPenHasta : '';
   e.xpReinicio2190 = Math.max(0, +e.xpReinicio2190 || 0);
-  e.xpRonda = Math.max(+e.xpRonda || 0, e.xpReinicio2190 > 0 ? 1 : 0);   // 2.19.3 · qué vuelta a cero es (1: Novato el 3 de noviembre; 2: «quítame el XP»)
+  // 2.19.3 · La segunda vuelta a cero («quítame el XP») lleva su propia marca: una versión anterior la deja pasar sin tocarla (no la conoce)
+  // y no puede confundirla con la primera. xpCorte2193: lo que había en el libro el día de esa vuelta (no vuelve aunque caiga en el margen
+  // de 10 minutos); xpUnicaAntes: los premios de una sola vez ya dados antes (no se vuelven a dar).
+  e.xpReinicio2193 = Math.max(0, +e.xpReinicio2193 || 0); delete e.xpRonda;
+  e.xpCorte2193 = e.xpCorte2193 && typeof e.xpCorte2193 === 'object' && !Array.isArray(e.xpCorte2193) ? Object.fromEntries(Object.entries(e.xpCorte2193).filter(([k, v]) => k.length <= 160 && +v > 0).slice(0, 600).map(([k, v]) => [k, +v])) : {};
+  e.xpUnicaAntes = Array.isArray(e.xpUnicaAntes) ? [...new Set(e.xpUnicaAntes.filter(x => typeof x === 'string' && x && x.length <= 160))].slice(-3000) : [];
 }
 // La vuelta a Novato que vale es la primera (la menor marca > 0): un teléfono nuevo, o uno que se reinició sin haber sincronizado, no
 // borra lo que el otro ganó después. Una copia es «de esa vuelta» si su xp.r es esa marca (una versión anterior la reescribe sin xp.r).
 // 2.19.3 · Con rondas: manda la vuelta de la ronda más alta (una vuelta a cero pedida después borra lo anterior); dentro de la misma ronda, la primera.
-function xpRondaDe(x) { return Math.max(+x?.xpRonda || 0, +x?.xpReinicio2190 > 0 ? 1 : 0); }
-function xpReinicioDe(a, b) { const ra = xpRondaDe(a), rb = xpRondaDe(b); if (ra !== rb) return +(ra > rb ? a : b)?.xpReinicio2190 || 0; const L = [+a?.xpReinicio2190 || 0, +b?.xpReinicio2190 || 0].filter(x => x > 0); return L.length ? Math.min(...L) : 0; }
+function xpRondaDe(x) { return +x?.xpReinicio2193 > 0 ? 2 : +x?.xpReinicio2190 > 0 ? 1 : 0; }
+const xpMinPos = (...v) => { const L = v.map(x => +x || 0).filter(x => x > 0); return L.length ? Math.min(...L) : 0; };
+function xpReinicioDe(a, b) { const r2 = xpMinPos(a?.xpReinicio2193, b?.xpReinicio2193); if (r2) return r2; const L = [+a?.xpReinicio2190 || 0, +b?.xpReinicio2190 || 0].filter(x => x > 0); return L.length ? Math.min(...L) : 0; }
 function xpPenFusion(a, b) {
   const Pa = a?.xpPen && typeof a.xpPen === 'object' ? a.xpPen : {}, Pb = b?.xpPen && typeof b.xpPen === 'object' ? b.xpPen : {}, P = {};
   const r = xpReinicioDe(a, b);
@@ -3215,7 +3222,8 @@ function xpPenFusion(a, b) {
   const okA = !r || +a?.xp?.r === r, okB = !r || +b?.xp?.r === r;   // lo podado de una copia de otra vuelta (o anterior) no cuenta
   const base = Math.max(okA ? xpNum(a?.xpPenBase) : 0, okB ? xpNum(b?.xpPenBase) : 0);
   const mc = (p, q) => Object.fromEntries([...new Set([...Object.keys(p || {}), ...Object.keys(q || {})])].map(c => [c, Math.max(xpNum(p?.[c]), xpNum(q?.[c]))]).filter(([, v]) => v > 0));
-  return { xpPen: P, xpPenBase: base, xpPenBaseCat: mc(okA ? a?.xpPenBaseCat : {}, okB ? b?.xpPenBaseCat : {}), xpRonda: Math.max(xpRondaDe(a), xpRondaDe(b)), xpPenHasta: ha > hb ? ha : hb, xpReinicio2190: r };
+  return { xpPen: P, xpPenBase: base, xpPenBaseCat: mc(okA ? a?.xpPenBaseCat : {}, okB ? b?.xpPenBaseCat : {}), xpPenHasta: ha > hb ? ha : hb, xpReinicio2190: xpMinPos(a?.xpReinicio2190, b?.xpReinicio2190), xpReinicio2193: xpMinPos(a?.xpReinicio2193, b?.xpReinicio2193),
+    xpCorte2193: { ...(b?.xpCorte2193 || {}), ...(a?.xpCorte2193 || {}) }, xpUnicaAntes: [...new Set([...(Array.isArray(b?.xpUnicaAntes) ? b.xpUnicaAntes : []), ...(Array.isArray(a?.xpUnicaAntes) ? a.xpUnicaAntes : [])])].slice(-3000) };
 }
 function xpDiaDe(ms) { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function xpFusionReinicio(R, L, dias, desde, r) {
@@ -3229,13 +3237,13 @@ function xpFusionReinicio(R, L, dias, desde, r) {
 // La vuelta a Novato en la fusión: del libro de premios sale lo anotado antes del reinicio (un teléfono que aún no se enteró lo traería de vuelta).
 // Por día (los relojes de dos teléfonos no coinciden): los días después del de la vuelta, enteros (también compactados); el día de la vuelta,
 // lo anotado desde 10 minutos antes; los días anteriores, nada.
-function xpSinAntesDe(L, r) {
+function xpSinAntesDe(L, r, corte) {
   if (!(r > 0)) return L;
-  const dR = xpDiaDe(r), out = {};
+  const dR = xpDiaDe(r), out = {}, C = corte && typeof corte === 'object' ? corte : {};
   for (const [k, m] of Object.entries(L || {})) {
     if (!xpEsDia(k) || k < dR) continue;
     if (k > dR) { out[k] = m; continue; }
-    const d = {}; for (const [ref, v] of Object.entries(m || {})) if (v && ref[0] !== '=' && (+v.t || 0) >= r - 10 * 60e3) d[ref] = v;
+    const d = {}; for (const [ref, v] of Object.entries(m || {})) if (v && ref[0] !== '=' && (+v.t || 0) >= r - 10 * 60e3 && !(C[ref] && (+v.t || 0) <= C[ref])) d[ref] = v;
     if (Object.keys(d).length) out[k] = d;
   }
   return out;
@@ -4699,7 +4707,7 @@ function renderE() { renderXp(); renderAhora(); renderInterv(); renderAgenda(); 
 // 2.19.3 · Veinte niveles con nombre (la escalera de la ficha de XP); pasado el 20, «Leyenda 2», «Leyenda 3»…
 const NIVELES = ['Novato', 'Aprendiz', 'Constante', 'Enfocado', 'Con rumbo', 'Firme', 'Imparable', 'Estratega', 'Referente', 'Mentor', 'Élite', 'Titán', 'Campeón', 'Maestro', 'Gran maestro', 'Inquebrantable', 'Héroe', 'Mítico', 'Inmortal', 'Leyenda'];
 const XP_NIVELES = NIVELES;
-const xpNuevo = () => +ES.xpReinicio2190 > 0;   // 2.19 (X) · las reglas nuevas, desde la vuelta a Novato (el 4 de noviembre de 2026 o después)
+const xpNuevo = () => +ES.xpReinicio2190 > 0 || +ES.xpReinicio2193 > 0;   // 2.19 (X) · las reglas nuevas, desde la vuelta a Novato (el 4 de noviembre de 2026 o después)
 const xpParaNivel = L => (xpNuevo() ? 250 : 50) * (L - 1) * L;   // desde Novato, mucho más exigente: 500, 1500, 3000, 5000…; antes 100, 300, 600…
 const nivelDe = total => { let L = 1; while (xpParaNivel(L + 1) <= total) L++; return L; };
 const nivelNombre = L => L <= NIVELES.length ? NIVELES[L - 1] : `Leyenda ${L - NIVELES.length + 1}`;
@@ -4738,7 +4746,6 @@ function xpLigaRevisar() {
     let v = null; try { v = JSON.parse(localStorage.getItem(k) || 'null'); } catch {}
     if (!v || v.sem !== lun) { localStorage.setItem(k, JSON.stringify({ sem: lun, i })); return; }
     if (i > v.i) { localStorage.setItem(k, JSON.stringify({ sem: lun, i })); buzz([40, 60, 40]); setTimeout(() => toast(`¡Subiste a la liga ${XP_LIGAS[i][0]} esta semana!`), 1200); }
-    else if (i < v.i) localStorage.setItem(k, JSON.stringify({ sem: lun, i }));
   } catch {}
 }
 function renderStats() {
@@ -8769,7 +8776,7 @@ function xpNetoEntre(a, b) { let s = 0; for (let d = a, i = 0; d <= b && i < 400
 function xpLigaDe(n) { let i = 0; while (i + 1 < XP_LIGAS.length && n >= XP_LIGAS[i + 1][1]) i++; return i; }
 function xpRecords() {
   let dia = 0, sem = 0; const semanas = {};
-  for (const k of Object.keys(ES.dias || {})) { if (!(k >= (ES.xp?.baseHasta || '')) || k > today()) continue; const n = xpNetoDia(k); if (n > dia) dia = n; const L = xmLunes(k); semanas[L] = (semanas[L] || 0) + n; }
+  for (const k of new Set([...Object.keys(ES.dias || {}), ...Object.keys(ES.xpPen || {})])) { if (!(k >= (ES.xp?.baseHasta || '')) || k > today()) continue; const n = xpNetoDia(k); if (n > dia) dia = n; const L = xmLunes(k); semanas[L] = (semanas[L] || 0) + n; }
   for (const n of Object.values(semanas)) if (n > sem) sem = n;
   return { dia, sem };
 }
@@ -8808,7 +8815,7 @@ function xpSheet() {
       <p>${sigL ? `Para ${esc(sigL[0])}: ${xpMiles(sigL[1] - semN)} XP más esta semana.` : 'Liga más alta. Mantenla hasta el domingo.'} El lunes empieza otra.</p></div>
     <div class="xs-caja" id="xs-carrera"><b class="k">Tú contra tu semana pasada</b>
       <span class="big ${dif >= 0 ? 'green' : 'red'}">${dif >= 0 ? `+${xpMiles(dif)}` : `−${xpMiles(-dif)}`} XP</span>
-      <p>${dayKey(addDays(new Date(lunP + 'T12:00'), dHoy)) < (ES.xp?.baseHasta || '') ? 'Es tu primera semana desde cero: la que viene correrás contra esta. Déjale una marca difícil de alcanzar.' : dif > 0 ? `Vas por delante de ti mismo: el ${esc(fechaLarga(dayKey(addDays(new Date(lunP + 'T12:00'), dHoy))))} llevabas ${xpMiles(semP)}.` : dif === 0 ? `Empatado con tu semana pasada (${xpMiles(semP)} XP a esta altura).` : `Tu semana pasada iba ${xpMiles(-dif)} XP por delante a esta altura. Todavía la alcanzas.`}</p></div>
+      <p>${dayKey(addDays(new Date(lunP + 'T12:00'), 6)) < (ES.xp?.baseHasta || '') ? 'Es tu primera semana desde cero: la que viene correrás contra esta. Déjale una marca difícil de alcanzar.' : dif > 0 ? `Vas por delante de ti mismo: el ${esc(fechaLarga(dayKey(addDays(new Date(lunP + 'T12:00'), dHoy))))} llevabas ${xpMiles(semP)}.` : dif === 0 ? `Empatado con tu semana pasada (${xpMiles(semP)} XP a esta altura).` : `Tu semana pasada iba ${xpMiles(-dif)} XP por delante a esta altura. Todavía la alcanzas.`}</p></div>
     <div class="xs-caja xs-rec" id="xs-rec"><div><b class="k">Mejor día</b><span class="big">${xpMiles(R.dia)}</span> XP${hoy > 0 && xpNetoDia(t) >= R.dia ? '<p class="green">¡Hoy es tu récord!</p>' : ''}</div><div><b class="k">Mejor semana</b><span class="big">${xpMiles(R.sem)}</span> XP${semN > 0 && semN >= R.sem ? '<p class="green">¡Esta semana es tu récord!</p>' : ''}</div></div>
     <div class="meter"><span>Meta de hoy: ${metaHoy()} XP${metaHoy() !== ES.metaXp ? ` (día corto; la de siempre, ${ES.metaXp})` : ''}</span><b class="${hoy >= metaHoy() ? 'green' : ''}">${hoy} de ${metaHoy()}</b></div><div class="meter-bar"><i style="width:${Math.min(100, hoy / metaHoy() * 100)}%"></i></div>
     <p class="meta" id="xs-sem">${esc(xmSemanaLinea())}. Cinco de siete: dos días libres por semana, sin romper nada.</p>
@@ -16627,7 +16634,7 @@ function xpLibroGanar(cant, motivo, ref, o) {
   if (typeof o.si === 'function') { let v = false; try { v = !!o.si(); } catch {} if (!v) { try { o.no?.(); } catch {} return false; } }
   if (ref) {
     if (o.padre && !act(o.padre)) { try { o.no?.(); } catch {} return false; }
-    if (act(ref) || (o.unica && xpActivoAlgunDia(ref))) return false;
+    if (act(ref) || (o.unica && (xpActivoAlgunDia(ref) || (Array.isArray(ES.xpUnicaAntes) && ES.xpUnicaAntes.includes(ref))))) return false;   // 2.19.3 · lo de una sola vez, dado antes de la vuelta a cero, no se vuelve a dar
   }
   const cat = xpCatDe(ref, o), S0 = cat ? xpCatStats()[cat] : null, r0 = S0 ? xpRangoDe(S0) : 0;
   const antes = nivelDe(xpTotal()), metaAntes = xpHoy() >= metaHoy();
@@ -16770,14 +16777,17 @@ window.xpPenLevantar = () => {
 // La vuelta a Novato: una sola vez por cuenta (con cuenta, solo después de combinar con la nube; el otro teléfono la recibe al sincronizar).
 // 2.19.3 · «Déjame lo anotado como está pero quítame el XP»: la ronda 2 vuelve a poner el XP en 0 (también el de hoy) sin tocar nada de lo
 // marcado; una copia de la ronda 1 que llegue después no trae de vuelta lo de antes (xpReinicioDe).
-const XP_RONDA = 2;
 let xpRondaAntes = 0;
 function xpReiniciar() {
-  if (+ES.xpReinicio2190 > 0 && xpRondaDe(ES) >= XP_RONDA) return false;
+  if (+ES.xpReinicio2193 > 0) return false;
   const hoy = today(); if (hoy < XP_REINICIO_DESDE) return false;   // 2.19.1 · la vuelta a Novato, desde el 3; lo que resta, desde el 4 (XP_INICIO)
-  xpRondaAntes = +ES.xpReinicio2190 > 0 ? xpRondaDe(ES) : 0;
-  ES.xpReinicio2190 = Date.now(); ES.xpRonda = XP_RONDA;
-  ES.xp = { total: 0, base: 0, baseHasta: hoy, antes: 0, baseCat: {}, diasCat: {}, visto: 1, vistoCat: {}, r: ES.xpReinicio2190 };
+  xpRondaAntes = xpRondaDe(ES);
+  const ahora = Date.now(), corte = {}, unicas = new Set(Array.isArray(ES.xpUnicaAntes) ? ES.xpUnicaAntes : []);
+  for (const [k, m] of Object.entries(ES.xpLog || {})) for (const [ref, v] of Object.entries(m || {})) { if (!v || ref[0] === '=') continue; if (k === hoy && +v.t > 0) corte[ref] = Math.max(corte[ref] || 0, +v.t); if (+v.n > 0) unicas.add(ref); }
+  ES.xpCorte2193 = corte; ES.xpUnicaAntes = [...unicas].slice(-3000);
+  if (!(+ES.xpReinicio2190 > 0)) ES.xpReinicio2190 = ahora;   // la primera vuelta (Novato) queda como estaba; las pérdidas, desde el 4
+  ES.xpReinicio2193 = ahora;
+  ES.xp = { total: 0, base: 0, baseHasta: hoy, antes: 0, baseCat: {}, diasCat: {}, visto: 1, vistoCat: {}, r: ahora };
   ES.xpLog = {}; ES.xpPen = {}; ES.xpPenBase = 0; ES.xpPenBaseCat = {}; ES.xpPenHasta = dayKey(addDays(new Date(), -1));
   ES.dias[hoy] = { ...dayOf(hoy), xp: 0 };
   xpUmbrales();
