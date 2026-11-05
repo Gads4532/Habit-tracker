@@ -621,7 +621,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.4';
+const APP_VERSION = '2.19.5';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3728,8 +3728,35 @@ function gAuto() {
   if (!gCfg().clientId || !gValid() || gSyncing) return;
   const T = state.tareas;
   if (!T.items.some(x => !x.gid || gSnap(x) !== x.gsnap) && !T.listas.some(l => !l.gid || l.nombre !== l.gsnap)) return;
-  clearTimeout(gAutoT); gAutoT = setTimeout(() => gSync(false), 2500);
+  clearTimeout(gAutoT); gAutoT = setTimeout(() => gSync(false), 800);   // 2.19.5 · lo tuyo sube casi al instante
 }
+// 2.19.5 · «La sincronización de Tasks debe ser automática… y en vivo, constante.» Google Tasks no avisa a nadie cuando algo cambia (no hay
+// notificaciones en vivo), así que la app pregunta: al abrir, al volver a ella y, mientras está a la vista, cada 30 s (cada 15 s en Tareas o
+// en la Agenda). Lo que cambias en la app sube en menos de un segundo (gAuto). El permiso de Google dura una hora y solo se renueva con un
+// toque tuyo: si ya conectaste Google y venció, el siguiente toque en cualquier parte lo renueva (la ventana de Google se abre y se cierra
+// sola, porque ya diste permiso), una vez cada vez que abres o vuelves a la app. Nada de esto corre sin Google conectado.
+let gVivoUlt = 0, gRenovarIntento = false;
+function gVivo(forzar = false) {
+  try {
+    const c = gCfg(); if (!c.ok || !gValid() || gSyncing || document.visibilityState !== 'visible') return;
+    // Sin interrumpir: escribiendo en algo, o con una hoja o un formulario abiertos, espera a la siguiente vuelta.
+    const act = (document.activeElement?.shadowRoot?.activeElement) || document.activeElement;
+    if (act && /^(INPUT|TEXTAREA|SELECT)$/.test(act.tagName)) return;
+    if (document.querySelector('dialog[open]') || document.getElementById('view-overlays')?.shadowRoot?.querySelector('dialog[open]')) return;
+    const cada = ['tareas', 'agenda'].includes(view) ? 15000 : 30000;
+    if (!forzar && Date.now() - gVivoUlt < cada) return;
+    gVivoUlt = Date.now();
+    gSync(false).then(() => { try { if (view === 'agenda') window.renderAgendaTab?.(); if (view === 'inicio') window.renderInicio?.(); } catch {} });
+  } catch {}
+}
+setInterval(() => gVivo(), 5000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { gRenovarIntento = false; gVivo(true); } });
+document.addEventListener('click', () => {
+  const c = gCfg(); if (!c.ok || gValid() || gRenovarIntento || gSyncing) return;
+  gRenovarIntento = true;
+  gToken(true, !!c.cal).then(t => { if (t) gVivo(true); }).catch(() => {});
+}, true);
+setTimeout(() => { if (gCfg().ok) gLoad().then(() => gVivo(true)).catch(() => {}); }, 2500);
 function gtasksSheet() {
   const c = gCfg();
   if (!c.ok) {

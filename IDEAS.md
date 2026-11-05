@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.19.5: Google Tasks, automático y constante
+Pedido: «La sincronización de Tasks debe ser automática… y en vivo, constante.»
+- Google Tasks no avisa a nadie cuando algo cambia (no hay notificaciones en vivo), así que la app pregunta sola (`gVivo`): al abrir, al volver a ella y, mientras está a la vista, **cada 30 s** (cada 15 s en Tareas o en la Agenda), sin tener que entrar a Tareas. Lo que cambias en la app sube en **menos de un segundo** (`gAuto`, antes 2,5 s). Si estás escribiendo o tienes una hoja o un formulario abiertos, espera a la siguiente vuelta para no repintar encima.
+- El permiso de Google dura una hora y Google solo deja renovarlo tras un toque de la persona: si ya conectaste Google y venció, **el siguiente toque en cualquier parte lo renueva** (la ventana de Google se abre y se cierra sola, porque ya diste permiso), una vez cada vez que abres o vuelves a la app.
+- Sin Google conectado no corre nada de esto.
+
 ## 2.19.4: duración a tu medida al añadir a la Agenda
 Pedido: «Agrega en agenda, al añadir algo, que pueda seleccionar el tiempo que yo quiera de duración y no solo las opciones presentes.»
 - En «+ Añadir» (tarea, otra cosa) y en la iniciativa propia, la duración son chips (10, 15, 25, 45, 60 y 90 min) y **«Otra»**, que abre un campo de minutos (1 a 720, es decir, hasta 12 h). El valor vive en un input oculto con el id de siempre (`minSelect`), así quien lo lee no cambia; los clics y lo escrito se atienden con un solo oyente para el documento y las hojas (`durClick`, `durInput`). Una duración guardada que no está en la lista abre «Otra» con su valor.
