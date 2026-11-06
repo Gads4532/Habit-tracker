@@ -159,6 +159,7 @@
   .task.done .tcheck { background: var(--text); } .task.done .tcheck svg { opacity: 1; }
   .task .tbody { flex: 1; min-width: 0; text-align: left; }
   .task .ttitle { font-weight: 500; }
+  .tvistas { margin: 0 0 10px; }
   .task.calor { padding-left: 10px; margin-left: -10px; border-radius: 0 10px 10px 0; box-shadow: inset 4px 0 0 color-mix(in srgb, var(--red) var(--calor), var(--line)); background: color-mix(in srgb, var(--red) calc(var(--calor) * .14), transparent); }
   .task.calor .tcheck { border-color: color-mix(in srgb, var(--red) var(--calor), var(--text)); }
   .task .tedad { color: var(--muted); } .task.calor .tedad { color: color-mix(in srgb, var(--red) var(--calor), var(--muted)); font-weight: 500; }
@@ -630,7 +631,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.9';
+const APP_VERSION = '2.20.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1362,7 +1363,7 @@ function render() {
   const cons = top.filter(h => !h.rutina && h.graduado), act = top.filter(h => h.rutina || !h.graduado);
   const hoy = act.filter(h => h.rutina || isSched(h, t)), otros = act.filter(h => !h.rutina && !isSched(h, t));
   $('#list').innerHTML = ordBtn + (hoy.length ? hoy.map(h => h.rutina ? routineHTML(h) : habitHTML(h)).join('') : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
-    + (otros.length ? `<p class="group-title">Otros días</p>` + otros.map(h => habitHTML(h)).join('') : '') + h2ConsHTML(cons);
+    + (otros.length ? `<details class="hb-otros"><summary class="group-title" style="cursor:pointer">Otros días · ${otros.length}</summary>${otros.map(h => habitHTML(h)).join('')}</details>` : '') + h2ConsHTML(cons);   // 2.20 · plegado: hoy, lo de hoy
   tickTimers();
 }
 
@@ -3636,11 +3637,16 @@ function tareaCalor(x, hoy = today()) {
 const tareaHace = d => d <= 0 ? 'De hoy' : d === 1 ? 'Desde ayer' : `Hace ${d} días`;
 // Atributos para la fila: clase y la variable --calor (0 % a 100 %).
 function tareaCalorAttr(x) { const c = tareaCalor(x); return c && c.p > 0 ? { cls: ' calor', st: ` style="--calor:${Math.round(c.p * 100)}%"`, c } : { cls: '', st: '', c }; }
+// 2.20 · «En tareas también podría verlo tanto por categorías como por total.» Tres vistas: por lista (la de siempre), todas juntas y por
+// categoría (Estudio, Proyecto, Trabajo, Social, Espiritual, Salud, Otro y sin categoría). Se recuerda en este teléfono.
+const T_CATS = [['estudio', 'Estudio'], ['proyecto', 'Proyecto'], ['laboral', 'Trabajo'], ['social', 'Social'], ['espiritual', 'Espiritual'], ['salud', 'Salud'], ['otro', 'Otro'], ['', 'Sin categoría']];
+const tVista = () => { try { const v = localStorage.getItem('tareas-vista'); return ['lista', 'todas', 'cat'].includes(v) ? v : 'lista'; } catch { return 'lista'; } };
+document.getElementById('view-tareas')?.addEventListener('click', e => { const b = e.target.closest('[data-tvista]'); if (!b) return; e.stopPropagation(); try { localStorage.setItem('tareas-vista', b.dataset.tvista); } catch {} renderTareas(); }, true);
 function renderTareas() {
-  const T = state.tareas;
+  const T = state.tareas, V = tVista();
   if (!T.listas.some(l => l.id === T.activa)) T.activa = T.listas[0].id;
   const L = T.listas.find(l => l.id === T.activa);
-  const mine = T.items.filter(x => x.lista === L.id);
+  const mine = V === 'lista' ? T.items.filter(x => x.lista === L.id) : T.items.slice();
   const pend = mine.filter(x => !x.hecha).sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : (a.fecha || '9') > (b.fecha || '9') ? 1 : b.creado - a.creado);
   const done = mine.filter(x => x.hecha).sort((a, b) => (b.hechaEn || 0) - (a.hechaEn || 0));
   const t = today();
@@ -3652,16 +3658,20 @@ function renderTareas() {
         ${x.fecha ? `<span class="tdate${!x.hecha && x.fecha < t ? ' late' : ''}">${fmtFecha(x.fecha)}${x.repite ? ' · ↻' : ''}</span>` : x.repite ? `<span class="tdate">↻ ${REPITE[x.repite] || ''}</span>` : ''}${K.c ? `<span class="tdate tedad">${tareaHace(K.c.dias)}</span>` : ''}${catChipFila(x.cat)}
       </button>
     </div>`; };
+  const catDe = x => { const c = typeof x.cat === 'string' ? x.cat : ''; return T_CATS.some(([k]) => k === c) ? c : 'otro'; };
+  const porCat = () => T_CATS.map(([k, n]) => { const G = pend.filter(x => (x.cat ? catDe(x) : '') === k); return G.length ? `<p class="group-title">${esc(n)} · ${G.length}</p>${G.map(row).join('')}` : ''; }).join('');
+  const vacio = cleanJust ? `<div class="tclean">${CHECK_BIG}<span>Todo hecho. Lista limpia.</span></div>` : `<p class="empty">${V === 'lista' ? `Nada pendiente en «${esc(L.nombre)}».` : 'Nada pendiente.'}</p>`;
   $('#view-tareas').innerHTML = `
-    <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)} (${pendientesDe(l.id)})</button>`).join('')}
-      <button class="chip" data-tact="newlist">+ Lista</button></div>
-    <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea" autocomplete="off"></form><div id="tadd-bt" hidden></div><div id="tadd-cat" hidden></div>
-    ${pend.length ? pend.map(row).join('') : cleanJust ? `<div class="tclean">${CHECK_BIG}<span>Todo hecho. Lista limpia.</span></div>` : `<p class="empty">Nada pendiente en «${esc(L.nombre)}».</p>`}
+    <div class="chips tvistas" role="tablist" aria-label="Cómo ver tus tareas">${[['lista', 'Por lista'], ['todas', `Todas (${T.items.filter(x => !x.hecha).length})`], ['cat', 'Por categoría']].map(([k, n]) => `<button class="chip${V === k ? ' on' : ''}" role="tab" aria-selected="${V === k}" data-tvista="${k}">${n}</button>`).join('')}</div>
+    ${V === 'lista' ? `<div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)} (${pendientesDe(l.id)})</button>`).join('')}
+      <button class="chip" data-tact="newlist">+ Lista</button></div>` : ''}
+    <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea${V === 'lista' ? '' : ` a «${esc(L.nombre)}»`}" autocomplete="off"></form><div id="tadd-bt" hidden></div><div id="tadd-cat" hidden></div>
+    ${pend.length ? (V === 'cat' ? porCat() : pend.map(row).join('')) : vacio}
     ${done.length ? `<button class="link tdone-toggle" data-tact="showdone">${tareasShowDone ? '▾' : '▸'} Completadas (${done.length})</button>` : ''}
     ${done.length && tareasShowDone ? `<div style="margin-top:10px">${done.map(row).join('')}</div>` : ''}
     <div class="actions" style="margin-top:28px">
-      <button class="link" data-tact="renamelist">Renombrar lista</button>
-      ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}
+      ${V === 'lista' ? `<button class="link" data-tact="renamelist">Renombrar lista</button>
+      ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}` : ''}
       <button class="link" data-tact="google">${gCfg().ok ? (gSyncing ? 'Google Tasks: sincronizando…' : 'Google Tasks ↻') : 'Conectar Google Tasks'}</button>
     </div>`;
   justDoneTask = null; newTaskId = null; undoneTask = null; cleanJust = false;
@@ -14083,6 +14093,8 @@ const INI_CSS = `
   .ini .row .t div { white-space: normal; overflow: visible; text-overflow: clip; font-weight: 500; line-height: 1.3; }
   .ini .row .t small { white-space: normal; overflow: visible; text-overflow: clip; margin-top: 2px; line-height: 1.35; }
   .ini .chev { flex: none; color: var(--muted); font-size: 1.3rem; line-height: 1; padding-right: 2px; }
+  .ini-mas { margin-top: 26px; border-top: 1px solid var(--line); } .ini-mas > summary { cursor: pointer; padding: 14px 0 6px; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .ini-edit { text-align: center; margin: 22px 0 0; }
   .ini-cta { background: var(--soft); border-radius: 18px; padding: 18px 18px 16px; margin: 0 0 26px; }
   .ini-cta .ini-cta-t { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
   .ini-cta .ini-cta-t svg { flex: none; width: 30px; height: 30px; }
@@ -14165,11 +14177,27 @@ function renderInicio() {
     return `<button class="row" data-ir="${esc(x.v)}"><span class="ico" aria-hidden="true">${x.svg}</span><span class="t"><div>${esc(x.t)}</div>${l ? `<small>${esc(l)}</small>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>`; };
   const grupo = (nombre, L) => L.length ? `<h3>${esc(nombre)}</h3><div class="rows">${L.map(fila).join('')}</div>` : '';
   let html = iniCuentaHtml() + (window.agAlertaHtml?.('ini-agendar') || '');   // 2.19.1 · la cuenta, arriba y grande · 2.19.8 · el día sin agendar, en rojo
-  for (const [nombre, vs] of INI_GRUPOS) { const L = vs.map(v => por.get(v)).filter(Boolean); for (const x of L) usados.add(x.v); html += grupo(nombre, L); }
-  html += grupo('Más', B.filter(x => !usados.has(x.v)));
+  const oc = new Set(iniOcultas()), escondidas = B.filter(x => oc.has(x.v));
+  for (const [nombre, vs] of INI_GRUPOS) { const L = vs.map(v => por.get(v)).filter(Boolean); for (const x of L) usados.add(x.v); html += grupo(nombre, L.filter(x => !oc.has(x.v))); }
+  html += grupo('Más', B.filter(x => !usados.has(x.v) && !oc.has(x.v)));
+  if (escondidas.length) html += `<details class="ini-mas"><summary>Más secciones · ${escondidas.length}</summary><div class="rows">${escondidas.map(fila).join('')}</div></details>`;
+  html += '<p class="ini-edit"><button class="link" id="ini-secciones">Elegir qué secciones ver</button></p>';
   iniW.innerHTML = html || '<p class="note">Sin secciones que mostrar.</p>';
 }
+// 2.20 · «Demasiadas secciones»: las que escondes pasan a «Más secciones», plegado al final (siguen a un toque). Se guarda en tu cuenta
+// (ES.inicioOcultas); sin elegir nada, se esconden Ideas, Calendario y Análisis.
+const INI_OCULTAS_DEF = ['pizarra', 'cal', 'analisis'];
+function iniOcultas() { const v = ES.inicioOcultas; return Array.isArray(v) ? v.filter(x => typeof x === 'string') : INI_OCULTAS_DEF; }
+function iniSeccionesSheet() {
+  const B = iniBotones(), oc = new Set(iniOcultas());
+  showSheet(`<h2>Secciones del Inicio</h2><p class="note">Marca las que quieres ver arriba. Las demás quedan en «Más secciones», al final del Inicio.</p>
+    <div class="rows" id="ini-sec">${B.map(x => `<label class="row" style="gap:12px;cursor:pointer"><input type="checkbox" data-sec="${esc(x.v)}" ${oc.has(x.v) ? '' : 'checked'} style="width:22px;height:22px;flex:none;accent-color:var(--green)"><span class="ico" aria-hidden="true" style="width:22px;height:22px">${x.svg}</span><span class="t"><div>${esc(x.t)}</div></span></label>`).join('')}</div>
+    <div class="actions"><button class="link" id="ini-sec-x">Cancelar</button><button class="primary" id="ini-sec-ok">Guardar</button></div>`);
+  $('#ini-sec-x').onclick = closeSheet;
+  $('#ini-sec-ok').onclick = () => { ES.inicioOcultas = [...$('#sheet-body').querySelectorAll('[data-sec]')].filter(i => !i.checked).map(i => i.dataset.sec); guardar(); closeSheet(); renderInicio(); toast('Listo: tu Inicio muestra solo lo que elegiste.'); };
+}
 iniW.addEventListener('click', e => {
+  if (e.target.closest('#ini-secciones')) { iniSeccionesSheet(); return; }   // 2.20
   if (e.target.closest('#ini-agendar')) { window.organizarDia?.(); return; }   // 2.19.8
   if (e.target.closest('#ini-cuenta')) { accountForm('up'); return; }
   if (e.target.closest('#ini-entrar')) { accountForm('in'); return; }
