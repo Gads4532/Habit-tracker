@@ -8673,6 +8673,33 @@ function orgAutoHoras(todas, sinReintento) {
     const ini = libreDesde(cursor, e.min || 30);
     if (poner(e, ini)) { org.auto.add(e.key); cursor = ini + (e.min || 30) + 10; } else org.auto.delete(e.key);
   }
+  orgRutinasJuntas();   // 2.20 · los hábitos de una rutina, uno detrás de otro
+}
+// 2.20 · «Los hábitos que son de la misma rutina… han de estar juntos, ya que se sigue uno después de otro.» Tras repartir las horas, los
+// hábitos de cada rutina que entran en el día quedan encadenados en el orden de la rutina: el primero que tenga hora marca el inicio y cada
+// siguiente empieza al terminar el anterior. Lo hecho no se mueve (y, si va primero, marca el inicio).
+function orgRutinasJuntas() {
+  try {
+    const s = HT(), L = orgLista(), grupos = new Map();
+    for (const e of L) {
+      if (e.tipo !== 'habito' || !e.key.startsWith('hab:')) continue;
+      const h = s.habits.find(y => y.id === e.key.slice(4)); if (!h || !h.padre) continue;
+      if (!grupos.has(h.padre)) grupos.set(h.padre, []);
+      grupos.get(h.padre).push({ e, i: s.habits.indexOf(h) });
+    }
+    for (const G of grupos.values()) {
+      if (G.length < 2) continue;
+      G.sort((a, b) => a.i - b.i);
+      const ancla = G.find(x => x.e.h); if (!ancla) continue;
+      let t = toMin(ancla.e.h);
+      for (let k = G.indexOf(ancla) - 1; k >= 0; k--) t -= (G[k].e.min || 30);   // los que van antes del ancla, justo antes
+      t = Math.max(0, t);
+      for (const { e } of G) {
+        if (!e.hecho) { orgSetHora(e.key, minToHm(Math.min(t, 23 * 60 + 55))); org.auto.delete(e.key); }
+        t = (e.hecho && e.h ? toMin(e.h) : t) + (e.min || 30);
+      }
+    }
+  } catch (err) { console.warn('Rutinas juntas', err); }
 }
 function orgGuardar() {
   agbAntesDeGuardar();
