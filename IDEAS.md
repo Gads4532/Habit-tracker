@@ -612,6 +612,10 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.19.7: una tarea con fecha resta cada día que siga sin hacer
+Pedido: «Voy perdiendo XP si no la hago en el día establecido» (el día que se elige al crear la tarea).
+- Además de la tarea que estaba en la agenda del día, **una tarea con fecha resta −10 el día de su fecha si no se hizo, y −10 por cada día que siga vencida** («Tarea vencida (2 días)»), hasta que se complete: completarla corta la pérdida desde ese día. Una tarea resta como mucho una vez por día (misma referencia `pt:{tarea}:{día}` que la de la agenda). Se revisa como lo demás: desde la vuelta a Novato, cada día ya cerrado, hasta 14 días atrás. «Cómo se gana y se pierde XP» lo dice.
+
 ## 2.19.6: las tareas se ponen rojas con los días
 Pedido: «Las tareas tendrán su tiempo de establecimiento. Mientras pasan los días se va poniendo roja.»
 - Cada tarea pendiente guarda desde cuándo existe (`creado`) y lleva su **calor** (`tareaCalor`, de 0 a 1): con fecha, lo que va del día en que se creó a su fecha (pasada la fecha, roja del todo); sin fecha, los días que lleva creada, roja del todo a los 14 (`TAREA_ROJA_DIAS`).

@@ -624,7 +624,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.6';
+const APP_VERSION = '2.19.7';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -8831,7 +8831,7 @@ function objetivoSheet(o) {
 }
 
 // ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (un número, hoy, antes de dormir).
-const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ...(xpNuevo() ? [] : [['Desde el 4 de noviembre, lo que queda sin hacer resta', null]]), ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Justificar ese día después devuelve lo restado.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
+const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ...(xpNuevo() ? [] : [['Desde el 4 de noviembre, lo que queda sin hacer resta', null]]), ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Justificar ese día después devuelve lo restado.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Tarea con fecha sin hacer: el día de su fecha y cada día que siga vencida', '−10 por día', 'Completarla corta la pérdida desde ese día.'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
   ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Mínimo de ${ES.minIni} iniciativas en el día`, 40], ['Las 5 iniciativas', 50], [`Social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho, en Estudio, la Agenda, el enfoque o el asistente (una vez por bloque)', 10], ['Tema de una ruta visto', 15], ['Tarea o entrega de una ruta', 'como una tarea'], ['Normas de Vida espiritual', 'cuentan en tu iniciativa espiritual del día'], ['Lo de dentro de un bloque de tiempo', 'lo suyo; el bloque no suma aparte'],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
@@ -16821,6 +16821,18 @@ function xpCastigos() {
       let c = ''; try { c = window.cat?.de?.('tarea', x) || ''; } catch {}
       const n = xpPenPoner(d, `pt:${x.id}:${d}`, XP_PEN, c, `Tarea de la agenda sin hacer: ${x.titulo}`);
       out.push({ d, tipo: 'Tarea', t: x.titulo, n });
+    }
+    // 2.19.7 · «Voy perdiendo XP si no la hago en el día establecido»: una tarea con fecha (la que se elige al crearla) resta cada día que siga
+    // sin hacer desde esa fecha, hasta que se complete. Una tarea resta como mucho una vez por día (misma referencia que la de la agenda).
+    for (const x of HT().tareas?.items || []) {
+      if (!x || !x.fecha || !/^\d{4}-\d\d-\d\d$/.test(x.fecha) || x.fecha > d || vistas.has(x.id)) continue;
+      const hecha = x.hecha && (+x.hechaEn > 0 ? dayKey(new Date(+x.hechaEn)) <= d : true);
+      if (hecha) continue;
+      vistas.add(x.id);
+      let c = ''; try { c = window.cat?.de?.('tarea', x) || ''; } catch {}
+      const tarde = tDias(x.fecha, d);
+      const n = xpPenPoner(d, `pt:${x.id}:${d}`, XP_PEN, c, tarde > 0 ? `Tarea vencida hace ${tarde} ${tarde === 1 ? 'día' : 'días'}: ${x.titulo}` : `Tarea del día sin hacer: ${x.titulo}`);
+      out.push({ d, tipo: tarde > 0 ? `Tarea vencida (${tarde} ${tarde === 1 ? 'día' : 'días'})` : 'Tarea del día', t: x.titulo, n });
     }
     ES.xpPenHasta = d;
   }
