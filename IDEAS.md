@@ -612,6 +612,27 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.20.0: la Agenda en sincronía, las rutinas juntas y una app más simple
+Pedidos: «Hay que simplificar muchas cosas… tengo muchas cosas marcadas, incluyendo hábitos, tareas» (marcadas sin hacerlas, demasiadas cosas, demasiadas secciones, pantallas recargadas) · «No se sincronizan las tareas con los hábitos en la Agenda» (no aparecen solos, lo marcado no se refleja, los cambios no se actualizan) · «En tareas también podría verlo tanto por categorías como por total» · «Los hábitos de la misma rutina… han de estar juntos, ya que se sigue uno después de otro». Una investigación con tres agentes reprodujo las causas.
+
+### La Agenda en sincronía
+- **Lo nuevo entra solo** (`agAutoAlta`, dentro de `agSync`): con el día ya organizado, los hábitos que tocan hoy, las tareas con fecha de hoy o vencidas, la nueva de una que se repite y lo que llega de Google Tasks entran en la Agenda con su hora. Lo que se vio al organizar y se dejó fuera, o se quitó después, no vuelve (`A.vistos`, unido entre teléfonos; también en el plan de mañana).
+- **Tareas que se repiten** (la causa de «sale hecho sin hacerlo»): al completar una, nace otra con otro id; el plan de mañana y «Copiar la de ayer» siguen la cadena hasta la de hoy (`tareaViva`), así no amanece hecha la de ayer.
+- **Los cambios llegan**: una tarea movida a otro día sale de la Agenda de hoy (y vuelve si regresa a hoy); la hora de un hábito se sigue si nadie la cambió a mano (`hf`).
+- **Entre teléfonos**: desmarcar un hábito guarda `''` en vez de borrar el día (al combinar, ya no vuelve a salir hecho); cada tarea lleva `mod` y al combinar gana la tarea más reciente, no la del teléfono que guardó último; una misma tarea de Google importada en dos teléfonos queda una sola (por `gid`, en la fusión y en `gSync`) y la Agenda apunta a ella.
+
+### Rutinas juntas
+En «Organizar mi día», los hábitos de cada rutina se reservan como **un solo bloque continuo**, en el orden de la rutina, sin pisar lo fijo (planes, eventos, bloques de tiempo) ni lo que ya tiene hora, y nada se cuela entre ellos; la hora propia de un hábito no lo saca del bloque, pero una hora puesta a mano al organizar se respeta y la cadena sigue desde ahí. Lo hecho no se mueve (solo adelanta el cursor), nada pendiente queda en una hora ya pasada, y lo que no cabe antes de las 11 PM queda sin hora (`orgRutinasJuntas`).
+
+### Más simple
+- **Inicio**: «Elegir qué secciones ver» (al final del Inicio); las escondidas pasan a «Más secciones · n», plegado. Se guarda en la cuenta (`ES.inicioOcultas`); sin elegir, Ideas, Calendario y Análisis van escondidas.
+- **Hábitos**: «Otros días» plegado (a la vista, lo de hoy).
+- **Hábitos**: «Otros días» y el Inicio «Más secciones» recuerdan si los abriste.
+- **Tareas**: «Por lista · Todas (n) · Por categoría» (Estudio, Proyecto, Trabajo, Social, Espiritual, Salud, Otro, Sin categoría), recordado en el teléfono; en «Todas» y «Por categoría», añadir va a la lista activa.
+
+### Revisión
+Revisión adversarial en tres áreas (Agenda, fusión entre teléfonos, interfaz) con verificador: 19 hallazgos, corregidos. Lo principal: lo que entra solo en la Agenda con una hora ya pasada, o una tarea movida a otro día, ya no resta por «una hora sin marcar»; `tareaViva` no pasa del día (una tarea semanal no trae la de la semana siguiente); las copias de una misma tarea de Google se unen con un ayudante común (`tareasRemap`: agenda de hoy, plan de mañana, planes de otros días y «vistos», sin dejar dos ítems de la misma tarea), la copia que sobra queda borrada y una tarea borrada por su `g:` no vuelve; «Quitar justificación» también guarda `''`; al completar una tarea vuelven la animación y la vibración; la hora del hábito (`hf`) se guarda al planificar; las rutinas no pisan lo fijo, no ponen horas pasadas ni amontonan a las 23:55.
+
 ## 2.19.9: ordenar los hábitos
 Pedido: «No me deja poner orden de los hábitos; yo quiero que pueda subirlos o bajarlos en el orden.»
 - En Hábitos, «Ordenar» (arriba a la derecha de la lista) convierte la lista en una columna numerada con ↑ y ↓ por fila (44 px; el primero no sube, el último no baja) y «Listo». Cada hábito y rutina de primer nivel guarda `orden` (sincronizado con el resto del hábito); sin ningún orden puesto, el de siempre (los clave primero). El orden manda en «Hoy», «Otros días» y consolidados.

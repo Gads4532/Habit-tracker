@@ -159,6 +159,7 @@
   .task.done .tcheck { background: var(--text); } .task.done .tcheck svg { opacity: 1; }
   .task .tbody { flex: 1; min-width: 0; text-align: left; }
   .task .ttitle { font-weight: 500; }
+  .tvistas { margin: 0 0 10px; }
   .task.calor { padding-left: 10px; margin-left: -10px; border-radius: 0 10px 10px 0; box-shadow: inset 4px 0 0 color-mix(in srgb, var(--red) var(--calor), var(--line)); background: color-mix(in srgb, var(--red) calc(var(--calor) * .14), transparent); }
   .task.calor .tcheck { border-color: color-mix(in srgb, var(--red) var(--calor), var(--text)); }
   .task .tedad { color: var(--muted); } .task.calor .tedad { color: color-mix(in srgb, var(--red) var(--calor), var(--muted)); font-weight: 500; }
@@ -630,7 +631,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.9';
+const APP_VERSION = '2.20.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -988,6 +989,20 @@ function unirAgendaHist(eN, eO, out) {
   }
   return H;
 }
+// 2.20 · Una tarea que se queda (old → nuevo, resuelto en cadena): la agenda de hoy, el plan de mañana y los de otros días apuntan a la nueva,
+// también en «vistos»; y si así quedan dos ítems de la misma tarea, se queda uno (el hecho, si lo hay). Lo usan mergeStates y gSync.
+function tareasRemap(E, ren) {
+  if (!E || !ren || !ren.size) return;
+  const fin = r => { let k = 0; while (ren.has(r) && k++ < 20) r = ren.get(r); return r; };
+  for (const A of [E.agendaHoy, E.agendaPlan, ...Object.values(E.agendaPlanes || {})]) {
+    if (!A || typeof A !== 'object') continue;
+    if (Array.isArray(A.items)) {
+      for (const it of A.items) if (it && it.tipo === 'tarea' && ren.has(it.ref)) it.ref = fin(it.ref);
+      const vis = new Map(); A.items = A.items.filter(it => { if (!it || it.tipo !== 'tarea') return true; const o = vis.get(it.ref); if (!o) { vis.set(it.ref, it); return true; } if (it.hecho && !o.hecho) { Object.assign(o, { hecho: true }); } return false; });
+    }
+    if (Array.isArray(A.vistos)) A.vistos = [...new Set(A.vistos.map(k => typeof k === 'string' && k.startsWith('tarea:') && ren.has(k.slice(6)) ? 'tarea:' + fin(k.slice(6)) : k))];
+  }
+}
 // Combinar dos estados sin perder nada: unión de hábitos, días y tareas; en conflicto manda el más reciente.
 function mergeStates(a, b) {
   a = normalize(a); b = normalize(b);
@@ -1000,7 +1015,13 @@ function mergeStates(a, b) {
   out.log = perId(newer.log, older.log); out.razones = perId(newer.razones, older.razones);
   out.motivos = perId(newer.motivos, older.motivos); out.progreso = perId(newer.progreso, older.progreso);
   out.timers = newer.timers;
-  out.tareas = { listas: byId(newer.tareas.listas, older.tareas.listas), items: byId(newer.tareas.items, older.tareas.items), activa: newer.tareas.activa };
+  // 2.20 · Cada tarea lleva `mod` (cuándo cambió): gana la tarea más reciente, no la del teléfono que guardó último; y una misma tarea de
+  // Google (gid) importada en dos teléfonos con ids distintos queda una sola (la más reciente), sin perder la referencia de la agenda.
+  const porMod = (x, y) => { const m = new Map(y.map(i => [i.id, i])); for (const i of x) { const o = m.get(i.id); m.set(i.id, !o || (+i.mod || 0) >= (+o.mod || 0) ? i : o); } return [...m.values()].filter(i => !dead.has(i.id) && !(i.gid && dead.has('g:' + i.gid))); };
+  let tItems = porMod(newer.tareas.items, older.tareas.items); const tRen = new Map();
+  { const porGid = new Map(); for (const x of tItems) { if (!x.gid) continue; const o = porGid.get(x.gid); if (!o) { porGid.set(x.gid, x); continue; } const g = (+x.mod || 0) > (+o.mod || 0) ? x : o, d = g === x ? o : x; porGid.set(x.gid, g); tRen.set(d.id, g.id); }
+    if (tRen.size) { tItems = tItems.filter(x => !tRen.has(x.id)); for (const k of tRen.keys()) dead.add(k); } }   // la copia que sobra queda borrada en los dos
+  out.tareas = { listas: byId(newer.tareas.listas, older.tareas.listas), items: tItems, activa: newer.tareas.activa };
   out.nombre = newer.nombre || older.nombre;
   // Enfoque: unión de personas, proyectos, planes y apps; por día, el mayor de cada contador.
   const eN = newer.enfoque, eO = older.enfoque, dias = {};
@@ -1026,7 +1047,7 @@ function mergeStates(a, b) {
       // Mismo día en dos teléfonos: unión por id y, después, un solo ítem por (tipo, referencia); gana el del más reciente.
       const nuevos = new Set((x.items || []).map(i => i.id)), out = [], pos = new Map();
       for (const it of byId(x.items || [], y.items || [])) { if (it.tipo === 'libre') { out.push(it); continue; } const k = it.tipo + ':' + it.ref; if (!pos.has(k)) { pos.set(k, out.length); out.push(it); } else if (nuevos.has(it.id)) out[pos.get(k)] = it; }
-      return { ...y, ...x, items: out, ocultos: [...new Set([...(x.ocultos || []), ...(y.ocultos || [])])], ...(x.estPremiados || y.estPremiados ? { estPremiados: [...new Set([...(Array.isArray(x.estPremiados) ? x.estPremiados : []), ...(Array.isArray(y.estPremiados) ? y.estPremiados : [])])] } : {}), organizado: Math.max(+x.organizado || 0, +y.organizado || 0) }; })(eN.agendaHoy, eO.agendaHoy),
+      return { ...y, ...x, items: out, ocultos: [...new Set([...(x.ocultos || []), ...(y.ocultos || [])])], ...(Array.isArray(x.vistos) || Array.isArray(y.vistos) ? { vistos: [...new Set([...(Array.isArray(x.vistos) ? x.vistos : []), ...(Array.isArray(y.vistos) ? y.vistos : [])])].slice(-800) } : {}), ...(x.estPremiados || y.estPremiados ? { estPremiados: [...new Set([...(Array.isArray(x.estPremiados) ? x.estPremiados : []), ...(Array.isArray(y.estPremiados) ? y.estPremiados : [])])] } : {}), organizado: Math.max(+x.organizado || 0, +y.organizado || 0) }; })(eN.agendaHoy, eO.agendaHoy),
     agendaPlanes: agpFusion(eN.agendaPlanes, eO.agendaPlanes),   // 2.17 (O) · por día, el plan organizado más tarde
     agendaPlan: ((x, y) => !x ? (y || null) : !y ? x : x.fecha !== y.fecha ? (x.fecha > y.fecha ? x : y) : ((+x.organizado || 0) >= (+y.organizado || 0) ? x : y))(eN.agendaPlan, eO.agendaPlan) });
   // 2.12 · Lo que la regla de arriba no combinaba: cada hábito con lo del otro (unirHabito), los registros de la puerta y del teléfono,
@@ -1052,6 +1073,7 @@ function mergeStates(a, b) {
     if (Object.keys(II).length) E.iniHistIden = II; }
   out.borrados = [...dead];
   out.cambiado = Math.max(a.cambiado, b.cambiado);
+  tareasRemap(out.enfoque, tRen);   // 2.20
   return normalize(out);
 }
 
@@ -1305,7 +1327,8 @@ const consHTML = h => `<h3 class="cons">Contras de no hacerlo</h3>${list(h.contr
 
 // 2.19.9 · «No me deja poner orden de los hábitos: quiero subirlos o bajarlos.» Cada hábito (y rutina) de primer nivel lleva `orden`; con
 // «Ordenar», la lista se vuelve una columna con ↑ ↓ por fila y «Listo». Sin ningún orden puesto, el de siempre (los clave primero).
-let hbOrdenando = false;
+let hbOrdenando = false, hbOtrosAbierto = false;
+document.getElementById('list')?.addEventListener('toggle', e => { if (e.target.classList?.contains('hb-otros')) hbOtrosAbierto = e.target.open; }, true);   // 2.20
 function hbTopOrdenados() {
   const top = state.habits.filter(h => !h.padre), conOrden = top.some(h => Number.isFinite(+h.orden));
   const idx = new Map(state.habits.map((h, i) => [h, i]));
@@ -1355,7 +1378,7 @@ function render() {
   const cons = top.filter(h => !h.rutina && h.graduado), act = top.filter(h => h.rutina || !h.graduado);
   const hoy = act.filter(h => h.rutina || isSched(h, t)), otros = act.filter(h => !h.rutina && !isSched(h, t));
   $('#list').innerHTML = ordBtn + (hoy.length ? hoy.map(h => h.rutina ? routineHTML(h) : habitHTML(h)).join('') : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
-    + (otros.length ? `<p class="group-title">Otros días</p>` + otros.map(h => habitHTML(h)).join('') : '') + h2ConsHTML(cons);
+    + (otros.length ? `<details class="hb-otros"${hbOtrosAbierto || otros.some(h => open.has(h.id)) ? ' open' : ''}><summary class="group-title" style="cursor:pointer">Otros días · ${otros.length}</summary>${otros.map(h => habitHTML(h)).join('')}</details>` : '') + h2ConsHTML(cons);   // 2.20 · plegado: hoy, lo de hoy
   tickTimers();
 }
 
@@ -1466,7 +1489,7 @@ function habitHTML(h) {
 function setMark(h, value) {
   hbXpDesmarca(h, value);   // 2.17 (XP) · desmarcar o saltar lo hecho hoy quita su XP, el «volviste», la sorpresa y la rutina
   state.log[h.id] ??= {};
-  if (value) state.log[h.id][today()] = value; else delete state.log[h.id][today()];
+  state.log[h.id][today()] = value || '';   // 2.20 · desmarcado = '' (no se borra): al combinar teléfonos, lo desmarcado no vuelve a salir hecho
   if (value !== 'just') delete state.razones[h.id]?.[today()];
   if (!value) { delete state.progreso[h.id]?.[today()]; delete state.timers[h.id]; }
   save(); render();
@@ -3474,7 +3497,7 @@ $('#msg-dialog').addEventListener('click', e => {
   }
   if (t.dataset.unjust) {
     const [id, day] = t.dataset.unjust.split('|');
-    delete state.log[id][day];
+    state.log[id][day] = '';   // 2.20 · '' y no borrar: al combinar teléfonos, la justificación quitada no vuelve
     delete state.razones[id]?.[day];
     save(); renderAll(); $('#msg-dialog').close();
   }
@@ -3629,11 +3652,16 @@ function tareaCalor(x, hoy = today()) {
 const tareaHace = d => d <= 0 ? 'De hoy' : d === 1 ? 'Desde ayer' : `Hace ${d} días`;
 // Atributos para la fila: clase y la variable --calor (0 % a 100 %).
 function tareaCalorAttr(x) { const c = tareaCalor(x); return c && c.p > 0 ? { cls: ' calor', st: ` style="--calor:${Math.round(c.p * 100)}%"`, c } : { cls: '', st: '', c }; }
+// 2.20 · «En tareas también podría verlo tanto por categorías como por total.» Tres vistas: por lista (la de siempre), todas juntas y por
+// categoría (Estudio, Proyecto, Trabajo, Social, Espiritual, Salud, Otro y sin categoría). Se recuerda en este teléfono.
+const T_CATS = [['estudio', 'Estudio'], ['proyecto', 'Proyecto'], ['laboral', 'Trabajo'], ['social', 'Social'], ['espiritual', 'Espiritual'], ['salud', 'Salud'], ['otro', 'Otro'], ['', 'Sin categoría']];
+const tVista = () => { try { const v = localStorage.getItem('tareas-vista'); return ['lista', 'todas', 'cat'].includes(v) ? v : 'lista'; } catch { return 'lista'; } };
+document.getElementById('view-tareas')?.addEventListener('click', e => { const b = e.target.closest('[data-tvista]'); if (!b) return; e.stopPropagation(); try { localStorage.setItem('tareas-vista', b.dataset.tvista); } catch {} renderTareas(); }, true);
 function renderTareas() {
-  const T = state.tareas;
+  const T = state.tareas, V = tVista();
   if (!T.listas.some(l => l.id === T.activa)) T.activa = T.listas[0].id;
   const L = T.listas.find(l => l.id === T.activa);
-  const mine = T.items.filter(x => x.lista === L.id);
+  const mine = V === 'lista' ? T.items.filter(x => x.lista === L.id) : T.items.slice();
   const pend = mine.filter(x => !x.hecha).sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : (a.fecha || '9') > (b.fecha || '9') ? 1 : b.creado - a.creado);
   const done = mine.filter(x => x.hecha).sort((a, b) => (b.hechaEn || 0) - (a.hechaEn || 0));
   const t = today();
@@ -3645,16 +3673,20 @@ function renderTareas() {
         ${x.fecha ? `<span class="tdate${!x.hecha && x.fecha < t ? ' late' : ''}">${fmtFecha(x.fecha)}${x.repite ? ' · ↻' : ''}</span>` : x.repite ? `<span class="tdate">↻ ${REPITE[x.repite] || ''}</span>` : ''}${K.c ? `<span class="tdate tedad">${tareaHace(K.c.dias)}</span>` : ''}${catChipFila(x.cat)}
       </button>
     </div>`; };
+  const catDe = x => { const c = typeof x.cat === 'string' ? x.cat : ''; return T_CATS.some(([k]) => k === c) ? c : 'otro'; };
+  const porCat = () => T_CATS.map(([k, n]) => { const G = pend.filter(x => (x.cat ? catDe(x) : '') === k); return G.length ? `<p class="group-title">${esc(n)} · ${G.length}</p>${G.map(row).join('')}` : ''; }).join('');
+  const vacio = cleanJust ? `<div class="tclean">${CHECK_BIG}<span>Todo hecho. Lista limpia.</span></div>` : `<p class="empty">${V === 'lista' ? `Nada pendiente en «${esc(L.nombre)}».` : 'Nada pendiente.'}</p>`;
   $('#view-tareas').innerHTML = `
-    <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)} (${pendientesDe(l.id)})</button>`).join('')}
-      <button class="chip" data-tact="newlist">+ Lista</button></div>
-    <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea" autocomplete="off"></form><div id="tadd-bt" hidden></div><div id="tadd-cat" hidden></div>
-    ${pend.length ? pend.map(row).join('') : cleanJust ? `<div class="tclean">${CHECK_BIG}<span>Todo hecho. Lista limpia.</span></div>` : `<p class="empty">Nada pendiente en «${esc(L.nombre)}».</p>`}
+    <div class="chips tvistas" role="tablist" aria-label="Cómo ver tus tareas">${[['lista', 'Por lista'], ['todas', `Todas (${T.items.filter(x => !x.hecha).length})`], ['cat', 'Por categoría']].map(([k, n]) => `<button class="chip${V === k ? ' on' : ''}" role="tab" aria-selected="${V === k}" data-tvista="${k}">${n}</button>`).join('')}</div>
+    ${V === 'lista' ? `<div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)} (${pendientesDe(l.id)})</button>`).join('')}
+      <button class="chip" data-tact="newlist">+ Lista</button></div>` : ''}
+    <form class="tadd" id="tadd"><span class="plus">+</span><input id="tadd-input" placeholder="Añadir una tarea${V === 'lista' ? '' : ` a «${esc(L.nombre)}»`}" autocomplete="off"></form><div id="tadd-bt" hidden></div><div id="tadd-cat" hidden></div>
+    ${pend.length ? (V === 'cat' ? porCat() : pend.map(row).join('')) : vacio}
     ${done.length ? `<button class="link tdone-toggle" data-tact="showdone">${tareasShowDone ? '▾' : '▸'} Completadas (${done.length})</button>` : ''}
     ${done.length && tareasShowDone ? `<div style="margin-top:10px">${done.map(row).join('')}</div>` : ''}
     <div class="actions" style="margin-top:28px">
-      <button class="link" data-tact="renamelist">Renombrar lista</button>
-      ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}
+      ${V === 'lista' ? `<button class="link" data-tact="renamelist">Renombrar lista</button>
+      ${T.listas.length > 1 ? `<button class="link" data-tact="dellist">Borrar lista</button>` : ''}` : ''}
       <button class="link" data-tact="google">${gCfg().ok ? (gSyncing ? 'Google Tasks: sincronizando…' : 'Google Tasks ↻') : 'Conectar Google Tasks'}</button>
     </div>`;
   justDoneTask = null; newTaskId = null; undoneTask = null; cleanJust = false;
@@ -3756,11 +3788,13 @@ async function gSync(interactive) {
         if (dead.has('g:' + g.id)) { await api(`lists/${L.gid}/tasks/${g.id}`, { method: 'DELETE' }); continue; }
         seen.add(g.id);
         const remote = { titulo: g.title, detalle: g.notes || '', fecha: g.due ? g.due.slice(0, 10) : '', hecha: g.status === 'completed' };
-        let x = T.items.find(i => i.gid === g.id);
+        // 2.20 · Si dos teléfonos importaron la misma tarea con ids distintos, queda una (la que tiene cambios sin subir) y la agenda apunta a ella.
+        const xs = T.items.filter(i => i.gid === g.id); let x = xs.find(i => gSnap(i) !== i.gsnap) || xs[0];
+        { const ren = new Map(); for (const d of xs) if (d !== x) { T.items = T.items.filter(i => i !== d); ren.set(d.id, x.id); forget(d.id); } tareasRemap(state.enfoque, ren); }
         if (!x) { x = { id: crypto.randomUUID(), gid: g.id, lista: L.id, creado: Date.now(), repite: '', dias: [], ...remote, hechaEn: remote.hecha ? Date.parse(g.completed || '') || Date.now() : 0 }; x.gsnap = gSnap(x); T.items.push(x); continue; }
         x.lista = L.id;
         if (gSnap(x) !== x.gsnap) await api(`lists/${L.gid}/tasks/${g.id}`, { method: 'PATCH', body: JSON.stringify(gBody(x)) });
-        else { const antes = !!x.hecha; if (remote.hecha && !x.hecha) x.hechaEn = Date.parse(g.completed || '') || Date.now(); /* 2.19 (X) · el día en que de verdad se completó */ Object.assign(x, remote); if (antes !== !!x.hecha) { window.xpDesdeGoogle = true; try { window.estEspejo?.tarea(x, x.hecha); } finally { window.xpDesdeGoogle = false; } if (!x.hecha) window.xmTareaDeshacer?.(x); } }   // 2.14.1 (S) · lo marcado en Google marca su pendiente en Estudio
+        else { const antes = !!x.hecha; if (remote.hecha && !x.hecha) x.hechaEn = Date.parse(g.completed || '') || Date.now(); /* 2.19 (X) · el día en que de verdad se completó */ if (gSnap({ ...x, ...remote }) !== gSnap(x)) x.mod = Date.now(); Object.assign(x, remote); if (antes !== !!x.hecha) { window.xpDesdeGoogle = true; try { window.estEspejo?.tarea(x, x.hecha); } finally { window.xpDesdeGoogle = false; } if (!x.hecha) window.xmTareaDeshacer?.(x); } }   // 2.14.1 (S) · lo marcado en Google marca su pendiente en Estudio
         x.gsnap = gSnap(x);
       }
       for (const x of T.items.filter(i => i.lista === L.id)) {
@@ -3868,7 +3902,7 @@ function animateComplete(el, then) {
   }, 720);
 }
 function completeTask(task) {
-  task.hecha = true; task.hechaEn = Date.now(); justDoneTask = task.id; navigator.vibrate?.(10);
+  task.hecha = true; task.hechaEn = Date.now(); task.mod = Date.now(); justDoneTask = task.id; navigator.vibrate?.(10);   // 2.20 · mod
   window.objAvanceTarea?.(task, true);
   window.estEspejo?.tarea(task, true);   // 2.14 (S) · la tarea espejo marca su pendiente en Estudio
   window.xmTarea?.(task);   // +5 XP, una vez por tarea y día, hasta 50 al día (F5)
@@ -3878,7 +3912,7 @@ function completeTask(task) {
   T.items.push({ id: crypto.randomUUID(), lista: task.lista, titulo: task.titulo, detalle: task.detalle, fecha: nextDate(task), hecha: false, creado: Date.now(), repite: task.repite, dias: [...(task.dias || [])], origen: task.id, cat: catNormK(task.cat) });
 }
 function uncompleteTask(task) {
-  task.hecha = false; task.hechaEn = 0;
+  task.hecha = false; task.hechaEn = 0; task.mod = Date.now();
   window.objAvanceTarea?.(task, false);
   window.estEspejo?.tarea(task, false);   // 2.14 (S)
   window.xmTareaDeshacer?.(task);   // 2.17 (XP) · sus 5 XP (y su sorpresa) se quitan
@@ -3902,7 +3936,7 @@ function taskForm(x) {
     const titulo = $('#t-title').value.trim(); if (!titulo) { $('#t-title').focus(); return; }
     const repite = $('#t-rep').value, dias = [...document.querySelectorAll('#t-days input:checked')].map(i => +i.value);
     if (repite === 'dias' && !dias.length) { $('#t-days').querySelector('input').focus(); return; }
-    Object.assign(x, { titulo, detalle: $('#t-detail').value.trim(), fecha: $('#t-date').value || (repite ? today() : ''), lista: $('#t-list').value, repite, dias }); catGuardarTarea(x);
+    Object.assign(x, { titulo, detalle: $('#t-detail').value.trim(), fecha: $('#t-date').value || (repite ? today() : ''), lista: $('#t-list').value, repite, dias, mod: Date.now() }); catGuardarTarea(x);
     save(); renderTareas(); $('#msg-dialog').close();
   };
   $('#t-rep').onchange = () => { $('#t-days').hidden = $('#t-rep').value !== 'dias'; };
@@ -8160,10 +8194,12 @@ function agenda() {
 }
 // El plan entra con sus iniciativas y sus prioridades (en su orden, delante); lo que ya hubiera en la agenda de hoy (eventos, algo añadido suelto) se queda.
 function agAplicarPlan(A, P) {
+  P = { ...P, items: (P.items || []).map(it => { if (it?.tipo !== 'tarea') return it; const x = tareaViva(it.ref, P.fecha || today()); return x && x.id !== it.ref ? { ...it, ref: x.id, t: x.titulo } : it; }) };   // 2.20 · la tarea que se repite: la de hoy
   const clave = it => it.tipo + ':' + (it.tipo === 'libre' ? it.id : it.ref), ya = new Set(A.items.map(clave));
   A.items = [...P.items.filter(it => !ya.has(clave(it))).map(it => ({ ...it, hecho: false })), ...A.items];
   for (const it of P.items) if (it && it.tipo === 'bt' && +it.rango >= 1) { const x = A.items.find(y => y && y.tipo === 'bt' && y.ref === it.ref); if (x && !(+x.rango >= 1)) x.rango = it.rango; }   // 2.17 · el bloque que ya estaba hoy toma su puesto del plan
   Object.assign(A, { organizado: P.organizado || Date.now(), completa: false, anoche: true });
+  if (Array.isArray(P.vistos)) A.vistos = [...new Set([...(Array.isArray(A.vistos) ? A.vistos : []), ...P.vistos, ...P.items.filter(it => it && (it.tipo === 'tarea' || it.tipo === 'habito')).map(it => it.tipo + ':' + it.ref)])];   // 2.20
   if (P.focoNo) A.focoNo = true;
   if (Array.isArray(P.ocultos) && P.ocultos.length) A.ocultos = [...new Set([...(A.ocultos || []), ...P.ocultos])];   // 2.14 (X)
   const I = ini4Semana();
@@ -8184,7 +8220,10 @@ const agFuente = it => {
   if (it.tipo === 'bt') return btFuenteAg(it);   // 2.16 (B) · la fuente es el bloque de tiempo
   return it;
 };
-const agVivo = it => !!agFuente(it) && (it.tipo !== 'ini' || !!agFuente(it).t);
+// 2.20 · Una tarea que se repite deja una nueva al completarse (origen = la anterior): la viva es la última de la cadena.
+const tareaViva = (id, dia = today()) => { const T = HT().tareas.items; let x = T.find(y => y.id === id); for (let i = 0; x && x.hecha && x.repite && i < 60; i++) { const h = T.find(y => y.origen === x.id); if (!h || (h.fecha && h.fecha > dia)) break; x = h; } return x; };   // sin pasar del día
+// 2.20 · Una tarea movida a otro día ya no sale en la agenda de hoy (vuelve si su fecha regresa a hoy).
+const agVivo = it => { const f = agFuente(it); if (!f) return false; if (it.tipo === 'ini') return !!f.t; if (it.tipo === 'tarea' && !f.hecha && f.fecha && f.fecha > (ES.agendaHoy?.fecha || today())) return false; return true; };
 function agHecho(it, k = today()) {
   if (it.tipo === 'bt') return btHechoAg(it, k);   // 2.16 (B) · hecho si todo lo de dentro lo está (sin nada dentro, lo marcado a mano)
   if (it.tipo === 'libre' && it.esp) { const v = espHechaEn(it.esp, k); if (v !== null) return v; }   // 2.15 (V) · un ítem de Vida espiritual es lo que diga su norma
@@ -8198,13 +8237,32 @@ function agHecho(it, k = today()) {
   return !!it.hecho;
 }
 // El texto (y la hora, si la fuente la tiene) se lee de la fuente: si editas la iniciativa, la tarea, el hábito o el plan, la agenda lo sigue.
+// 2.20 · «Creo una tarea o un hábito para hoy y no aparece en la Agenda.» Con el día ya organizado, lo de hoy que la agenda aún no vio
+// (hábitos que tocan hoy, tareas con fecha de hoy o vencidas, la nueva de una que se repite, lo que llega de Google Tasks) entra solo, con la
+// hora del hábito o de la tarea. Lo que viste al organizar y dejaste fuera, o quitaste después, no vuelve (A.vistos, unido entre teléfonos).
+function agAutoAlta(A) {
+  if (!(+A.organizado > 0) || A.fecha !== today()) return false;
+  const s = HT(), d = A.fecha, cand = [];
+  for (const h of s.habits) if (h && !h.rutina && (!h.creado || h.creado <= d) && isSched(h, d) && !window.hbProtegido?.(h, d)) cand.push(['habito', h]);
+  for (const x of s.tareas.items) if (x && !x.hecha && x.fecha && x.fecha <= d) cand.push(['tarea', x]);
+  const nuevo = !Array.isArray(A.vistos); if (nuevo) A.vistos = [];   // agenda organizada antes de 2.20: lo de ahora cuenta como visto
+  const vis = new Set(A.vistos), en = new Set(A.items.map(it => it.tipo + ':' + it.ref)); let cambio = nuevo;
+  for (const [tipo, f] of cand) {
+    const k = tipo + ':' + f.id; if (vis.has(k)) continue;
+    vis.add(k); A.vistos.push(k); cambio = true; if (nuevo || en.has(k)) continue;
+    A.items.push(tipo === 'habito' ? { id: 'auto:' + d + ':' + k, tipo, ref: f.id, t: f.nombre, h: (f.horas || [])[0] || '', hf: (f.horas || [])[0] || '', min: f.modo === 'tiempo' ? f.meta : AG_MIN.habito, hecho: false, alta: Date.now() }
+      : { id: 'auto:' + d + ':' + k, tipo, ref: f.id, t: f.titulo, h: f.hora || '', min: f.min || AG_MIN.tarea, hecho: false, alta: Date.now(), exito: f.exito || '', iden: f.iden || '' });
+  }
+  if (A.vistos.length > 800) A.vistos = A.vistos.slice(-800);
+  return cambio;
+}
 function agSync(A) {
-  const s = HT(), I = ini4Semana().items; let cambio = false;
+  const s = HT(), I = ini4Semana().items; let cambio = agAutoAlta(A);
   for (const it of A.items) {
     let t = '', h = null;
     if (it.tipo === 'ini') { const x = I.find(y => y.k === it.ref); if (x?.t) { t = x.t; h = x.hora || ''; } }
     else if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x) { t = x.titulo; if (x.hora) h = x.hora; } }
-    else if (it.tipo === 'habito') { const x = s.habits.find(y => y.id === it.ref); if (x) t = x.nombre; }
+    else if (it.tipo === 'habito') { const x = s.habits.find(y => y.id === it.ref); if (x) { t = x.nombre; const fh = (x.horas || [])[0] || ''; if (it.hf === undefined) { it.hf = fh; cambio = true; } else if (it.hf !== fh) { if (it.h === it.hf) h = fh; it.hf = fh; cambio = true; } } }   // 2.20 · la hora del hábito, si nadie la cambió a mano
     else if (it.tipo === 'prio') { const x = ES.prioridades.items.find(y => y.id === it.ref); if (x) { t = x.t; if (!!x.hecho !== !!it.hecho) { it.hecho = !!x.hecho; cambio = true; } } }
     else if (it.tipo === 'estudio') { const x = window.est?.bloque?.(it.ref); if (x) { t = window.est.textoBloque(x); h = x.h || ''; } }   // 2.14 (X)
     else if (it.tipo === 'plan') { const x = ES.planes.find(y => y.id === it.ref); if (x) { t = `${cap(x.titulo)}${x.con ? ' con ' + x.con : ''}`; h = x.hora || ''; } }
@@ -8517,7 +8575,7 @@ function orgDesdeHist(fecha) {
   const H = ES.agendaHist?.[fecha] || [], s = HT();
   for (const it of H) {
     if (it.tipo === 'habito' && org.hab.has(it.ref)) org.hab.set(it.ref, { on: true, h: it.h || org.hab.get(it.ref).h });
-    if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x && !x.hecha) org.tar.set(x.id, { on: true, h: it.h || '' }); }
+    if (it.tipo === 'tarea') { const x = tareaViva(it.ref, org.dest || today()); if (x && !x.hecha && !(x.fecha && x.fecha > (org.dest || today()))) org.tar.set(x.id, { on: true, h: it.h || '' }); }   // 2.20 · la que se repite: la de hoy
     if (it.tipo === 'ini' && !org.ini[it.ref]?.hecha) org.ini[it.ref] = { t: it.t, exito: org.ini[it.ref]?.t === it.t ? org.ini[it.ref].exito : EXITO_DEF[it.ref] || '', min: it.min || AG_MIN.ini, h: it.h || '', por: '', paso: '', obj: '', iden: it.iden || '', on: true, src: 'ayer' };
     if (it.tipo === 'libre' && !org.libres.some(x => x.t === it.t || (!!it.esp && x.esp === it.esp))) org.libres.push({ id: crypto.randomUUID(), tipo: 'libre', ref: '', t: it.t, h: it.h || '', min: it.min || AG_MIN.libre, hecho: false, iden: it.iden || '', ...espDeHist(it, org.dest) });
   }
@@ -8669,10 +8727,59 @@ function orgAutoHoras(todas, sinReintento) {
   // También cuando la hora del bloque la eligió la persona, mientras no haya empezado.
   if (!finB) { const e = L.find(e => e.foco && !e.hecho && e.h && !empezado(e)), hF = e && (orgLista().find(x => x.key === e.key) || e).h; if (hF && toMin(hF) < 12 * 60) finB = toMin(hF) + (e.min || 30); }
   let cursor = Math.max(Math.ceil((org.manana ? 7 * 60 : Math.max(now + 5, 7 * 60)) / 5) * 5, finB ? finB + 10 : 0);
-  for (const e of L.filter(e => movible(e) && !e.foco).sort(orgPorRango(L))) {
+  // 2.20 · Los hábitos de una rutina se reservan como un solo bloque continuo (nada se cuela entre ellos), en el orden de la rutina.
+  const padreDe = e => e.tipo === 'habito' && e.key.startsWith('hab:') ? HT().habits.find(y => y.id === e.key.slice(4))?.padre || '' : '';
+  const horaPropia = e => { const h = HT().habits.find(y => 'hab:' + y.id === e.key); return (h?.horas || [])[0] || ''; };
+  const movs = L.filter(e => !e.foco && (movible(e) || (padreDe(e) && !e.fijo && !e.hecho && e.h && e.h === horaPropia(e)))).sort(orgPorRango(L)), hechos = new Set();   // en una rutina, la hora propia del hábito no lo saca del bloque
+  for (const e of movs) {
+    const pa = padreDe(e);
+    if (pa) {
+      if (hechos.has(pa)) continue; hechos.add(pa);
+      const G = movs.filter(x => padreDe(x) === pa).sort((a, b) => HT().habits.findIndex(y => 'hab:' + y.id === a.key) - HT().habits.findIndex(y => 'hab:' + y.id === b.key));
+      const total = G.reduce((n, x) => n + (x.min || 30), 0), ini = libreDesde(cursor, total);
+      if (ini + total > fin) { for (const x of G) { orgSetHora(x.key, ''); org.auto.delete(x.key); } continue; }
+      let t = ini; for (const x of G) { orgSetHora(x.key, minToHm(t)); org.auto.add(x.key); t += x.min || 30; }
+      ocup.push([ini, ini + total]); cursor = ini + total + 10; continue;
+    }
     const ini = libreDesde(cursor, e.min || 30);
     if (poner(e, ini)) { org.auto.add(e.key); cursor = ini + (e.min || 30) + 10; } else org.auto.delete(e.key);
   }
+  orgRutinasJuntas();   // 2.20 · los hábitos de una rutina, uno detrás de otro
+}
+// 2.20 · «Los hábitos que son de la misma rutina… han de estar juntos, ya que se sigue uno después de otro.» Tras repartir las horas, los
+// hábitos de cada rutina que entran en el día quedan encadenados en el orden de la rutina: el primero que tenga hora marca el inicio y cada
+// siguiente empieza al terminar el anterior. Lo hecho no se mueve (y, si va primero, marca el inicio).
+function orgRutinasJuntas() {
+  try {
+    const s = HT(), L = orgLista(), grupos = new Map(), fin = 23 * 60;
+    const ahora = org.manana ? 0 : Math.ceil((nowMin() + 5) / 5) * 5;
+    // Lo fijo (planes, eventos, bloques de tiempo) y lo que no es de una rutina con hora: la cadena no se les pone encima.
+    const enRutina = e => e.tipo === 'habito' && e.key.startsWith('hab:') && !!s.habits.find(y => y.id === e.key.slice(4))?.padre;
+    const ocup = L.filter(e => e.h && !enRutina(e)).map(e => [toMin(e.h), toMin(e.h) + (e.min || 30)]);
+    const libre = (ini, dur) => { let v = 0; while (v++ < 120) { const c = ocup.find(([a, b]) => ini < b && ini + dur > a); if (!c) return ini; ini = Math.ceil((c[1] + 5) / 5) * 5; } return ini; };
+    for (const e of L) {
+      if (!enRutina(e)) continue;
+      const h = s.habits.find(y => y.id === e.key.slice(4));
+      if (!grupos.has(h.padre)) grupos.set(h.padre, []);
+      grupos.get(h.padre).push({ e, i: s.habits.indexOf(h) });
+    }
+    for (const G of grupos.values()) {
+      if (G.length < 2) continue;
+      G.sort((a, b) => a.i - b.i);
+      // Una hora puesta a mano al organizar se respeta y pasa a ser el nuevo inicio; la hora propia del hábito no (la rutina manda).
+      const manual = x => { const hh = s.habits.find(y => y.id === x.e.key.slice(4)); return x.e.h && !org.auto.has(x.e.key) && !x.e.hecho && x.e.h !== ((hh?.horas || [])[0] || ''); };
+      const ancla = G.find(x => x.e.h && !x.e.hecho); if (!ancla) continue;
+      let t = Math.max(toMin(ancla.e.h), ahora);
+      for (const x of G) {
+        const e = x.e, dur = e.min || 30;
+        if (e.hecho) { if (e.h) t = Math.max(t, toMin(e.h) + dur); continue; }   // lo hecho solo puede adelantar el cursor
+        if (manual(x)) { t = Math.max(toMin(e.h), ahora) + dur; ocup.push([toMin(e.h), toMin(e.h) + dur]); continue; }
+        const ini = libre(Math.max(t, ahora), dur);
+        if (ini + dur > fin) { orgSetHora(e.key, ''); org.auto.add(e.key); continue; }   // no cabe antes de las 11 PM: sin hora
+        orgSetHora(e.key, minToHm(ini)); org.auto.add(e.key); ocup.push([ini, ini + dur]); t = ini + dur;
+      }
+    }
+  } catch (err) { console.warn('Rutinas juntas', err); }
 }
 function orgGuardar() {
   agbAntesDeGuardar();
@@ -8695,7 +8802,8 @@ function orgGuardar() {
     }
   } else for (const [k, o] of Object.entries(org.ini)) if (o?.on) { planIni[k] = { t: o.t, exito: o.exito || EXITO_DEF[k], h: o.h || '', min: o.min || AG_MIN.ini, por: o.por || '', paso: o.paso || '', obj: o.obj || '', iden: o.iden || '', est: o.est || '' }; mk('ini', k, o.t, o.h, planIni[k].min, { iden: o.iden || '' }); }
   for (const [id, o] of org.tar) if (o.on) { const x = s.tareas.items.find(y => y.id === id); if (x) { if (!M) x.hora = o.h || x.hora || ''; mk('tarea', id, x.titulo, o.h, agbMin('tar:' + id, 'tarea', x.min || AG_MIN.tarea), { obj: x.obj || prev.get('tarea:' + id)?.obj || '', exito: prev.get('tarea:' + id)?.exito || x.exito || '', iden: x.iden || '' }); } }
-  for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) mk('habito', id, h.nombre, o.h, h.modo === 'tiempo' ? h.meta : AG_MIN.habito); }
+  for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) mk('habito', id, h.nombre, o.h, h.modo === 'tiempo' ? h.meta : AG_MIN.habito, { hf: (h.horas || [])[0] || '' }); }
+  const vistosOrg = [...[...org.hab.keys()].map(id => 'habito:' + id), ...[...org.tar.keys()].map(id => 'tarea:' + id)];   // 2.20 · lo visto al organizar no vuelve solo
   exOrgGuardar(mk, items);   // 2.14 (X) · los bloques encendidos, con su hora (que vuelve al bloque)
   for (const pl of ES.planes.filter(p => p.fecha === D && (!p.hecho || prev.has('plan:' + p.id)) && orgSolo('plan:' + p.id))) mk('plan', pl.id, `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, pl.hora, 60);
   for (const it of org.libres) items.push({ ...it, min: agbMin('lib:' + it.id, 'libre', it.min || AG_MIN.libre) });
@@ -8705,7 +8813,7 @@ function orgGuardar() {
   if (ES.idenManana?.d === D) ES.idenManana = null;   // 2.13 (J) · ya entró como ítem libre
   if (M) {
     const agpPrev = ES.agendaPlan;   // 2.17 (O)
-    ES.agendaPlan = { fecha: D, items, ini: planIni, rana: org.rana?.t ? { id: org.rana.id, t: org.rana.t } : null, prios: prioOrgPlan(), organizado: Date.now() };
+    ES.agendaPlan = { fecha: D, items, vistos: vistosOrg, ini: planIni, rana: org.rana?.t ? { id: org.rana.id, t: org.rana.t } : null, prios: prioOrgPlan(), organizado: Date.now() };
     if (org.foco?.quitado) ES.agendaPlan.focoNo = true;
     exOrgOcultos(ES.agendaPlan);   // 2.14 (X) · los apagados no entran mañana
     if (agpFijar(D, agpPrev)) return;   // 2.17 (O) · otro día: agendaPlanes[D]; agendaPlan sigue siendo el de mañana
@@ -8720,7 +8828,7 @@ function orgGuardar() {
   for (const it of A.items.filter(i => i.tipo === 'evento')) items.push(it);
   for (const it of A.items.filter(i => i.tipo === 'bt')) items.push(it);   // 2.16 (B) · los bloques de tiempo de hoy se quedan
   for (const it of A.items) if (!items.some(x => x.id === it.id)) forget(it.id);
-  A.items = items; A.organizado = Date.now();
+  A.items = items; A.organizado = Date.now(); A.vistos = [...new Set([...(Array.isArray(A.vistos) ? A.vistos : []), ...vistosOrg])];   // 2.20
   exOrgOcultos(A);   // 2.14 (X) · los apagados no vuelven a entrar hoy; los encendidos salen de ocultos
   if (org.foco?.quitado) A.focoNo = true; else if (F) delete A.focoNo;
   const primera = !dayOf().agenda; if (primera) bump('agenda');
@@ -14022,6 +14130,8 @@ const INI_CSS = `
   .ini .row .t div { white-space: normal; overflow: visible; text-overflow: clip; font-weight: 500; line-height: 1.3; }
   .ini .row .t small { white-space: normal; overflow: visible; text-overflow: clip; margin-top: 2px; line-height: 1.35; }
   .ini .chev { flex: none; color: var(--muted); font-size: 1.3rem; line-height: 1; padding-right: 2px; }
+  .ini-mas { margin-top: 26px; border-top: 1px solid var(--line); } .ini-mas > summary { cursor: pointer; padding: 14px 0 6px; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .ini-edit { text-align: center; margin: 22px 0 0; }
   .ini-cta { background: var(--soft); border-radius: 18px; padding: 18px 18px 16px; margin: 0 0 26px; }
   .ini-cta .ini-cta-t { display: flex; align-items: center; gap: 12px; margin: 0 0 6px; }
   .ini-cta .ini-cta-t svg { flex: none; width: 30px; height: 30px; }
@@ -14104,11 +14214,29 @@ function renderInicio() {
     return `<button class="row" data-ir="${esc(x.v)}"><span class="ico" aria-hidden="true">${x.svg}</span><span class="t"><div>${esc(x.t)}</div>${l ? `<small>${esc(l)}</small>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>`; };
   const grupo = (nombre, L) => L.length ? `<h3>${esc(nombre)}</h3><div class="rows">${L.map(fila).join('')}</div>` : '';
   let html = iniCuentaHtml() + (window.agAlertaHtml?.('ini-agendar') || '');   // 2.19.1 · la cuenta, arriba y grande · 2.19.8 · el día sin agendar, en rojo
-  for (const [nombre, vs] of INI_GRUPOS) { const L = vs.map(v => por.get(v)).filter(Boolean); for (const x of L) usados.add(x.v); html += grupo(nombre, L); }
-  html += grupo('Más', B.filter(x => !usados.has(x.v)));
+  const oc = new Set(iniOcultas()), escondidas = B.filter(x => oc.has(x.v));
+  for (const [nombre, vs] of INI_GRUPOS) { const L = vs.map(v => por.get(v)).filter(Boolean); for (const x of L) usados.add(x.v); html += grupo(nombre, L.filter(x => !oc.has(x.v))); }
+  html += grupo('Más', B.filter(x => !usados.has(x.v) && !oc.has(x.v)));
+  if (escondidas.length) html += `<details class="ini-mas"${iniMasAbierto ? ' open' : ''}><summary>Más secciones · ${escondidas.length}</summary><div class="rows">${escondidas.map(fila).join('')}</div></details>`;
+  html += '<p class="ini-edit"><button class="link" id="ini-secciones">Elegir qué secciones ver</button></p>';
   iniW.innerHTML = html || '<p class="note">Sin secciones que mostrar.</p>';
 }
+// 2.20 · «Demasiadas secciones»: las que escondes pasan a «Más secciones», plegado al final (siguen a un toque). Se guarda en tu cuenta
+// (ES.inicioOcultas); sin elegir nada, se esconden Ideas, Calendario y Análisis.
+const INI_OCULTAS_DEF = ['pizarra', 'cal', 'analisis'];
+let iniMasAbierto = false;
+iniW.addEventListener('toggle', e => { if (e.target.classList?.contains('ini-mas')) iniMasAbierto = e.target.open; }, true);
+function iniOcultas() { const v = ES.inicioOcultas; return Array.isArray(v) ? v.filter(x => typeof x === 'string') : INI_OCULTAS_DEF; }
+function iniSeccionesSheet() {
+  const B = iniBotones(), oc = new Set(iniOcultas());
+  showSheet(`<h2>Secciones del Inicio</h2><p class="note">Marca las que quieres ver arriba. Las demás quedan en «Más secciones», al final del Inicio.</p>
+    <div class="rows" id="ini-sec">${B.map(x => `<label class="row" style="gap:12px;cursor:pointer"><input type="checkbox" data-sec="${esc(x.v)}" ${oc.has(x.v) ? '' : 'checked'} style="width:22px;height:22px;flex:none;accent-color:var(--green)"><span class="ico" aria-hidden="true" style="width:22px;height:22px">${x.svg}</span><span class="t"><div>${esc(x.t)}</div></span></label>`).join('')}</div>
+    <div class="actions"><button class="link" id="ini-sec-x">Cancelar</button><button class="primary" id="ini-sec-ok">Guardar</button></div>`);
+  $('#ini-sec-x').onclick = closeSheet;
+  $('#ini-sec-ok').onclick = () => { ES.inicioOcultas = [...$('#sheet-body').querySelectorAll('[data-sec]')].filter(i => !i.checked).map(i => i.dataset.sec); guardar(); closeSheet(); renderInicio(); toast('Listo: tu Inicio muestra solo lo que elegiste.'); };
+}
 iniW.addEventListener('click', e => {
+  if (e.target.closest('#ini-secciones')) { iniSeccionesSheet(); return; }   // 2.20
   if (e.target.closest('#ini-agendar')) { window.organizarDia?.(); return; }   // 2.19.8
   if (e.target.closest('#ini-cuenta')) { accountForm('up'); return; }
   if (e.target.closest('#ini-entrar')) { accountForm('in'); return; }
@@ -16984,7 +17112,10 @@ const XP_TARDE_MIN = 60;
 function xpTardeItems() {
   const A = ES.agendaHoy, t = today(); if (!A || A.fecha !== t || !Array.isArray(A.items)) return [];
   const ahora = nowMin();
-  return A.items.filter(it => it && it.h && !['evento', 'bt'].includes(it.tipo) && /^\d\d:\d\d$/.test(it.h) && toMin(it.h) + XP_TARDE_MIN <= ahora);
+  const vence = it => new Date(`${t}T${it.h}:00`).getTime() + XP_TARDE_MIN * 60000;
+  return A.items.filter(it => { if (!it || !it.h || ['evento', 'bt'].includes(it.tipo) || !/^\d\d:\d\d$/.test(it.h) || toMin(it.h) + XP_TARDE_MIN > ahora) return false;
+    if (String(it.id || '').startsWith('auto:') && +it.alta > 0 && +it.alta >= vence(it)) return false;   // 2.20 · entró sola (agAutoAlta) cuando ya había vencido: no hubo hora para marcarla
+    try { return agVivo(it); } catch { return true; } });   // 2.20 · lo que ya no está en la agenda (una tarea movida a otro día) no resta
 }
 const xpTardeRef = it => `pa:${it.tipo}:${it.tipo === 'libre' ? it.id : it.ref}:${today()}`;
 function xpTardeRevisar() {
@@ -17011,6 +17142,7 @@ window.xpTardeBloquea = ref => {
   const A = ES.agendaHoy; if (!A || A.fecha !== today()) return false;
   for (const it of A.items || []) {
     if (!it || !P[xpTardeRef(it)]) continue;
+    try { if (!agVivo(it)) continue; } catch {}
     const r = it.tipo === 'habito' ? ['h:' + it.ref, 'h+:' + it.ref] : it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'prio' ? ['p:' + it.ref] : it.tipo === 'ini' ? ['i:' + it.ref] : it.tipo === 'libre' ? ['a:' + it.id] : [];
     if (r.includes(ref)) return true;
   }
