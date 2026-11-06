@@ -153,6 +153,9 @@
   .task.done .tcheck { background: var(--text); } .task.done .tcheck svg { opacity: 1; }
   .task .tbody { flex: 1; min-width: 0; text-align: left; }
   .task .ttitle { font-weight: 500; }
+  .task.calor { padding-left: 10px; margin-left: -10px; border-radius: 0 10px 10px 0; box-shadow: inset 4px 0 0 color-mix(in srgb, var(--red) var(--calor), var(--line)); background: color-mix(in srgb, var(--red) calc(var(--calor) * .14), transparent); }
+  .task.calor .tcheck { border-color: color-mix(in srgb, var(--red) var(--calor), var(--text)); }
+  .task .tedad { color: var(--muted); } .task.calor .tedad { color: color-mix(in srgb, var(--red) var(--calor), var(--muted)); font-weight: 500; }
   .task.done .ttitle { text-decoration: line-through; color: var(--muted); font-weight: 400; }
   .task .tdetail { color: var(--muted); font-size: .88rem; white-space: pre-wrap; }
   .task .tdate { display: inline-block; margin-top: 4px; font-size: .78rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
@@ -621,7 +624,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.5';
+const APP_VERSION = '2.19.6';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3576,6 +3579,23 @@ function renderAll() { render(); if (view === 'inicio') window.renderInicio?.();
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
+// 2.19.6 · «Las tareas tendrán su tiempo de establecimiento. Mientras pasan los días se va poniendo roja.» Cada tarea pendiente lleva su
+// «calor» (0 a 1): con fecha, lo que va del día en que se creó a su fecha (pasada la fecha, roja del todo); sin fecha, los días que lleva
+// creada, roja del todo a los 14. Se ve como una franja a la izquierda y un tinte que se vuelven rojos poco a poco, el círculo que se
+// tiñe y «Hace {n} días». Las hechas, sin color. Se calcula al pintar; no se guarda nada.
+const TAREA_ROJA_DIAS = 14;
+const tDias = (a, b) => Math.round((Date.parse(b + 'T12:00') - Date.parse(a + 'T12:00')) / 864e5);
+function tareaCalor(x, hoy = today()) {
+  if (!x || x.hecha) return null;
+  const creado = +x.creado > 1e11 ? dayKey(new Date(+x.creado)) : hoy, dias = Math.max(0, tDias(creado, hoy));
+  let p;
+  if (x.fecha && /^\d{4}-\d\d-\d\d$/.test(x.fecha)) p = x.fecha < hoy ? 1 : Math.min(1, dias / Math.max(1, tDias(creado, x.fecha)));
+  else p = Math.min(1, dias / TAREA_ROJA_DIAS);
+  return { p: Math.round(p * 100) / 100, dias, tarde: !!(x.fecha && x.fecha < hoy) };
+}
+const tareaHace = d => d <= 0 ? 'De hoy' : d === 1 ? 'Desde ayer' : `Hace ${d} días`;
+// Atributos para la fila: clase y la variable --calor (0 % a 100 %).
+function tareaCalorAttr(x) { const c = tareaCalor(x); return c && c.p > 0 ? { cls: ' calor', st: ` style="--calor:${Math.round(c.p * 100)}%"`, c } : { cls: '', st: '', c }; }
 function renderTareas() {
   const T = state.tareas;
   if (!T.listas.some(l => l.id === T.activa)) T.activa = T.listas[0].id;
@@ -3584,14 +3604,14 @@ function renderTareas() {
   const pend = mine.filter(x => !x.hecha).sort((a, b) => (a.fecha || '9') < (b.fecha || '9') ? -1 : (a.fecha || '9') > (b.fecha || '9') ? 1 : b.creado - a.creado);
   const done = mine.filter(x => x.hecha).sort((a, b) => (b.hechaEn || 0) - (a.hechaEn || 0));
   const t = today();
-  const row = x => `<div class="task${x.hecha ? ' done' : ''}${justDoneTask === x.id ? ' just-done' : ''}${newTaskId === x.id ? ' new-task' : ''}${undoneTask === x.id ? ' just-undone' : ''}" data-task="${x.id}">
+  const row = x => { const K = tareaCalorAttr(x); return `<div class="task${x.hecha ? ' done' : ''}${K.cls}${justDoneTask === x.id ? ' just-done' : ''}${newTaskId === x.id ? ' new-task' : ''}${undoneTask === x.id ? ' just-undone' : ''}" data-task="${x.id}"${K.st}>
       <button class="tcheck" data-tact="toggle" aria-label="${x.hecha ? 'Marcar pendiente' : 'Completar'}">${CHECK}</button>
       <button class="tbody" data-tact="edit">
         <div class="ttitle">${esc(x.titulo)}</div>
         ${x.detalle ? `<div class="tdetail">${esc(x.detalle)}</div>` : ''}
-        ${x.fecha ? `<span class="tdate${!x.hecha && x.fecha < t ? ' late' : ''}">${fmtFecha(x.fecha)}${x.repite ? ' · ↻' : ''}</span>` : x.repite ? `<span class="tdate">↻ ${REPITE[x.repite] || ''}</span>` : ''}${catChipFila(x.cat)}
+        ${x.fecha ? `<span class="tdate${!x.hecha && x.fecha < t ? ' late' : ''}">${fmtFecha(x.fecha)}${x.repite ? ' · ↻' : ''}</span>` : x.repite ? `<span class="tdate">↻ ${REPITE[x.repite] || ''}</span>` : ''}${K.c ? `<span class="tdate tedad">${tareaHace(K.c.dias)}</span>` : ''}${catChipFila(x.cat)}
       </button>
-    </div>`;
+    </div>`; };
   $('#view-tareas').innerHTML = `
     <div class="tlists">${T.listas.map(l => `<button class="chip${l.id === L.id ? ' on' : ''}" data-list="${l.id}">${esc(l.nombre)} (${pendientesDe(l.id)})</button>`).join('')}
       <button class="chip" data-tact="newlist">+ Lista</button></div>
@@ -8958,6 +8978,8 @@ const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_C
   .ag-pest { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0 10px; margin: 0 0 4px; border-bottom: 1px solid var(--line); }
   .ag-pest .chip { font-variant-numeric: tabular-nums; } .ag-pest .chip small { color: inherit; opacity: .7; font-size: .8em; margin-left: 4px; }
   .ag-pest-fin { margin: 10px 0 0; }
+  .ag-it.calor { padding-left: 8px; box-shadow: inset 4px 0 0 color-mix(in srgb, var(--red) var(--calor), var(--line)); background: color-mix(in srgb, var(--red) calc(var(--calor) * .14), transparent); border-radius: 0 10px 10px 0; }
+  .ag-it.calor .box { border-color: color-mix(in srgb, var(--red) var(--calor), var(--text)); } .ag-it.calor .ag-edad { color: color-mix(in srgb, var(--red) var(--calor), var(--muted)); font-weight: 500; }
   .ag-mas { margin-top: 30px; border-top: 1px solid var(--line); }
   .ag-mas > summary { cursor: pointer; list-style: none; padding: 16px 0 10px; font-size: .82rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
   .ag-mas > summary::after { content: ' ›'; } .ag-mas[open] > summary::after { content: ' ⌄'; }
@@ -9004,8 +9026,9 @@ function renderAg() {
   const conH = vis.filter(i => i.h).sort(agOrden), sinH = vis.filter(i => !i.h);
   const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length, P = planManana(), tarde = now >= 18 * 60;
   const fila = it => { const ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, s = smartDe(agSmartSrc(it)), fo = !!it.foco;
-    return `<div class="row ag-it${ok ? ' ok' : ''}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}">${agRkHtml(it, its)}<button class="box" data-chk="${esc(it.id)}" aria-label="Hecha" style="${ok ? 'background:var(--green);border-color:var(--green)' : ''};width:20px;height:20px"></button>
-      <button class="t" data-open="${esc(it.id)}" style="text-align:left"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}</div><small>${fo ? 'Bloque protegido' : esc(agEtqCat(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''}</small></button>
+    const Kt = it.tipo === 'tarea' && !ok ? tareaCalorAttr((HT().tareas?.items || []).find(y => y && y.id === it.ref)) : { cls: '', st: '', c: null };   // 2.19.6 · el calor de la tarea
+    return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}"${Kt.st}>${agRkHtml(it, its)}<button class="box" data-chk="${esc(it.id)}" aria-label="Hecha" style="${ok ? 'background:var(--green);border-color:var(--green)' : ''};width:20px;height:20px"></button>
+      <button class="t" data-open="${esc(it.id)}" style="text-align:left"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}</div><small>${fo ? 'Bloque protegido' : esc(agEtqCat(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''}${Kt.c && Kt.c.dias > 0 ? ` · <span class="ag-edad">${tareaHace(Kt.c.dias)}</span>` : ''}</small></button>
       <button class="tag" data-open="${esc(it.id)}" style="${tardeIt ? 'color:var(--amber)' : ''}">${it.h ? fmtHora(it.h) : 'Poner hora'}</button></div>`; };
   const filas = []; let marcado = false;
   for (const it of conH) { if (!marcado && toMin(it.h) > now) { filas.push(`<div class="ag-now"><span>Ahora · ${fmtHora(hhmm(new Date()))}</span></div>`); marcado = true; } filas.push(fila(it)); }

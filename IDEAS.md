@@ -612,6 +612,11 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.19.6: las tareas se ponen rojas con los días
+Pedido: «Las tareas tendrán su tiempo de establecimiento. Mientras pasan los días se va poniendo roja.»
+- Cada tarea pendiente guarda desde cuándo existe (`creado`) y lleva su **calor** (`tareaCalor`, de 0 a 1): con fecha, lo que va del día en que se creó a su fecha (pasada la fecha, roja del todo); sin fecha, los días que lleva creada, roja del todo a los 14 (`TAREA_ROJA_DIAS`).
+- Se ve en **Tareas** y en las tareas de la **Agenda**: una franja a la izquierda y un tinte de fondo que pasan poco a poco del gris al rojo, el círculo que se tiñe, y «De hoy», «Desde ayer» o «Hace {n} días», en rojo según el calor. Las hechas, sin color. Funciona en claro y oscuro (`color-mix` con `--red`); se calcula al pintar, sin guardar nada.
+
 ## 2.19.5: Google Tasks, automático y constante
 Pedido: «La sincronización de Tasks debe ser automática… y en vivo, constante.»
 - Google Tasks no avisa a nadie cuando algo cambia (no hay notificaciones en vivo), así que la app pregunta sola (`gVivo`): al abrir, al volver a ella y, mientras está a la vista, **cada 30 s** (cada 15 s en Tareas o en la Agenda), sin tener que entrar a Tareas. Lo que cambias en la app sube en **menos de un segundo** (`gAuto`, antes 2,5 s). Si estás escribiendo o tienes una hoja o un formulario abiertos, espera a la siguiente vuelta para no repintar encima.
