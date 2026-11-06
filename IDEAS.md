@@ -612,6 +612,10 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.19.8: alerta grande y en rojo si el día no está agendado
+Pedido: «Tienes que poner en grande la alerta de que el día no está agendado, y en rojo.»
+- Mientras el día de hoy no esté organizado, arriba del Inicio (después de la cuenta) y arriba de la Agenda: «⚠ Tu día no está agendado», en rojo (borde, título de 1,3 rem y fondo teñido), una línea («Sin hora, lo importante se queda en la lista…») y [Agendar mi día · 2 min] ancho y rojo, que abre «Organizar mi día» (en la Agenda, además, «Copiar la de ayer» si hay). Desaparece en cuanto el día queda organizado. `role="alert"`; claro y oscuro.
+
 ## 2.19.7: una tarea con fecha resta cada día que siga sin hacer
 Pedido: «Voy perdiendo XP si no la hago en el día establecido» (el día que se elige al crear la tarea).
 - Además de la tarea que estaba en la agenda del día, **una tarea con fecha resta −10 el día de su fecha si no se hizo, y −10 por cada día que siga vencida** («Tarea vencida (2 días)»), hasta que se complete: completarla corta la pérdida desde ese día. Una tarea resta como mucho una vez por día (misma referencia `pt:{tarea}:{día}` que la de la agenda). Se revisa como lo demás: desde la vuelta a Novato, cada día ya cerrado, hasta 14 días atrás. «Cómo se gana y se pierde XP» lo dice.
