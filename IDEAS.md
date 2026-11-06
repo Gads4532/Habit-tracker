@@ -612,6 +612,10 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.19.9: ordenar los hábitos
+Pedido: «No me deja poner orden de los hábitos; yo quiero que pueda subirlos o bajarlos en el orden.»
+- En Hábitos, «Ordenar» (arriba a la derecha de la lista) convierte la lista en una columna numerada con ↑ y ↓ por fila (44 px; el primero no sube, el último no baja) y «Listo». Cada hábito y rutina de primer nivel guarda `orden` (sincronizado con el resto del hábito); sin ningún orden puesto, el de siempre (los clave primero). El orden manda en «Hoy», «Otros días» y consolidados.
+
 ## 2.19.8: alerta del día sin agendar, una hora para marcar y la Agenda primero
 Pedido: «Tienes que poner en grande la alerta de que el día no está agendado, y en rojo.»
 - **Una hora para marcar** («Si no pones marcado a máximo una hora después de que estaba establecido… se pierde la XP»): lo de la agenda de hoy con hora (tarea, hábito, iniciativa, prioridad, bloque de estudio, norma o cosa suelta; no los eventos ni los bloques de tiempo) que una hora después de su hora sigue sin marcar resta −10 al momento (`pa:{tipo}:{ref}:{día}`; con la app cerrada, al abrirla; se revisa cada minuto), con aviso y vibración, y si se marca después ya no da su XP (`xpTardeBloquea` frena su premio ese día). Se suma a lo que resta al cerrar el día.

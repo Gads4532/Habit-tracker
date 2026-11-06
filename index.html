@@ -140,6 +140,12 @@
   .check.run { border-style: dashed; }
   .habit.off { opacity: .45; }
   .habit.off .check { border-style: dotted; }
+  .hb-ord-bar { display: flex; justify-content: flex-end; margin: -6px 0 4px; }
+  .hb-ord-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .hb-ord-n { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .9rem; background: var(--c, var(--text)); color: var(--bg); }
+  .hb-ord-t { flex: 1; min-width: 0; font-weight: 500; overflow-wrap: anywhere; } .hb-ord-t small { color: var(--muted); font-weight: 400; }
+  .hb-ord-b { flex: none; width: 44px; height: 44px; border-radius: 12px; border: 1.5px solid var(--line); font-size: 1.2rem; font-weight: 700; }
+  .hb-ord-b:disabled { opacity: .3; }
   .group-title { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; margin: 26px 0 4px; }
   /* Tareas, al estilo Google Tasks */
   .tlists { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
@@ -624,7 +630,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.19.8';
+const APP_VERSION = '2.19.9';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1297,6 +1303,31 @@ const list = items => `<ul>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
 const benefitsHTML = h => `<h3 class="benefits">Beneficios</h3>${list(h.beneficios)}`;
 const consHTML = h => `<h3 class="cons">Contras de no hacerlo</h3>${list(h.contras)}`;
 
+// 2.19.9 · «No me deja poner orden de los hábitos: quiero subirlos o bajarlos.» Cada hábito (y rutina) de primer nivel lleva `orden`; con
+// «Ordenar», la lista se vuelve una columna con ↑ ↓ por fila y «Listo». Sin ningún orden puesto, el de siempre (los clave primero).
+let hbOrdenando = false;
+function hbTopOrdenados() {
+  const top = state.habits.filter(h => !h.padre), conOrden = top.some(h => Number.isFinite(+h.orden));
+  const idx = new Map(state.habits.map((h, i) => [h, i]));
+  return conOrden ? top.slice().sort((a, b) => (Number.isFinite(+a.orden) ? +a.orden : 1e6 + idx.get(a)) - (Number.isFinite(+b.orden) ? +b.orden : 1e6 + idx.get(b)))
+    : top.slice().sort((a, b) => (b.clave ? 1 : 0) - (a.clave ? 1 : 0));
+}
+function hbMover(id, d) {
+  const L = hbTopOrdenados(), i = L.findIndex(h => h.id === id), j = i + d;
+  if (i < 0 || j < 0 || j >= L.length) return;
+  [L[i], L[j]] = [L[j], L[i]];
+  L.forEach((h, k) => { h.orden = k; });
+  save(); render();
+  setTimeout(() => document.querySelector(`#list [data-hbord="${CSS.escape(id)}"][data-d="${d}"]`)?.focus(), 0);
+}
+function hbOrdenHTML(L) {
+  return `<div class="hb-ord"><p class="meta" style="margin:0 0 8px">Toca ↑ o ↓ para ordenar. El de arriba sale primero.</p>${L.map((h, k) => `<div class="hb-ord-row" style="${colorVar(h)}"><span class="hb-ord-n">${k + 1}</span><span class="hb-ord-t">${esc(h.nombre)}${h.rutina ? ' <small>(rutina)</small>' : ''}</span>
+      <button class="hb-ord-b" data-hbord="${esc(h.id)}" data-d="-1" ${k === 0 ? 'disabled' : ''} aria-label="Subir ${esc(h.nombre)}">↑</button><button class="hb-ord-b" data-hbord="${esc(h.id)}" data-d="1" ${k === L.length - 1 ? 'disabled' : ''} aria-label="Bajar ${esc(h.nombre)}">↓</button></div>`).join('')}</div>`;
+}
+document.getElementById('list')?.addEventListener('click', e => {
+  const b = e.target.closest('[data-hbord]'); if (b) { e.stopPropagation(); hbMover(b.dataset.hbord, +b.dataset.d); return; }
+  if (e.target.closest('#hb-ordenar')) { e.stopPropagation(); hbOrdenando = !hbOrdenando; render(); }
+}, true);
 function render() {
   const fecha = new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
   $('#today').textContent = fecha[0].toUpperCase() + fecha.slice(1);
@@ -1308,7 +1339,7 @@ function render() {
   $('#global').innerHTML = `<div class="g-streak${prevStreak !== undefined && +prevStreak !== g.streak ? ' bump' : ''}" title="Racha general">${flame(!g.streak)}${g.streak}</div>
     <div class="g-rate">${g.rate === null ? 'Sin datos aún' : g.rate + '% esta semana'}</div>`;
   h2AlRender();   // 2.12 · H2: lo pedido «desde el lunes» y los consolidados que vuelven a la lista activa
-  const top = state.habits.filter(h => !h.padre).sort((a, b) => (b.clave ? 1 : 0) - (a.clave ? 1 : 0));
+  const top = hbTopOrdenados();   // 2.19.9 · el orden que elegiste
 
   const building = state.habits.filter(h => !h.rutina && !h.graduado).length;   // solo graduarse libera el hueco (F21), no los 66 votos
   $('#notice').hidden = building <= 3;
@@ -1319,9 +1350,11 @@ function render() {
     return;
   }
   const t = today();
+  const ordBtn = top.length > 1 ? `<p class="hb-ord-bar"><button class="link" id="hb-ordenar">${hbOrdenando ? 'Listo' : 'Ordenar'}</button></p>` : '';
+  if (hbOrdenando && top.length > 1) { $('#list').innerHTML = ordBtn + hbOrdenHTML(top); return; }
   const cons = top.filter(h => !h.rutina && h.graduado), act = top.filter(h => h.rutina || !h.graduado);
   const hoy = act.filter(h => h.rutina || isSched(h, t)), otros = act.filter(h => !h.rutina && !isSched(h, t));
-  $('#list').innerHTML = (hoy.length ? hoy.map(h => h.rutina ? routineHTML(h) : habitHTML(h)).join('') : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
+  $('#list').innerHTML = ordBtn + (hoy.length ? hoy.map(h => h.rutina ? routineHTML(h) : habitHTML(h)).join('') : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
     + (otros.length ? `<p class="group-title">Otros días</p>` + otros.map(h => habitHTML(h)).join('') : '') + h2ConsHTML(cons);
   tickTimers();
 }
