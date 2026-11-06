@@ -8831,7 +8831,7 @@ function objetivoSheet(o) {
 }
 
 // ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (un número, hoy, antes de dormir).
-const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ...(xpNuevo() ? [] : [['Desde el 4 de noviembre, lo que queda sin hacer resta', null]]), ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Justificar ese día después devuelve lo restado.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Tarea con fecha sin hacer: el día de su fecha y cada día que siga vencida', '−10 por día', 'Completarla corta la pérdida desde ese día.'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
+const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ...(xpNuevo() ? [] : [['Desde el 4 de noviembre, lo que queda sin hacer resta', null]]), ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Justificar ese día después devuelve lo restado.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Tarea con fecha sin hacer: el día de su fecha y cada día que siga vencida', '−10 por día', 'Completarla corta la pérdida desde ese día.'], ['Algo de la agenda con hora que pasa una hora sin marcar', '−10', 'Y si lo marcas después, ya no da su XP.'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma es terminar lo importante: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['La más importante (prioridad 1)', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
   ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Mínimo de ${ES.minIni} iniciativas en el día`, 40], ['Las 5 iniciativas', 50], [`Social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho, en Estudio, la Agenda, el enfoque o el asistente (una vez por bloque)', 10], ['Tema de una ruta visto', 15], ['Tarea o entrega de una ruta', 'como una tarea'], ['Normas de Vida espiritual', 'cuentan en tu iniciativa espiritual del día'], ['Lo de dentro de un bloque de tiempo', 'lo suyo; el bloque no suma aparte'],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
@@ -14012,7 +14012,7 @@ const INI_CSS = `
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS; iniR.append(iniStyle, iniW); }
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
-const INI_GRUPOS = [['Organizar y hacer', ['enfoque', 'agenda', 'bloques', 'hoy', 'tareas', 'estudio']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
+const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'bloques', 'hoy', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
 // Líneas de estado: se calculan solo al pintar, una llamada a cada helper, sin guardar nada.
 const INI_ESTADO = {
   identidad: () => {
@@ -16723,6 +16723,7 @@ function subirRango(c, i) {
 }
 // ---------- Dar: una vez por referencia y día; lo deshecho se vuelve a dar (con la sorpresa que ya había salido, sin otra tirada).
 function xpLibroGanar(cant, motivo, ref, o) {
+  try { if (typeof ref === 'string' && ref && window.xpTardeBloquea?.(ref)) return false; } catch {}   // 2.19.8 · marcado más de una hora tarde: no da XP
   cant = Math.round(+cant || 0); if (!(cant > 0)) return false;
   o = o && typeof o === 'object' ? o : {};
   ref = typeof ref === 'string' && ref ? ref.slice(0, 160) : '';
@@ -16942,6 +16943,48 @@ function xpAvisoPerdido(P, L0, L1) {
   const ver = () => { showSheet(html); $('#xp-pen-ok').onclick = closeSheet; };
   if (sheet.open) { toast(`−${tot} XP por lo que quedó sin hacer${L1 < L0 ? ` · nivel ${L1}` : ''}.`); setTimeout(() => { if (!sheet.open) ver(); }, 4500); } else ver();
 }
+// 2.19.8 · «Si no pones marcado a máximo una hora después de que estaba establecido la tarea/ruta/iniciativa, etc., se pierde la XP.»
+// Lo de la agenda de hoy con hora (tarea, hábito, iniciativa, prioridad, bloque de estudio, norma, cosa suelta; no los eventos ni los bloques
+// de tiempo): si una hora después de su hora sigue sin marcar, resta −10 al momento (pa:{tipo}:{ref}:{día}; con la app cerrada, al abrirla)
+// y, si se marca después, ya no da su XP (xpTardeBloquea frena el premio de esa cosa ese día). Se revisa cada minuto con la app abierta.
+const XP_TARDE_MIN = 60;
+function xpTardeItems() {
+  const A = ES.agendaHoy, t = today(); if (!A || A.fecha !== t || !Array.isArray(A.items)) return [];
+  const ahora = nowMin();
+  return A.items.filter(it => it && it.h && !['evento', 'bt'].includes(it.tipo) && /^\d\d:\d\d$/.test(it.h) && toMin(it.h) + XP_TARDE_MIN <= ahora);
+}
+const xpTardeRef = it => `pa:${it.tipo}:${it.tipo === 'libre' ? it.id : it.ref}:${today()}`;
+function xpTardeRevisar() {
+  if (!xpNuevo() || today() < XP_INICIO) return;
+  if (!(nubeLista || !(auth || window.claude?.use))) return;
+  const nuevos = [];
+  for (const it of xpTardeItems()) {
+    let hecho = false; try { hecho = agHecho(it); } catch {}
+    if (hecho || ES.xpPen?.[today()]?.[xpTardeRef(it)]) continue;
+    let c = ''; try { c = window.cat?.de?.(it.tipo, it) || ''; } catch {}
+    const n = xpPenPoner(today(), xpTardeRef(it), XP_PEN, c, `Pasó una hora sin marcar: ${it.t}`);
+    nuevos.push({ t: it.t, h: it.h, n });
+  }
+  if (!nuevos.length) return;
+  const L0 = +ES.xp.visto || 1, L1 = nivelDe(xpTotal()); if (L1 < L0) ES.xp.visto = L1;
+  guardar(); renderXp(); try { if (view === 'agenda') renderAg(); } catch {}
+  const tot = nuevos.reduce((s, x) => s + x.n, 0);
+  buzz([80, 60, 80]);
+  toast(nuevos.length === 1 ? `−${tot} XP · pasó una hora de «${nuevos[0].t}» (${fmtHora(nuevos[0].h)}) sin marcarlo. Si lo marcas ahora, ya no da XP.` : `−${tot} XP · ${nuevos.length} cosas de tu agenda pasaron una hora sin marcar.`);
+}
+// Las referencias de XP de lo que hoy ya pasó la hora sin marcarse a tiempo (para no dar su premio).
+window.xpTardeBloquea = ref => {
+  const P = ES.xpPen?.[today()]; if (!P) return false;
+  const A = ES.agendaHoy; if (!A || A.fecha !== today()) return false;
+  for (const it of A.items || []) {
+    if (!it || !P[xpTardeRef(it)]) continue;
+    const r = it.tipo === 'habito' ? ['h:' + it.ref, 'h+:' + it.ref] : it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'prio' ? ['p:' + it.ref] : it.tipo === 'ini' ? ['i:' + it.ref] : it.tipo === 'libre' ? ['a:' + it.id] : [];
+    if (r.includes(ref)) return true;
+  }
+  return false;
+};
+setInterval(() => { try { xpTardeRevisar(); } catch {} }, 60000);
+setTimeout(() => { try { xpTardeRevisar(); } catch {} }, 4000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !(auth || window.claude?.use)) window.xpArranque?.(); });   // con cuenta, después de combinar (nubeCombinada)
 setInterval(() => { if ((!xpNuevo() && today() >= XP_REINICIO_DESDE) || (ES.xpPenHasta && ES.xpPenHasta < dayKey(addDays(new Date(), -1)))) window.xpArranque?.(); }, 60000);
 // ---------- Tareas (y tareas o entregas de una ruta): +5, una vez por tarea y día, dentro del tope de 50 al día.
