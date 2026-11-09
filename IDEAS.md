@@ -612,6 +612,13 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.20.2: la rutina va «después de» el hábito anterior
+Pedido: «Se debe poder poner "después de" y es el hábito previo. Se pondría solo la hora del primer hábito de la rutina. Así con todos».
+- En la Agenda, solo el primer hábito de una rutina muestra su hora; los demás muestran «Después de {hábito previo}» y van justo detrás, siguiendo la hora del primero (y lo que de verdad se hizo). Si el previo no está hoy, vuelve a su hora con una nota.
+- En el formulario del hábito, «¿Cuándo?»: «A una hora» o «Después de…» (por defecto, el anterior de la rutina; sin vueltas). Desde la ficha del ítem, «Poner hora fija» o elegir otro previo.
+- «Una hora para marcar» (2.19.8) sigue la hora efectiva de la cadena: un encadenado no pierde XP antes de su momento, y si se salta la rutina entera solo cuenta el primero sin marcar. Avisos al momento efectivo.
+- Revisión: dos escépticos, 9 hallazgos, todos corregidos.
+
 ## 2.20.1: «Terminar la ruta» y Notion en tres pasos
 Pedidos: «no veo un botón para darle a ruta de examen como terminado» · «facilita la conexión con Notion».
 - **Terminar la ruta** (`est.terminar(id, { nota })`): botón visible en la ficha y «Terminar» en cada tarjeta, con «¿Cómo te fue?» opcional. Salen los bloques no hechos de hoy en adelante (plan, Agenda, días agendados, bloques de tiempo, avisos, Google Calendar; sin permiso, quedan aparte y se borran al volver la conexión) y las tareas y entregas sin hacer de la ruta, con la del examen (así la regla de 2.19.7 no resta por ellas). Lo hecho se queda con su XP; la ruta queda en solo lectura en «Anteriores» («Terminada el …», «Reactivar») y deja la jerarquía. Una meta vinculada sigue contando lo hecho. Herramienta `estudio_terminar` con ruta inequívoca. Lo perdido antes de terminar no se devuelve.
