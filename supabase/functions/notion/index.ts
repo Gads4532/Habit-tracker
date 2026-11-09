@@ -6,8 +6,11 @@ const ORIGENES = ['https://gads4532.github.io', 'http://localhost:8769'];
 
 Deno.serve(async (req) => {
   const origen = req.headers.get('origin') || '';
+  // 2.20.1 · cualquier dirección https (y localhost): cada llamada ya exige tu sesión y tu secreto de Notion, así que no hace falta
+  // mantener una lista; abrir la app desde otra dirección ya no deja al puente mudo.
+  const permitido = ORIGENES.includes(origen) || /^https:\/\/[\w.-]+(:\d+)?$/.test(origen) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origen);
   const cors = {
-    'Access-Control-Allow-Origin': ORIGENES.includes(origen) ? origen : ORIGENES[0],
+    'Access-Control-Allow-Origin': permitido ? origen : ORIGENES[0],
     'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-notion-token, x-notion-path',
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
     'Vary': 'Origin',

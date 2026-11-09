@@ -631,7 +631,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.20.0';
+const APP_VERSION = '2.20.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2505,13 +2505,15 @@ function estNorm(x) {
       plan, hechos, deshechos, pendientes, iden: SID(r.iden), obj: SID(r.obj), habito: SID(r.habito), notion, gcal,
       aviso: r.aviso && typeof r.aviso === 'object' && +r.aviso.faltan > 0 && +r.aviso.faltan <= 1440 ? { faltan: Math.round(+r.aviso.faltan) } : null,
       resultado: r.resultado && typeof r.resultado === 'object' && T(r.resultado.nota, 200) ? { nota: T(r.resultado.nota, 200), en: Z(r.resultado.en) } : null,
-      creado: Z(r.creado), cambiado: Z(r.cambiado), replan: Z(r.replan), archivada: !!r.archivada };
+      creado: Z(r.creado), cambiado: Z(r.cambiado), replan: Z(r.replan), archivada: !!r.archivada,
+      ...(r.archivada && r.terminada && typeof r.terminada === 'object' && Z(r.terminada.en) ? { terminada: { en: Z(r.terminada.en) } } : {}) };   // 2.20.1 (T)
   }).slice(0, 40);
   { const jo = estJerNorm(x); if (jo) return { materias, rutas, cfg, ...jo }; }   // 2.17.1 (R) · la jerarquía de las rutas
   return { materias, rutas, cfg };
 }
 // Fusión entre teléfonos: a = la copia más reciente, b = la otra, dead = ids borrados en cualquiera de las dos.
-// materias y rutas por id; con el mismo id de ruta gana la de mayor `cambiado` en todo (config, plan, temas, aviso, resultado),
+// materias y rutas por id; con el mismo id de ruta gana la de mayor `cambiado` en todo (config, plan, temas, aviso, resultado, archivada y,
+// 2.20.1, terminada),
 // salvo hechos (unión; por clave, la entrada de mayor `en`), pendientes (unión por id; por id, la de mayor `cambiado`),
 // gcal (unión de mapas; manda la ganadora), notion (la de mayor `en`) y tema.hecho (visto si la unión de hechos lo completa).
 // cfg: la de la copia más reciente. Marcar un bloque o tocar un pendiente no sube ruta.cambiado: no compiten con editar la ruta.
@@ -2587,9 +2589,10 @@ function estFusion(a, b, dead) {
     // tenía completo con sus propios hechos y sin visto, fue decisión suya (lo desmarcó en Temas) y se respeta.
     const rd = desdeDe(g), gh = O(g.hechos), plan = estFusionPlan(L(g.plan), L(p.plan), hechos, hoy);   // 2.17.1 (D) · con los hechos de la otra copia
     // 2.17.1 (D) · y un tema visto por un bloque que se deshizo en el otro teléfono vuelve a pendiente.
-    const temas = Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true }
+    const gT = g.terminada || (p.terminada && g.archivada && p.archivada && n(g.cambiado) === n(p.cambiado) ? p.terminada : null);   // 2.20.1 (T)
+    const temas = gT ? g.temas : Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true }
       : t && typeof t === 'object' && t.hecho && muertos.size && plan.some(b => b.tema === t.id && muertos.has(b.id)) && !visto(plan, t, hechos, rd) ? { ...t, hecho: false } : t) : g.temas;
-    rutas.set(r.id, { ...g, plan, temas, hechos, deshechos, pendientes: [...pm.values()].filter(x => !dead.has(x.id)), gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
+    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), plan, temas, hechos, deshechos, pendientes: [...pm.values()].filter(x => !dead.has(x.id)), gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
   }
   return { materias: byId(L(a.materias), L(b.materias)), rutas: [...rutas.values()].filter(r => !dead.has(r.id)).map(r => ({ ...r, pendientes: L(r.pendientes).filter(x => !dead.has(x.id)) })), cfg: a.cfg && typeof a.cfg === 'object' ? a.cfg : b.cfg };
 }
@@ -4908,7 +4911,7 @@ function showSheet(html) {
   hechoMontar(sheet, $('#sheet-body'));   // 2.17.2 (H)
 }
 const closeSheet = () => sheet.open && sheet.close();
-sheet.addEventListener('click', e => { if (e.target === sheet && !euWizAtras()) closeSheet(); });   // 2.17.1 (U) · en «Nueva ruta», un paso atrás
+sheet.addEventListener('click', e => { if (e.target === sheet && !euWizAtras() && !euTerAtras()) closeSheet(); });   // 2.17.1 (U) · en «Nueva ruta», un paso atrás
 
 // ---------- 2.17.2 (H) · «Hecho»: guardar y cerrar desde arriba de la hoja, sin tener que usar Atrás.
 // Las tres superficies donde se edita: la hoja (#sheet), el aviso (#msg-dialog) y el formulario de hábito (#form-dialog). La franja se pone
@@ -6456,6 +6459,7 @@ function settings() {
     <div class="field"><textarea id="s-alts">${esc(ES.alternativas.join('\n'))}</textarea><p class="meta" style="margin-top:6px">Una por línea.</p></div>
     <div class="set-row"><span>Configura tu teléfono<small>${CONFIG.filter(c => ES.config[c[0]]).length} de ${CONFIG.length} hechos</small></span><button class="link" id="s-conf">Ver</button></div>
     <div class="set-row"><span>Notificaciones<small>${avCfg().on ? 'Activadas' : 'Para no tener que abrir la app'}</small></span><button class="link" id="s-av">Configurar</button></div>
+    <div class="set-row"><span>Notion<small>${ntCfg().token ? 'Conectado' : 'Journaling, estudio e ideas, directo a tu Notion'}</small></span><button class="link" id="s-nt">${ntCfg().token ? 'Ver' : 'Conectar'}</button></div>
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
       <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['hoy', 'Hábitos']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad'].includes(localStorage.getItem('habit-inicio')) ? localStorage.getItem('habit-inicio') : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
@@ -6472,7 +6476,9 @@ function settings() {
   $('#s-help').onclick = welcome;
   $('#s-conf').onclick = configSheet;
   $('#s-av').onclick = avisosSheet;
-  $('#s-ok').onclick = () => {
+  // 2.20.1 (N) · lo cambiado en Ajustes se aplica antes de pasar a Notion (si no, se perdía sin aviso).
+  $('#s-nt').onclick = () => { aplicarAjustes(); renderE(); window.xmBono?.(); notionSheet(); };
+  const aplicarAjustes = () => {   // 2.20.1 (N) · lo de «Listo», también al pasar a Notion
     try { localStorage.setItem('habit-inicio', $('#s-inicio').value); } catch {}
     ES.limite = +$('#s-lim').value; ES.espera = +$('#s-wait').value;
     ES.presupuesto = +$('#s-bud').value; ES.metaSemanal = +$('#s-meta').value; ES.metaXp = +$('#s-xp').value; ES.minIni = +$('#s-ini').value; ES.minSocial = +$('#s-soc').value; ES.ventanaMin = +$('#s-vmin').value;
@@ -6480,8 +6486,9 @@ function settings() {
     const alts = $('#s-alts').value.split('\n').map(s => s.trim()).filter(Boolean);
     if (alts.length) ES.alternativas = alts;
     const sDormir = $('#s-dormir')?.value || ''; ES.horaDormir = /^\d\d:\d\d$/.test(sDormir) ? sDormir : (ES.horaDormir || '23:00');
-    guardar(); closeSheet(); renderE(); window.xmBono?.();   // 2.13 · F14: con la meta más baja, el quinto día puede quedar cumplido
+    guardar();
   };
+  $('#s-ok').onclick = () => { aplicarAjustes(); closeSheet(); renderE(); window.xmBono?.(); };   // 2.13 · F14: con la meta más baja, el quinto día puede quedar cumplido
 }
 $('#open-settings').onclick = settings;
 
@@ -6624,7 +6631,7 @@ Cómo trabajas:
 - Con el teléfono, lo que importa es qué desplaza (sueño, personas, prioridades), no los minutos en sí. Nunca hables de «detox», «ayuno de dopamina» ni «fuerza de voluntad»: habla de quitar estímulos y reducir el uso.
 - Sin mitos: un hábito no se forma en 21 días (a la mitad le llevó unos 66, con mucha variación), la voluntad no se agota como un músculo y lo de «23 minutos para volver a concentrarse» no sale de ningún estudio.
 - La persona define en Identidad quién quiere ser («una persona que…»; identidad_ver las lista con sus votos e identidad_crear crea una si lo pide); cuando propongas hábitos, objetivos o iniciativas, nómbralos como un voto por una de sus identidades y sugiere a cuál pertenecen; nunca prometas que la etiqueta cambie la conducta.
-- La pestaña Estudio tiene rutas hasta cada examen (materia, fecha, temas, bloques por día con hora, minutos y ejercicios): estudio_ver las lista con lo de hoy; estudio_ruta crea una si la persona lo pide; si un bloque quedó sin hacer, propone replanificar, nunca recriminar.
+- La pestaña Estudio tiene rutas hasta cada examen (materia, fecha, temas, bloques por día con hora, minutos y ejercicios): estudio_ver las lista con lo de hoy; estudio_ruta crea una si la persona lo pide; si un bloque quedó sin hacer, propone replanificar, nunca recriminar. estudio_terminar termina una ruta solo si la persona lo pide.
 - Bloques de tiempo: huecos reservados con lo que va dentro, que se ponen en su Google Calendar con la lista en la descripción; bloques_tiempo_ver los muestra y bloque_tiempo_crear crea uno si la persona lo pide.
 - Metas a largo plazo: lo que la persona quiere lograr en meses o años, SMART y dividido en etapas con fecha, vinculado con sus objetivos, proyectos, hábitos, tareas, rutas, iniciativas, normas, planes y bloques de tiempo; metas_ver las muestra, meta_crear crea una (solo si la persona lo pide o acepta) y meta_actualizar registra avances, marca etapas y vincula cosas. Un objetivo SMART es un tramo de semanas; una meta, el destino de meses o años.
 - Horas en formato de 12 horas con AM/PM; fechas como «jueves 30 de octubre».
@@ -6682,6 +6689,8 @@ const IA_TOOLS = [
     ejercicios: { type: 'integer', description: 'Ejercicios hechos al marcar; -1 si no se sabe (se usan los del bloque).' } }),
   iaTool('estudio_pendiente', 'Añade una tarea o una entrega a una ruta de estudio (va también a la lista «Estudio» de Tareas).', {
     ruta: S('Nombre del examen, de la materia o id de la ruta.'), texto: S('Qué hay que hacer o entregar.'), clase: { type: 'string', enum: ['tarea', 'entrega'] }, fecha: S('AAAA-MM-DD o vacío.'), hora: S('HH:MM en 24 h o vacío.') }),
+  iaTool('estudio_terminar', 'Termina una ruta de estudio: pasa a «Anteriores», los bloques que quedaban salen del plan, de la Agenda y de Google Calendar, y lo hecho se queda. Úsala solo si la persona lo pidió (ya hizo el examen o deja la ruta).', {   // 2.20.1 (T)
+    ruta: S('Nombre del examen, de la materia o id de la ruta.'), nota: S('Cómo le fue, con sus palabras, o vacío.') }),
   iaTool('identidad_ver', 'Lista las identidades que la persona definió en la pestaña Identidad («una persona que…»), con sus votos de esta semana, el último voto y lo que vota por cada una (hábitos, objetivos, proyectos, iniciativas).', {}),
   iaTool('identidad_crear', 'Crea una identidad nueva («una persona que…»; máximo 6 activas). Úsala solo si la persona lo pidió o aceptó.', {
     t: S('La acción, sin «Soy una persona que»: «lee todos los días».'), area: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social', 'espiritual', 'salud', 'otro'] }, por: S('Por qué le importa, o vacío.') }),
@@ -6800,6 +6809,7 @@ async function iaEjecutar(nombre, a) {
     case 'estudio_ruta': return esToolRuta(a);
     case 'estudio_bloque': return esToolBloque(a);
     case 'estudio_pendiente': return esToolPendiente(a);
+    case 'estudio_terminar': return esToolTerminar(a);   // 2.20.1 (T)
     case 'identidad_ver': return jdToolVer();
     case 'identidad_crear': return jdToolCrear(a);
     case 'vida_espiritual_ver': return espToolVer();   // 2.15 (V)
@@ -6813,7 +6823,7 @@ async function iaEjecutar(nombre, a) {
   throw new Error('Herramienta desconocida.');
 }
 const IA_ACCION = { ver_estado: 'Revisó tu día', gestionar_prioridad: 'Actualizó tus prioridades', crear_tarea: 'Creó una tarea', completar_tarea: 'Completó una tarea', proyecto_paso: 'Actualizó un proyecto',
-  crear_proyecto: 'Creó un proyecto', bienestar_abrir: 'Abrió una práctica de Bienestar', iniciativa_dia: 'Actualizó una iniciativa de hoy', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque', agenda_ver: 'Miró tu agenda', agenda_organizar: 'Organizó tu agenda', objetivo_crear: 'Creó un objetivo SMART', objetivo_avance: 'Registró un avance', identidad_ver: 'Miró tus identidades', identidad_crear: 'Creó una identidad', estudio_ver: 'Miró tu estudio', estudio_ruta: 'Creó una ruta de estudio', estudio_bloque: 'Actualizó un bloque de estudio', estudio_pendiente: 'Añadió una tarea de estudio' };
+  crear_proyecto: 'Creó un proyecto', bienestar_abrir: 'Abrió una práctica de Bienestar', iniciativa_dia: 'Actualizó una iniciativa de hoy', pizarra_agregar: 'Escribió en una pizarra', diario_escribir: 'Guardó una entrada del diario', registrar_contacto: 'Registró un contacto', crear_plan: 'Guardó un plan', calendario_ver: 'Miró tu calendario', calendario_crear: 'Creó un evento en tu calendario', iniciar_enfoque: 'Inició una sesión de enfoque', agenda_ver: 'Miró tu agenda', agenda_organizar: 'Organizó tu agenda', objetivo_crear: 'Creó un objetivo SMART', objetivo_avance: 'Registró un avance', identidad_ver: 'Miró tus identidades', identidad_crear: 'Creó una identidad', estudio_ver: 'Miró tu estudio', estudio_ruta: 'Creó una ruta de estudio', estudio_bloque: 'Actualizó un bloque de estudio', estudio_pendiente: 'Añadió una tarea de estudio', estudio_terminar: 'Terminó una ruta de estudio' };
 
 // Texto con **negritas** y saltos de línea, siempre escapado.
 const iaFormato = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
@@ -7587,7 +7597,13 @@ function jrEditor(x = null, enfocar = true) {
 // ---------- Notion: conexión y destinos (Journaling y pizarras), con detección de tu base «Journaling».
 function notionSheet(foco = '') {
   const c = ntCfg();
-  showSheet(`<h2>Notion</h2>
+  if (!c.token) return ntGuia(foco);   // 2.20.1 (N) · sin secreto: la guía de tres pasos
+  // La guía quedó a medias (secreto validado, página sin elegir): se retoma en el paso 2.
+  if (c.guia === 2 && !c.raiz?.id && !ntDest('estudio', c) && !ntDest('pizarras', c) && foco !== 'avanzado') return ntGuia(foco, false, 2);
+  // 2.20.1 (N) · las opciones de siempre van plegadas; se abren solas para «Cambiar» el destino de una sección que ya lo tiene,
+  // o cuando una sección pide su destino y no hay página elegida en la guía.
+  const avz = foco === 'avanzado' || (['estudio', 'diario', 'pizarras'].includes(foco) && (!!ntDest(foco, c) || !c.raiz?.id));
+  showSheet(`<h2>Notion</h2>${ntYaHtml(c)}<details class="nw-avz" id="nt-avz"${avz ? ' open' : ''}><summary>Opciones avanzadas</summary>
     ${c.token ? `<p class="note">Conectado. El Journaling va a <b>${esc(c.diario?.t || 'sin destino')}</b>${c.diario?.db ? ' (base de datos, con fecha, tipo y estado)' : ''}; las pizarras, a <b>${esc(c.pageTitle || 'sin destino')}</b>; las rutas de estudio, a <b>${esc(c.estudio?.t || 'sin destino')}</b>.</p>` : `
     <p class="note">Cada entrada del Journaling y cada pizarra se envían directo a Notion. Se configura una vez:</p>
     <ol class="pros" style="padding-left:20px">
@@ -7602,10 +7618,12 @@ function notionSheet(foco = '') {
     <div class="set-row"><span>Pizarras e ideas<small>${c.pageTitle ? esc(c.pageTitle) : 'Sin destino'}</small></span><button class="link" data-el="pizarras">${c.pageId ? 'Cambiar' : 'Elegir'}</button></div>
     <div class="set-row"><span>Estudio<small>${c.estudio?.id ? esc(c.estudio.t || '') + (c.estudio.db ? ' · base de datos' : ' · página') : 'Sin destino'}</small></span><button class="link" data-el="estudio">${c.estudio?.id ? 'Cambiar' : 'Elegir'}</button></div>` : ''}
     <div id="nt-pages"></div>
-    <p class="meta red" id="nt-err"></p>
+    <p class="meta red" id="nt-err"></p></details>
     <div class="actions">${c.token ? '<button class="link red" id="nt-off">Desconectar</button>' : ''}<button class="link" id="nt-cancel">Cerrar</button>${c.token ? '' : '<button class="primary" id="nt-con" data-guarda>Conectar</button>'}</div>`);
   const body = $('#sheet-body');
   const refrescar = () => { renderPizarras(); renderJournal(); };
+  ntCheckWire({}); $('#nw-rehacer')?.addEventListener('click', () => ntGuia(foco, true));   // 2.20.1 (N)
+  if (avz && foco !== 'avanzado') try { $('#nt-avz').scrollIntoView({ block: 'start' }); } catch {}
   $('#nt-cancel').onclick = () => { closeSheet(); refrescar(); };
   $('#nt-off')?.addEventListener('click', () => { if (!confirm('¿Desconectar Notion en este teléfono?')) return; ntSetCfg({}); closeSheet(); refrescar(); });
   const titulo = p => p.object === 'database' ? (p.title || []).map(x => x.plain_text).join('') || '(Base sin título)' : (Object.values(p.properties || {}).find(x => x.type === 'title')?.title || []).map(x => x.plain_text).join('') || '(Sin título)';
@@ -7622,8 +7640,8 @@ function notionSheet(foco = '') {
         try {
           if (que === 'diario') { const d = b.dataset.db ? await ntLeerBase(b.dataset.pg) : { id: b.dataset.pg, t: b.dataset.t, db: false }; ntSetCfg({ ...ntCfg(), diario: d }); toast(`Journaling → «${d.t}».`); }
           else if (que === 'estudio') { const d = b.dataset.db ? await ntLeerBase(b.dataset.pg) : { id: b.dataset.pg, t: b.dataset.t, db: false }; ntSetCfg({ ...ntCfg(), estudio: d }); toast(`Estudio → «${d.t}».`); }   // 2.14 (S)
-          else { ntSetCfg({ ...ntCfg(), pageId: b.dataset.pg, pageTitle: b.dataset.t }); toast(`Pizarras → «${b.dataset.t}».`); }
-          notionSheet();
+          else { ntSetCfg({ ...ntCfg(), pageId: b.dataset.pg, pageTitle: b.dataset.t, pageUrl: '' }); toast(`Pizarras → «${b.dataset.t}».`); }
+          notionSheet('avanzado');
         } catch (e) { $('#nt-err').textContent = e.message; }
       });
     } catch (e) { $('#nt-pages').innerHTML = ''; $('#nt-err').textContent = e.message; }
@@ -7638,15 +7656,347 @@ function notionSheet(foco = '') {
       const jr = bases.find(b => /journal/i.test(titulo(b)));
       if (jr) { const d = await ntLeerBase(jr.id); ntSetCfg({ ...ntCfg(), diario: d }); toast(`Notion conectado. Journaling → «${d.t}».`); }
       else toast('Notion conectado. Elige el destino del Journaling.');
-      notionSheet(); if (!jr) listar('diario'); else if (!ntCfg().pageId) listar('pizarras');
+      notionSheet('avanzado'); if (!jr) listar('diario'); else if (!ntCfg().pageId) listar('pizarras');
     } catch (err) { ntSetCfg(previo); $('#nt-err').textContent = `${err.message} El secreto no se guardó.`; btn.disabled = false; }
   };
   $('#nt-con')?.addEventListener('click', e => conectar(e.target));
   $('#nt-tok').addEventListener('input', () => { const p = $('#nt-nuevo-p'); if (p) p.hidden = $('#nt-tok').value.trim() === (c.token || ''); });
   $('#nt-nuevo')?.addEventListener('click', e => conectar(e.target));
-  if (c.token && foco === 'diario' && !c.diario) listar('diario');
-  if (c.token && foco === 'estudio') listar('estudio');   // 2.14 (S) · desde la tarjeta «Notion» de la ficha de la ruta
+  if (c.token && foco === 'diario' && !c.diario && avz) listar('diario');
+  if (c.token && foco === 'estudio' && avz) listar('estudio');   // 2.14 (S) · desde la tarjeta «Notion» de la ficha de la ruta
 }
+// ---------- 2.20.1 (N) · «Conectar Notion» en tres pasos: crear la conexión (el secreto se valida al pegarlo), elegir UNA página y listo
+// (la app reutiliza o crea debajo de esa página lo que cada sección necesita y guarda los destinos en ntCfg). Sin secretos en el servidor:
+// el de la integración vive solo en este teléfono (NT_KEY) y nunca se escribe en la consola. Metas no usa Notion en 2.20.
+const NT_SEC = [
+  { k: 'diario', n: 'Journaling', t: '📓 Journaling', db: true },
+  { k: 'estudio', n: 'Estudio', t: '📚 Estudio', db: true },
+  { k: 'pizarras', n: 'Ideas y pizarras', t: '💡 Ideas y pizarras', db: false }];
+// Mismo título, con o sin el emoji del principio y sin distinguir mayúsculas («📚 Estudio» = «Estudio»); nada de nombres parecidos.
+const ntNorm = t => String(t || '').replace(/^[^\p{L}\p{N}]+/u, '').trim().toLowerCase();
+const ntMismo = (a, b) => !!a && String(a).replace(/-/g, '') === String(b || '').replace(/-/g, '');
+// Qué secciones viven dentro de la página elegida (las demás siguen donde estaban).
+const ntSecsDe = r => !r?.id ? [] : Array.isArray(r.secs) ? r.secs : NT_SEC.map(x => x.k);
+const ntY = xs => xs.length > 1 ? xs.slice(0, -1).join(', ') + (/^h?i(?![aeou])/i.test(xs[xs.length - 1]) ? ' e ' : ' y ') + xs[xs.length - 1] : xs[0] || '';
+// «Abrir»: la url que dio Notion o, si no la hay, la dirección de siempre de ese id.
+const ntAbrir = d => { if (!d) return ''; const u = ntUrl(d.url); if (u) return u; const h = String(d.id || '').replace(/-/g, ''); return /^[0-9a-f]{32}$/i.test(h) ? 'https://www.notion.so/' + h : ''; };
+const ntDest = (k, c = ntCfg()) => k === 'pizarras' ? (c.pageId ? { id: c.pageId, t: c.pageTitle || '', db: false, url: c.pageUrl || '' } : null) : (c[k] && typeof c[k] === 'object' && c[k].id ? c[k] : null);
+const ntTituloDe = p => p?.object === 'database' || (!p?.properties && Array.isArray(p?.title)) ? (p.title || []).map(x => x.plain_text).join('') || '(Base sin título)' : (Object.values(p?.properties || {}).find(x => x?.type === 'title')?.title || []).map(x => x.plain_text).join('') || '(Sin título)';
+const NT_PUENTE_PASOS = 'Una sola vez, en tu proyecto de Supabase: <b>Edge Functions</b> → <b>Deploy a new function</b> → <b>via Editor</b> → nombre <b>notion</b> → pega el archivo <b>supabase/functions/notion/index.ts</b> del repositorio → <b>Deploy</b>. Después, en los ajustes de esa función, desactiva <b>Verify JWT</b> (la función ya comprueba tu sesión).';
+let NW = { timer: 0, listar: null, detectado: null, rehacer: false, foco: '', solo: null, cola: Promise.resolve() };
+const ntParar = () => { clearInterval(NW.timer); NW.timer = 0; NW.listar = null; };
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && NW.listar && $('#nw-pags')) NW.listar(true); });
+const ntPasosHtml = n => `<div class="nw-pasos" role="img" aria-label="Paso ${n} de 3">${['Conexión', 'Página', 'Listo'].map((t, i) => `<span class="${i + 1 === n ? 'on' : i + 1 < n ? 'hecho' : ''}">${i + 1 < n ? '✓' : i + 1} · ${t}</span>`).join('')}</div>`;
+// Un fallo dicho con su salida. El puente sin desplegar (o con Verify JWT) lleva los pasos exactos.
+function ntErrHtml(e, extra = '') {
+  const m = String(e?.message || e || 'Notion no respondió.');
+  if (/^Supabase responde/.test(m) || e?.code === 'sin_funcion') return `<p>Supabase responde, pero la función «notion» no.${extra}</p><ol class="nw-ol"><li>${NT_PUENTE_PASOS}</li><li>Vuelve aquí y toca <b>Conectar</b> otra vez.</li></ol><p class="meta">Si ya está desplegada, revisa que <b>Verify JWT</b> esté desactivado. Si abres la app desde otra dirección, vuelve a desplegarla con el archivo de esta versión, que acepta cualquier dirección https.</p>`;
+  return `<p>${esc(m)}${extra}</p>`;
+}
+// ¿Responde la función «notion»? Sin el secreto basta con cualquier respuesta (un 400 o un 401 del puente): entonces está desplegada.
+async function ntPuenteVivo() {
+  if (!auth || !(await ensureToken())) return { ok: false };
+  try {
+    const r = await fetch(`${SUPA_URL}/functions/v1/notion`, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + auth.access_token, 'x-notion-path': 'users/me' } });
+    if (r.status === 404) { const d = await r.json().catch(() => null); if (!d?.object) return { ok: false, puente: true }; }
+    return { ok: true };
+  } catch { return { ok: false, puente: /^Supabase responde/.test(await ntSinPuente()) }; }
+}
+// El secreto solo queda guardado si Notion lo acepta; si falla, todo queda como estaba. Las validaciones van en fila (nunca dos a la vez).
+function ntValidar(tok) {
+  const run = async () => {
+    const previo = ntCfg(); ntSetCfg({ ...previo, token: tok });
+    try {
+      let ws = '';
+      try { const me = await notion('users/me', 'GET', undefined, false); ws = String(me?.bot?.workspace_name || '').slice(0, 80); }
+      catch (e) { if (!auth || e.status === 401 || e.status === 0 || e.code === 'sin_funcion' || e.code === 'red') throw e; await notion('search', 'POST', { page_size: 1 }); }
+      // La base «Journaling» que ya tenías se reconoce sola, como en la conexión de siempre.
+      let jr = null;
+      try { jr = ((await notion('search', 'POST', { query: 'Journaling', filter: { property: 'object', value: 'database' }, page_size: 10 })).results || []).find(b => /journal/i.test(ntTituloDe(b))) || null; } catch {}
+      NW.detectado = jr ? await ntLeerBase(jr.id).catch(() => null) : null;
+      const c = ntCfg(); ntSetCfg({ ...c, ws, guia: 2, ...(NW.detectado && !c.diario?.id ? { diario: NW.detectado } : {}) });
+      return { ws };
+    } catch (e) { ntSetCfg(previo); throw e; }
+  };
+  const p = NW.cola.then(run, run); NW.cola = p.catch(() => {}); return p;
+}
+function ntGuia(foco = '', rehacer = false, paso = 1) {
+  NW.foco = foco; NW.rehacer = !!rehacer; NW.solo = null; NW.detectado = null;
+  if (!auth) return ntGuiaCuenta();
+  paso === 2 ? ntGuia2(ntCfg().ws || '') : ntGuia1();
+}
+// Paso 0: Notion pasa por la cuenta de la app (el puente comprueba la sesión).
+function ntGuiaCuenta() {
+  ntParar();
+  showSheet(`<h2 data-sin-hecho>Notion</h2>
+    <p class="note">Notion se conecta a través de tu cuenta de la app: así el secreto viaja protegido. Entra en tu cuenta y vuelve aquí.</p>
+    <button class="primary nw-big" id="nw-entrar">Iniciar sesión</button>
+    <button class="outline nw-big" id="nw-cuenta">Crear cuenta</button>
+    <div class="actions"><button class="link" id="nw-cerrar">Cerrar</button></div>`);
+  $('#nw-entrar').onclick = () => { closeSheet(); accountForm('in'); };
+  $('#nw-cuenta').onclick = () => { closeSheet(); accountForm('up'); };
+  $('#nw-cerrar').onclick = closeSheet;
+}
+// Paso 1: crear la integración y pegar el secreto.
+function ntGuia1() {
+  ntParar();
+  const tok0 = ntCfg().token || '';
+  showSheet(`<h2 data-sin-hecho>Notion</h2>${ntPasosHtml(1)}
+    <p class="nw-sub">Crear la conexión</p>
+    <ol class="nw-ol" id="nw-ol"><li id="nw-puente" hidden></li>
+      <li>Abre <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noopener">notion.so/profile/integrations</a> y toca <b>+ Nueva integración</b> (New integration).</li>
+      <li>Elige <b>Interna</b>, ponle de nombre <b>Organización Personal</b>, elige tu espacio de trabajo y guarda.</li>
+      <li>En <b>Internal Integration Secret</b> toca <b>Mostrar</b>, cópialo (empieza por <b>ntn_</b>) y pégalo aquí abajo.</li></ol>
+    <a class="outline btn nw-big" href="https://www.notion.so/profile/integrations" target="_blank" rel="noopener">Abrir Notion</a>
+    <div class="field"><label for="nt-tok">Secreto de la integración (se guarda solo en este teléfono)</label>
+      <div class="nw-pega"><input id="nt-tok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ntn_…" value="${esc(tok0)}"><button class="outline" id="nw-pegar" type="button"${navigator.clipboard?.readText ? '' : ' hidden'}>Pegar</button></div></div>
+    <p class="meta nw-ok" id="nw-ok" role="status">${tok0 ? 'Este es tu secreto de ahora. Toca «Conectar» para seguir con él o pega otro.' : ''}</p>
+    <div class="meta red nw-err" id="nt-err" role="alert"></div>
+    <div class="actions"><button class="link" id="nw-cerrar">${NW.rehacer ? 'Volver' : 'Cancelar'}</button><button class="primary" id="nt-con">Conectar</button></div>`);
+  const inp = $('#nt-tok'), btn = $('#nt-con');
+  let deb = 0, seq = 0, enCurso = null, ultimo = '';
+  const validar = () => {
+    clearTimeout(deb);
+    const tok = inp.value.trim(); if (!tok) { inp.focus(); return; }
+    if (enCurso && tok === ultimo) return enCurso;
+    const mi = ++seq; ultimo = tok; btn.disabled = true; $('#nt-err').innerHTML = ''; $('#nw-ok').textContent = 'Comprobando con Notion…';
+    enCurso = ntValidar(tok).then(r => { if (mi === seq && $('#nw-ol')) ntGuia2(r.ws); },
+      e => { if (mi !== seq || !$('#nw-ol')) return; $('#nw-ok').textContent = ''; $('#nt-err').innerHTML = ntErrHtml(e, ' El secreto no se guardó.'); btn.disabled = false; })
+      .finally(() => { if (mi === seq) enCurso = null; });
+    return enCurso;
+  };
+  btn.onclick = validar;
+  inp.addEventListener('input', () => { clearTimeout(deb); const t = inp.value.trim(); if (t.length >= 20 && t !== ultimo) deb = setTimeout(validar, 700); });
+  inp.addEventListener('paste', () => setTimeout(() => { if (inp.value.trim().length >= 20) validar(); }, 0));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); validar(); } });
+  $('#nw-pegar').onclick = async () => {
+    try { const t = String(await navigator.clipboard.readText() || '').trim(); if (!t) throw 0; inp.value = t; validar(); }
+    catch { inp.focus(); toast('Mantén pulsado el campo y elige «Pegar».'); }
+  };
+  $('#nw-cerrar').onclick = () => NW.rehacer ? notionSheet() : closeSheet();
+  // Si la función «notion» no responde, ese paso va primero en la lista.
+  ntPuenteVivo().then(p => { const li = $('#nw-puente'); if (li && !p.ok && p.puente) { li.innerHTML = NT_PUENTE_PASOS; li.hidden = false; } });
+}
+// Paso 2: elegir UNA página entre las que la conexión ve (se refresca sola mientras está a la vista).
+function ntGuia2(ws = ntCfg().ws || '') {
+  ntParar();
+  showSheet(`<h2 data-sin-hecho>Notion</h2>${ntPasosHtml(2)}
+    <p class="nw-sub">Elige una página</p>
+    <p class="meta green nw-conectado">✓ Conectado${ws ? ` a «${esc(ws)}»` : ''}</p>
+    <ol class="nw-ol"><li>Abre en Notion la página donde quieras todo (o crea una, por ejemplo «Organización Personal»).</li>
+      <li>Toca <b>···</b> (arriba a la derecha) → <b>Conexiones</b> → <b>Organización Personal</b>.</li>
+      <li>Vuelve aquí: la página aparece sola. Tócala.</li></ol>
+    <a class="outline btn nw-big" href="https://www.notion.so/" target="_blank" rel="noopener">Abrir Notion</a>
+    <div class="nw-lh"><span>Páginas que ve la conexión</span><button class="link" id="nw-ref">Actualizar</button></div>
+    <div class="rows" id="nw-pags" aria-live="polite"><p class="meta">Buscando…</p></div>
+    <div class="meta red nw-err" id="nw-err" role="alert"></div>
+    <div class="actions"><button class="link" id="nw-atras">Atrás</button><button class="link" id="nw-cerrar">Cerrar</button></div>`);
+  let ocupado = false, firma = '';
+  const listar = async silencio => {
+    if (ocupado) return; ocupado = true;
+    const rb = $('#nw-ref'); if (rb && !silencio) rb.disabled = true;
+    try {
+      const r = await notion('search', 'POST', { filter: { property: 'object', value: 'page' }, page_size: 50, sort: { direction: 'descending', timestamp: 'last_edited_time' } });
+      const box = $('#nw-pags'); if (!box) return;
+      const pags = (r?.results || []).filter(p => p && p.id && !p.archived && !p.in_trash && p.parent?.type !== 'database_id')
+        .map(p => ({ id: String(p.id).slice(0, 80), t: ntTituloDe(p).slice(0, 200), ic: p.icon?.type === 'emoji' ? String(p.icon.emoji || '').slice(0, 8) : '' }));
+      const f = JSON.stringify(pags); $('#nw-err').innerHTML = '';
+      if (silencio && f === firma) return; firma = f;
+      box.innerHTML = pags.length ? pags.map(p => `<button class="row" data-nwpg="${esc(p.id)}" data-t="${esc(p.t)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc((p.ic ? p.ic + ' ' : '') + p.t)}</div><small>Poner todo aquí</small></span><span class="tag">›</span></button>`).join('')
+        : '<p class="meta nw-vacio">Todavía no veo ninguna página. Haz el paso 2 en Notion y vuelve: la lista se actualiza sola.</p>';
+      box.querySelectorAll('[data-nwpg]').forEach(b => b.onclick = () => ntGuia3({ id: b.dataset.nwpg, t: b.dataset.t }));
+    } catch (e) { const el = $('#nw-err'); if (el) el.innerHTML = ntErrHtml(e); }
+    finally { ocupado = false; const b2 = $('#nw-ref'); if (b2) b2.disabled = false; }
+  };
+  NW.listar = listar;
+  NW.timer = setInterval(() => { if (!sheet.open || !$('#nw-pags')) return ntParar(); if (document.visibilityState === 'visible') listar(true); }, 8000);
+  $('#nw-ref').onclick = () => listar(false);
+  $('#nw-atras').onclick = () => ntGuia1();
+  $('#nw-cerrar').onclick = () => { ntParar(); closeSheet(); renderPizarras(); renderJournal(); };
+  listar(false);
+}
+// Paso 3: preparar las secciones debajo de la página elegida y mostrar la lista con «Probar».
+// La página solo queda guardada como «raíz» cuando al menos una sección quedó lista; ntCfg().raiz.secs dice cuáles viven dentro.
+function ntGuia3(raiz) {
+  ntParar();
+  raiz = { id: String(raiz.id), t: String(raiz.t || '').slice(0, 200) };
+  showSheet(`<h2 data-sin-hecho>Notion</h2>${ntPasosHtml(3)}
+    <p class="nw-sub">Listo</p>
+    <p class="meta" id="nw-est" role="status">Preparando todo dentro de «${esc(raiz.t)}»…</p>
+    <div class="nw-check" id="nw-check"></div>
+    <div class="actions"><button class="link" id="nw-avz">Opciones avanzadas</button><button class="primary" id="nw-listo">Listo</button></div>`);
+  const est = { _raiz: raiz, _rehacer: NW.rehacer, _guarda: true }, solo = NW.solo; NW.solo = null;
+  const pinta = () => {
+    const b = $('#nw-check'); if (b) { b.innerHTML = ntCheckHtml(est); ntCheckWire(est, pinta); }
+    const el = $('#nw-est'); if (el && est._fin && !NT_SEC.some(x => est[x.k]?.e === 'trab')) el.textContent = ntResumen(raiz, est);
+  };
+  $('#nw-listo').onclick = () => { closeSheet(); renderPizarras(); renderJournal(); };
+  $('#nw-avz').onclick = () => notionSheet('avanzado');
+  ntCorrer(raiz, solo, NW.rehacer, est, pinta).then(() => { est._fin = true; pinta(); });
+}
+// Lo que dice el paso 3 al terminar: «Todo listo dentro de…» solo cuando de verdad todo está dentro de esa página.
+function ntResumen(raiz, est) {
+  if (NT_SEC.some(x => est[x.k]?.e === 'err')) return 'Casi: lo marcado con «!» no quedó listo. Toca el botón de esa fila para intentarlo otra vez.';
+  const c = ntCfg(), secs = ntMismo(c.raiz?.id, raiz.id) ? ntSecsDe(c.raiz) : [];
+  const dentro = NT_SEC.filter(x => secs.includes(x.k) && ntDest(x.k, c)).map(x => x.n);
+  const fuera = NT_SEC.filter(x => !secs.includes(x.k) && ntDest(x.k, c)).map(x => x.n);
+  const sin = NT_SEC.filter(x => !ntDest(x.k, c)).map(x => x.n);
+  if (!fuera.length && !sin.length) return `Todo listo dentro de «${raiz.t}». Lo que escribas en cada sección llega ahí.`;
+  return [dentro.length ? `${ntY(dentro)} ${dentro.length > 1 ? 'quedan' : 'queda'} dentro de «${raiz.t}».` : '',
+    fuera.length ? `${ntY(fuera)} ${fuera.length > 1 ? 'siguen' : 'sigue'} donde ${fuera.length > 1 ? 'estaban' : 'estaba'}.` : '',
+    sin.length ? `${ntY(sin)} ${sin.length > 1 ? 'siguen' : 'sigue'} sin destino: toca «Crear».` : ''].filter(Boolean).join(' ');
+}
+// La base «Journaling» que ya tenías, buscada otra vez al preparar (en el paso 1 la conexión todavía no veía nada).
+// Primero la que está dentro de la página elegida.
+async function ntBuscarJournaling(raizId) {
+  const r = await notion('search', 'POST', { query: 'Journaling', filter: { property: 'object', value: 'database' }, page_size: 20 });
+  const xs = (r?.results || []).filter(b => b?.id && !b.archived && !b.in_trash && /journal/i.test(ntTituloDe(b)));
+  xs.sort((a, b) => ntMismo(b.parent?.page_id, raizId) - ntMismo(a.parent?.page_id, raizId));
+  for (const b of xs.slice(0, 5)) {
+    const d = await ntLeerBase(b.id).catch(() => null);
+    if (d) return { d: { ...d, ...(ntUrl(b.url) ? { url: ntUrl(b.url) } : {}) }, dentro: ntMismo(b.parent?.page_id, raizId) };
+  }
+  return null;
+}
+// Debajo de la página: lo que ya tenga el mismo título se reutiliza (si es una base, con título y fecha); si no, se crea.
+// Un destino que ya tenías se respeta (salvo «Volver a configurar»); para el Journaling, antes que crear otra se usa la base que ya tenías.
+async function ntPreparar(raiz, rehacer, solo, aviso) {
+  const hijos = []; let cursor = '';
+  do {
+    const q = await notion(`blocks/${raiz.id}/children?page_size=100${cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''}`);
+    for (const b of q?.results || []) {
+      if (b?.type === 'child_database') hijos.push({ id: b.id, t: String(b.child_database?.title || ''), db: true });
+      else if (b?.type === 'child_page') hijos.push({ id: b.id, t: String(b.child_page?.title || ''), db: false });
+    }
+    cursor = q?.has_more ? q.next_cursor : '';
+  } while (cursor && hijos.length < 500);
+  const esHijo = id => hijos.some(h => ntMismo(h.id, id));
+  for (const sec of NT_SEC.filter(x => !solo || solo.includes(x.k))) {
+    aviso(sec.k, { e: 'trab', txt: 'Preparando…' });
+    try {
+      const actual = ntDest(sec.k);
+      let d = null, como = '', dentro = false;
+      if (actual && !rehacer) { d = actual; como = 'ya'; dentro = esHijo(actual.id); }
+      if (!d) {
+        const hijo = hijos.find(h => h.db === sec.db && ntNorm(h.t) === ntNorm(sec.t));
+        if (hijo) {
+          d = sec.db ? await ntLeerBase(hijo.id).catch(() => null) : { id: hijo.id, t: hijo.t, db: false };
+          if (d && sec.db && !d.props?.fecha) d = null;   // una base con ese nombre pero sin fecha no sirve: se crea otra
+          if (d) { como = 'reusada'; dentro = true; }
+        }
+      }
+      if (!d && sec.k === 'diario') {
+        const j = await ntBuscarJournaling(raiz.id).catch(() => null);
+        if (j) { d = j.d; dentro = j.dentro || esHijo(j.d.id); }
+        else if (NW.detectado) { d = NW.detectado; dentro = esHijo(d.id); }
+        if (d) como = 'ya';
+      }
+      if (!d) { d = await ntCrearSeccion(sec, raiz.id); como = 'creada'; dentro = true; }
+      if (sec.k === 'pizarras') ntSetCfg({ ...ntCfg(), pageId: d.id, pageTitle: d.t, pageUrl: ntUrl(d.url) });
+      else ntSetCfg({ ...ntCfg(), [sec.k]: d });
+      aviso(sec.k, { e: 'ok', dentro, txt: como === 'creada' ? 'Creada ahora en tu página.' : como === 'reusada' ? 'Ya estaba en tu página: se usa esa.'
+        : dentro ? 'Ya la tenías: sigue igual.' : `Sigue en tu ${sec.db ? 'base' : 'página'} de antes, fuera de «${raiz.t}».` });
+    } catch (e) { aviso(sec.k, { e: 'err', txt: e?.message || 'Notion no respondió.' }); }
+  }
+}
+async function ntCrearSeccion(sec, parent) {
+  if (!sec.db) { const pg = await ntCrearPagina(sec.t, [ntBloque('paragraph', 'Aquí llegan las pizarras que envías desde Organización Personal.')], parent); return { id: String(pg.id), t: sec.t, db: false, url: ntUrl(pg.url) }; }
+  const properties = sec.k === 'diario'
+    ? { Entrada: { title: {} }, Fecha: { date: {} }, Tipo: { select: { options: [...new Set(JR_TIPOS.map(t => t[2]))].map(name => ({ name })) } }, Estado: { select: { options: [{ name: 'Completado' }, { name: 'Borrador' }] } } }
+    : { Nombre: { title: {} }, Fecha: { date: {} } };
+  const db = await notion('databases', 'POST', { parent: { type: 'page_id', page_id: parent }, title: ntRt(sec.t), properties });
+  return { ...(await ntLeerBase(db.id)), url: ntUrl(db.url) };
+}
+// Corre la preparación y, al final, guarda la página como raíz con las secciones que viven dentro:
+// en la guía (est._guarda), solo si algo quedó listo; con «Crear» en una sección, se suma a la raíz que ya había.
+async function ntCorrer(raiz, solo, rehacer, est, pinta) {
+  const ks = solo || NT_SEC.map(x => x.k);
+  for (const k of ks) est[k] = { e: 'trab', txt: 'Preparando…' };
+  pinta();
+  try { await ntPreparar(raiz, rehacer, solo, (k, v) => { est[k] = v; pinta(); }); }
+  catch (e) {
+    const txt = ntNoExiste(e) ? `Notion no encuentra «${raiz.t}»: compártela otra vez con la conexión o elige otra página.` : e?.message || 'Notion no respondió.';
+    for (const k of ks) if (est[k]?.e === 'trab') est[k] = { e: 'err', txt };
+  }
+  const c = ntCfg(), misma = ntMismo(c.raiz?.id, raiz.id), base = misma ? ntSecsDe(c.raiz) : [];
+  const algo = ks.some(k => est[k]?.e === 'ok');
+  if (algo && (est._guarda || misma)) {
+    const secs = NT_SEC.map(x => x.k).filter(k => ks.includes(k) && est[k]?.e === 'ok' ? !!est[k].dentro : base.includes(k));
+    const n = { ...c, raiz: { id: raiz.id, t: raiz.t, secs } }; delete n.guia; ntSetCfg(n);
+  }
+  pinta();
+}
+// «Probar»: lee el destino de vuelta (no escribe nada en tu Notion).
+async function ntProbar(k) {
+  const d = ntDest(k); if (!d) throw new Error('Sin destino.');
+  const r = await notion(d.db ? `databases/${d.id}` : `pages/${d.id}`);
+  if (r?.archived || r?.in_trash) throw Object.assign(new Error('Está en la papelera de Notion.'), { status: 404, code: 'object_not_found' });
+  return { t: ntTituloDe(r) };
+}
+function ntCheckHtml(est = {}) {
+  const c = ntCfg(), secs = ntSecsDe(c.raiz);
+  return NT_SEC.map(sec => {
+    const d = ntDest(sec.k, c), e = est[sec.k] || {}, url = ntAbrir(d);
+    const ic = e.e === 'trab' ? '…' : e.e === 'err' ? '!' : d ? '✓' : '○';
+    const reintentar = e.e === 'err' && !e.roto && est._raiz;
+    const acc = e.e === 'trab' ? '' : reintentar ? `<button class="link" data-nwcrear="${sec.k}">Reintentar</button>`
+      : d && !e.roto ? `<button class="link" data-nwprobar="${sec.k}">Probar</button>${url ? `<a class="link" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a>` : ''}` : `<button class="link" data-nwcrear="${sec.k}">${e.roto ? 'Crear otra' : 'Crear'}</button>`;
+    const fuera = d && c.raiz?.id && !secs.includes(sec.k) && !e.txt ? ` · fuera de «${esc(c.raiz.t || '')}»` : '';
+    return `<div class="nw-it${e.e === 'err' ? ' mal' : d ? ' ok' : ''}" data-nwk="${sec.k}"><span class="nw-ic" aria-hidden="true">${ic}</span><span class="nw-tx"><b>${sec.n}</b><small>${d ? esc(d.t || '') + (d.db ? ' · base de datos' : ' · página') + fuera : 'Sin destino'}</small>${e.txt ? `<small class="nw-st">${esc(e.txt)}</small>` : ''}</span><span class="nw-acc">${acc}</span></div>`;
+  }).join('') + `<div class="nw-it${c.token ? ' ok' : ''}"><span class="nw-ic" aria-hidden="true">${c.token ? '✓' : '○'}</span><span class="nw-tx"><b>Iniciativas desde Notion</b><small>Lee cualquier página que compartas con la conexión</small></span><span class="nw-acc"></span></div>`;
+}
+function ntCheckWire(est = {}, pinta) {
+  const box = $('#nw-check'); if (!box) return;
+  pinta ||= () => { const b = $('#nw-check'); if (b) { b.innerHTML = ntCheckHtml(est); ntCheckWire(est, pinta); } };
+  box.querySelectorAll('[data-nwprobar]').forEach(b => b.onclick = async () => {
+    const k = b.dataset.nwprobar, dentro = est[k]?.dentro; est[k] = { e: 'trab', dentro, txt: 'Probando…' }; pinta();
+    try { const r = await ntProbar(k); est[k] = { e: 'ok', dentro, txt: `Funciona: Notion encuentra «${r.t}».` }; }
+    catch (e) { const roto = ntNoExiste(e); est[k] = { e: 'err', roto, txt: roto ? 'Notion no la encuentra: se borró o ya no está compartida con la conexión.' : e?.message || 'Notion no respondió.' }; }
+    pinta();
+  });
+  box.querySelectorAll('[data-nwcrear]').forEach(b => b.onclick = () => {
+    const k = b.dataset.nwcrear, raiz = est._raiz || ntCfg().raiz;
+    // Sin página elegida: se elige una y se preparan ahí esta sección y las que tampoco tienen destino.
+    if (!raiz?.id) { NW.solo = NT_SEC.filter(x => x.k === k || !ntDest(x.k)).map(x => x.k); NW.rehacer = !!est[k]?.roto; return ntGuia2(); }
+    ntCorrer(raiz, [k], !!est[k]?.roto || !!est._rehacer || !ntDest(k), est, pinta);
+  });
+}
+const ntYaHtml = c => {
+  const secs = ntSecsDe(c.raiz), dentro = NT_SEC.filter(x => secs.includes(x.k) && ntDest(x.k, c));
+  const donde = !c.raiz?.id || !dentro.length ? '' : dentro.length === NT_SEC.length ? `. Todo va dentro de «${esc(c.raiz.t || '')}»`
+    : `. ${ntY(dentro.map(x => x.n))} ${dentro.length > 1 ? 'van' : 'va'} dentro de «${esc(c.raiz.t || '')}»`;
+  return `<p class="meta green nw-ya">✓ Ya conectado${c.ws ? ` a «${esc(c.ws)}»` : ''}${donde}.</p>
+  <div class="nw-check" id="nw-check">${ntCheckHtml()}</div>
+  <div class="actions nw-ya-acc"><button class="outline" id="nw-rehacer">Volver a configurar</button></div>`;
+};
+{ const st = document.createElement('style'); st.id = 'nw-css'; st.textContent = `
+  .nw-pasos { display: flex; gap: 6px; margin: 0 0 12px; }
+  .nw-pasos span { flex: 1; min-width: 0; text-align: center; font-size: .74rem; padding: 6px 2px; border-radius: 999px; background: var(--soft); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nw-pasos span.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .nw-pasos span.hecho { color: var(--green); }
+  .nw-sub { font-size: 1.08rem; font-weight: 600; margin: 2px 0 6px; }
+  .nw-ol { padding-left: 22px; margin: 6px 0 10px; line-height: 1.45; }
+  .nw-ol li { margin-bottom: 6px; overflow-wrap: anywhere; }
+  .nw-big { display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 52px; margin: 10px 0 6px; font-size: 1.02rem; text-align: center; text-decoration: none; }
+  .nw-pega { display: flex; gap: 8px; align-items: stretch; }
+  .nw-pega input { flex: 1; min-width: 0; }
+  .nw-pega button { flex: none; margin: 0; min-height: 44px; padding: 0 16px; }
+  .nw-err { overflow-wrap: anywhere; } .nw-err p, .nw-err ol { margin: 6px 0; } .nw-err .meta { color: var(--muted); }
+  .nw-check { border-top: 1px solid var(--line); margin: 8px 0 4px; }
+  .nw-it { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .nw-ic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); color: var(--muted); font-weight: 700; }
+  .nw-it.ok .nw-ic { background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
+  .nw-it.mal .nw-ic { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+  .nw-tx { flex: 1; min-width: 0; } .nw-tx b { display: block; font-weight: 600; }
+  .nw-tx small { display: block; color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+  .nw-it.mal .nw-st { color: var(--red); }
+  .nw-acc { flex: none; display: flex; align-items: center; gap: 12px; }
+  .nw-acc .link { min-height: 44px; display: inline-flex; align-items: center; }
+  .nw-lh { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; color: var(--muted); font-size: .85rem; }
+  .nw-lh .link { min-height: 44px; }
+  .nw-ya-acc { justify-content: flex-start; margin-top: 10px; } .nw-ya-acc .outline { margin: 0; min-height: 44px; }
+  .nw-avz { margin-top: 12px; } .nw-avz > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--muted); }`; ov.appendChild(st); }
+window.notionSheet = notionSheet;   // 2.20.1 (N) · la entrada a Notion, para otros módulos y las pruebas
 window.renderJournal = () => renderJournal();
 // Entradas creadas por el asistente (diario_escribir): se envían solas si Notion está listo.
 window.jrEnviarAuto = x => { if (ntDiarioOk()) jrEnviar(x, true); };
@@ -9209,7 +9559,7 @@ function renderAg() {
       ${objs.length ? `<div class="rows">${objs.map(o => { const d = objDias(o), pct = objPct(o); return `<button class="row ag-obj" data-obj="${esc(o.id)}"><span class="dot" style="--c:${d !== null && d < 0 ? 'var(--red)' : 'var(--accent)'}"></span><span class="t"><div>${esc(o.t)}</div><small>${o.actual} de ${o.meta} ${esc(o.unidad)}${agbRitmoCorto(o) ? ' · ' + esc(agbRitmoCorto(o)) : ''}${d !== null ? ` · ${d < 0 ? 'vencido' : d === 0 ? 'vence hoy' : `${d} días`}` : ''}</small></span><span class="tag">${pct} %</span></button>`; }).join('')}</div>` : '<p class="empty">Un objetivo con número y fecha convierte las iniciativas en avance. Crea el primero.</p>'}
       <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p>${window.mtAgendaHtml?.() || ''}</section>
     ${agbMananasHtml()}</details>`;
-  agW.querySelector('#ag-org').onclick = () => organizarDia();
+  { const og = agW.querySelector('#ag-org'); if (og) og.onclick = () => organizarDia(); }   // 2.20.1 · con la Agenda vacía y organizada no hay botón
   agW.querySelector('.ag-mas')?.addEventListener('toggle', e => agMasPoner(e.target.open));   // 2.19.1 · se recuerda abierto o cerrado
   agW.querySelectorAll('[data-ag-pest]').forEach(b => b.onclick = () => { const k = b.dataset.agPest; agPestPoner(k); renderAg();   // 2.19 (P)
     const p = agW.querySelector('.ag-pest'); if (p && p.getBoundingClientRect().top <= 1) p.scrollIntoView({ block: 'start' }); agW.querySelector(`[data-ag-pest="${k}"]`)?.focus({ preventScroll: true }); });
@@ -12281,7 +12631,10 @@ function jdToolCrear(a) {
 //                                 o no hay materia (o ya hay 40 rutas); guarda, avisa ('ruta', ruta) y devuelve la ruta.
 // editar(id, cambios)           → aplica nombre, fecha, hora, lugar, materia, iden, habito, obj, temas (ids conservados), config (parcial) y
 //                                 resultado ({ nota }); si cambió algo del plan (temas, fecha, config) vuelve a planificar; guarda; avisa ('ruta', ruta).
-// archivar(id, archivada = true) → guarda y avisa ('ruta', ruta). borrar(id) → quita la ruta (forget), avisa ('ruta', { ...ruta, borrada: true }).
+// archivar(id, archivada = true) → guarda y avisa ('ruta', ruta); reactivar (false) también quita terminada. borrar(id) → quita la ruta (forget), avisa ('ruta', { ...ruta, borrada: true }).
+// terminar(id, { nota })        → 2.20.1: terminada = { en }, archivada; quita del plan los bloques no hechos de hoy en adelante (lo hecho y lo pasado
+//                                 quedan, con su XP; terminar no da XP); resultado si nota es texto; sale de la jerarquía; guarda; avisa
+//                                 ('ruta', ruta, { terminada: true, quitados: [ids] }). Devuelve la ruta.
 // materiaCrear({ nombre, color, iden, habito }) → crea (o devuelve la que ya tiene ese nombre); avisa ('materia', m). materiaEditar(id, cambios).
 // planificar(ruta, desde = today(), opts) → calcula y escribe ruta.plan y ruta.aviso sin guardar (sirve sobre una copia para la vista previa).
 // replanificar(id)              → conserva hechos y días pasados, reparte desde hoy lo que faltaba; escribe replan y aviso; guarda; avisa ('ruta', ruta).
@@ -12617,6 +12970,7 @@ function estReplanificar(id) {
   if (r.fecha && r.fecha >= hoy) {
     // Lo que faltaba: bloques no hechos que siguen vivos (de hoy en adelante, o pasados que ninguna replanificación repartió aún).
     const de = new Date().getHours() >= 20 ? estDia(hoy, 1) : hoy; if (de > estDia(r.fecha, -1)) return r;   // 2.17.1 (E) · ya no quedan días que repartir
+    if (!r.plan.some(b => !r.hechos[b.id] && b.d >= de)) { estPlanificar(r, hoy); r.replan = Date.now(); r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); return r; }   // 2.20.1 (T) · nada por delante: reparto fresco (lo hecho descuenta)
     const nec = {}, rd = estReplanDesde(r); for (const t of r.temas) if (!t.hecho) nec[t.id] = 0;
     for (const b of r.plan) if (!r.hechos[b.id] && b.tema && nec[b.tema] !== undefined && (b.tipo === 'estudio' || b.tipo === 'practica') && (b.d >= de || b.d >= rd)) nec[b.tema] += b.min;   // 2.17.1 (E) · desde el mismo «desde» que el motor
     const bloqueMin = r.config.bloqueMin || estD().cfg.bloqueMin;
@@ -12673,10 +13027,24 @@ function estEditar(id, cambios = {}) {
   if (cambios.temas !== undefined) { const t = estTemasDe(cambios.temas, r.temas); if (t.length) { r.temas = t; replan = true; } }
   if (cambios.config && typeof cambios.config === 'object') { const pd = cambios.config.porDia && typeof cambios.config.porDia === 'object' ? { ...r.config.porDia, ...cambios.config.porDia } : r.config.porDia; r.config = estNormRuta({ ...r, config: { ...r.config, ...cambios.config, porDia: pd } }).config; replan = true; }
   if (cambios.resultado !== undefined) { const nota = typeof cambios.resultado === 'string' ? cambios.resultado : cambios.resultado && typeof cambios.resultado === 'object' ? cambios.resultado.nota : ''; const n = String(nota ?? '').trim().slice(0, 200); r.resultado = n ? { nota: n, en: Date.now() } : null; }
-  if (replan) { estPlanificar(r); r.replan = Date.now(); }
+  if (replan && !r.terminada) { estPlanificar(r); r.replan = Date.now(); }   // 2.20.1 (T) · terminada: sin plan nuevo
   r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); return r;
 }
-function estArchivar(id, archivada = true) { const r = estRuta(id); if (!r) return null; r.archivada = !!archivada; r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); return r; }
+function estArchivar(id, archivada = true) { const r = estRuta(id); if (!r) return null; r.archivada = !!archivada; if (!archivada) r.terminada = null; r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); return r; }   // 2.20.1 (T) · reactivar deshace «terminada»
+// 2.20.1 (T) · Terminar la ruta: queda en «Anteriores» con lo hecho. Salen del plan los bloques no hechos de hoy en adelante (los de hoy
+// también); lo hecho y lo pasado quedan como registro (con su XP: nada se resta, nada se da). Los temas no cambian (ni su «visto» ni su XP).
+function estTerminar(id, { nota } = {}) {
+  const r = estRuta(id); if (!r) return null;
+  const hoy = today(), quitados = [];
+  r.plan = r.plan.filter(b => { if (b.d >= hoy && !r.hechos[b.id]) { quitados.push(b.id); return false; } return true; });
+  if (typeof nota === 'string') {
+    const n = nota.replace(/\r/g, '').trim().slice(0, 200);
+    if (!n) r.resultado = null; else if (!r.resultado || r.resultado.nota !== n) r.resultado = { nota: n, en: Date.now() };
+  }
+  r.terminada = { en: Date.now() }; r.archivada = true; r.aviso = null; r.cambiado = Date.now();
+  const D = estD(); if (Array.isArray(D.orden) && D.orden.includes(id)) D.orden = D.orden.filter(x => x !== id);   // sale de la jerarquía (las demás se renumeran)
+  guardar(); estAvisar('ruta', r, { terminada: true, quitados: quitados.slice() }); return r;
+}
 function estBorrar(id) {
   const D = estD(), i = D.rutas.findIndex(r => r.id === id); if (i < 0) return false;
   const [r] = D.rutas.splice(i, 1); forget(id); guardar(); estAvisar('ruta', { ...r, borrada: true }); return true;
@@ -12684,7 +13052,7 @@ function estBorrar(id) {
 
 // ---------- Bloques: hecho, deshecho, movido.
 function estTemaHecho(r, temaId) {
-  const t = temaId ? r.temas.find(x => x.id === temaId) : null; if (!t) return;
+  const t = temaId ? r.temas.find(x => x.id === temaId) : null; if (!t || r.terminada) return;   // 2.20.1 (T) · terminada: el plan ya no dice si un tema se vio
   const hoy = today(), rd = estReplanDesde(r);   // vivos: hechos, de hoy en adelante o pasados que ninguna replanificación repartió aún
   const bs = r.plan.filter(b => b.tema === temaId && (b.tipo === 'estudio' || b.tipo === 'practica') && (r.hechos[b.id] || b.d >= hoy || b.d >= rd));
   if (bs.length) t.hecho = bs.every(b => !!r.hechos[b.id]);
@@ -12782,7 +13150,7 @@ function estResumenIA() {
 
 const estAPI = {
   rutas: estRutas, ruta: estRuta, materias: estMaterias, materia: estMateria,
-  crear: estCrear, editar: estEditar, archivar: estArchivar, borrar: estBorrar, materiaCrear: d => estMateriaCrear(d, true), materiaEditar: estMateriaEditar,
+  crear: estCrear, editar: estEditar, archivar: estArchivar, terminar: estTerminar, borrar: estBorrar, materiaCrear: d => estMateriaCrear(d, true), materiaEditar: estMateriaEditar,
   planificar: estPlanificar, replanificar: estReplanificar,
   bloquesDe: estBloquesDe, bloque: estBloque, marcar: estMarcar, moverBloque: estMover,
   pendientes: estPendientes, pendienteCrear: estPendienteCrear, pendienteMarcar: estPendienteMarcar, pendienteBorrar: estPendienteBorrar,
@@ -12837,6 +13205,13 @@ const EU_CSS = `
   .eu-card .meta { margin: 6px 0 0; }
   .eu-card .meter-bar { margin: 8px 0 2px; }
   .eu-card .row-b { margin-top: 10px; }
+  /* 2.20.1 (T) · «Terminar» en cada tarjeta, al lado de «Ver ruta»: 44 px de alto, cabe a 320 px. */
+  .eu-card .row-b > button { min-height: 44px; }
+  .eu-term { border: 1.5px solid var(--line); border-radius: 999px; padding: 0 16px; font-size: .9rem; color: var(--text); background: none; font-weight: 500; }
+  .eu-term:active { background: var(--soft); }
+  .eu-ant-acc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 2px; }
+  .eu-ant-acc .link { min-height: 36px; }
+  .eu-ant-nota, .row .t small.eu-ant-nota { display: block; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; color: var(--muted); }   /* la fecha y la nota se parten en vez de cortarse */
   .row-b { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .row-b .primary { padding: 9px 16px; font-size: .9rem; }
   .eu-b { align-items: flex-start; }
@@ -13034,9 +13409,9 @@ function euCardHtml(r) {
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` · ${esc(fmtHora(r.hora))}` : ''}${euF(r.fecha) ? ` · ${euDiasT(s.diasRestantes)}` : ''}</p>
     <p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'} · ${semHecho} de ${semPlan} min esta semana</p>
     <div class="meter-bar"><i style="width:${pct}%"></i></div>
-    ${s.diasRestantes > 0 ? `<p class="meta">${s.alDia ? '<span class="green">Al día</span>' : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
+    ${s.diasRestantes > 0 ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? '<span class="green">Al día</span>' : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
     ${av}
-    <div class="row-b"><button class="primary" data-ver="${esc(r.id)}">Ver ruta</button></div></div>`;
+    <div class="row-b"><button class="primary" data-ver="${esc(r.id)}">Ver ruta</button><button class="eu-term" data-term="${esc(r.id)}" aria-label="Terminar la ruta ${esc(r.nombre)}">Terminar</button></div></div>`;
 }
 function renderEstudio() {
   if (!euW) return;
@@ -13053,7 +13428,7 @@ function renderEstudio() {
   euW.innerHTML = `${cab}${euHoyHtml(E.hoy())}
     ${activas.length ? `${euRkCab(activas)}${activas.slice(0, 40).map((r, i) => euRankWrap(r, i)).join('')}` : '<p class="empty">Ninguna ruta activa: la siguiente empieza con «Nueva ruta».</p>'}
     <p class="more"><button class="link" id="eu-nueva2">+ Nueva ruta</button></p>
-    ${ant.length ? `<details class="eu-sec" id="eu-ant"><summary>Anteriores (${ant.length})</summary><div class="rows">${ant.slice(0, 30).map(r => `<div class="row"><span class="dot" style="--c:${esc(E.materia(r.materia)?.color || 'var(--empty)')}"></span><span class="t"><div>${esc(r.nombre)} · ${esc(E.materia(r.materia)?.nombre || '')}</div><small>Examen ${esc(euFC(r.fecha))} · ${r.archivada ? 'archivada' : 'para cerrar'}${r.resultado ? ' · con tu nota' : ''}</small></span><button class="link" data-ver="${esc(r.id)}">Ver ruta</button></div>`).join('')}</div></details>` : ''}
+    ${ant.length ? `<details class="eu-sec" id="eu-ant"><summary>Anteriores (${ant.length})</summary><div class="rows">${ant.slice(0, 30).map(r => `<div class="row"><span class="dot" style="--c:${esc(E.materia(r.materia)?.color || 'var(--empty)')}"></span><span class="t"><div>${esc(r.nombre)} · ${esc(E.materia(r.materia)?.nombre || '')}</div><small>Examen ${esc(euFC(r.fecha))}${r.terminada ? '' : ` · ${r.archivada ? 'archivada' : 'para cerrar'}`}${r.resultado && !r.terminada ? ' · con tu nota' : ''}</small>${r.terminada ? `<small class="eu-ant-nota eu-ant-ter">Terminada el ${esc(euTerFecha(r))}${r.resultado ? ` · «${esc(r.resultado.nota)}»` : ''}</small>` : ''}${r.terminada ? `<span class="eu-ant-acc"><button class="link" data-react="${esc(r.id)}">Reactivar</button></span>` : !r.archivada ? `<span class="eu-ant-acc"><button class="link" data-term="${esc(r.id)}">Terminar</button></span>` : ''}</span><button class="link" data-ver="${esc(r.id)}">Ver ruta</button></div>`).join('')}</div></details>` : ''}
     ${euOtrasHtml()}${EU_PIE}`;
   euWireTab();
 }
@@ -13064,6 +13439,9 @@ function euWireTab() {
   W.querySelectorAll('[data-ver]').forEach(b => b.onclick = () => euRutaSheet(b.dataset.ver));
   W.querySelectorAll('[data-replan]').forEach(b => b.onclick = () => euReplan(b.dataset.replan, pintar));
   W.querySelectorAll('[data-av]').forEach(b => b.onclick = () => euAviso(b.dataset.av, b.dataset.id, pintar));
+  W.querySelectorAll('[data-term]').forEach(b => b.onclick = () => euTerminarSheet(b.dataset.term));   // 2.20.1 (T)
+  W.querySelectorAll('[data-react]').forEach(b => b.onclick = () => euReactivar(b.dataset.react));
+  try { window.esGcBarrer?.(); } catch {}   // 2.20.1 (T) · lo que quedó aparte en Google Calendar (también de rutas terminadas) se borra si hay permiso
   W.querySelector('#eu-ir-tareas')?.addEventListener('click', () => { const T = HT().tareas, LE = euListaEst(T); if (T?.listas?.some(l => l.id === LE)) T.activa = LE; irA('tareas'); });
 }
 
@@ -13210,13 +13588,15 @@ function euRutaSheet(id, sec = '') {
   const pend = r.pendientes.slice().sort((a, b) => (a.hecha ? 1 : 0) - (b.hecha ? 1 : 0) || (a.fecha || '9999').localeCompare(b.fecha || '9999')).slice(0, 100);
   const extras = Array.isArray(E.extras) ? E.extras.filter(x => x && typeof x.html === 'function').slice(0, 6) : [];
   const extrasHtml = extras.map(x => { let h = ''; try { h = String(x.html(r) ?? ''); } catch { h = '<p class="meta">Esta conexión no se pudo pintar.</p>'; } return `<div class="eu-card" data-extra="${esc(String(x.id || ''))}">${h}</div>`; }).join('');
-  showSheet(`<p class="paso">${esc(m ? m.nombre : 'Estudio')} · ${!euF(r.fecha) ? 'sin fecha' : pasado ? 'examen pasado' : euDiasT(s.diasRestantes)}${r.archivada ? ' · archivada' : ''}</p><h2>${esc(r.nombre)}</h2>
+  showSheet(`<p class="paso">${esc(m ? m.nombre : 'Estudio')} · ${!euF(r.fecha) ? 'sin fecha' : pasado ? 'examen pasado' : euDiasT(s.diasRestantes)}${r.terminada ? ' · terminada' : r.archivada ? ' · archivada' : ''}</p><h2>${esc(r.nombre)}</h2>
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` a las ${esc(fmtHora(r.hora))}` : ''}${r.lugar ? ` · ${esc(r.lugar)}` : ''}</p>
     <p class="meta" id="eu-f-res">Temas vistos ${s.temasHechos} de ${s.temasTotal} · ${s.bloquesTotal ? euProgBl(s) : 'sin bloques'} · ${s.minHechos} de ${s.minPlan} min${s.ejPlan || s.ejHechos ? ` · ${s.ejHechos} de ${s.ejPlan} ejercicios` : ''}</p>
-    ${s.diasRestantes > 0 ? `<p class="meta">${s.alDia ? '<span class="green">Al día</span>' : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
-    ${euAvisoVivo(r, s) ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 12px">${euAvSubirT(r, c.minDia, true) ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(euAvSubirT(r, c.minDia, true))}</button>` : ''}<button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : ''}
+    ${s.diasRestantes > 0 && !r.archivada ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? '<span class="green">Al día</span>' : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
+    ${r.terminada ? `<p class="meta" id="eu-ter-info"><b>Terminada el ${esc(euTerFecha(r))}.</b> Lo que hiciste queda como registro.${r.resultado ? ` «${esc(r.resultado.nota)}»` : ''}</p>${(() => { const L = euTerMetas(r); return L.length ? `<p class="meta" id="eu-ter-meta">${euTerMetasTxt(L)} <button class="link" data-ter-meta="${esc(L[0].id)}" style="min-height:44px">Ver la meta</button></p>` : ''; })()}<p style="margin:8px 0 4px"><button class="link" id="eu-react" style="min-height:44px">Reactivar</button></p>`
+      : !r.archivada && !pasado ? `<p style="margin:12px 0 6px"><button class="primary" id="eu-term" style="min-height:44px;width:100%">Terminar la ruta</button></p>` : ''}
+    ${euAvisoVivo(r, s) && !r.archivada ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 12px">${euAvSubirT(r, c.minDia, true) ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(euAvSubirT(r, c.minDia, true))}</button>` : ''}<button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : ''}
     ${pasado ? `<h3 id="eu-despues">Después del examen</h3><p class="meta">¿Cómo te fue? Unas líneas para ti.</p><textarea id="eu-res" class="eu-res" rows="3" maxlength="200" placeholder="Lo que salió bien y lo que cambiarías la próxima vez">${esc(r.resultado?.nota || '')}</textarea>
-      <div class="actions" style="margin-top:0"><button class="link" id="eu-res-ok">Guardar</button>${!r.archivada ? '<button class="primary" id="eu-res-arch">Archivar la ruta</button>' : ''}</div>` : ''}
+      <div class="actions" style="margin-top:0"><button class="link" id="eu-res-ok">Guardar</button>${!r.archivada ? '<button class="primary" id="eu-res-arch" style="min-height:44px">Terminar la ruta</button>' : ''}</div>` : ''}
     ${!pasado ? `<h3>Bloques de hoy</h3>${s.hoy.length ? `<div class="rows" id="eu-f-hoy">${s.hoy.map(b => euBloqueRow(b)).join('')}</div>` : '<p class="empty">Hoy no hay bloques de esta ruta.</p>'}` : ''}
     <h3>Plan</h3>${r.plan.length ? euPlanDiasHtml(r.plan, [hoy], b => euBloqueRow(enr(b), { botones: false })) : '<p class="empty">Sin bloques en el plan.</p>'}
     <h3 id="eu-temas-h">Temas</h3><div id="eu-f-temas">${r.temas.map((t, i) => `<div class="eu-tema"><input type="checkbox" data-tv="${i}" ${t.hecho ? 'checked' : ''} aria-label="Tema visto" style="width:18px;height:18px;margin:0"><span class="t">${esc(t.t)}${t.hecho ? ' <span class="green">· visto</span>' : ''}</span>${euPickChips('eu-tp-' + i, [[1, 'ligero'], [2, 'normal'], [3, 'pesado']], t.peso)}<button type="button" class="link" data-tx="${i}" aria-label="Quitar tema">×</button></div>`).join('')}</div>
@@ -13240,9 +13620,10 @@ function euRutaSheet(id, sec = '') {
       ${euTiempoHtml('eu-a', c, pasado || !euF(r.fecha) ? 0 : Math.max(1, euDiff(hoy, r.fecha)))}
       <div class="actions" style="margin-top:4px"><button class="primary" id="eu-a-ok">Guardar ajustes</button></div></details>
     <h3>Conectar</h3>${extrasHtml || '<p class="empty">Por ahora no hay nada que conectar.</p>'}
-    <div class="actions" id="eu-acciones">${btcRuta(r)}<button class="link" id="eu-arch">${r.archivada ? 'Reactivar' : 'Archivar'}</button><button class="link" id="eu-del">Borrar</button><button class="primary" id="eu-cerrar">Cerrar</button></div>
+    <div class="actions" id="eu-acciones">${btcRuta(r)}${r.terminada ? '' : `<button class="link" id="eu-arch">${r.archivada ? 'Reactivar' : 'Archivar'}</button>`}<button class="link" id="eu-del">Borrar</button><button class="primary" id="eu-cerrar">Cerrar</button></div>
     <div class="actions" id="eu-del-conf" hidden><span class="meta" style="margin:0">¿Borrar la ruta con su plan y su registro?</span><button class="link" id="eu-del-no">Cancelar</button><button class="primary" id="eu-del-si">Sí, borrar</button></div>`);
   const body = euBody(); euWire(body); activarFranjas(body); euTiempoWire(body, 'eu-a');
+  if (r.terminada) euTerSoloLeer(body);   // 2.20.1 (T)
   const pintar = () => { if (!E.ruta(id)) { closeSheet(); renderEstudio(); return; } euRutaSheet(id, sec); renderEstudio(); };
   euWireBloques(body, pintar); euWirePend(body, pintar);
   body.querySelectorAll('[data-replan]').forEach(b => b.onclick = () => euReplan(id, pintar));
@@ -13277,16 +13658,71 @@ function euRutaSheet(id, sec = '') {
   };
   // Después del examen.
   body.querySelector('#eu-res-ok')?.addEventListener('click', () => { E.editar(id, { resultado: body.querySelector('#eu-res').value }); toast('Guardado.'); pintar(); });
-  body.querySelector('#eu-res-arch')?.addEventListener('click', () => { E.editar(id, { resultado: body.querySelector('#eu-res').value }); E.archivar(id, true); closeSheet(); toast('Ruta archivada: queda en «Anteriores».'); renderEstudio(); });
+  body.querySelector('#eu-res-arch')?.addEventListener('click', () => euTerminarSheet(id, 'ficha', body.querySelector('#eu-res').value));   // 2.20.1 (T) · el mismo camino que «Terminar la ruta»
+  body.querySelector('#eu-term')?.addEventListener('click', () => euTerminarSheet(id, 'ficha'));
+  body.querySelector('[data-ter-meta]')?.addEventListener('click', e => { const m = e.currentTarget.dataset.terMeta; euFichaId = ''; closeSheet(); window.mt?.abrir?.(m); });   // 2.20.1 (T)
+  body.querySelector('#eu-react')?.addEventListener('click', () => { euFichaId = ''; closeSheet(); euReactivar(id); });
   // Conectar (lo que dejan otras áreas), archivar, borrar y cerrar.
   for (const x of extras) { try { x.wire?.(body, r); } catch (e) { console.warn('Estudio: una conexión falló al activarse', e); } }
-  body.querySelector('#eu-arch').onclick = () => { const era = !!r.archivada; E.archivar(id, !era); closeSheet(); toast(era ? 'Ruta reactivada.' : 'Ruta archivada: queda en «Anteriores».'); renderEstudio(); };
+  const euArchB = body.querySelector('#eu-arch'); if (euArchB) euArchB.onclick = () => { const era = !!r.archivada; E.archivar(id, !era); closeSheet(); toast(era ? 'Ruta reactivada.' : 'Ruta archivada: queda en «Anteriores».'); renderEstudio(); };
   body.querySelector('#eu-del').onclick = () => { body.querySelector('#eu-del-conf').hidden = false; body.querySelector('#eu-acciones').hidden = true; };
   body.querySelector('#eu-del-no').onclick = () => { body.querySelector('#eu-del-conf').hidden = true; body.querySelector('#eu-acciones').hidden = false; };
   body.querySelector('#eu-del-si').onclick = () => { E.borrar(id); euFichaId = ''; closeSheet(); toast('Ruta borrada.'); renderEstudio(); };
   body.querySelector('#eu-cerrar').onclick = () => { euFichaId = ''; closeSheet(); };
   if (sb) sb.scrollTop = sc;
   if (sec === 'temas') body.querySelector('#eu-temas-h')?.scrollIntoView({ block: 'start' });
+}
+
+// ---------- 2.20.1 (T) · Terminar la ruta: confirmación corta (desde la ficha o desde la tarjeta) y reactivar.
+const euTerFecha = r => { const t = +(r && r.terminada && r.terminada.en) || 0; return t > 0 ? new Date(t).toLocaleDateString('es', { day: 'numeric', month: 'long' }) : ''; };   // «3 de noviembre»
+// Sin ningún bloque por delante y con temas por ver (una ruta terminada y reactivada): «Replanificar» reparte desde cero.
+const euSinFuturo = r => { const hoy = today(); return !!r && !r.archivada && !!euF(r.fecha) && r.fecha > hoy && (r.temas || []).some(t => t && !t.hecho) && !(r.plan || []).some(b => b.d >= hoy && !r.hechos[b.id]); };
+// Sin permiso de Google ahora y con bloques por quitar que tienen evento: esos eventos salen cuando vuelva el permiso.
+const euTerGcLuego = r => { try { if (gCalOk()) return false; const g = r.gcal && typeof r.gcal === 'object' ? r.gcal : {}, hoy = today(); return r.plan.some(b => b.d >= hoy && !r.hechos[b.id] && g[b.id]); } catch { return false; } };
+// Revisión · lo que la ruta tiene sin hacer en Tareas (la tarea del examen y sus tareas o entregas): sale de Tareas al terminar.
+const euTerTareas = id => { try { const T = HT().tareas; if (!T || !Array.isArray(T.items)) return []; const r = window.est?.ruta?.(id), pid = new Set((r && Array.isArray(r.pendientes) ? r.pendientes : []).map(p => p && p.tareaId).filter(Boolean)); return T.items.filter(x => x && !x.hecha && ((x.est && typeof x.est === 'object' && x.est.ruta === id) || pid.has(x.id))); } catch { return []; } };
+const euTerTareasTxt = L => { const ex = L.some(x => x.est && x.est.examen), nt = L.length - (ex ? 1 : 0), t = nt === 1 ? 'su tarea sin hacer' : `sus ${nt} tareas sin hacer`;
+  return ex && nt ? `La tarea del examen y ${t} salen de Tareas.` : ex ? 'La tarea del examen sale de Tareas.' : nt === 1 ? 'Su tarea sin hacer sale de Tareas.' : `Sus ${nt} tareas sin hacer salen de Tareas.`; };
+let euTerNota = { id: '', v: '' };   // lo escrito en «¿Cómo te fue?» al cancelar (o con Atrás), hasta terminar o recargar
+const euTerMetas = r => { try { return (window.mt?.lista?.() || []).filter(m => m && !m.archivada && Array.isArray(m.vinc) && m.vinc.some(v => v && v.tipo === 'ruta' && v.ref === r.id)); } catch { return []; } };   // 2.20.1 (T)
+const euTerMetasTxt = L => L.length === 1 ? `Tu meta «${esc(L[0].t)}» sigue contando lo que hiciste en esta ruta.` : `Tus metas ${L.slice(0, 3).map(m => `«${esc(m.t)}»`).join(', ')} siguen contando lo que hiciste en esta ruta.`;
+function euTerminarSheet(id, desde = '', nota) {
+  const E = EU(), r = E?.ruta(id); if (!r) { toast('No encuentro esa ruta.'); return; }
+  const hoy = today(), m = E.materia(r.materia), quedan = r.plan.filter(b => b.d >= hoy && !r.hechos[b.id]).length, hechos = r.plan.filter(b => r.hechos[b.id]).length;
+  const n0 = typeof nota === 'string' ? nota : euTerNota.id === id && euTerNota.v ? euTerNota.v : (r.resultado?.nota || '');   // revisión: lo escrito antes de «Cancelar» vuelve
+  showSheet(`<p class="paso">${esc(m ? m.nombre : 'Estudio')} · Examen ${esc(euFC(r.fecha))}</p><h2>Terminar «${esc(r.nombre)}»</h2>
+    <p class="meta" id="eu-t-que">La ruta pasa a «Anteriores»${hechos ? ` con lo que ya hiciste (${euBlT(hechos)} ${hechos === 1 ? 'hecho' : 'hechos'}): eso se queda` : ''}. Puedes reactivarla cuando quieras.</p>
+    ${r.fecha >= hoy && quedan ? `<p class="meta" id="eu-t-quita">${euTerGcLuego(r) ? 'Los bloques que quedaban se quitan de tu plan y de la Agenda. Sus eventos salen de Google Calendar cuando vuelvas a conectar Google.' : 'Los bloques que quedaban se quitan de tu plan, de la Agenda y de Google Calendar.'}</p>` : ''}
+    ${(() => { const L = euTerTareas(r.id); return L.length ? `<p class="meta" id="eu-t-tareas">${euTerTareasTxt(L)}</p>` : ''; })()}
+    ${(() => { const L = euTerMetas(r); return L.length ? `<p class="meta" id="eu-t-meta">${euTerMetasTxt(L)}</p>` : ''; })()}
+    <div class="field" style="margin-top:12px"><label for="eu-t-nota">¿Cómo te fue? <span class="meta">(opcional)</span></label><textarea id="eu-t-nota" class="eu-res" rows="3" maxlength="200" placeholder="Lo que salió bien y lo que cambiarías la próxima vez">${esc(n0)}</textarea></div>
+    <div class="actions" data-sin-hecho><button class="link" id="eu-t-no"${desde === 'ficha' ? ' data-volver' : ''} style="min-height:44px">Cancelar</button><button class="primary" id="eu-t-si" style="min-height:44px">Terminar la ruta</button></div>`);
+  const body = euBody(); body.scrollTop = 0;
+  body.querySelector('#eu-t-no').onclick = () => {   // desde la ficha vuelve a ella con lo escrito en «¿Cómo te fue?» (sin guardarlo)
+    const v = body.querySelector('#eu-t-nota').value; euTerNota = { id, v };
+    if (desde === 'ficha' && E.ruta(id)) { euRutaSheet(id); const ta = euBody().querySelector('#eu-res'); if (ta && typeof nota === 'string') ta.value = v; } else closeSheet();
+  };
+  body.querySelector('#eu-t-si').onclick = () => {
+    let x = null; try { x = E.terminar(id, { nota: body.querySelector('#eu-t-nota').value }); } catch (e) { toast(e?.message || 'No se pudo terminar la ruta.'); return; }
+    let nG = 0; try { if (x && !gCalOk()) nG = esGcPorBorrar(x); } catch {}
+    euFichaId = ''; euTerNota = { id: '', v: '' }; closeSheet(); if (x) toast(`Ruta terminada: queda en «Anteriores».${nG ? ` ${nG === 1 ? 'Su evento sale' : `Sus ${nG} eventos salen`} de Google Calendar cuando vuelvas a conectar Google.` : ''}`); renderEstudio();
+  };
+}
+// Revisión · Atrás (o tocar fuera de la hoja) en la confirmación hace lo mismo que «Cancelar»: desde la ficha vuelve a ella; desde la tarjeta
+// cierra. En los dos casos lo escrito en «¿Cómo te fue?» se guarda para la próxima vez. Al cerrarse la hoja, la ficha siguiente no hereda la
+// posición de la anterior.
+function euTerAtras() { try { const b = sheet.open ? euBody()?.querySelector('#eu-t-no') : null; if (!b) return false; b.click(); return true; } catch { return false; } }
+try { sheet.addEventListener('close', () => { euFichaId = ''; }); } catch {}
+// Revisión · la ficha de una ruta terminada es para leer: sin editar temas, sin añadir tareas, sin ajustes, sin [Empezar]/[Hecho] y sin la
+// tarjeta de Google Calendar (lo apartado se sigue borrando por detrás). Quedan la nota, «Reactivar», «Borrar» y «Cerrar».
+function euTerSoloLeer(body) {
+  body.querySelectorAll('#eu-f-temas [data-tv]').forEach(c => { c.disabled = true; });
+  body.querySelectorAll('#eu-f-temas [data-pick], #eu-f-temas [data-tx], .eu-libre, #eu-p-add, #eu-aj, #eu-f-hoy .eu-acc, [data-extra="gcal"]').forEach(el => { el.style.display = 'none'; });
+}
+function euReactivar(id) {
+  const E = EU(), r = E?.ruta(id); if (!r) { toast('No encuentro esa ruta.'); return; }
+  E.archivar(id, false); const x = E.ruta(id);
+  toast(x && euSinFuturo(x) ? 'Ruta reactivada. Con «Replanificar» se reparte lo que falta.' : 'Ruta reactivada.'); renderEstudio();
 }
 
 // ---------- Hoja del bloque (est.ui.bloqueSheet) y hoja del día (est.ui.diaSheet, la usa el Calendario).
@@ -13359,6 +13795,33 @@ if (window.est && window.est.ui && typeof window.est.ui === 'object') Object.ass
   bloqueSheet: id => euBloqueSheet(id),
   diaSheet: fecha => euDiaSheet(fecha),
 });
+// 2.20.1 (T) · Al terminar una ruta: sus bloques quitados salen de la Agenda de hoy (los no hechos; no quedan «sin hacer») y de los días ya
+// agendados, y los bloques de tiempo de hoy en adelante sueltan la referencia a esos bloques y a la ruta (cada uno se actualiza en Google).
+function euTerLimpiar(ev, obj, extra) {
+  if (ev !== 'ruta' || !obj || typeof obj.id !== 'string' || !extra || extra.terminada !== true) return;
+  const fuera = new Set(Array.isArray(extra.quitados) ? extra.quitados : []), hoy = today();
+  // Revisión · lo de la ruta que sigue sin hacer en Tareas (la tarea «Examen: …» y las tareas o entregas) sale de Tareas como con «Borrar»
+  // (forget: no vuelve de la nube ni de Google). Con su fecha, la regla de 2.19.7 lo restaría cada día sin límite. Lo hecho se queda (con su XP);
+  // lo que ya restó antes de terminar queda como estaba. Los pendientes siguen en la ruta como registro.
+  const tq = new Set(euTerTareas(obj.id).map(x => x.id)); let nT = 0;
+  for (const id of tq) { try { if (esQuitarTarea(id)) nT++; } catch {} }
+  const filtra = P => { if (!P || !Array.isArray(P.items)) return false; const n = P.items.length; P.items = P.items.filter(it => !(it && !it.hecho && ((it.tipo === 'estudio' && fuera.has(it.ref)) || (it.tipo === 'tarea' && tq.has(it.ref))))); return P.items.length !== n; };
+  let cambio = false;
+  if (nT) { try { esGuardarT(); } catch {} }
+  if (fuera.size || tq.size) {
+    if (ES.agendaHoy && ES.agendaHoy.fecha === hoy && filtra(ES.agendaHoy)) cambio = true;
+    if (ES.agendaPlan && filtra(ES.agendaPlan)) cambio = true;
+    if (ES.agendaPlanes && typeof ES.agendaPlanes === 'object') for (const [d, P] of Object.entries(ES.agendaPlanes)) if (d >= hoy && filtra(P)) cambio = true;
+  }
+  if (cambio) guardar();
+  try {
+    const BT = window.bt; if (!BT || typeof BT.lista !== 'function' || typeof BT.quitar !== 'function') return;
+    for (const b of BT.lista(hoy) || []) for (const i of (b && Array.isArray(b.items) ? b.items : [])) {
+      if (i && ((i.tipo === 'est' && fuera.has(i.ref)) || (i.tipo === 'ruta' && i.ref === obj.id) || (i.tipo === 'tarea' && tq.has(i.ref)))) { try { BT.quitar(b.id, i.tipo, i.ref); } catch {} }
+    }
+  } catch (e) { console.warn('Estudio: los bloques de tiempo no se pudieron limpiar', e); }
+}
+try { window.est?.escuchar?.(euTerLimpiar); } catch {}
 try { window.est?.escuchar?.(() => { if (view === 'estudio') renderEstudio(); }); } catch {}
 window.renderEstudio = () => renderEstudio();
 
@@ -13917,6 +14380,29 @@ function esGcalBorrarRuta(r) {
     if (fallo) toast(`Google Calendar: ${fallo} ${m === 1 ? 'Un evento de la ruta sigue' : `${m} eventos de la ruta siguen`} en tu calendario.`);
   })();
 }
+// 2.20.1 (T) · Barrido de lo apartado en todas las rutas cuando hay permiso (el permiso de Google dura una hora: al terminar una ruta sin él,
+// sus eventos quedan aparte y salen aquí en cuanto vuelve). Devuelve una promesa con cuántos borró; nunca falla.
+let esGcBarriendo = null;
+function esGcBarrer() {
+  if (esGcBarriendo) return esGcBarriendo;
+  try { if (!gCalOk()) return Promise.resolve(0); } catch { return Promise.resolve(0); }
+  const E = esE(); if (!E) return Promise.resolve(0);
+  const ids = E.rutas(true).filter(r => r && r.gcal && typeof r.gcal === 'object' && esGcApartados(r.gcal).length).map(r => r.id);
+  if (!ids.length) return Promise.resolve(0);
+  return esGcBarriendo = (async () => {
+    let n = 0;
+    try {
+      for (const id of ids.slice(0, 40)) {
+        while (esGcLimpiando) { try { await esGcLimpiando; } catch {} }
+        const r = E.ruta(id); if (!r || !gCalOk()) continue;
+        const x = await esGcalLimpiar(r, { alPintar: true, callado: true }); n += x.n || 0; if (x.fallo) break;
+      }
+    } catch {}
+    return n;
+  })().finally(() => { esGcBarriendo = null; });
+}
+window.esGcBarrer = esGcBarrer;
+try { setInterval(() => { if (document.visibilityState !== 'hidden') esGcBarrer(); }, 60000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') esGcBarrer(); }); } catch {}
 function esGcHtml(r) {
   if (!gCalOk()) return `<h3>Google Calendar</h3><p class="meta">Conecta Google en Enfoque para poner los bloques y el examen en tu calendario.${esGcBorrarTxt(r, true)}</p><div class="actions"><button class="link" id="es-gc-ir">Ir a Enfoque</button></div>`;
   const g = esGcal(r), pend = esGcPend(r).length, puestos = esGcPuestos(r), sinHora = esGcSinHora(r), exOk = !!g.examen && !esExViejo(r, g), exFut = !!esF(r.fecha) && r.fecha >= today();
@@ -14109,6 +14595,27 @@ function esToolPendiente(a) {
   const p = E.pendienteCrear(r.id, { t: texto, clase: a.clase === 'entrega' ? 'entrega' : 'tarea', fecha: esF(a.fecha), hora: esH(a.hora), min: 0 });
   if (view === 'estudio') window.renderEstudio?.();
   return { creada: p.t, clase: p.clase, ruta: r.nombre, materia: esMat(r), fecha: p.fecha || '', hora: p.hora || '', nota: 'Está en la pestaña Estudio y en la lista «Estudio» de Tareas.' };
+}
+
+// 2.20.1 (T) · estudio_terminar: la ruta por nombre, materia o id (entre las que no están terminadas ni archivadas).
+function esToolTerminar(a) {
+  const E = esE(); if (!E) throw esSinMotor();
+  if (typeof E.terminar !== 'function') throw new Error('Terminar una ruta no está disponible en esta versión.');
+  const rutas = E.rutas(); if (!rutas.length) throw new Error('No hay rutas de estudio activas para terminar.');
+  const lista = xs => xs.map(x => `${x.nombre} (${esMat(x)}${x.fecha ? `, examen ${x.fecha}` : ''})`).join(', ');
+  const q = String(a.ruta || '').trim().toLowerCase();
+  // Es una acción con efectos (quita bloques del plan, de la Agenda y de Google Calendar): nunca se elige a ciegas. Por niveles (id, nombre
+  // exacto, materia exacta, parcial); si en el nivel que coincide hay más de una, se pregunta.
+  if (!q) throw new Error(`Falta qué ruta terminar. Pregunta cuál y pásame su nombre exacto. Rutas: ${lista(rutas)}.`);
+  const niveles = [rutas.filter(x => x.id === a.ruta), rutas.filter(x => x.nombre.toLowerCase() === q), rutas.filter(x => esMat(x).toLowerCase() === q), rutas.filter(x => x.nombre.toLowerCase().includes(q) || esMat(x).toLowerCase().includes(q))];
+  const c = niveles.find(v => v.length) || [];
+  if (c.length > 1) throw new Error(`Hay varias rutas que coinciden: ${lista(c)}. Pregunta cuál terminar y pásame su nombre exacto o su id.`);
+  const r = c[0];
+  if (!r) throw new Error(`No encontré esa ruta. Rutas: ${lista(rutas)}.`);
+  const hoy = today(), quitados = r.plan.filter(b => b.d >= hoy && !r.hechos[b.id]).length, hechos = r.plan.filter(b => r.hechos[b.id]).length, nota = esS(a.nota, 200);
+  const x = E.terminar(r.id, nota ? { nota } : {});
+  if (view === 'estudio') window.renderEstudio?.();
+  return { terminada: x.nombre, materia: esMat(x), bloques_hechos: hechos, bloques_quitados: quitados, nota_guardada: x.resultado?.nota || '', metas_que_la_cuentan: (() => { try { return (window.mt?.lista?.() || []).filter(m => m && !m.archivada && Array.isArray(m.vinc) && m.vinc.some(v => v && v.tipo === 'ruta' && v.ref === x.id)).map(m => m.t); } catch { return []; } })(), nota: 'La ruta quedó en «Anteriores» de la pestaña Estudio, con lo hecho; desde allí se puede reactivar.' };
 }
 
 // ====================================================================
@@ -14508,7 +15015,7 @@ function atrasSync() {
 // vuelve a Inicio.
 function atrasPaso() {
   const x = atrasArriba();
-  if (x?.k === 'dialogo') { if (!(x.el === sheet && euWizAtras())) x.el.close(); }   // 2.17.1 (U) · en «Nueva ruta», un paso atrás
+  if (x?.k === 'dialogo') { if (!(x.el === sheet && (euWizAtras() || euTerAtras()))) x.el.close(); }   // 2.20.1 (T) · en la confirmación de terminar, como «Cancelar»   // 2.17.1 (U) · en «Nueva ruta», un paso atrás
   else if (x?.k === 'cele') closeCelebration();
   else if (x?.k === 'puerta') { closeGate(); renderE(); }
   else if (mvFoco()) toast('La sesión sigue: la terminas desde su pantalla');
@@ -17346,7 +17853,7 @@ function mtFuente(v) {
       case 'proyecto': { const p = (ES.proyectos || []).find(y => y && y.id === v.ref); if (p) return { t: p.nombre || 'Proyecto', sub: p.archivado ? 'Archivado' : p.paso ? `Siguiente paso: ${p.paso}` : '', existe: true }; break; }
       case 'habito': { const h = (s.habits || []).find(y => y && y.id === v.ref && !y.rutina); if (h) return { t: h.nombre, sub: ['full', 'min'].includes(s.log?.[h.id]?.[t]) ? 'Hecho hoy' : isSched(h, t) ? 'Toca hoy' : '', existe: true }; break; }
       case 'tarea': { const C = mtCadena(v.ref), x = C.filter(y => !y.hecha).pop() || C.find(y => y.id === v.ref) || C.pop(); if (x) return { t: x.titulo, sub: x.hecha ? 'Hecha' : x.fecha ? `${x.fecha < t ? 'Vencida · ' : ''}${fmtFecha(x.fecha)}` : 'Sin fecha', existe: true }; break; }
-      case 'ruta': { const E = window.est, r = E?.ruta?.(v.ref); if (r) { const mat = String(E.materia?.(r.materia)?.nombre || '').trim(); return { t: r.nombre || mat || 'Ruta', sub: [mat && mat !== r.nombre ? mat : '', r.fecha ? 'examen ' + mtFechaCorta(r.fecha) : '', r.archivada ? 'archivada' : ''].filter(Boolean).join(' · '), existe: true }; } break; }
+      case 'ruta': { const E = window.est, r = E?.ruta?.(v.ref); if (r) { const mat = String(E.materia?.(r.materia)?.nombre || '').trim(); return { t: r.nombre || mat || 'Ruta', sub: [mat && mat !== r.nombre ? mat : '', r.fecha ? 'examen ' + mtFechaCorta(r.fecha) : '', r.terminada ? 'terminada' : r.archivada ? 'archivada' : ''].filter(Boolean).join(' · '), existe: true }; } break; }
       case 'ini': { if (INI4.some(([k]) => k === v.ref)) { const x = ini4Semana().items.find(y => y && y.k === v.ref); return { t: `Iniciativas de ${iniNombre(v.ref).toLowerCase()}`, sub: x && x.t ? `Hoy: ${x.t}${x.hecho ? ' ✓' : ''}` : 'Las de cada día', existe: true }; } break; }
       case 'norma': { const n = espD().normas.find(y => y && y.id === v.ref); if (n) return { t: espNombre(n), sub: !n.on ? 'Fuera de tu plan' : espHecha(n.id, t) ? 'Hecha hoy' : '', existe: true }; break; }
       case 'plan': { const p = (ES.planes || []).find(y => y && y.id === v.ref); if (p) return { t: `${cap(String(p.titulo || 'Plan'))}${p.con ? ' con ' + p.con : ''}`, sub: [p.fecha ? btDiaTxt(p.fecha) : '', p.hecho ? 'hecho' : ''].filter(Boolean).join(' · '), existe: true }; break; }
