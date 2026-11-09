@@ -209,7 +209,62 @@ function btCuerpoAviso(C, b) {
 const planDe = (E, f) => { const X = E && E.agendaPlanes && typeof E.agendaPlanes === 'object' && !Array.isArray(E.agendaPlanes) ? E.agendaPlanes[f] : null;
   const p = X && typeof X === 'object' && Array.isArray(X.items) ? { ...X, fecha: f } : null, q = E?.agendaPlan?.fecha === f && Array.isArray(E.agendaPlan.items) ? E.agendaPlan : null;
   return !p ? q : !q ? p : (+q.organizado || 0) > (+p.organizado || 0) ? q : p; };
-const agendaDe = (C, fecha) => {
+// 2.20.2 · Hábitos encadenados («Después de…» el hábito previo; solo el primero de la rutina lleva hora). Como la app: el previo es el
+// elegido (despues = id) o, dentro de una rutina, el anterior en su orden; '0' = a su hora. En la agenda, un hábito encadenado toma la hora del
+// previo más su duración (nunca su hora propia, que puede ser vieja); sin agenda, su aviso sale a la hora del primero más las duraciones.
+const HAB_MIN = h => h?.modo === 'tiempo' ? Math.max(1, Math.min(720, Math.round(+h.meta || 1))) : 15;
+// Quién va después de quién entre unos hábitos (refs, en orden), igual que la app (hbCadenaRefs): el elegido si está; en una rutina, el
+// anterior que sí esté; sin vueltas (se corta la primera, en el mismo orden); varios después del mismo, uno detrás de otro.
+function cadenaPrev(H, refs) {
+  const hab = id => H.find(x => x.id === id && !x.rutina), en = new Set(refs), P = new Map();
+  for (const r of refs) {
+    const h = hab(r); if (!h) continue;
+    const d = typeof h.despues === 'string' ? h.despues : ''; if (d === '0') continue;
+    const ex = d && d !== h.id ? hab(d) : null;
+    if (ex) { if (en.has(ex.id)) P.set(r, { p: ex.id, auto: false }); continue; }
+    if (typeof h.padre === 'string' && h.padre) { const L = H.filter(x => !x.rutina && x.padre === h.padre); for (let i = L.indexOf(h) - 1; i >= 0; i--) if (en.has(L[i].id)) { P.set(r, { p: L[i].id, auto: true }); break; } }
+  }
+  const sinVueltas = () => { for (const [r, x] of [...P]) { let p = x.p, n = 0; while (p && n++ < 80) { if (p === r) { P.delete(r); break; } p = P.get(p)?.p; } } };
+  sinVueltas();
+  const idx = r => H.findIndex(x => x.id === r);
+  for (let v = 0; v < refs.length + 5; v++) {
+    const hijos = new Map(); for (const [r, x] of P) { if (!hijos.has(x.p)) hijos.set(x.p, []); hijos.get(x.p).push(r); }
+    const g = [...hijos.values()].find(L => L.length > 1); if (!g) break;
+    g.sort((a, b) => (P.get(b).auto ? 1 : 0) - (P.get(a).auto ? 1 : 0) || idx(a) - idx(b));
+    for (let k = 1; k < g.length; k++) P.set(g[k], { p: g[k - 1], auto: P.get(g[k]).auto });
+  }
+  sinVueltas();
+  return P;
+}
+// El minuto (local) en que se hizo hoy un hábito: null = sin marcar; { min: null } = marcado sin hora conocida.
+function marcaMin(C, fecha, h) {
+  const v = h && C.st.log?.[h.id]?.[fecha]; if (!v) return null;
+  const de = t => +t > 0 && fechaEn(+t, C.tz) === fecha ? +t : 0;
+  const ms = (['full', 'min'].includes(v) && de(ts(h.hechoEn))) || de(ts(h.marcaEn));
+  if (!ms) return { min: null };
+  const p = partes(ms, C.tz); return { min: Math.ceil(+p.hour * 60 + +p.minute + (ms % 60000) / 60000) };
+}
+// En la agenda: un encadenado toma la hora del previo más su duración o, si el previo se hizo más tarde, la hora en que se hizo.
+function cadenaAg(C, fecha, items) {
+  const H = habitosDe(C.st), hab = items.filter(it => it && it.tipo === 'habito' && !it.hist && !it.fantasma && typeof it.ref === 'string'), por = new Map(), prev = new Map();
+  for (const it of hab) if (!por.has(it.ref)) por.set(it.ref, it);
+  for (const [r, x] of cadenaPrev(H, [...por.keys()])) { const it = por.get(r), p = por.get(x.p); if (it && p && p !== it) prev.set(it, p); }
+  const memo = new Map();
+  const ef = (it, n) => { if (memo.has(it)) return memo.get(it); const p = prev.get(it); if (!p || n > 80) return hmOk(it.h) ? it.h : ''; memo.set(it, hmOk(it.h) ? it.h : '');
+    const ph = ef(p, n + 1), mk = marcaMin(C, fecha, H.find(x => x.id === p.ref));
+    let m = hmOk(ph) ? aMin(ph) + Math.max(1, Math.round(+p.min || 30)) : null;
+    if (mk && mk.min !== null) m = m === null ? mk.min : Math.max(m, mk.min);
+    const v = m === null ? '' : deMin(Math.min(m, 23 * 60 + 55)); memo.set(it, v); return v; };
+  return items.map(it => prev.has(it) ? { ...it, h: ef(it, 0), cad: 1, prevRef: prev.get(it).ref } : it);
+}
+// Sin agenda: la misma cadena con los hábitos que tocan hoy (cada uno a su primera hora y con su duración). ref → { hm, previo }.
+function cadenaHoy(C, fecha, H, toca) {
+  const items = H.filter(x => !x.rutina && toca(x)).map(x => ({ tipo: 'habito', ref: x.id, h: horasDe(x)[0] || '', min: HAB_MIN(x) })), R = new Map();
+  for (const it of cadenaAg(C, fecha, items)) if (it.cad) R.set(it.ref, { hm: it.h, previo: H.find(x => x.id === it.prevRef) });
+  return R;
+}
+const agendaDe = (C, fecha) => { const A = agendaDe0(C, fecha); try { A.items = cadenaAg(C, fecha, A.items); } catch {} return A; };
+const agendaDe0 = (C, fecha) => {
   const E = C.st.enfoque || {}, A = E.agendaHoy?.fecha === fecha ? E.agendaHoy : null, P = planDe(E, fecha);
   const deA = acota(A?.items, 80).map(it => ({ ...it, enFuente: true, org: altaDe(it, A.organizado) })).concat(btFaltan(E, A, fecha));
   const fant = acota(A?.antes, 30).filter(x => hmOk(x.h) && +x.hasta > 0).map(x => ({ ...x, id: x.id || x.ref, enFuente: true, org: altaDe(x, A.organizado), fantasma: +x.hasta }));
@@ -378,10 +433,22 @@ function candidatos(C, fecha) {
     }
     // Hábito a su hora, con sus fases (F21) y su pausa si no sirvió (F16). Nunca si confías en la señal o ya se graduó.
     // Una hora que se cambió hoy después de su aviso (h.horasAntes) sigue contando hasta el cambio.
+    const tocaHoy = x => !x.rutina && (!x.creado || x.creado <= fecha) && programado(x, fecha) && !protegido(x, fecha);
+    const enAgenda = new Set(prefs.agenda === false ? [] : agendaDe(C, fecha).items.filter(it => it.tipo === 'habito' && !it.hist && hmOk(it.h)).map(it => it.ref));
+    const CAD = cadenaHoy(C, fecha, H, tocaHoy);
     for (const h of H) {
       if (h.rutina || (h.creado && h.creado > fecha) || !programado(h, fecha) || protegido(h, fecha) || !faseDe(st, h, fecha)) continue;
       if ((h.sinAviso || h.graduado) && !(ts(h.sinAvisoEn) > inicio)) continue;
       presupuesto(C);
+      // 2.20.2 · Encadenado: nunca a su hora propia. En la agenda avisa su ítem (a su hora efectiva); si no, un aviso a la hora efectiva.
+      const cad = CAD.get(h.id);
+      if (cad) {
+        const hm = cad.hm;
+        if (!hm || enAgenda.has(h.id) || (h.retomar?.d === fecha && h.retomar.hora === hm) || pausado(C, h, hm, fecha)) continue;
+        out.push({ t: en(hm), clase: 1, tag: 'h-' + h.id, franja: 'h-' + h.id + '@' + hm, title: `${h.nombre} · después de ${sinPunto(cad.previo?.nombre) || 'tu hábito anterior'}`, body: cuerpoHabito(h), url: './?v=hoy', apagar: 'No avisar este hábito', limite: 60,
+          vivo: at => tipoOn('habitos', at) && avisoOn(h, at) && existia(h, at) && pendienteHabito(h, at), duda: () => dudaHabito(h) });
+        continue;
+      }
       const antes = acota(h.horasAntes, 12).filter(x => x.d === fecha && hmOk(x.hm) && +x.hasta > 0 && !horasDe(h).includes(x.hm)).slice(0, 6);
       for (const [hm, hasta] of [...horasDe(h).map(x => [x, 0]), ...antes.map(x => [x.hm, +x.hasta])]) {
         if ((h.retomar?.d === fecha && h.retomar.hora === hm) || pausado(C, h, hm, fecha)) continue;
@@ -405,7 +472,7 @@ function candidatos(C, fecha) {
       if (['ini', 'prio'].includes(it.tipo)) return !f?.hecho || (pasado(at) && !hechoAntes(f, at));
       return sinMarca(!!it.hecho, at); };
     const dudaAg = it => it.hist ? !!it.hecho : it.tipo === 'habito' ? !!habito(it.ref) && dudaHabito(habito(it.ref)) : false;
-    const gobiernaHabito = (it, h) => { if (it.tipo !== 'habito' || prefs.habitos === false) return false; const x = habito(it.ref);
+    const gobiernaHabito = (it, h) => { if (it.tipo !== 'habito' || prefs.habitos === false || it.cad) return false; const x = habito(it.ref);   // 2.20.2 · el encadenado lo avisa la agenda
       return !!x && !x.rutina && !(x.creado && x.creado > fecha) && programado(x, fecha) && horasDe(x).includes(h); };
     for (const it of A.items) {
       const h = horaDe(it), hb = it.tipo === 'habito' && !it.hist ? fuente(it) : null, borrada = it.enFuente && !fuente(it);
