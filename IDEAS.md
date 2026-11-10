@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.21.2: la lista va por hora y «▶ Empezar acción»
+Pedidos: «por más que las jerarquías no sean por hora, organiza por hora» · «en el relojito pon Empezar acción… igual de grande que Empezar la rutina, con la misma letra y el símbolo de play».
+- Todas las listas del día van por hora efectiva (`agOrdenDia`, `orgOrdenHora`): Agenda en cada pestaña, «Tu día propuesto», paso 4, plan de otro día, Inicio y «Empezar mi día»; a la misma hora decide la importancia; las cadenas van juntas; lo sin hora al final por importancia. El número grande se queda como importancia.
+- Mantener pulsada una fila con hora abre «Reordenar el día» (solo importancia, «La lista va por hora; aquí ordenas la importancia.»); en «Sin hora» se sigue arrastrando; en «Tu día propuesto», [Ordenar por importancia]. La hora se cambia con su botón, «Mover» o el calendario.
+- Cada fila lleva el botón grande «▶ Empezar acción · N min» (en marcha, «⏱ 12:34 · Ver»).
+
 ## 2.21.1: el tiempo del temporizador se cambia antes y durante
 Pedido: «En el temporizador se puede modificar el tiempo antes y durante de empezarlo».
 - Durante: en la hoja del temporizador, [−5 min] [+5 min] y «Que queden: 5 · 10 · 15 · 25 · 45 · 60 min» y «Otro»; el cambio se ve al momento en la fila, la cabecera y «Ahora», sobrevive a recargar y nunca baja de 1 min. «Guardar como tiempo de esta cosa» (apagado por defecto) lo deja para la próxima vez.
