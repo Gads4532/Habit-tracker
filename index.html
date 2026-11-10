@@ -683,7 +683,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.21.0';
+const APP_VERSION = '2.21.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -20521,8 +20521,8 @@ function tempEmpezar(it0, min) {
   const m = Math.max(1, Math.min(720, Math.round(+min || agMinDe(it)))), prev = tempAct(), ahora = Date.now();
   ES.temp = { id: it.id, d: today(), t: it.t, tipo: it.tipo || '', ref: it.ref || '', esp: it.esp || '', min: m, ext: 0, ini: ahora, fin: ahora + m * 60000 };   // 2.21 (H) · tipo y ref
   guardar(); closeSheet(); tempIniciar(); tempRepintar();
-  if (prev && prev.id !== it.id) toast(`Temporizador: ${fmtMin(m)} para «${it.t}». El de «${prev.t}» se quitó.`, { deshacer: () => { ES.temp = prev; guardar(); tempIniciar(); tempRepintar(); } });
-  else toast(`Temporizador: ${fmtMin(m)} para «${it.t}».`);
+  if (prev && prev.id !== it.id) tempAvisoCambiar(`Temporizador: ${fmtMin(m)} para «${it.t}». El de «${prev.t}» se quitó.`, () => { ES.temp = prev; guardar(); tempIniciar(); tempRepintar(); });   // 2.21.1 (T) · con [Cambiar]
+  else tempAvisoCambiar(`Temporizador: ${fmtMin(m)} para «${it.t}».`);
 }
 function tempMas(n = 5) {
   const T = tempAct(); if (!T) return;
@@ -20609,18 +20609,20 @@ function tempSheet() {
   if (fin) T.visto = 1;
   showSheet(`${fin ? `<p class="paso">${C ? `${esc(cadEtq(T))} · ` : ''}${esc(T.t)}</p><h2>Se cumplió el tiempo</h2>
       <p class="note">Pasaron los ${fmtMin(tot)} que le diste. Si te falta un poco, suma 5 minutos; si no, lo dejas aquí${it ? ' y sigue en tu agenda' : ''}.</p>`
-    : `<p class="paso">${C ? esc(cadEtq(T)) : `Temporizador · ${fmtMin(tot)}`}</p><h2>${esc(T.t)}</h2><p class="tm-big" data-temp-left>${fmtClock(l)}</p><p class="meta" style="text-align:center">${C ? (sig ? `Después: ${esc(sig.t)}. Empieza solo al terminar.` : 'Es el último.') : 'Cuenta sin pantalla completa. Puedes usar la app mientras tanto.'}</p>`}
+    : `<p class="paso">${C ? esc(cadEtq(T)) : `Temporizador · ${fmtMin(tot)}`}</p><h2>${esc(T.t)}</h2><p class="tm-big" data-temp-left>${fmtClock(l)}</p>${tempPmHtml()}<p class="meta" style="text-align:center">${C ? (sig ? tempSigHtml(C, sig) : 'Es el último.') : 'Cuenta sin pantalla completa. Puedes usar la app mientras tanto.'}</p>${C && sig ? tempSigChipsHtml(C) : ''}`}
+    ${tempAjHtml(T, fin, it)}
     ${C ? cadPerdHtml(C) : ''}
-    <div class="actions stack" id="tm-b">${it && !ok ? '<button class="primary" id="tm-ok">✓ Hecho</button>' : ''}${C ? '<button class="outline" id="tm-saltar">Saltar</button>' : ''}<button class="outline" id="tm-mas">+5 min</button>${C ? `<button class="link" id="tm-parar">${esc(cadPararTxt(C))}</button>` : '<button class="link" id="tm-x">Dejarlo</button>'}${!fin && it && !ok && it.tipo !== 'bt' && it.tipo !== 'evento' ? '<button class="link" id="tm-enf">Pasar a enfoque</button>' : ''}${fin ? '' : '<button class="link" id="tm-seguir">Seguir</button>'}</div>`);
+    <div class="actions stack" id="tm-b">${it && !ok ? '<button class="primary" id="tm-ok">✓ Hecho</button>' : ''}${C ? '<button class="outline" id="tm-saltar">Saltar</button>' : ''}${fin ? '<button class="outline" id="tm-mas">+5 min</button>' : ''}${C ? `<button class="link" id="tm-parar">${esc(cadPararTxt(C))}</button>` : '<button class="link" id="tm-x">Dejarlo</button>'}${!fin && it && !ok && it.tipo !== 'bt' && it.tipo !== 'evento' ? '<button class="link" id="tm-enf">Pasar a enfoque</button>' : ''}${fin ? '' : '<button class="link" id="tm-seguir">Seguir</button>'}</div>`);
   const b = $('#sheet-body');
   b.querySelector('#tm-ok')?.addEventListener('click', tempHecho);
   b.querySelector('#tm-saltar')?.addEventListener('click', cadSaltar);   // 2.21 (H)
   b.querySelector('#tm-parar')?.addEventListener('click', cadParar);
   b.querySelector('#tm-enf')?.addEventListener('click', () => { const x = tempItem(tempAct()); if (x) agFocoEmpezar(x, true); });
   if (C) cadPerdWire(b, C, () => { if (tempAct()) tempSheet(); });
-  b.querySelector('#tm-mas')?.addEventListener('click', () => tempMas(5));
+  b.querySelector('#tm-mas')?.addEventListener('click', () => fin ? tempMas(5) : tempPm(5));   // 2.21.1 (T) · en marcha, sin cerrar la hoja
   b.querySelector('#tm-x')?.addEventListener('click', tempDejar);
   b.querySelector('#tm-seguir')?.addEventListener('click', closeSheet);
+  tempAjWire(b);   // 2.21.1 (T)
   if (fin) guardar();
 }
 // La cuenta atrás de la cabecera (en todas las secciones): toca para ver la hoja.
@@ -20670,7 +20672,128 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
   .temp-chip.fin { border-color: var(--green); }`;
   document.head.appendChild(st);
 }
-window.temp = { empezar: (it, m) => tempEmpezar(it, m), mas: n => tempMas(n), dejar: () => tempDejar(), hecho: () => tempHecho(), estado: () => { const T = tempAct(); return T ? { ...T, quedan: Math.max(0, Math.round(tempLeft(T))) } : null; }, ver: () => tempSheet(), minPoner: (it, m) => agMinPoner(it, m) };
+// ====================================================================
+// 2.21.1 · área T · Cambiar el tiempo antes y durante. Todo mueve marcas de tiempo (T.fin; T.ext para que el total cuadre), nunca < 1 min.
+// ====================================================================
+var tempGuarda = { k: '', on: false };   // «Guardar como tiempo de esta cosa»: apagada por defecto, vale para el temporizador de ahora
+function tempGK(T) { return T ? `${T.id}|${T.ini}|${T.d}` : ''; }
+function tempGOn(T) { return !!T && tempGuarda.on && tempGuarda.k === tempGK(T); }
+// Total dado = min + ext (lo mismo que dice la hoja), no fin − ini: si se cumplió y pasó un rato sin mirar, ese rato no cuenta.
+function tempTotMin(T) { return Math.max(1, Math.min(720, Math.round((+T.min || 0) + (+T.ext || 0)))); }
+function tempPuedeGuardar(it) { try { return !!it && it.tipo !== 'bt' && it.tipo !== 'evento' && (!!agPorId(it.id) || (it.tipo === 'tarea' && !!agFuente(it))); } catch { return false; } }
+function tempSaveMin(it, m) {
+  m = Math.round(+m); if (!(m >= 1 && m <= 720) || !tempPuedeGuardar(it)) return false;
+  if (agPorId(it.id)) { agMinPoner(it, m, false, true); return true; }
+  try { const f = agFuente(it); if (it.tipo === 'tarea' && f) { f.min = m; f.mod = Date.now(); save(); return true; } } catch {}
+  return false;
+}
+function tempHojaAbierta() { return sheet.open && !!$('#sheet-body')?.querySelector('#tm-b'); }
+// Que queden «seg» segundos (desde ahora; en pausa, desde la pausa). mGuardar: el número a guardar en el ítem si la casilla está marcada.
+function tempQuedanPoner(seg, mGuardar) {
+  const T = tempAct(); if (!T) return;
+  const ref = T.pausa ? +T.pausa : Date.now();
+  seg = Math.max(60, Math.min(720 * 60, Math.round(+seg || 0)));
+  // Solo suma (o resta) lo que añade el cambio, como tempMas: en marcha, el salto de fin; cumplido, solo lo nuevo.
+  const fin0 = +T.fin || ref; T.fin = ref + seg * 1000;
+  T.ext = (+T.ext || 0) + Math.round((T.fin - Math.max(fin0, ref)) / 60000);
+  if ((+T.min || 0) + T.ext < 1) T.ext = 1 - (+T.min || 0);
+  T.avisado = 0; T.visto = 0;
+  let g = '';
+  if (tempGOn(T)) { const it = tempItem(T); if (tempSaveMin(it, mGuardar || tempTotMin(T))) g = ` Queda guardado: «${T.t}» dura ${fmtMin(mGuardar || tempTotMin(T))}.`; }
+  guardar(); tempIniciar(); tempRepintar();
+  if (tempHojaAbierta()) tempSheet();
+  toast(`Quedan ${fmtMin(Math.max(1, Math.round(seg / 60)))}.${g}`);
+}
+function tempPm(n) {
+  const T = tempAct(); if (!T) return;
+  const l = Math.max(0, tempLeft(T));
+  if (n < 0 && l <= 61) { toast('Queda 1 min o menos. De ahí no baja.'); return; }
+  tempQuedanPoner(Math.max(60, l + n * 60), null);
+}
+function tempPmHtml() {
+  return `<div class="tm-pm" role="group" aria-label="Cambiar el tiempo"><button type="button" class="outline" id="tm-menos" aria-label="Quitar 5 minutos">−5 min</button><button type="button" class="outline" id="tm-mas" aria-label="Sumar 5 minutos">+5 min</button></div>`;
+}
+function tempAjHtml(T, fin, it) {
+  const q = Math.max(1, Math.round(Math.max(0, tempLeft(T)) / 60));
+  return `<div class="tm-aj" id="tm-aj" data-sin-hecho>
+    <p class="tm-aj-l" id="tm-aj-lbl">Que queden</p>
+    <div class="chips tm-aj-c" role="group" aria-labelledby="tm-aj-lbl">${TEMP_MIN.map(m => `<button type="button" class="chip" data-tm-q="${m}" aria-label="Que queden ${m} minutos">${m} min</button>`).join('')}<button type="button" class="chip" data-tm-q-otra aria-expanded="false" aria-controls="tm-aj-otra">Otro</button></div>
+    <div class="tm-aj-otra" id="tm-aj-otra" hidden><input type="number" id="tm-aj-n" inputmode="numeric" min="1" max="720" step="1" value="${fin ? 5 : q}" aria-label="Que queden, en minutos"><span class="meta" style="margin:0">min</span><button type="button" class="outline" id="tm-aj-usar">Usar</button></div>
+    ${tempPuedeGuardar(it) ? `<label class="tm-aj-g"><input type="checkbox" id="tm-aj-g"${tempGOn(T) ? ' checked' : ''}><span>Guardar como tiempo de esta cosa</span></label>` : ''}
+  </div>`;
+}
+// En cadena: el siguiente y su tiempo, con [Cambiar].
+function tempSigIdx(C) { try { return cadProx(C, (+C.i || 0) + 1); } catch { return -1; } }
+function tempSigMin(C, j, it) { const p = C.pasos[j] || {}; return Math.max(1, Math.min(720, Math.round(+p.minX || +agMinDe(it) || +p.min || 25))); }
+function tempSigHtml(C, sig) {
+  const j = tempSigIdx(C); if (j < 0) return `Después: ${esc(sig.t)}. Empieza solo al terminar.`;
+  return `Después: ${esc(sig.t)} · <b>${esc(fmtMin(tempSigMin(C, j, sig)))}</b>. Empieza solo al terminar. <button type="button" class="link tm-sig-cb" id="tm-sig-cb" aria-expanded="false" aria-controls="tm-sig">Cambiar</button>`;
+}
+function tempSigChipsHtml(C) {
+  const j = tempSigIdx(C); if (j < 0) return '';
+  const it = cadItem(C.pasos[j]), m = tempSigMin(C, j, it);
+  return `<div class="tm-aj tm-sig" id="tm-sig" hidden data-sin-hecho><p class="tm-aj-l" id="tm-sig-lbl">Tiempo para «${esc(it ? it.t : C.pasos[j].t)}»</p>
+    <div class="chips tm-aj-c" role="group" aria-labelledby="tm-sig-lbl">${TEMP_MIN.map(x => `<button type="button" class="chip${x === m ? ' on' : ''}" data-tm-s="${x}" aria-pressed="${x === m}">${x} min</button>`).join('')}</div>
+    <div class="tm-aj-otra"><input type="number" id="tm-sig-n" inputmode="numeric" min="1" max="720" step="1" value="${m}" aria-label="Otro tiempo para el siguiente, en minutos"><span class="meta" style="margin:0">min</span><button type="button" class="outline" id="tm-sig-usar">Usar</button></div>
+  </div>`;
+}
+function tempSigPoner(m) {
+  m = Math.round(+m); if (!(m >= 1 && m <= 720)) { toast('Elige entre 1 y 720 minutos.'); return; }
+  const T = tempAct(), C = cadDe(T); if (!C) return;
+  const j = tempSigIdx(C); if (j < 0) return;
+  const it = cadItem(C.pasos[j]); C.pasos[j].minX = m;
+  let g = ''; if (tempGOn(T) && tempSaveMin(it, m)) g = ' Queda guardado como su tiempo.';
+  guardar(); tempRepintar();
+  if (tempHojaAbierta()) tempSheet();
+  toast(`«${it ? it.t : C.pasos[j].t}» tendrá ${fmtMin(m)}.${g}`);
+}
+function tempAjWire(b) {
+  b.querySelector('#tm-menos')?.addEventListener('click', () => tempPm(-5));
+  b.querySelectorAll('[data-tm-q]').forEach(c => c.addEventListener('click', () => tempQuedanPoner(+c.dataset.tmQ * 60, +c.dataset.tmQ)));
+  const otra = b.querySelector('[data-tm-q-otra]');
+  otra?.addEventListener('click', () => { const o = b.querySelector('#tm-aj-otra'); if (!o) return; o.hidden = !o.hidden; otra.setAttribute('aria-expanded', String(!o.hidden)); otra.classList.toggle('on', !o.hidden); if (!o.hidden) { const i = o.querySelector('input'); i?.focus(); i?.select?.(); } });
+  const usar = () => { const v = Math.round(+b.querySelector('#tm-aj-n')?.value); if (!(v >= 1 && v <= 720)) { toast('Elige entre 1 y 720 minutos.'); return; } tempQuedanPoner(v * 60, v); };
+  b.querySelector('#tm-aj-usar')?.addEventListener('click', usar);
+  b.querySelector('#tm-aj-n')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); usar(); } });
+  b.querySelector('#tm-aj-g')?.addEventListener('change', e => {
+    const T = tempAct(); if (!T) return;
+    tempGuarda = { k: tempGK(T), on: !!e.target.checked };
+    if (!e.target.checked) return;
+    const tot = tempTotMin(T), it = tempItem(T);
+    if (tempSaveMin(it, tot)) { guardar(); try { renderAg(); } catch {} try { iniRepintar(); } catch {} toast(`Queda guardado: «${T.t}» dura ${fmtMin(tot)}. Lo que cambies ahora también se guarda.`); }
+  });
+  const sc = b.querySelector('#tm-sig-cb');
+  sc?.addEventListener('click', () => { const o = b.querySelector('#tm-sig'); if (!o) return; o.hidden = !o.hidden; sc.setAttribute('aria-expanded', String(!o.hidden)); });
+  b.querySelectorAll('[data-tm-s]').forEach(c => c.addEventListener('click', () => tempSigPoner(+c.dataset.tmS)));
+  const su = () => tempSigPoner(b.querySelector('#tm-sig-n')?.value);
+  b.querySelector('#tm-sig-usar')?.addEventListener('click', su);
+  b.querySelector('#tm-sig-n')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); su(); } });
+}
+// El aviso de inicio con [Cambiar] (6 s): abre la hoja con «Que queden». Con [Deshacer] si quitó otro temporizador.
+function tempAvisoCambiar(msg, deshacer) {
+  toast(msg, deshacer ? { deshacer } : undefined);
+  const t = $('#toast'); if (!t || !tempAct()) return;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'ag-toast-b qa-toast-b tm-toast-c'; b.textContent = 'Cambiar'; b.setAttribute('aria-label', 'Cambiar el tiempo');
+  b.onclick = e => { e.stopPropagation(); clearTimeout(toastT); t.classList.remove('on'); t.style.pointerEvents = ''; if (tempAct()) tempSheet(); };
+  t.append(' ', b); t.style.pointerEvents = 'auto';
+  clearTimeout(toastT); toastT = setTimeout(() => { t.classList.remove('on'); t.style.pointerEvents = ''; }, 6000);
+}
+{
+  const st = document.createElement('style'); st.className = 'temp-aj-css';
+  st.textContent = `.tm-pm { display: flex; justify-content: center; gap: 10px; margin: 8px 0 4px; }
+  .tm-pm button { flex: 1 1 0; max-width: 150px; min-height: 48px; padding: 0 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tm-aj { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; } .tm-aj[hidden] { display: none; }
+  .tm-aj-l { margin: 4px 0 0; font-size: .82rem; font-weight: 600; color: var(--muted); }
+  .tm-aj-c { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; } .tm-aj-c .chip { min-height: 44px; padding: 6px 12px; }
+  .tm-aj-otra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .tm-aj-otra[hidden] { display: none; } .tm-aj-otra input { width: 96px; min-height: 44px; margin: 0; } .tm-aj-otra button { min-height: 44px; padding: 0 16px; }
+  label.tm-aj-g { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0; font-size: .86rem; color: var(--muted); cursor: pointer; }
+  .tm-aj-g input { flex: none; width: 22px; height: 22px; min-height: 0; margin: 0; padding: 0; accent-color: var(--text); }
+  .tm-sig-cb { min-height: 44px; padding: 0 8px; vertical-align: middle; font-weight: 700; text-decoration: underline; }
+  .tm-sig { margin-top: 0; }
+  #toast .tm-toast-c { margin-left: 10px; min-height: 44px; padding: 0 10px; color: inherit; font-weight: 700; text-decoration: underline; background: none; border: 0; font: inherit; font-weight: 700; cursor: pointer; }`;
+  try { ov.appendChild(st); } catch {}
+}
+window.temp = { empezar: (it, m) => tempEmpezar(it, m), mas: n => tempMas(n), quedan: m => tempQuedanPoner(+m * 60, +m), ajustar: n => tempPm(n), siguiente: m => tempSigPoner(m), dejar: () => tempDejar(), hecho: () => tempHecho(), estado: () => { const T = tempAct(); return T ? { ...T, quedan: Math.max(0, Math.round(tempLeft(T))) } : null; }, ver: () => tempSheet(), minPoner: (it, m) => agMinPoner(it, m) };
 
 // ====================================================================
 // 2.21.0 · área H · Un toque y en cadena. ES.temp.cad = { k, n, pasos: [{ id, tipo, ref, esp, t, min }], i, res: {} }: los pasos se
@@ -20800,7 +20923,7 @@ function cadDespues(T) { const C = cadRefrescar(cadDe(T)); if (!C) return null; 
 // Poner en marcha el paso j (desde «ini», una marca de tiempo: al ponerse al día tras salir, empieza donde terminó el anterior).
 function cadIr(C, j, ini) {
   const it = cadItem(C.pasos[j]); if (!it) return false;
-  const m = Math.max(1, Math.min(720, Math.round(+agMinDe(it) || C.pasos[j].min || 25)));
+  const m = Math.max(1, Math.min(720, Math.round(+C.pasos[j].minX || +agMinDe(it) || C.pasos[j].min || 25)));   // 2.21.1 (T) · minX: lo elegido en «Después: … [Cambiar]»
   ES.temp = { id: it.id, d: today(), t: it.t, tipo: it.tipo || '', ref: it.ref || '', esp: it.esp || '', min: m, ext: 0, ini, fin: ini + m * 60000, cad: { ...C, i: j } };
   guardar(); tempIniciar(); tempRepintar();
   if (sheet.open && $('#sheet-body')?.querySelector('#tm-b')) tempSheet();   // la hoja del temporizador abierta: pasa al siguiente
@@ -20863,7 +20986,7 @@ function cadEmpezar(key, o = {}) {
   closeSheet();
   if (!cadIr(C, 0, Date.now())) { toast('Aquí no queda nada pendiente para hoy.'); return; }
   const N = ES.temp, quita = T0 && (T0.cad ? ` Se paró «${T0.cad.n}».` : ` El de «${T0.t}» se quitó.`);
-  toast(`${C.n}: empieza «${N.t}» · ${fmtMin(N.min)} (1 de ${pasos.length}).${quita || ''}`, T0 ? { deshacer: () => { ES.temp = T0; guardar(); tempIniciar(); tempRepintar(); } } : undefined);
+  tempAvisoCambiar(`${C.n}: empieza «${N.t}» · ${fmtMin(N.min)} (1 de ${pasos.length}).${quita || ''}`, T0 ? () => { ES.temp = T0; guardar(); tempIniciar(); tempRepintar(); } : null);   // 2.21.1 (T) · con [Cambiar]
 }
 // ---------- Botones
 // La fila de la Agenda: «· ⏱ 25 min» (un toque empieza) o, en marcha, «· ⏱ 12:34» (un toque abre la hoja).
