@@ -612,6 +612,13 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.21.1: el tiempo del temporizador se cambia antes y durante
+Pedido: «En el temporizador se puede modificar el tiempo antes y durante de empezarlo».
+- Durante: en la hoja del temporizador, [−5 min] [+5 min] y «Que queden: 5 · 10 · 15 · 25 · 45 · 60 min» y «Otro»; el cambio se ve al momento en la fila, la cabecera y «Ahora», sobrevive a recargar y nunca baja de 1 min. «Guardar como tiempo de esta cosa» (apagado por defecto) lo deja para la próxima vez.
+- Antes: sigue arrancando de un toque; el aviso de inicio trae [Cambiar] durante 6 s. «Tiempo máximo» en la ficha fija el próximo inicio.
+- En cadenas: «Después: X · 10 min · Cambiar» para el paso siguiente.
+- Revisión: un escéptico; su hallazgo (el total contaba el tiempo pasado sin mirar al reiniciar) corregido.
+
 ## 2.21.0: más simple, todo a un toque
 Pedidos: «simplifica al máximo todo, especialmente la agenda, sin borrar ninguna función» · «sigo sin poder mover los hábitos» · «lo de ahora / después debe estar al lado de la hora» y «ocultar la hora» · «tiempo máximo y temporizador», «tan fácil como darle un clic», «empezar las rutinas y que siga con cada hábito» · «al seleccionar las tareas no sale de qué grupo son ni su categoría» · «Empezar acción» · «calendario con un color por tipo, pudiendo arrastrar» · «metas de consistencia» · «quitar de la agenda».
 - **Mover hábitos** (M): «Ordenar» siempre a mano, también dentro de cada rutina; mantener pulsada la fila o ⠿ y ↑ ↓ en Hábitos, «Reordenar» y «Organizar mi día»; el orden (`orden`, `ordenEn`) se sincroniza y manda en la cadena «después de».
