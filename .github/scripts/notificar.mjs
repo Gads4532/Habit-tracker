@@ -215,6 +215,8 @@ const planDe = (E, f) => { const X = E && E.agendaPlanes && typeof E.agendaPlane
 const HAB_MIN = h => h?.modo === 'tiempo' ? Math.max(1, Math.min(720, Math.round(+h.meta || 1))) : 15;
 // Quién va después de quién entre unos hábitos (refs, en orden), igual que la app (hbCadenaRefs): el elegido si está; en una rutina, el
 // anterior que sí esté; sin vueltas (se corta la primera, en el mismo orden); varios después del mismo, uno detrás de otro.
+// 2.21 (M) · Los hábitos de una rutina en su orden (`orden`; sin él, el de la lista), como hbHijosOrd en la app.
+function hijosOrd(H, rid) { const ix = new Map(H.map((x, i) => [x, i])), o = (x, i) => typeof x?.orden === 'number' && Number.isFinite(x.orden) ? x.orden : 1e6 + i; return H.filter(x => x && !x.rutina && x.padre === rid).sort((a, b) => o(a, ix.get(a)) - o(b, ix.get(b)) || ix.get(a) - ix.get(b)); }
 function cadenaPrev(H, refs) {
   const hab = id => H.find(x => x.id === id && !x.rutina), en = new Set(refs), P = new Map();
   for (const r of refs) {
@@ -222,7 +224,7 @@ function cadenaPrev(H, refs) {
     const d = typeof h.despues === 'string' ? h.despues : ''; if (d === '0') continue;
     const ex = d && d !== h.id ? hab(d) : null;
     if (ex) { if (en.has(ex.id)) P.set(r, { p: ex.id, auto: false }); continue; }
-    if (typeof h.padre === 'string' && h.padre) { const L = H.filter(x => !x.rutina && x.padre === h.padre); for (let i = L.indexOf(h) - 1; i >= 0; i--) if (en.has(L[i].id)) { P.set(r, { p: L[i].id, auto: true }); break; } }
+    if (typeof h.padre === 'string' && h.padre) { const L = hijosOrd(H, h.padre); for (let i = L.indexOf(h) - 1; i >= 0; i--) if (en.has(L[i].id)) { P.set(r, { p: L[i].id, auto: true }); break; } }
   }
   const sinVueltas = () => { for (const [r, x] of [...P]) { let p = x.p, n = 0; while (p && n++ < 80) { if (p === r) { P.delete(r); break; } p = P.get(p)?.p; } } };
   sinVueltas();
@@ -519,6 +521,23 @@ function candidatos(C, fecha) {
   // Teléfono fuera del cuarto (F24): 30 min antes de tu hora de dormir.
   if (hayTipo('noche')) out.push({ t: en(deMin(aMin(hmOk(E.horaDormir) ? E.horaDormir : '23:00') - 30)), clase: 1, tag: 'dormir', franja: 'dormir', title: 'Hora de soltar el teléfono', body: 'Cárgalo fuera del cuarto. Mañana te pregunto cómo dormiste.',
     url: './?v=enfoque', apagar: APAGAR, limite: 60, vivo: at => tipoOn('noche', at) });
+  // 2.21 (L) · Metas de consistencia «antes de una hora» con aviso: 15 minutos antes de la hora, si ese día toca y aún no está anotada
+  // (lo anotado antes de esa hora la apaga). Va con el tipo «Noche» (lo apaga «Apagar este tipo»), entra en el tope y respeta silencios.
+  if (hayTipo('noche')) for (const c of acota(E.consistencias, 40)) {
+    if (c.archivada || c.tipo !== 'antes' || !c.aviso || !hmOk(c.hora) || typeof c.id !== 'string' || !c.id) continue;
+    // El día de la meta termina a las 5:00 AM, como en la app: una hora de madrugada (12:30 AM) es la de la noche de ayer, y con una
+    // hora antes de las 12:15 AM el aviso sale la noche de antes (11:45 PM en adelante), con lo anotado de esa noche.
+    const hmin = +c.hora.slice(0, 2) * 60 + +c.hora.slice(3), HM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    let clave = fecha, tAv, hasta;
+    if (hmin < 15) { tAv = en(HM(hmin + 1440 - 15)); hasta = aMs(masDias(fecha, 1), c.hora, tz); }
+    else { if (hmin < 300) clave = masDias(fecha, -1); tAv = en(menos(c.hora, 15)); hasta = en(c.hora); }
+    if (c.creado && c.creado > clave) continue;
+    if (Array.isArray(c.dias) && c.dias.length && !c.dias.includes(wd(clave))) continue;
+    const r = E.consLog && typeof E.consLog === 'object' ? E.consLog[clave]?.[c.id] : null, anot = r && (r.ok === true || r.ok === false) ? (+r.en || 1) : 0;
+    out.push({ t: tAv, clase: 1, tag: 'cs-' + c.id.slice(0, 60), franja: 'cs-' + c.id.slice(0, 60), title: sinPunto(String(c.t || 'Tu meta de consistencia').slice(0, 80)),
+      body: `Faltan 15 minutos para las ${hora12(c.hora)}. ¿Empiezas ya a prepararte?`, url: './?v=hoy', apagar: APAGAR, limite: 60, hasta,
+      vivo: at => tipoOn('noche', at) && (!anot || (pasado(at) && anot > at)) });
+  }
   // Lunes: si la revisión ya se hizo (el domingo, o hoy antes de esta hora), no sale.
   if (hayTipo('semana') && w === 0) out.push({ t: en('08:30'), clase: 3, soloVolver: true, tag: 'semana', franja: 'semana', title: 'Nuevo comienzo: revisión semanal', body: 'Diez minutos para ver lo logrado y poner día y hora a lo siguiente. ¿Ahora o en tu próxima ventana?',
     url: './?v=enfoque', apagar: APAGAR, vivo: at => tipoOn('semana', at) && (!(E.revision >= masDias(fecha, -1)) || (pasado(at) && E.revision === fecha && !(delDia(+E.revisionEn) && +E.revisionEn <= at))) });
