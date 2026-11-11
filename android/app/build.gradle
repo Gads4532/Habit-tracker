@@ -6,6 +6,8 @@ plugins {
 def ksFile = System.getenv('ANDROID_KEYSTORE_FILE')
 def ksPass = System.getenv('ANDROID_KEYSTORE_PASS')
 def ksAlias = System.getenv('ANDROID_KEY_ALIAS') ?: 'organizacion'
+// La contraseña de la clave: la misma del almacén (así es en un PKCS12) salvo que llegue ANDROID_KEY_PASS.
+def keyPass = System.getenv('ANDROID_KEY_PASS') ?: ksPass
 
 android {
     namespace 'io.github.gads4532.organizacion'
@@ -25,7 +27,7 @@ android {
                 storeFile file(ksFile)
                 storePassword ksPass
                 keyAlias ksAlias
-                keyPassword ksPass
+                keyPassword keyPass
             }
         }
     }
