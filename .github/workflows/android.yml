@@ -77,7 +77,8 @@ jobs:
           APK=app/build/outputs/apk/release/app-release.apk
           test -f "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -v -i "public key" | head -5
-          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$APK" | head -3
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|uses-permission|application-label|application-icon-480|launchable-activity)"
+          unzip -l "$APK" | grep -E "classes.*\.dex|mipmap" | head -20
           cp "$APK" "$GITHUB_WORKSPACE/organizacion-personal.apk"
           rm -f "$RUNNER_TEMP/organizacion.jks"
 
