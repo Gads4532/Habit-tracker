@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.21.5: la Agenda sin hábitos, igual mientras se crea y arrastre con el asa ⠿
+
+- **Los hábitos se quedan en Hábitos.** La Agenda (lista, calendario, «Ahora», contadores, «Empezar mi día») tiene todo lo demás: tareas, iniciativas, prioridades, estudio, vida espiritual, bloques, planes y eventos. «Organizar mi día» pasa a 3 pasos (Tareas, Iniciativas, Horas) y «Añadir a la agenda» ya no ofrece hábitos. Los hábitos siguen igual en su apartado: su hora, «Después de», rutinas, avisos (uno por hábito, sin duplicados) y XP. Lo guardado antes no se borra: solo deja de mostrarse en la Agenda.
+- **Mientras creas la agenda se ve igual que la Agenda**: mismas filas (título, hora, una línea) y mismo arrastre; al soltar entre dos cosas toma la hora de sus vecinas.
+- **Arrastre que funciona en el teléfono**: cada fila lleva un asa ⠿ que la levanta al instante (el teléfono ya no lo confunde con desplazar la pantalla). Mantener pulsada la fila sigue funcionando. También en el calendario y en «Reordenar el día».
+
 ## 2.21.4: la iniciativa cambiada se ve en todas partes y el XP sin saturar
 
 - **Cambiar una iniciativa se ve al momento** en la Agenda (fila y detalles), el calendario, Inicio, Enfoque, el bloque de tiempo en Google Calendar y los avisos. Lo escrito en la hoja se guarda aunque la cierres con Atrás, los minutos también se actualizan, se conserva la hora puesta en la Agenda y «Añadir a la agenda › Iniciativa» actualiza la misma fila (sin perder su número, temporizador ni lo hecho).

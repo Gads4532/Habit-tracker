@@ -271,7 +271,9 @@ function cadenaHoy(C, fecha, H, toca) {
   for (const it of cadenaAg(C, fecha, items)) if (it.cad) R.set(it.ref, { hm: it.h, previo: H.find(x => x.id === it.prevRef) });
   return R;
 }
-const agendaDe = (C, fecha) => { const A = agendaDe0(C, fecha); try { A.items = cadenaAg(C, fecha, A.items); } catch {} return A; };
+// 2.21.4 (S) · «La agenda tendrá lo que no sea habit tracker»: los ítems de hábito (de agendas guardadas antes) no cuentan; cada hábito
+// avisa por su propio horario (a su hora o, encadenado, a la hora efectiva de su cadena), una vez.
+const agendaDe = (C, fecha) => { const A = agendaDe0(C, fecha); A.items = (A.items || []).filter(it => it && it.tipo !== 'habito'); return A; };
 const agendaDe0 = (C, fecha) => {
   const E = C.st.enfoque || {}, A = E.agendaHoy?.fecha === fecha ? E.agendaHoy : null, P = planDe(E, fecha);
   const deA = acota(A?.items, 80).map(it => ({ ...it, enFuente: true, org: altaDe(it, A.organizado) })).concat(btFaltan(E, A, fecha));
@@ -603,7 +605,7 @@ function candidatos(C, fecha) {
       // Si mañana ya está organizado, lo primero que tiene hora y sigue en pie (lo borrado o ya hecho no se da por reservado, F6).
       const m = masDias(fecha, 1), P = planDe(E, m);
       const nom = it => it.tipo === 'habito' ? habito(it.ref)?.nombre || '' : it.tipo === 'tarea' ? acota(st.tareas?.items, 2000).find(x => x.id === it.ref && !x.hecha)?.titulo || '' : it.t;
-      const r = acota(P?.items, 80).filter(it => hmOk(it.h) && sinPunto(nom(it))).sort((a, b) => a.h < b.h ? -1 : 1)[0];
+      const r = acota(P?.items, 80).filter(it => it && it.tipo !== 'habito' && hmOk(it.h) && sinPunto(nom(it))).sort((a, b) => a.h < b.h ? -1 : 1)[0];   // 2.21.4 (S)
       const res = r ? `Mañana ${alas(r.h)} tienes reservado: ${sinPunto(nom(r))}.` : '';
       const exM = estudioDe(st, m).examenes.find(x => x.fecha === m), exT = exM ? `Mañana: examen de ${exM.materia || exM.nombre || 'estudio'}${exM.hora ? ' ' + alas(exM.hora) : ''}.` : '';   // 2.14 · Estudio
       return { tag: 'noche', duda: sim && B.some(x => !(+x.en > 0)), corto: `lo mejor de hoy${res ? ' · ' + minus(res.slice(0, -1)) : ''}${exT ? ' · ' + minus(exT.slice(0, -1)) : ''}`, title: '¿Qué fue lo mejor de hoy?', body: `Un minuto para cerrar con lo que avanzaste y lo mejor del día.${res ? ' ' + res : ''}${exT ? ' ' + exT : ''}` };
