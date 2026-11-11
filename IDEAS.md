@@ -612,6 +612,13 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.21.3: arrastrar en la lista, marcar al instante y rutinas en una fila
+
+- **Arrastrar en la lista de la Agenda**: mantén pulsada una fila y suéltala donde quieras; toma la hora según sus vecinas (o se queda «Sin hora» si la sueltas ahí), con «Deshacer». Una rutina se mueve entera desde su fila.
+- **Marcar al instante**: lo que marcas se tacha enseguida y pasa a «Hechas · n» sin esperas.
+- **Rutinas en una sola fila**: en la Agenda ya no salen los hábitos sueltos; sale la rutina («Rutina · 2 de 4»). Al tocarla se abre y marcas los hábitos que quieras. Deslizar a la derecha marca todos; a la izquierda, «Hoy no / Mover / Quitar». En el calendario y en «Tu día propuesto» la rutina también va junta.
+- **Más simple**: cada fila muestra solo la casilla, el nombre, la hora y una línea («Tarea · Trabajo», «Hábito · Rutina de la noche · Salud»). Al tocarla aparecen los detalles, «▶ Empezar acción», «Abrir ficha» y «⋯». Una fila abierta a la vez.
+
 ## 2.21.2: la lista va por hora y «▶ Empezar acción»
 Pedidos: «por más que las jerarquías no sean por hora, organiza por hora» · «en el relojito pon Empezar acción… igual de grande que Empezar la rutina, con la misma letra y el símbolo de play».
 - Todas las listas del día van por hora efectiva (`agOrdenDia`, `orgOrdenHora`): Agenda en cada pestaña, «Tu día propuesto», paso 4, plan de otro día, Inicio y «Empezar mi día»; a la misma hora decide la importancia; las cadenas van juntas; lo sin hora al final por importancia. El número grande se queda como importancia.
