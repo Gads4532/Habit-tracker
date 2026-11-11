@@ -683,7 +683,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.21.4';
+const APP_VERSION = '2.21.5';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2366,18 +2366,17 @@ const hbCuandoTxt = h => { const p = hbPrevio(h), x = (h?.horas || [])[0]; retur
 // Hoy: quién va antes de cada hábito, con lo que hay hoy (la Agenda de hoy o, sin ella, los hábitos que tocan hoy), como en la Agenda.
 function hbCadenaHoy() {
   const t = today(), A = state.enfoque?.agendaHoy;
-  const refs = A && A.fecha === t && Array.isArray(A.items) && A.items.some(x => x && x.tipo === 'habito') ? A.items.filter(x => x && x.tipo === 'habito').map(x => x.ref)
-    : state.habits.filter(x => x && !x.rutina && isSched(x, t)).map(x => x.id);
+  const refs = state.habits.filter(x => x && !x.rutina && isSched(x, t)).map(x => x.id);   // 2.21.4 (S) · los hábitos que tocan hoy (la Agenda ya no los tiene)
   return hbCadenaRefs([...new Set(refs)], agQuitHab());   // 2.21 (N)
 }
 const hbPrevioHoy = (h, P = hbCadenaHoy()) => { const x = P.get(h.id); return x?.p ? state.habits.find(y => y && y.id === x.p) || null : null; };
 // La hora de hoy de un hábito: la de su ítem en la Agenda (ya con la cadena); sin ítem, la del primero de su cadena más las duraciones.
 function hbHoraHoy(h, P = hbCadenaHoy()) {
   const A = state.enfoque?.agendaHoy, it = A && A.fecha === today() && Array.isArray(A.items) ? A.items.find(x => x && x.tipo === 'habito' && x.ref === h.id && x.h) : null;
-  if (it) return it.h;
+  // 2.21.4 (S) · un ítem de hábito de una agenda vieja no cuenta: la hora del hábito es la suya
   if (!hbPrevioHoy(h, P)) return (h.horas || [])[0] || '';
   const v = new Set([h.id]); let x = h, suma = 0;
-  while ((x = hbPrevioHoy(x, P)) && !v.has(x.id) && v.size < 80) { v.add(x.id); suma += x.modo === 'tiempo' ? Math.max(1, +x.meta || 1) : 15; if (!hbPrevioHoy(x, P)) { const hh = (x.horas || [])[0]; return hh ? minToHm(Math.min(toMin(hh) + suma, 23 * 60 + 55)) : ''; } }
+  while ((x = hbPrevioHoy(x, P)) && !v.has(x.id) && v.size < 80) { v.add(x.id); suma += x.modo === 'tiempo' ? Math.max(1, +x.meta || 1) : 15; if (!hbPrevioHoy(x, P)) { const hh = (x.horas || [])[0]; if (!/^\d\d:\d\d$/.test(hh || '')) return ''; const m = Math.min(+hh.slice(0, 2) * 60 + +hh.slice(3, 5) + suma, 23 * 60 + 55); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); } }   // 2.21.4 (S)
   return '';
 }
 const hbTrasEncadena = () => { const sel = $('#hb-tras'); if (!sel || formIsRoutine) return false; const v = sel.value || ''; return v ? v !== '0' : !!sel.dataset.ant; };
@@ -5261,7 +5260,7 @@ function pendientes() {
   let cadP = null; try { cadP = hbCadenaHoy(); } catch {}
   const firstHour = h => { try { return hbHoraHoy(h, cadP) || '99'; } catch { return (h.horas || [])[0] || '99'; } };   // 2.20.2 · un encadenado, con su hora de hoy
   let RKp = new Map(); try { RKp = hbRangoMapa(); } catch {}
-  const agH = new Map(); try { const A = ES.agendaHoy; if (A && A.fecha === t) for (const it of A.items || []) if (it && it.tipo === 'habito' && !agH.has(it.ref)) agH.set(it.ref, it); } catch {}   // 2.21.2 (H)
+  const agH = new Map();   // 2.21.2 (H) · 2.21.4 (S) · la Agenda ya no tiene hábitos: cada uno va a su hora
   const horaDe = h => { const it = agH.get(h.id); return it ? (/^\d\d:\d\d$/.test(it.h || '') ? it.h : '99') : firstHour(h); }, rkDe = h => { const it = agH.get(h.id); return it && +it.rango >= 1 ? +it.rango : 1e9; };
   const habits = (s.habits || [])
     .filter(h => !h.rutina && (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !s.log?.[h.id]?.[t] && !window.hbProtegido?.(h, t))
@@ -7109,7 +7108,7 @@ function renderAgenda() {
   const its = agItems(), pend = its.filter(it => !agHecho(it)).sort(agOrden), hechas = its.length - pend.length;
   const fila = it => `<button class="row" data-ag="${esc(it.id)}"><span class="dot" style="--c:${it.tipo === 'evento' ? 'var(--muted)' : 'var(--accent)'}"></span><span class="t"><div>${esc(it.t)}</div><small>${esc(agEtqCat(it))}${it.min ? ` · ${fmtMin(it.min)}` : ''}</small></span><span class="tag">${it.h ? fmtHora(it.h) : '—'}</span></button>`;
   if (!its.length) {
-    el.innerHTML = `<button class="row" id="ag-go"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Organiza tu día en 2 minutos</div><small>Hábitos, tareas e iniciativas. Dos minutos y lo importante queda con hora.</small></span><span class="tag">›</span></button>
+    el.innerHTML = `<button class="row" id="ag-go"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Organiza tu día en 2 minutos</div><small>Tareas, iniciativas y prioridades. Dos minutos y lo importante queda con hora.</small></span><span class="tag">›</span></button>
       ${gCalOk() ? '' : `<p class="more"><button class="link" id="ag-con">Conectar Google Calendar</button> para ver aquí también tus eventos</p>`}`;
     $('#ag-go').onclick = () => organizarDia();
     $('#ag-con')?.addEventListener('click', async () => { try { await gToken(true, true); cargarAgenda(true); } catch (e) { toast(e.message); } });
@@ -7232,8 +7231,8 @@ const IA_TOOLS = [
   iaTool('diario_escribir', 'Guarda una entrada en la pestaña Journaling (por ejemplo, un resumen que la persona dictó o pidió guardar); si Notion está conectado, se envía sola a su base de Journaling.', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
-  iaTool('agenda_ver', 'Devuelve la agenda de hoy (hábitos, tareas, iniciativas, prioridades, planes y eventos con hora, y si están hechos) y los objetivos SMART activos con su avance.', {}),
-  iaTool('agenda_organizar', 'Pone cosas en la agenda de hoy o de mañana con hora y minutos, en forma SMART. Crea la tarea o el hábito si no existe. Úsalo solo si la persona lo pidió o aceptó.', {
+  iaTool('agenda_ver', 'Devuelve la agenda de hoy (tareas, iniciativas, prioridades, estudio, Vida espiritual, bloques, planes y eventos con hora, y si están hechos) y los objetivos SMART activos con su avance. Los hábitos no están en la agenda: viven en Hábitos.', {}),
+  iaTool('agenda_organizar', 'Pone cosas en la agenda de hoy o de mañana con hora y minutos, en forma SMART. Crea la tarea si no existe. Un hábito no entra en la agenda: se crea en Hábitos con su hora (si no existe). Úsalo solo si la persona lo pidió o aceptó.', {
     dia: { type: 'string', enum: ['hoy', 'manana'], description: 'hoy, o manana para dejar organizado el día siguiente.' },
     items: { type: 'array', description: 'Cosas a agendar (máximo 15).', items: { type: 'object', properties: { tipo: { type: 'string', enum: ['habito', 'tarea', 'iniciativa', 'otro'] }, texto: S('Qué (verbo + qué). Para hábitos y tareas que ya existen, su nombre tal cual.'), hora: S('HH:MM en 24 h o vacío.'), minutos: { type: 'integer', description: 'Duración estimada en minutos (5 a 180).' }, categoria: S('Para iniciativas: estudio, proyecto, laboral, social o espiritual; vacío en otro caso.'), hecho_cuando: S('Señal medible de hecho, o vacío.'), para_que: S('Para qué sirve u objetivo al que suma, o vacío.') }, required: ['tipo', 'texto', 'hora', 'minutos', 'categoria', 'hecho_cuando', 'para_que'], additionalProperties: false } },
     reemplazar: { type: 'boolean', description: 'true para quitar de esa agenda lo que no esté en esta lista (prioridades, planes, eventos y lo ya hecho se mantienen).' } }),
@@ -9140,7 +9139,11 @@ const agFuente = it => {
 // 2.20 · Una tarea que se repite deja una nueva al completarse (origen = la anterior): la viva es la última de la cadena.
 const tareaViva = (id, dia = today()) => { const T = HT().tareas.items; let x = T.find(y => y.id === id); for (let i = 0; x && x.hecha && x.repite && i < 60; i++) { const h = T.find(y => y.origen === x.id); if (!h || (h.fecha && h.fecha > dia)) break; x = h; } return x; };   // sin pasar del día
 // 2.20 · Una tarea movida a otro día ya no sale en la agenda de hoy (vuelve si su fecha regresa a hoy).
-const agVivo = it => { const f = agFuente(it); if (!f) return false; if (it.tipo === 'ini') return !!f.t; if (it.tipo === 'tarea' && !f.hecha && f.fecha && f.fecha > (ES.agendaHoy?.fecha || today())) return false; return true; };
+// 2.21.4 (S) · «La agenda tendrá lo que no sea habit tracker.» Un ítem de hábito (de una agenda guardada antes, aquí o en la nube) se queda
+// guardado tal cual, pero la Agenda no lo lee: los hábitos viven en Hábitos. (function: se usa también arriba, antes de esta línea.)
+function agVisible(it) { return !!it && it.tipo !== 'habito'; }
+function agVisibles(L) { return (Array.isArray(L) ? L : []).filter(agVisible); }
+const agVivo = it => { if (!agVisible(it)) return false; const f = agFuente(it); if (!f) return false; if (it.tipo === 'ini') return !!f.t; if (it.tipo === 'tarea' && !f.hecha && f.fecha && f.fecha > (ES.agendaHoy?.fecha || today())) return false; return true; };
 function agHecho(it, k = today()) {
   if (it.tipo === 'bt') return btHechoAg(it, k);   // 2.16 (B) · hecho si todo lo de dentro lo está (sin nada dentro, lo marcado a mano)
   if (it.tipo === 'libre' && it.esp) { const v = espHechaEn(it.esp, k); if (v !== null) return v; }   // 2.15 (V) · un ítem de Vida espiritual es lo que diga su norma
@@ -9160,10 +9163,11 @@ function agHecho(it, k = today()) {
 function agAutoAlta(A) {
   if (!(+A.organizado > 0) || A.fecha !== today()) return false;
   const s = HT(), d = A.fecha, cand = [];
-  for (const h of s.habits) if (h && !h.rutina && (!h.creado || h.creado <= d) && isSched(h, d) && !window.hbProtegido?.(h, d)) cand.push(['habito', h]);
+  // 2.21.4 (S) · los hábitos ya no entran solos: viven en Hábitos
   for (const x of s.tareas.items) if (x && !x.hecha && x.fecha && x.fecha <= d) cand.push(['tarea', x]);
   const nuevo = !Array.isArray(A.vistos); if (nuevo) A.vistos = [];   // agenda organizada antes de 2.20: lo de ahora cuenta como visto
   const vis = new Set(A.vistos), en = new Set(A.items.map(it => it.tipo + ':' + it.ref)); let cambio = nuevo;
+  for (const h of s.habits) if (h && !h.rutina && (!h.creado || h.creado <= d) && isSched(h, d) && !vis.has('habito:' + h.id)) { vis.add('habito:' + h.id); A.vistos.push('habito:' + h.id); cambio = true; }   // 2.21.4 (S) · vistos, no en la agenda: un teléfono con 2.21.3 no los mete solos
   for (const [tipo, f] of cand) {
     const k = tipo + ':' + f.id; if (vis.has(k)) continue;
     vis.add(k); A.vistos.push(k); cambio = true; if (nuevo || en.has(k)) continue;
@@ -9202,7 +9206,7 @@ function agCadena(A) {
     if (mk && mk.min !== null) m = m === null ? mk.min : Math.max(m, mk.min);
     const v = m === null ? '' : minToHm(Math.min(m, 23 * 60 + 55)); memo.set(it.id, v); return v; };
   for (const it of A.items) {
-    if (!it || it.tipo !== 'habito') continue;
+    if (!it || it.tipo !== 'habito' || !agVisible(it)) continue;   // 2.21.4 (S) · ningún hábito es visible: los de antes no se tocan
     const x = M.get(it.id);
     if (x?.prev) { const v = ef(it); if (it.h !== v) { it.h = v; cambio = true; } if (!it.cad) { it.cad = 1; cambio = true; } if ('suelto' in it) { delete it.suelto; cambio = true; } }
     else if (it.cad) {
@@ -9256,7 +9260,7 @@ function agSync(A) {
     if (it.tipo === 'ini') { const x = I.find(y => y.k === it.ref); if (x?.t) { t = x.t; h = x.hora || ''; const m = Math.round(+x.min) || 0;
       if (m > 0 && it.imf !== m) { if (+it.min !== m && (it.imf !== undefined || !(+it.min === 25 && m > 25))) it.min = m; it.imf = m; cambio = true; } } }   // 2.21.4 (I) · sus minutos (imf: los últimos vistos; el tope de un día corto se respeta)
     else if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x) { t = x.titulo; if (x.hora) h = x.hora; } }
-    else if (it.tipo === 'habito') { const x = s.habits.find(y => y.id === it.ref); if (x) { t = x.nombre; const fh = (x.horas || [])[0] || ''; if (it.hf === undefined) { it.hf = fh; cambio = true; } else if (it.hf !== fh) { if (it.h === it.hf) h = fh; it.hf = fh; cambio = true; } } }   // 2.20 · la hora del hábito, si nadie la cambió a mano
+    else if (it.tipo === 'habito') { if (!agVisible(it)) continue; const x = s.habits.find(y => y.id === it.ref); if (x) { t = x.nombre; const fh = (x.horas || [])[0] || ''; if (it.hf === undefined) { it.hf = fh; cambio = true; } else if (it.hf !== fh) { if (it.h === it.hf) h = fh; it.hf = fh; cambio = true; } } }   // 2.20 · la hora del hábito, si nadie la cambió a mano
     else if (it.tipo === 'prio') { const x = ES.prioridades.items.find(y => y.id === it.ref); if (x) { t = x.t; if (!!x.hecho !== !!it.hecho) { it.hecho = !!x.hecho; cambio = true; } } }
     else if (it.tipo === 'estudio') { const x = window.est?.bloque?.(it.ref); if (x) { t = window.est.textoBloque(x); h = x.h || ''; } }   // 2.14 (X)
     else if (it.tipo === 'plan') { const x = ES.planes.find(y => y.id === it.ref); if (x) { t = `${cap(x.titulo)}${x.con ? ' con ' + x.con : ''}`; h = x.hora || ''; } }
@@ -9409,7 +9413,7 @@ function agCompleta() {
   const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt');
   const llena = its.length >= 3 && its.every(it => agHecho(it));
   if (llena && !A.completa) { A.completa = true; guardar(); if (!(dayOf().agendas > 0)) { bump('agendas'); buzz([40, 60, 40]); setTimeout(() => xpGanar(25, 'Agenda del día completa', 'b:agenda:' + today(), { si: () => !!agenda().completa, no: () => { if ((dayOf().agendas || 0) > 0) bump('agendas', -1); } }), 800); } }
-  else if (!llena && A.completa) { A.completa = false; if (xpQuitar('b:agenda:' + today()) && (dayOf().agendas || 0) > 0) bump('agendas', -1); guardar(); }   // 2.17 (XP) · vuelve al completarla otra vez
+  else if (A.completa && its.some(it => !agHecho(it))) { A.completa = false; if (xpQuitar('b:agenda:' + today()) && (dayOf().agendas || 0) > 0) bump('agendas', -1); guardar(); }   // 2.17 (XP) · vuelve al completarla otra vez
 }
 // 2.21 (N) · «Quitar de la agenda»: sale de hoy y hoy no vuelve solo (agSync, recargar, Google Tasks, otro teléfono). A.quit = { 'tipo:ref': ms }:
 // positivo, quitado hoy a esa hora; negativo, devuelto («Deshacer» o puesto otra vez). Al combinar gana el más reciente. No borra la fuente ni
@@ -9614,9 +9618,7 @@ function orgInit(dest = today()) {
   const base = M ? (P?.items || []) : A.items, sel = new Map(base.map(it => [it.tipo + ':' + it.ref, it]));
   const organizado = M ? !!P?.organizado : !!A.organizado;
   org = { dest, manana: M, creado: today(), hab: new Map(), tar: new Map(), ini: {}, prioH: {}, libres: base.filter(it => it.tipo === 'libre').map(it => ({ ...it })), organizado, rana: null, auto: new Set() };
-  for (const h of s.habits.filter(h => !h.rutina && (!h.creado || h.creado <= dest) && isSched(h, dest))) { const it = sel.get('habito:' + h.id); org.hab.set(h.id, { on: it ? true : (!organizado && !window.hbProtegido?.(h, dest)), h: it?.h || (h.horas || [])[0] || '' }); }
-  // Lo que ya está en la agenda entra aunque no toque ese día o ya esté hecho: reorganizar nunca borra lo que no muestra.
-  for (const it of base.filter(i => i.tipo === 'habito' && !org.hab.has(i.ref))) if (s.habits.some(h => h.id === it.ref)) org.hab.set(it.ref, { on: true, h: it.h || '' });
+  // 2.21.4 (S) · los hábitos no entran: org.hab queda vacío (viven en Hábitos)
   const pend = s.tareas.items.filter(x => !x.hecha);
   const due = pend.filter(x => x.fecha && x.fecha <= dest).sort((a, b) => a.fecha < b.fecha ? -1 : 1), sinF = pend.filter(x => !x.fecha).sort((a, b) => (b.creado || 0) - (a.creado || 0)).slice(0, 15);
   for (const x of [...due, ...sinF]) { const it = sel.get('tarea:' + x.id); org.tar.set(x.id, { on: it ? true : (!organizado && !!x.fecha), h: it?.h || (M ? '' : x.hora) || '' }); }
@@ -9650,13 +9652,14 @@ function orgDesdeHist(fecha) {
     if (it.tipo === 'libre' && !org.libres.some(x => x.t === it.t || (!!it.esp && x.esp === it.esp))) org.libres.push({ id: crypto.randomUUID(), tipo: 'libre', ref: '', t: it.t, h: it.h || '', min: it.min || AG_MIN.libre, hecho: false, iden: it.iden || '', ...espDeHist(it, org.dest) });
   }
 }
-const pieOrg = (n, t) => `<p class="paso">Paso ${n} de 4 · ${t}${org?.manana ? ' · ' + agpCuando(org.dest) : ''}</p><div class="meter-bar" id="og-barra" role="progressbar" aria-label="Avance de la organización" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${[40, 60, 80, 100][n - 1]}" style="height:4px;margin:0 0 14px"><i style="width:${[40, 60, 80, 100][n - 1]}%"></i></div>`;
+const pieOrg = (n, t) => `<p class="paso">Paso ${n - 1} de 3 · ${t}${org?.manana ? ' · ' + agpCuando(org.dest) : ''}</p><div class="meter-bar" id="og-barra" role="progressbar" aria-label="Avance de la organización" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${[34, 34, 67, 100][n - 1]}" style="height:4px;margin:0 0 14px"><i style="width:${[34, 34, 67, 100][n - 1]}%"></i></div>`;
 const boxSt = on => on ? 'background:var(--text);border-color:var(--text)' : '';
 const boxHecho = 'background:var(--green);border-color:var(--green)';
 function organizarManana() { orgInit(diaManana()); organizarDia(1, true); }
 function organizarDia(paso = 1, sigue = false) {
   if (!sigue || !org || org.creado !== today()) orgInit(sigue && org?.manana && org.creado === today() ? org.dest : today());
   const s = HT(), M = org.manana, cuando = M ? agpCuando(org.dest) : 'hoy', body = () => $('#sheet-body');
+  if (paso === 1) paso = 2;   // 2.21.4 (S) · sin el paso de los hábitos: empieza en las tareas
   agbPaso(paso);
   // Filas que se marcan tocando cualquier parte (no solo el círculo); la hora se cambia sin desmarcar.
   const filas = (sel, mapa, bloqueado) => body().querySelector(sel)?.addEventListener('click', e => {
@@ -9686,18 +9689,18 @@ function organizarDia(paso = 1, sigue = false) {
   }
   if (paso === 2) {
     const ts = [...org.tar.keys()].map(id => s.tareas.items.find(y => y.id === id)).filter(Boolean);
-    showSheet(`${pieOrg(2, 'Tareas')}<h2>¿Qué tareas entran ${cuando}?</h2>
+    showSheet(`${pieOrg(2, 'Tareas')}${agbSuenoHtml()}<h2>¿Qué tareas entran ${cuando}?</h2>
       <p class="note">Las que vencen ${cuando} y las vencidas ya están marcadas. Toca una fila para ponerla o quitarla. Una tarea con hora es una decisión tomada.</p>
       ${ts.length ? `<div class="rows" id="og-rows">${tpAgrupar(ts, x => { const o = org.tar.get(x.id), ok = !!x.hecha; return `<div class="row" data-tg="${esc(x.id)}" ${ok ? 'data-hecho="1"' : ''} style="cursor:pointer"><span class="box" style="${ok ? boxHecho : boxSt(o.on)}"></span>
         <span class="t"><div>${esc(x.titulo)}${ok ? ' <span class="green">· hecha</span>' : ''}</div><small>${tpEtqHtml(x)} · ${x.fecha ? (x.fecha < today() ? `<span class="amber">Vencida · ${fmtFecha(x.fecha)}</span>` : fmtFecha(x.fecha)) : 'Sin fecha'}${x.detalle ? ' · ' + esc(x.detalle) : ''}</small></span>
         ${horaInput('ot-' + esc(x.id), o.h, `data-tt="${esc(x.id)}"`)}</div>`; })}</div>` : '<p class="empty">No hay tareas pendientes. Crea una si hace falta.</p>'}
       <details ${ts.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear una tarea</summary>${tarFormHtml('ot', false)}
         <div class="actions" style="margin-top:0"><button class="link" id="ot-crear">Crear y poner ${cuando}</button></div></details>
-      <div class="actions"><button class="link" id="og-back">Atrás</button><button class="primary" id="og-next">Siguiente</button></div>`);
+      <div class="actions"><button class="link" id="og-cancel">Cancelar</button><button class="primary" id="og-next">Siguiente</button></div>`);
     filas('#og-rows', org.tar, id => !!s.tareas.items.find(y => y.id === id)?.hecha);
     horas('data-tt', org.tar, 'tar:');
     $('#ot-crear').onclick = () => { const d = tarFormLeer(body(), 'ot', false); if (!d) return; const x = agCrearTarea({ titulo: d.titulo, hora: M ? '' : d.hora, min: d.min, fecha: org.dest, exito: d.exito, iden: d.iden || '', cat: d.cat }); org.tar.set(x.id, { on: true, h: d.hora }); toast('Tarea creada.'); organizarDia(2, true); };
-    $('#og-back').onclick = () => organizarDia(1, true);
+    $('#og-cancel').onclick = closeSheet;
     $('#og-next').onclick = () => organizarDia(3, true);
     return;
   }
@@ -9874,7 +9877,7 @@ function orgGuardar() {
   } else for (const [k, o] of Object.entries(org.ini)) if (o?.on) { planIni[k] = { t: o.t, exito: o.exito || EXITO_DEF[k], h: o.h || '', min: o.min || AG_MIN.ini, por: o.por || '', paso: o.paso || '', obj: o.obj || '', iden: o.iden || '', est: o.est || '' }; mk('ini', k, o.t, o.h, planIni[k].min, { iden: o.iden || '' }); }
   for (const [id, o] of org.tar) if (o.on) { const x = s.tareas.items.find(y => y.id === id); if (x) { if (!M) x.hora = o.h || x.hora || ''; mk('tarea', id, x.titulo, o.h, agbMin('tar:' + id, 'tarea', x.min || AG_MIN.tarea), { obj: x.obj || prev.get('tarea:' + id)?.obj || '', exito: prev.get('tarea:' + id)?.exito || x.exito || '', iden: x.iden || '' }); } }
   for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) mk('habito', id, h.nombre, o.h, h.modo === 'tiempo' ? h.meta : AG_MIN.habito, { hf: (h.horas || [])[0] || '' }); }
-  const vistosOrg = [...[...org.hab.keys()].map(id => 'habito:' + id), ...[...org.tar.keys()].map(id => 'tarea:' + id)];   // 2.20 · lo visto al organizar no vuelve solo
+  const vistosOrg = [...s.habits.filter(h => h && !h.rutina && (!h.creado || h.creado <= D) && isSched(h, D)).map(h => 'habito:' + h.id), ...[...org.tar.keys()].map(id => 'tarea:' + id)];   // 2.21.4 (S) · los hábitos de ese día cuentan como vistos (un teléfono con 2.21.3 no los mete solos)   // 2.20 · lo visto al organizar no vuelve solo
   exOrgGuardar(mk, items);   // 2.14 (X) · los bloques encendidos, con su hora (que vuelve al bloque)
   for (const pl of ES.planes.filter(p => p.fecha === D && (!p.hecho || prev.has('plan:' + p.id)) && orgSolo('plan:' + p.id))) mk('plan', pl.id, `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, pl.hora, 60);
   for (const it of org.libres) items.push({ ...it, min: agbMin('lib:' + it.id, 'libre', it.min || AG_MIN.libre) });
@@ -9898,6 +9901,7 @@ function orgGuardar() {
   }
   for (const it of A.items.filter(i => i.tipo === 'evento')) items.push(it);
   for (const it of A.items.filter(i => i.tipo === 'bt')) items.push(it);   // 2.16 (B) · los bloques de tiempo de hoy se quedan
+  for (const it of A.items.filter(i => !agVisible(i))) items.push(it);   // 2.21.4 (S) · lo de antes (hábitos) se queda guardado, oculto: nada se borra
   for (const it of A.items) if (!items.some(x => x.id === it.id)) forget(it.id);
   A.items = items; A.organizado = Date.now(); A.vistos = [...new Set([...(Array.isArray(A.vistos) ? A.vistos : []), ...vistosOrg])];   // 2.20
   exOrgOcultos(A);   // 2.14 (X) · los apagados no vuelven a entrar hoy; los encendidos salen de ocultos
@@ -9910,8 +9914,9 @@ function agCopiarAyer() { orgInit(today()); orgDesdeHist(dayKey(addDays(new Date
 
 // ---------- Añadir una cosa suelta a la agenda (hábito, tarea, iniciativa u otra cosa), siempre en forma SMART.
 function agAddSheet(tipo = '') {
+  if (tipo === 'habito') tipo = '';   // 2.21.4 (S) · los hábitos se crean en Hábitos
   const A = agenda(), s = HT(), en = new Set(A.items.map(it => it.tipo + ':' + it.ref));
-  const chips = `<div class="chips" id="aa-tipos">${[['habito', 'Hábito'], ['tarea', 'Tarea'], ['ini', 'Iniciativa'], ['libre', 'Otra cosa']].map(([k, n]) => `<button class="chip${tipo === k ? ' on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>`;
+  const chips = `<div class="chips" id="aa-tipos">${[['tarea', 'Tarea'], ['ini', 'Iniciativa'], ['libre', 'Otra cosa']].map(([k, n]) => `<button class="chip${tipo === k ? ' on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>`;
   let cuerpo = '<p class="empty">Elige qué quieres añadir.</p>';
   if (tipo === 'habito') { const habs = s.habits.filter(h => !h.rutina && !en.has('habito:' + h.id)); cuerpo = `${habs.length ? `<div class="rows">${habs.map(h => `<button class="row" data-ha="${esc(h.id)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc(h.nombre)}</div><small>${isSched(h, today()) ? 'Toca hoy' : 'Otro día, pero puede entrar hoy'}${hbCuandoTxt(h) ? ' · ' + esc(hbCuandoTxt(h)) : ''}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}
     <details ${habs.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear un hábito nuevo</summary>${habFormHtml('ah')}${btcChips('ah-bt')}<div class="actions" style="margin-top:0"><button class="primary" id="aa-crear">Crear y poner hoy</button></div></details>`; }
@@ -10138,7 +10143,7 @@ function sosSheet() {
 }
 
 // ---------- Para el asistente: poner cosas en la agenda de hoy o de mañana (crea hábitos y tareas que falten).
-const agendaPlanResumen = () => { const P = planManana(); return P ? { fecha: P.fecha, organizado: true, prioridades: prioPlanLista(P).map((x, i) => ({ numero: i + 1, texto: x.t })), items: [...P.items].sort(agOrden).map(it => ({ tipo: it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda', texto: it.t, hora: it.h || '', minutos: it.min || 0 })) } : null; };
+const agendaPlanResumen = () => { const P = planManana(); return P ? { fecha: P.fecha, organizado: true, prioridades: prioPlanLista(P).map((x, i) => ({ numero: i + 1, texto: x.t })), items: agVisibles(P.items).sort(agOrden).map(it => ({ tipo: it.tipo === 'ini' ? `Iniciativa de ${iniNombre(it.ref).toLowerCase()}` : AG_TIPO[it.tipo] || 'Agenda', texto: it.t, hora: it.h || '', minutos: it.min || 0 })) } : null; };
 // F7 · Día corto: el hábito nuevo que el asistente pone hoy se guarda como idea para mañana (la tarjeta «Tu idea» lo propone).
 function agbIdeaCorto(texto) {
   const t = String(texto || '').trim().slice(0, 60), I = ES.ideaHabito;
@@ -10166,7 +10171,7 @@ function agendaAsistente(a) {
   for (const it of (a.items || []).slice(0, 15)) {
     const h = /^\d\d:\d\d$/.test(it.hora || '') ? it.hora : '', min = it.minutos > 0 ? Math.max(5, Math.min(180, it.minutos | 0)) : 0, texto = String(it.texto || '').trim(); if (!texto) continue;
     if (it.tipo === 'habito' && !M && agbIdeaCorto(texto)) continue;
-    if (it.tipo === 'habito') { let hb = buscar(s.habits.filter(x => !x.rutina), texto, 'nombre'); if (!hb) hb = agCrearHabito({ nombre: texto, hora: h, porque: it.para_que || '' }); poner('habito', hb.id, hb.nombre, h, min || AG_MIN.habito); }
+    if (it.tipo === 'habito') { let hb = buscar(s.habits.filter(x => !x.rutina), texto, 'nombre'); if (!hb) hb = agCrearHabito({ nombre: texto, hora: h, porque: it.para_que || '' }); }   // 2.21.4 (S) · vive en Hábitos, con su hora: no entra en la agenda
     else if (it.tipo === 'tarea') { let x = buscar(s.tareas.items.filter(y => !y.hecha), texto, 'titulo'); if (!x) x = agCrearTarea({ titulo: texto, hora: M ? '' : h, fecha: D, min }); else if (h && !M) { x.hora = h; save(); } poner('tarea', x.id, x.titulo, h, min || x.min || AG_MIN.tarea, { exito: it.hecho_cuando || '', por: it.para_que || '' }); }
     else if (it.tipo === 'iniciativa') {
       const k = INI4.some(([x]) => x === it.categoria) ? it.categoria : 'proyecto', o = { t: texto, exito: it.hecho_cuando || EXITO_DEF[k], h, min: min || AG_MIN.ini, por: it.para_que || '', paso: '', obj: '' };
@@ -10176,7 +10181,7 @@ function agendaAsistente(a) {
     else poner('libre', '', texto, h, min || AG_MIN.libre, { exito: it.hecho_cuando || '', por: it.para_que || '' });
   }
   if (a.reemplazar) {
-    const fijos = ['prio', 'plan', 'evento', 'bt'], quedan = it => puestos.includes(it) || fijos.includes(it.tipo) || (!M && agHecho(it));
+    const fijos = ['prio', 'plan', 'evento', 'bt'], quedan = it => puestos.includes(it) || fijos.includes(it.tipo) || !agVisible(it) || (!M && agHecho(it));   // 2.21.4 (S) · lo oculto se queda
     if (!M) for (const it of base.items) if (!quedan(it)) forget(it.id);
     base.items = base.items.filter(quedan);
     if (M) for (const k of Object.keys(base.ini)) if (!base.items.some(i => i.tipo === 'ini' && i.ref === k)) delete base.ini[k];
@@ -10285,7 +10290,7 @@ function renderAg() {
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecha" aria-pressed="${ok}"></button>
       <div class="t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}</div><small>${fo ? 'Bloque protegido' : esc(agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab ? agPildoraHtml(it, ok) : ''}</small></div>
-      ${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${agAccionBtnHtml(it, ok)}<div class="ag-ex-a"><button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
+      ${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${agAccionBtnHtml(it, ok)}<div class="ag-ex-a"><button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
   const pendE = it => esLead(it) ? RG.lead.get(it.id).ms.some(agPendVis) : agPendVis(it);
@@ -10294,21 +10299,21 @@ function renderAg() {
   const nowL = () => org0 ? agAhoraLineaHtml() : `<div class="ag-now"><span>Ahora${agHorasOcultas() ? '' : ` · ${fmtHora(hhmm(new Date()))}`}</span></div>`;   // 2.21 (E) · «Ahora / Después» al lado de la hora
   for (const it of agRutPorHora(conH.filter(visE).filter(pendE), RG)) { const hE = esLead(it) ? agRutHoraEf(RG.lead.get(it.id)) : it.h; if (!marcado && toMin(hE) > now) { filas.push(nowL()); marcado = true; } filas.push(filaE(it)); }   // 2.21.3 (B) · lo hecho, al final
   if (!marcado && conH.length) filas.push(nowL());
-  if (!conH.length && org0) filas.push(nowL());   // nada con hora: la línea, arriba de la lista
+  if (!conH.length && org0 && its.length) filas.push(nowL());   // 2.21.4 (S) · con la agenda vacía, la frase de arriba basta   // nada con hora: la línea, arriba de la lista
   const objs = objetivosActivos();
-  const mananaCard = P ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Mañana ya está organizado</div><small>${P.items.length} ${P.items.length === 1 ? 'cosa' : 'cosas'}${P.rana?.t ? ` · tu prioridad 1: ${esc(P.rana.t)}` : ''}${(P.items || []).some(i => i.foco) ? ' · con bloque protegido' : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`
+  const mananaCard = P ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Mañana ya está organizado</div><small>${agVisibles(P.items).length} ${agVisibles(P.items).length === 1 ? 'cosa' : 'cosas'}${P.rana?.t ? ` · tu prioridad 1: ${esc(P.rana.t)}` : ''}${(P.items || []).some(i => i.foco) ? ' · con bloque protegido' : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`
     : tarde ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Deja mañana organizado · 2 min</div><small>Al despertar ya sabrás qué hacer y a qué hora: decidirlo la víspera, en frío, ayuda a cumplirlo.</small></span><span class="tag">›</span></button>` : '';
   const agcOn = agcVista() === 'cal';   // 2.21 (K)
   agW.innerHTML = `<div class="ag-top"><p class="paso">${esc(cap(fechaLarga(today())))}${A.anoche ? ' · organizada anoche' : ''}</p>${agcSegHtml()}
     ${org0 ? '' : agAlertaHtml('ag-org', hayAyer)}
     ${its.length ? `<div class="ag-av"><div class="ag-av-m"><div class="meter"><span>${org0 ? 'Día organizado' : 'Agenda de hoy'}</span><b class="${U0.n && hechas === U0.n ? 'green' : ''}">${hechas} de ${U0.n} hechas · ${xpHoy()} XP hoy</b></div><div class="meter-bar"><i style="width:${U0.n ? hechas / U0.n * 100 : 0}%"></i></div></div>
       ${agMenuHtml(org0, its, hayAyer)}</div>${cadDiaHtml(pest)}`
-    : `<div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-add">Añadir una cosa</button></div>${agMenuHtml(org0, its, hayAyer, true)}`}</div>
+    : `${org0 ? '<p class="note ag-libre">Tu agenda de hoy está libre. Tus hábitos siguen en Hábitos.</p><div class="actions ag-libre-a" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-libre-org">Organizar mi día</button><button class="link" data-goview="hoy">Ver mis hábitos</button><button class="link" id="ag-add">Añadir una cosa</button></div>' : '<div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-add">Añadir una cosa</button></div>'}${agMenuHtml(org0, its, hayAyer, true)}`}</div>
     ${agcOn ? agcAgendaHtml(its, A, cadM, org0) : `<div class="ag-lista">${pestHtml}
     ${filas.length ? `<div class="rows ag-rows-h">${filas.join('')}</div>` : ''}
     ${sinH.filter(visE).some(pendE) ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows ag-rows-s">${sinH.filter(visE).filter(pendE).map(filaE).join('')}</div>${!agHorasOcultas() && agNotaHora() ? '<p class="meta">Toca «Poner hora»: con hora se cumple más.</p>' : ''}` : ''}
     ${agHechasHtml(ordV.filter(visE).filter(it => !pendE(it)), filaE, true)}
-    ${(filas.length || sinH.length) && !agLs('ag-desliza') ? '<p class="meta ag-desliza" id="ag-desliza">Toca una fila para ver más. Desliza una fila: a la derecha, hecho; a la izquierda, mañana o mover. Mantenla pulsada y arrástrala para cambiar su hora. <button class="link" id="ag-desliza-ok">Entendido</button></p>' : ''}
+    ${(filas.length || sinH.length) && !agLs('ag-desliza') ? '<p class="meta ag-desliza" id="ag-desliza">Toca una fila para ver más. Desliza una fila: a la derecha, hecho; a la izquierda, mañana o mover. Arrástrala desde ⠿ para cambiar su hora. <button class="link" id="ag-desliza-ok">Entendido</button></p>' : ''}
     ${pestHtml && pest !== 'todo' && vis.length && vis.every(it => agHecho(it)) && pest !== 'evento' ? `<p class="meta green ag-pest-fin">Todo hecho en ${esc((AG_PEST.find(([k]) => k === pest) || [])[1] || '').toLowerCase()}.${its.some(it => it.tipo !== 'evento' && !agHecho(it)) ? ' Lo que queda está en las otras pestañas.' : ''}</p>` : ''}</div>`}
     ${mananaCard ? `<div style="margin-top:18px">${mananaCard}</div>` : ''}
     <details class="ag-mas"${agMasAbierto() ? ' open' : ''}><summary>Más: otros días, objetivos y metas</summary>
@@ -10319,7 +10324,8 @@ function renderAg() {
       <p class="more"><button class="link" id="ag-obj-add">+ Objetivo</button>${ES.objetivos.some(o => o.hecho) ? ` · ${ES.objetivos.filter(o => o.hecho).length} cumplidos` : ''}</p>${window.mtAgendaHtml?.() || ''}</section>
     ${window.csAgendaHtml?.() || ''}
     ${agbMananasHtml()}</details>`;
-  { const og = agW.querySelector('#ag-org'); if (og) og.onclick = () => orgPropuestaSheet(); }   // 2.20.1 · con la Agenda vacía y organizada no hay botón · 2.21 (A) · «Tu día propuesto»
+  { const og = agW.querySelector('#ag-org'); if (og) og.onclick = () => orgPropuestaSheet(); }
+  agW.querySelector('#ag-libre-org')?.addEventListener('click', () => orgPropuestaSheet());   // 2.21.4 (S)   // 2.20.1 · con la Agenda vacía y organizada no hay botón · 2.21 (A) · «Tu día propuesto»
   agW.querySelector('.ag-mas')?.addEventListener('toggle', e => agMasPoner(e.target.open));   // 2.19.1 · se recuerda abierto o cerrado
   agW.querySelectorAll('[data-ag-pest]').forEach(b => b.onclick = () => { const k = b.dataset.agPest; agPestPoner(k); renderAg();   // 2.19 (P)
     const p = agW.querySelector('.ag-pest'); if (p && p.getBoundingClientRect().top <= 1) p.scrollIntoView({ block: 'start' }); agW.querySelector(`[data-ag-pest="${k}"]`)?.focus({ preventScroll: true }); });
@@ -10699,7 +10705,7 @@ function agSwipeWire(cont) {
   cont.addEventListener('touchstart', e => {
     if (!e.target.closest?.('.ag-sw')) agSwCerrar();
     if (e.touches.length !== 1) { limpiar(S); S = null; return; }
-    const row = e.target.closest?.('.ag-it'); if (!row || e.target.closest('input, select, textarea, .ag-sub')) { S = null; return; }
+    const row = e.target.closest?.('.ag-it'); if (!row || e.target.closest('input, select, textarea, .ag-sub, [data-asa]')) { S = null; return; }
     const t = e.touches[0]; S = { row, id: t.identifier, x: t.clientX, y: t.clientY, dx: 0, on: false, no: false };
   }, { passive: true });
   cont.addEventListener('touchmove', e => {
@@ -10772,6 +10778,66 @@ function agLpWire(cont) {
   cont.addEventListener('touchend', soltar); cont.addEventListener('touchcancel', soltar);
   cont.addEventListener('contextmenu', e => { if (lp) e.preventDefault(); });
 }
+// ====================================================================
+// 2.21.4 (S) · El gesto de arrastrar, uno para la lista de la Agenda y para «Organizar mi día» (el calendario usa el suyo con el mismo asa).
+// En el teléfono, mantener pulsada la fila no funcionaba: la fila tenía touch-action: pan-y y se levantaba tras 350 ms quieta; con un dedo
+// real Chrome se quedaba el toque (desplazar al temblar unos píxeles, o la pulsación larga del sistema con selección de texto) y mandaba
+// touchcancel, que la soltaba. Ahora: el asa ⠿ (touch-action: none) levanta la fila al apoyar el dedo, con captura del puntero; mantener
+// pulsada la fila sigue valiendo (10 px de margen; sin selección ni menú; touchmove no pasivo con preventDefault en cuanto se levanta).
+// o: { fila: selector de la fila, asa: selector del asa, no: lo que no levanta con pulsación larga, filaOk(row), empezar(row, x, y, { asa, el }) →
+//      { mv(x, y), fin(ok) } | null (nada) | false (no se puede: se come el gesto y el toque) }
+// Chrome en Android empieza a desplazar cuando el dedo se mueve unos 8 px, antes de los 10 px de margen: si algo se desplaza mientras se
+// mantiene pulsada una fila, la pulsación se cancela (arrEspera); y si, ya levantada, un touchmove llega sin poder cancelarse (Chrome ya
+// está desplazando), el arrastre se cancela en vez de mover la fila con la página debajo.
+// ====================================================================
+window.arrEspera = null;   // (window: también la usa el calendario, en otro ámbito)
+addEventListener('scroll', () => { const f = window.arrEspera; if (f) { window.arrEspera = null; try { f(); } catch {} } }, { capture: true, passive: true });
+function arrGesto(cont, o) {
+  if (!cont || cont.dataset.arrG) return; cont.dataset.arrG = '1';
+  const MS = o.ms || 350, TOL = 10, ASA = o.asa || '[data-asa]';
+  let g = null, noClick = 0;
+  const NADA = { mv() {}, fin() {} };
+  const zumbar = () => { try { navigator.vibrate?.(10); } catch {} };
+  const acabar = ok => { const x = g; g = null; if (!x) return; clearTimeout(x.tm); if (x.S) { try { x.S.fin(!!ok); } catch (e) { console.warn('Arrastre', e); } noClick = Date.now(); } };   // después de fin: un clic que fin da a propósito no se come
+  const filaDe = el => { const r = el?.closest?.(o.fila); return r && cont.contains(r) && (!o.filaOk || o.filaOk(r)) ? r : null; };
+  const iniciar = (row, x, y, info) => { let S = null; try { S = o.empezar(row, x, y, info); } catch (e) { console.warn('Arrastre', e); } if (S === false) return NADA; if (S) zumbar(); return S || null; };
+  // El asa: dedo, ratón o lápiz; empieza al apoyar, sin esperar.
+  cont.addEventListener('pointerdown', e => {
+    const asa = e.target.closest?.(ASA); if (!asa || !cont.contains(asa) || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const row = filaDe(asa); if (!row) return;
+    e.preventDefault(); e.stopPropagation();
+    if (g) acabar(false);
+    const S = iniciar(row, e.clientX, e.clientY, { asa: true, el: e.target }); if (!S) return;
+    const id = e.pointerId; g = { S, p: id };
+    try { asa.setPointerCapture(id); } catch {}
+    const mv = ev => { if (!g || g.p !== id || ev.pointerId !== id) return; if (ev.cancelable) ev.preventDefault(); g.S.mv(ev.clientX, ev.clientY); };
+    const up = ev => { if (ev.pointerId !== id) return; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); if (g && g.p === id) acabar(ev.type === 'pointerup'); };
+    addEventListener('pointermove', mv, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  });
+  // Mantener pulsada la fila (fuera del asa, botones y campos).
+  cont.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { if (g && g.t !== undefined && !g.S) { clearTimeout(g.tm); g = null; } return; }
+    if (g) { if (g.p !== undefined) return; acabar(false); }   // un toque colgado (la fila se repintó y su touchend no llegó)
+    const el = e.target; if (!el?.closest || el.closest(ASA) || el.closest(o.no || 'button, input, select, textarea, a, label, [contenteditable]')) return;
+    const row = filaDe(el); if (!row) return;
+    const t = e.touches[0]; g = { S: null, t: t.identifier, x: t.clientX, y: t.clientY, cx: t.clientX, cy: t.clientY };
+    const g0 = g; window.arrEspera = () => { if (g === g0 && !g.S) { clearTimeout(g.tm); g = null; } };   // algo se desplazó: no se levanta
+    g.tm = setTimeout(() => { if (!g || g.S || g.t === undefined) return; if (!row.isConnected) { g = null; return; } const S = iniciar(row, g.cx, g.cy, { asa: false, el }); if (!S) { g = null; return; } g.S = S; }, MS);
+  }, { passive: true });
+  cont.addEventListener('touchmove', e => {
+    if (!g || g.t === undefined) return; const t = [...e.changedTouches].find(z => z.identifier === g.t); if (!t) return;
+    if (g.S) { if (!e.cancelable) { acabar(false); return; } e.preventDefault(); g.S.mv(t.clientX, t.clientY); return; }   // sin poder cancelarse: Chrome ya desplaza
+    g.cx = t.clientX; g.cy = t.clientY;
+    if (Math.hypot(t.clientX - g.x, t.clientY - g.y) > TOL) { clearTimeout(g.tm); g = null; }   // desplazar o deslizar
+  }, { passive: false });
+  const soltar = ok => e => { if (!g || g.t === undefined) return; const t = [...e.changedTouches].find(z => z.identifier === g.t); if (!t) return; if (g.S && e.cancelable) e.preventDefault(); acabar(ok); };
+  cont.addEventListener('touchend', soltar(true), { passive: false }); cont.addEventListener('touchcancel', soltar(false));
+  // Sin el menú ni la selección del sistema mientras se mantiene pulsada o se arrastra; y sin el toque que abriría la ficha al soltar.
+  cont.addEventListener('contextmenu', e => { if (g || filaDe(e.target)) e.preventDefault(); });
+  cont.addEventListener('selectstart', e => { if (g) e.preventDefault(); });
+  cont.addEventListener('click', e => { if (Date.now() - noClick < 450) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+window.arrGesto = arrGesto;
 // 2.21.3 (A) · «Sigo sin poder arrastrar desde agenda.» Mantener pulsada una fila (350 ms quieta) la levanta y sigue al dedo; al soltarla
 // entre dos filas toma la hora de ese hueco (agArrHora); en «Sin hora», queda sin hora. Todo por los setters de siempre (agcCfgAg.mover).
 var agArrNoClick = 0;
@@ -10797,7 +10863,7 @@ const agArrSnap = m => Math.round(m / 5) * 5;
 // La hora del hueco donde quedó la fila: justo al terminar la de arriba; si no hay sitio antes de la de abajo, el punto medio; arriba del
 // todo, la primera menos su propio tiempo (desde las 5:00 AM); nunca antes de ahora si la de abajo es más tarde. null = sin filas con hora
 // alrededor (no cambia).
-function agArrHora(it, prev, next, tot) {
+function agArrHora(it, prev, next, tot, libre = false) {   // 2.21.4 (S) · libre: otro día, sin el tope de «ahora»
   const hm = x => x && /^\d\d:\d\d$/.test(x.h || '') ? toMin(x.h) : null, ps = hm(prev), ns = hm(next);
   let m = null;
   if (ps !== null) {
@@ -10807,7 +10873,7 @@ function agArrHora(it, prev, next, tot) {
   if (m === null) return null;
   // Hoy, nunca antes de ahora: una hora ya pasada, sin marcar, resta XP (2.19.8). Si el hueco ya pasó, queda ahora (la etiqueta lo dice).
   const n5 = Math.ceil(nowMin() / 5) * 5;
-  if (m < n5) m = n5;
+  if (!libre && m < n5) m = n5;
   return minToHm(Math.max(0, Math.min(23 * 60 + 55, m)));
 }
 function agArrWire(L, pTodo) {
@@ -10878,8 +10944,7 @@ function agArrWire(L, pTodo) {
       const z = document.createElement('div'); z.className = 'rows ag-rows-s ag-dz'; z.innerHTML = '<p class="ag-dz-t">Suelta aquí: sin hora</p>';
       const H = L.querySelector(':scope > .ag-rows-h'); if (H) { H.after(z); d.dz = z; }
     }
-    try { navigator.vibrate?.(12); } catch {}
-    colocar(d); d.raf = requestAnimationFrame(() => borde(d));
+    colocar(d); d.raf = requestAnimationFrame(() => borde(d));   // 2.21.4 (S) · la vibración la da arrGesto
     return d;
   };
   const terminar = (d, ok) => {
@@ -10902,34 +10967,16 @@ function agArrWire(L, pTodo) {
     // empezó sobre «▶ Empezar acción» y se soltó quieta donde estaba: era un toque firme, el botón hace lo suyo (no se pierde el clic)
     if (x?.mismo && d.acc && !d.movio) { agArrNoClick = 0; try { cadPilT0 = 0; } catch {} const b = [...L.querySelectorAll('.ag-acc[data-tm-go]')].find(e => e.dataset.tmGo === d.acc); if (b) b.click(); }
   };
-  L.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) { if (lp && !lp.d) { clearTimeout(lp.tm); lp = null; } return; }
-    if (lp) {   // un solo dedo en pantalla: lo anterior quedó colgado (la fila se repintó y su touchend no llegó a la lista)
-      clearTimeout(lp.tm); const d0 = lp.d; lp = null; if (d0) { try { terminar(d0, false); } catch {} }
-    }
-    const el = e.target; if (!el?.closest || el.closest('button:not(.ag-pil), input, select, textarea, a, label, [contenteditable], .ag-sw, .ag-sub')) return;
-    const row = el.closest('.ag-it'); if (!row || !row.dataset.id || !conts().includes(row.parentElement)) return;
-    const t = e.touches[0]; lp = { id: t.identifier, x: t.clientX, y: t.clientY, row, d: null, no: false, acc: el.closest('.ag-acc[data-tm-go]')?.dataset.tmGo || '' };
-    lp.tm = setTimeout(() => {
-      if (!lp || lp.d) return;
-      if (!row.isConnected) { lp = null; return; }   // se repintó mientras pulsabas
+  // 2.21.4 (S) · el asa ⠿ (al apoyar el dedo) o mantener pulsada la fila: arrGesto
+  arrGesto(L, { fila: '.ag-it', no: 'button:not(.ag-pil), input, select, textarea, a, label, [contenteditable], .ag-sw, .ag-sub',
+    filaOk: row => !!row.dataset.id && conts().includes(row.parentElement),
+    empezar: (row, x, y, o) => {
       const it = agPorId(row.dataset.id), v = agArrPuede(it);
-      if (v === null) { lp = null; return; }   // lo fijo y lo hecho: nada (el toque sigue abriendo la ficha)
-      if (v) { lp.no = true; row.classList.remove('ag-no'); void row.offsetWidth; row.classList.add('ag-no'); setTimeout(() => row.classList.remove('ag-no'), 450); toast(v); try { navigator.vibrate?.([8, 40, 8]); } catch {} return; }
-      lp.d = levantar(row, it, lp.y); lp.d.acc = lp.acc || '';
-    }, 350);
-  }, { passive: true });
-  L.addEventListener('touchmove', e => {
-    const t = toque(e); if (!t) return;
-    if (lp.d) { if (e.cancelable) e.preventDefault(); lp.d.y = t.clientY; if (Math.abs(t.clientY - lp.y) > 12 || Math.abs(t.clientX - lp.x) > 12) lp.d.movio = true; colocar(lp.d); return; }
-    if (lp.no) { if (e.cancelable) e.preventDefault(); return; }
-    if (Math.abs(t.clientX - lp.x) > 8 || Math.abs(t.clientY - lp.y) > 8) { clearTimeout(lp.tm); lp = null; }   // desplazar o deslizar
-  }, { passive: false });
-  const soltar = ok => e => { const t = toque(e); if (!t) return; const x = lp; clearTimeout(x.tm); lp = null;
-    if (x.d) { if (e.cancelable) e.preventDefault(); terminar(x.d, ok); }
-    else if (x.no) { agArrNoClick = Date.now(); if (e.cancelable) e.preventDefault(); } };   // sin el toque que abriría la ficha
-  L.addEventListener('touchend', soltar(true)); L.addEventListener('touchcancel', soltar(false));
-  L.addEventListener('contextmenu', e => { if (lp) e.preventDefault(); });
+      if (v === null) return null;   // lo fijo y lo hecho: nada (el toque sigue abriendo la ficha)
+      if (v) { row.classList.remove('ag-no'); void row.offsetWidth; row.classList.add('ag-no'); setTimeout(() => row.classList.remove('ag-no'), 450); toast(v); try { navigator.vibrate?.([8, 40, 8]); } catch {} agArrNoClick = Date.now(); return false; }
+      const d = levantar(row, it, y); d.acc = o.asa ? '' : (o.el?.closest?.('.ag-acc[data-tm-go]')?.dataset.tmGo || ''); const x0 = x;
+      return { mv: (x2, y2) => { d.y = y2; if (Math.abs(y2 - d.y0) > 12 || Math.abs(x2 - x0) > 12) d.movio = true; colocar(d); }, fin: ok => terminar(d, ok) };
+    } });
   L.addEventListener('click', e => { if (Date.now() - agArrNoClick < 450) { e.stopPropagation(); e.preventDefault(); } }, true);
 }
 // ====================================================================
@@ -11212,11 +11259,11 @@ function orgPropuestaSheet(dest = today(), sigue = false) {
   cont?.querySelectorAll(':scope > .og-r').forEach(r => {
     const k = r.dataset.ok || '', tp = k.slice(0, k.indexOf(':')), id = k.slice(k.indexOf(':') + 1);
     if (tp === 'hab') { const h = HT().habits.find(x => x && x.id === id), R = hbRutDe(h); if (R) { const on = hbHijosOrd(R).filter(x => org.hab.get(x.id)?.on), i = on.findIndex(x => x.id === id); const inp = r.querySelector('input[type="time"]'); if (i > 0 && inp) inp.outerHTML = `<span class="tag op-tras">Después de ${esc(on[i - 1].nombre)}</span>`; } }
-    if (['hab', 'tar', 'ini', 'lib'].includes(tp) && !r.querySelector('.og-rk.ok')) r.insertAdjacentHTML('beforeend', `<button type="button" class="op-x" data-op-x="${esc(k)}" aria-label="Dejar fuera ${M ? esc(cuando) : 'hoy'}">×</button>`);
+    // 2.21.4 (S) · × ya viene en la fila (orgFilaAgHtml)
   });
   const repintar = () => { const top = $('#sheet-body')?.scrollTop || 0, v = W.querySelector('#op-p1')?.value || ''; orgPropuestaSheet(org.dest, true); const b2 = $('#sheet-body'); if (b2) { b2.scrollTop = top; const i = b2.querySelector('#op-p1'); if (i) i.value = v; } };
   W.querySelectorAll('[data-tl]').forEach(i => i.addEventListener('change', () => { orgSetHora(i.dataset.tl, i.value); org.auto.delete(i.dataset.tl); }));
-  if (org.vistaRk) ordWire(cont, keys => { orgRutinaSegun(keys); org.orden = keys.slice(0, 120); orgPrioSegun(keys); orgAutoHoras(false); repintar(); });   // 2.21.2 (H) · solo en «Ordenar por importancia»
+  orgArrWire(cont, repintar, keys => { orgRutinaSegun(keys); org.orden = keys.slice(0, 120); orgPrioSegun(keys); orgAutoHoras(false); repintar(); });   // 2.21.2 (H) · 2.21.4 (S) · por hora cambia la hora; por importancia, el orden
   orgVistaWire(b, repintar);
   W.addEventListener('click', e => { const x = e.target.closest('[data-op-x]'); if (!x) return; orgFuera(x.dataset.opX); orgAutoHoras(false); repintar(); });
   W.querySelector('#op-sueno')?.addEventListener('click', e => {   // lo de agbSueno, pero sin salir de esta hoja
@@ -12943,7 +12990,7 @@ function agbSuenoHtml() {
 }
 // Al pasar del paso 1 sin responder: cuenta como ignorada (una vez al día).
 function agbPaso(paso) {
-  if (paso <= 1 || !org?.suenoVisto || org.suenoResp || org.suenoIgn || (dayOf().sueno || 0) > 0) return;
+  if (paso <= 2 || !org?.suenoVisto || org.suenoResp || org.suenoIgn || (dayOf().sueno || 0) > 0) return;
   org.suenoIgn = true;
   const p = local.agbSueno || {}, hoy = today(), ayer = dayKey(addDays(new Date(), -1));
   if (p.ult === hoy) return;
@@ -13050,7 +13097,7 @@ function agbBrecha() {
   const now = nowMin(), falta = {}; let N = 0, M = 0, dias = 0;
   const nota = (it, ok) => { N++; if (ok) M++; else falta[it.tipo] = (falta[it.tipo] || 0) + 1; };
   for (let i = 6; i >= 1; i--) {
-    const H = (ES.agendaHist?.[dayKey(addDays(new Date(), -i))] || []).filter(it => it && it.tipo !== 'evento' && (it.tipo !== 'prio' || it.pv));
+    const H = (ES.agendaHist?.[dayKey(addDays(new Date(), -i))] || []).filter(it => it && agVisible(it) && it.tipo !== 'evento' && (it.tipo !== 'prio' || it.pv));
     if (H.length) dias++;
     for (const it of H) nota(it, !!it.hecho);
   }
@@ -16627,7 +16674,7 @@ function iniMananaHtml() {
   if (nowMin() < 20 * 60) return '';
   let P = null; try { P = planManana(); } catch { P = null; }
   if (!P) return `<section class="ini-man" aria-label="Mañana"><p class="ini-man-k">Mañana · 2 min</p><p class="ini-man-p">Deja mañana con hora y en orden antes de dormir.</p><button class="ini-man-b" id="ini-man">Dejar mañana listo</button></section>`;
-  const its = (Array.isArray(P.items) ? P.items : []).filter(x => x && x.t), conH = its.filter(x => /^\d\d:\d\d$/.test(x.h || '')).sort((a, b) => toMin(a.h) - toMin(b.h))[0];
+  const its = (Array.isArray(P.items) ? P.items : []).filter(x => x && x.t && x.tipo !== 'habito'), conH = its.filter(x => /^\d\d:\d\d$/.test(x.h || '')).sort((a, b) => toMin(a.h) - toMin(b.h))[0];
   let p1 = ''; try { p1 = String((prioPlanLista(P)[0] || {}).t || '').trim(); } catch {}
   if (!p1) p1 = String((conH || its[0] || {}).t || '').trim();
   const txt = conH && p1 ? `Mañana empieza a las ${fmtHora(conH.h)} con ${p1}.` : p1 ? `Mañana empieza con ${p1}.` : 'Mañana ya está organizado.';
@@ -19313,7 +19360,7 @@ function agpFijar(D, prev) {
 function agpDias() {
   const t = today(), ds = new Set(Object.keys(ES.agendaPlanes || {}).filter(d => d > t));
   if (ES.agendaPlan?.fecha > t) ds.add(ES.agendaPlan.fecha);
-  return [...ds].sort().slice(0, 60).map(d => [d, planDia(d)]).filter(([, p]) => p && ((p.items || []).length || (p.prios || []).length));
+  return [...ds].sort().slice(0, 60).map(d => [d, planDia(d)]).filter(([, p]) => p && (agVisibles(p.items).length || (p.prios || []).length));   // 2.21.4 (S) · sin contar hábitos
 }
 function agpAbrir(d, paso = 1) {
   if (!/^\d{4}-\d\d-\d\d$/.test(d || '') || d <= today() || d > agpMax()) { toast('Elige un día desde mañana hasta dentro de 60 días.'); return; }
@@ -19326,7 +19373,7 @@ function agpHtml() {
   return `<section id="ag-dias" style="margin-top:24px"><h3>Agendar otros días</h3>
     <div class="actions agp-bs"><button class="link" data-agp="${m}">Agendar para mañana</button><button class="link" data-agp="${agpDia(t, 2)}">Agendar para pasado mañana</button><button class="link" id="agp-otro" aria-expanded="false">Agendar otro día…</button></div>
     <div class="agp-elige" id="agp-elige" hidden><input type="date" id="agp-fecha" min="${m}" max="${agpMax()}" value="${agpDia(t, 3)}" aria-label="Día que quieres agendar"><button class="primary" id="agp-ir">Agendar ese día</button></div>
-    ${D.length ? `<div id="agp-card"><p class="paso" style="margin:10px 0 0">Días ya agendados</p><div class="rows" id="agp-lista">${D.map(([d, p]) => { const n = (p.items || []).length, p1 = (prioPlanLista(p)[0] || {}).t;
+    ${D.length ? `<div id="agp-card"><p class="paso" style="margin:10px 0 0">Días ya agendados</p><div class="rows" id="agp-lista">${D.map(([d, p]) => { const n = agVisibles(p.items).length, p1 = (prioPlanLista(p)[0] || {}).t;
       return `<button class="row" data-agp-ver="${esc(d)}"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>${esc(cap(agpFecha(d)))}</div><small>${n} ${n === 1 ? 'cosa' : 'cosas'}${p1 ? ` · tu prioridad 1: ${esc(p1)}` : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`; }).join('')}</div></div>` : ''}</section>`;
 }
 function agpWire() {
@@ -19524,6 +19571,107 @@ function orgOrdenHora(L) {
   const sin = C.filter(c => c.t === null).sort((a, b) => a.rkT - b.rkT || a.i - b.i);
   return [...con, ...sin].map(c => c.e);
 }
+// 2.21.4 (S) · «Al crear la agenda, mientras se crea, debe ser igual.» Una fila del paso de las horas y de «Tu día propuesto», con el mismo
+// aspecto que la lista de la Agenda: el número pequeño, × para dejarla fuera (o la casilla llena si ya está hecha), el título, una línea
+// pequeña («Tarea · Trabajo»), ⠿ (si se puede mover) y la hora como texto (el campo de hora, transparente encima, abre el selector). En
+// «Ordenar por importancia», la hora va en la línea pequeña y a la derecha ↑ ↓.
+function orgFilaAgHtml(e, i, n, rk, vRk, de) {
+  const k = esc(e.key), mov = vRk || (!e.fijo && !e.hecho && !(e.foco && e.h && !org?.manana && toMin(e.h) <= nowMin()));   // por importancia, todo se ordena (como antes)
+  const quita = !e.hecho && /^(tar|ini|lib|hab):/.test(String(e.key || ''));
+  const hTxt = e.fijo ? (e.h ? fmtHora(e.h) : 'Todo el día') : e.foco ? (agbRango(e.h, e.min) || 'Sin hora') : (/^\d\d:\d\d$/.test(e.h || '') ? fmtHora(e.h) : 'Sin hora');
+  const etq = (vRk ? `${esc(hTxt)} · ` : '') + esc(orgEtq(e));   // por importancia, la hora delante (no se corta)   // la misma línea pequeña que la Agenda («Tarea · Trabajo»)
+  const hora = vRk ? '' : (e.fijo || e.foco) ? `<span class="tag og-ht">${esc(hTxt)}</span>`
+    : `<span class="og-hw"><span class="tag og-ht" aria-hidden="true">${esc(hTxt)}</span>${horaInput('ol-' + esc(e.key).replace(/[^\w-]/g, '_'), e.h, `data-tl="${k}" aria-label="Hora de ${esc(e.t)}"`)}</span>`;
+  return `<div class="row og-r og-ag${e.hecho ? ' ok' : ''}${de ? ' og-sub' : ''}" data-ok="${k}"${de ? ` data-og-de="${esc(de)}"${org?.rutAb?.has(de) ? '' : ' hidden'}` : ''}>`
+    + orgRk(rk, e)   // la importancia, pequeña y apagada, como en la Agenda
+    + (e.hecho ? `<span class="box og-ok" style="${boxHecho}" aria-label="Hecha"></span>` : quita ? `<button type="button" class="op-x" data-op-x="${k}" aria-label="Dejar fuera ${esc(e.t)}">×</button>` : '<span class="og-x-v" aria-hidden="true"></span>')
+    + `<span class="t"><div>${esc(e.t)}</div><small>${etq}</small></span>`
+    + (mov ? '<button type="button" class="og-asa og-asa-ag" data-asa tabindex="-1" aria-label="Arrastrar para mover">⠿</button>' : '<span class="og-asa-v" aria-hidden="true"></span>')
+    + hora
+    + (vRk ? `<span class="og-mv og-mv-ag"><button type="button" class="og-b" data-or-sube="${i}" aria-label="Subir" ${i ? '' : 'disabled'}>↑</button><button type="button" class="og-b" data-or-baja="${i}" aria-label="Bajar" ${i < n - 1 ? '' : 'disabled'}>↓</button></span>` : '')
+    + '</div>';
+}
+// Levantar una fila de una lista (la sigue al dedo, se recoloca entre las otras, la hoja se desplaza sola cerca del borde). Lo comparten
+// «Organizar mi día» (las dos vistas) y «Reordenar el día». o: { filas(), num: renumerar la importancia, alColocar() }.
+function ordLevantar(cont, row, y, o) {
+  const d = { y, y0: y, vivo: true, sc: ordScroller(cont), raf: 0 };
+  row.classList.add('arr', 'ag-arr');
+  const seguir = () => { row.style.transform = ''; const b = row.getBoundingClientRect(), off = Math.max(-b.height, Math.min(b.height, d.y - (b.top + b.height / 2))); row.style.transform = `translateY(${Math.round(off)}px)`; };
+  const colocar = () => {
+    const otras = o.filas().filter(r => r !== row);
+    const sig = otras.find(r => { row.style.transform = ''; const b = r.getBoundingClientRect(); return d.y < b.top + b.height / 2; }) || null, ult = otras.at(-1);
+    if (sig ? row.nextElementSibling !== sig : ult && o.filas().at(-1) !== row) { if (sig) cont.insertBefore(row, sig); else ult.after(row); if (o.num) o.filas().forEach((r, k) => { const c = r.querySelector('.og-rk'); if (c) { c.textContent = String(k + 1); c.classList.toggle('uno', k === 0); c.setAttribute('aria-label', `Importancia ${k + 1}`); } }); }
+    seguir(); o.alColocar?.();
+  };
+  const borde = () => {
+    if (!d.vivo) return;
+    const sc = d.sc, r = sc === document.scrollingElement || sc === document.documentElement ? { top: 0, bottom: innerHeight } : sc.getBoundingClientRect(), m = 56;
+    const dy = d.y < r.top + m && d.y < d.y0 - 8 ? -Math.ceil((r.top + m - d.y) / 5) : d.y > r.bottom - m && d.y > d.y0 + 8 ? Math.ceil((d.y - (r.bottom - m)) / 5) : 0;
+    if (dy) { const a = sc.scrollTop; sc.scrollTop = a + Math.max(-24, Math.min(24, dy)); if (sc.scrollTop !== a) colocar(); }
+    d.raf = requestAnimationFrame(borde);
+  };
+  colocar(); d.raf = requestAnimationFrame(borde);
+  return { mv: y2 => { d.y = y2; colocar(); }, parar: () => { d.vivo = false; cancelAnimationFrame(d.raf); row.classList.remove('arr', 'ag-arr'); row.style.transform = ''; } };
+}
+// Una lista que solo se ordena (la importancia): ⠿ o mantener pulsada la fila (arrGesto, el mismo de la Agenda) y ↑ ↓. Al soltar,
+// alOrden(claves) si cambió; si no, repintar(). La usan «Ordenar por importancia» de «Organizar mi día» y «Reordenar el día».
+function ordGesto(cont, alOrden, repintar) {
+  if (!cont) return;
+  const filas = () => [...cont.children].filter(r => r.classList?.contains('og-r') && !r.hidden);
+  cont.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-or-sube],[data-or-baja]'); if (!b || b.disabled || b.closest('.og-r')?.parentElement !== cont) return;
+    const K = filas().map(r => r.dataset.ok), i = +(b.dataset.orSube ?? b.dataset.orBaja), j = b.dataset.orSube !== undefined ? i - 1 : i + 1;
+    if (!K[i] || !K[j]) return; const K0 = K.slice(); [K[i], K[j]] = [K[j], K[i]]; ordAvisar(alOrden, K, K0);
+  });
+  arrGesto(cont, { fila: '.og-r', no: 'button, input, select, textarea, a, label, [contenteditable]',
+    filaOk: row => row.parentElement === cont && !!row.querySelector('[data-asa]'),
+    empezar: (row, x, y) => {
+      const K0 = filas().map(r => r.dataset.ok), L = ordLevantar(cont, row, y, { filas, num: true });
+      return { mv: (x2, y2) => L.mv(y2), fin: ok => {
+        L.parar();
+        const K = filas().map(r => r.dataset.ok);
+        if (ok && K.join('|') !== K0.join('|')) ordAvisar(alOrden, K, K0); else repintar();
+      } };
+    } });
+}
+// El arrastre de las filas de «Organizar mi día». Por importancia: ordGesto. Por hora: al soltar entre dos filas, la hora del hueco
+// (agArrHora, de 5 en 5 min; en otro día, sin el tope de «ahora»); entre lo sin hora, sin hora. La hora como texto se pone al día al
+// elegirla en el selector. repintar() vuelve a pintar la hoja.
+function orgArrWire(cont, repintar, alOrden) {
+  if (!cont || !org) return;
+  cont.addEventListener('change', ev => { const i = ev.target.closest?.('.og-hw [data-tl]'); const t = i?.parentElement?.querySelector('.og-ht'); if (t) t.textContent = /^\d\d:\d\d$/.test(i.value || '') ? fmtHora(i.value) : 'Sin hora'; });
+  cont.addEventListener('click', ev => { const i = ev.target.closest?.('.og-hw [data-tl]'); if (i && ev.pointerType === 'mouse') { try { i.showPicker?.(); } catch {} } });   // con ratón, el campo transparente abre el selector igual
+  if (org.vistaRk) { ordGesto(cont, alOrden, repintar); return; }
+  const filas = () => [...cont.children].filter(r => r.classList?.contains('og-r') && !r.hidden);
+  const eDe = k => { try { return orgLista().find(x => x.key === k) || null; } catch { return null; } };
+  const vecinoE = (row, dir) => { let n = dir < 0 ? row.previousElementSibling : row.nextElementSibling; while (n && (!n.classList?.contains('og-r') || n.hidden)) n = dir < 0 ? n.previousElementSibling : n.nextElementSibling; return n ? eDe(n.dataset.ok) : null; };
+  arrGesto(cont, { fila: '.og-r', no: 'button, input, select, textarea, a, label, [contenteditable]',
+    filaOk: row => row.parentElement === cont && !!row.querySelector('[data-asa]'),
+    empezar: (row, x, y) => {
+      const e = eDe(row.dataset.ok); if (!e) return null;
+      const ori = [row.previousElementSibling, row.nextElementSibling];
+      const lb = document.createElement('span'); lb.className = 'ag-dlb og-dlb'; lb.setAttribute('aria-live', 'polite'); row.appendChild(lb);
+      const destino = () => {
+        if (row.previousElementSibling === ori[0] && row.nextElementSibling === ori[1]) return { mismo: true };
+        const pr = vecinoE(row, -1), nx = vecinoE(row, 1), hm = z => !!z && /^\d\d:\d\d$/.test(z.h || '');
+        if (!hm(pr) && !hm(nx)) return { hh: '' };
+        const hh = agArrHora(e, hm(pr) ? pr : null, hm(nx) ? nx : null, 0, !!org?.manana) || '';
+        return hh === (e.h || '') ? { mismo: true } : { hh };
+      };
+      const etiqueta = () => { const z = destino(), h0 = /^\d\d:\d\d$/.test(e.h || '');
+        lb.textContent = z.mismo ? (h0 ? `Sigue a las ${fmtHora(e.h)}` : 'Sigue sin hora') : !z.hh ? 'Quedará sin hora' : (!org?.manana && agcPasada(z.hh)) ? 'Esa hora ya pasó: no se moverá' : `Pasará a las ${fmtHora(z.hh)}`; };
+      const L = ordLevantar(cont, row, y, { filas, alColocar: etiqueta });
+      return { mv: (x2, y2) => L.mv(y2), fin: ok => {
+        L.parar(); lb.remove();
+        if (!ok) { repintar(); return; }
+        const z = destino();
+        if (z.mismo) { repintar(); return; }
+        if (z.hh && !org?.manana && agcPasada(z.hh)) { toast(agcPasadaTxt()); repintar(); return; }
+        orgSetHora(e.key, z.hh); org.auto.delete(e.key);   // como escribir la hora en su campo
+        repintar(); toast(z.hh ? `Pasa a las ${fmtHora(z.hh)}.` : 'Queda sin hora.');
+      } };
+    } });
+}
 // [Ordenar por importancia] ⇄ [Listo: ver por hora]; en la lista por hora, cambiar una hora la recoloca.
 function orgVistaWire(b, repintar) {
   if (!b || !org) return;
@@ -19534,11 +19682,10 @@ function orgFilasHtml(L) {
   if (!L.length) return '<p class="empty">No hay nada elegido. Vuelve atrás y marca algo, o crea una tarea.</p>';
   const R0 = orgOrdenar(L).slice(0, 80), rkN = new Map(R0.map((e, i) => [e.key, i + 1])), vRk = !!org?.vistaRk;   // 2.21.2 (H)
   const R = vRk ? R0 : orgOrdenHora(L).filter(e => rkN.has(e.key));
-  const nota = vRk ? 'La lista va por hora; aquí ordenas la importancia. La 1, lo más importante. Arrastra desde ⠿ (o mantén pulsada la fila) o usa ↑ ↓; las horas automáticas siguen el orden y los hábitos de una rutina van en este orden, uno después del otro.'
-    : 'Por hora; lo sin hora, al final. El número grande es la importancia (la 1, lo más importante): no cambia el orden de la lista.';
+  const nota = vRk ? 'Aquí ordenas la importancia: la 1, lo más importante. Arrastra desde ⠿ o usa ↑ ↓.'
+    : 'Por hora. Arrastra desde ⠿ para cambiar la hora; × lo deja fuera.';   // 2.21.4 (S)
   return `<div class="agc-ver-w"><button type="button" class="outline agc-ver" id="og-cal">Ver en calendario</button></div><div class="og-vista-w"><button type="button" class="link og-vista" id="og-vista" aria-pressed="${vRk}">${vRk ? 'Listo: ver por hora' : 'Ordenar por importancia'}</button></div><p class="meta" id="og-orden-nota" style="margin:0 0 4px">${nota}</p>
-    <div class="rows og-orden ${vRk ? 'og-imp' : 'og-hora'}" id="og-orden">${orgRutAgrupar(R, vRk).map(({ e, i, cab, de }) => cab ? orgRutCabHtml(cab) : `<div class="row og-r${de ? ' og-sub' : ''}" data-ok="${esc(e.key)}"${de ? ` data-og-de="${esc(de)}"${org?.rutAb?.has(de) ? '' : ' hidden'}` : ''}>${orgRk(rkN.get(e.key), e)}<span class="t"><div>${esc(e.t)}</div><small>${orgEtqTar(e) || esc(String(e.key || '').startsWith('hab:') ? agEtqRut({ tipo: 'habito', ref: String(e.key).slice(4) }, orgEtq(e)) : orgEtq(e))}${e.min ? ` · ${fmtMin(e.min)}` : ''}${e.hecho ? ' · hecha' : ''}</small></span>
-      ${e.fijo ? `<span class="tag">${e.h ? fmtHora(e.h) : 'Todo el día'}</span>` : e.foco ? `<span class="tag">${esc(agbRango(e.h, e.min) || 'Sin hora')}</span>` : horaInput('ol-' + esc(e.key).replace(/[^\w-]/g, '_'), e.h, `data-tl="${esc(e.key)}"`)}${vRk ? orgMv(i, R.length) : ''}</div>`).join('')}</div>`;
+    <div class="rows og-orden ${vRk ? 'og-imp' : 'og-hora'}" id="og-orden">${orgRutAgrupar(R, vRk).map(({ e, i, cab, de }) => cab ? orgRutCabHtml(cab) : orgFilaAgHtml(e, i, R.length, rkN.get(e.key), vRk, de)).join('')}</div>`;
 }
 // ↑ ↓ y arrastre de una lista con filas [data-ok]; alSoltar recibe las claves en el nuevo orden (solo si cambió).
 function ordWire(cont, alSoltar) {
@@ -19625,9 +19772,12 @@ function ordArrastre(cont, alSoltar) {
   cont.addEventListener('contextmenu', e => { if (lp) e.preventDefault(); });
 }
 window.ordArrastre = ordArrastre;   // 2.21 (M) · también para «Ordenar» en Hábitos
-function orgOrdenWire() {   // 2.21.2 (H) · el arrastre, solo en «Ordenar por importancia»
-  const b = $('#sheet-body'); if (org?.vistaRk) ordWire(b?.querySelector('#og-orden'), orgMover);
-  orgVistaWire(b, () => { const sc = $('#sheet-body'), top = sc ? sc.scrollTop : 0; organizarDia(4, true); const sc2 = $('#sheet-body'); if (sc2) sc2.scrollTop = top; });
+function orgOrdenWire() {   // 2.21.2 (H) · 2.21.4 (S) · el arrastre en las dos vistas (por hora cambia la hora; por importancia, el orden) y ×
+  const b = $('#sheet-body'), rep = () => { const sc = $('#sheet-body'), top = sc ? sc.scrollTop : 0; organizarDia(4, true); const sc2 = $('#sheet-body'); if (sc2) sc2.scrollTop = top; };
+  const cont = b?.querySelector('#og-orden');
+  orgArrWire(cont, rep, orgMover);
+  cont?.addEventListener('click', e => { const x = e.target.closest('[data-op-x]'); if (!x || !org) return; orgFuera(x.dataset.opX); orgAutoHoras(false); rep(); });
+  orgVistaWire(b, rep);
 }
 
 // ---------- La Agenda: el número de cada fila y «Reordenar»
@@ -19660,14 +19810,15 @@ function agRkPintar() {
   S.ids = S.ids.filter(id => por.has(id));
   const n = S.ids.length;
   showSheet(`<h2>Reordenar el día</h2>
-    <p class="note">La lista va por hora; aquí ordenas la importancia. La 1, lo más importante. Arrastra desde ⠿ o usa ↑ ↓; también puedes mantener pulsada una fila. Los hábitos de una rutina quedan en este orden, uno después del otro.</p>
+    <p class="note">Aquí ordenas la importancia: la 1, lo más importante. Arrastra desde ⠿ o usa ↑ ↓.</p>
     <div class="rows og-orden" id="ag-rk-lista">${S.ids.map((id, i) => { const it = por.get(id), ok = agHecho(it);
-      return `<div class="row og-r${S.foco === id ? ' og-sel' : ''}" data-ok="${esc(id)}">${orgRk(i + 1, { hecho: ok })}<span class="t"><div${ok ? ' style="text-decoration:line-through;color:var(--muted)"' : ''}>${esc(it.foco ? agbFocoTitulo(it) : it.t)}</div><small>${esc(agEtqCat(it))}</small></span><span class="tag">${it.h ? fmtHora(it.h) : 'Sin hora'}</span>${orgMv(i, n)}</div>`; }).join('')}</div>
+      return `<div class="row og-r og-ag${ok ? ' ok' : ''}${S.foco === id ? ' og-sel' : ''}" data-ok="${esc(id)}">${orgRk(i + 1, { hecho: ok })}<span class="t"><div>${esc(it.foco ? agbFocoTitulo(it) : it.t)}</div><small>${it.h ? fmtHora(it.h) : 'Sin hora'} · ${esc(agEtqCat(it))}</small></span><button type="button" class="og-asa og-asa-ag" data-asa tabindex="-1" aria-label="Arrastrar para mover">⠿</button><span class="og-mv og-mv-ag"><button type="button" class="og-b" data-or-sube="${i}" aria-label="Subir" ${i ? '' : 'disabled'}>↑</button><button type="button" class="og-b" data-or-baja="${i}" aria-label="Bajar" ${i < n - 1 ? '' : 'disabled'}>↓</button></span></div>`; }).join('')}</div>
     <div class="chips" style="margin-top:14px"><button type="button" class="chip${S.repartir ? ' on' : ''}" id="ag-rk-rep" aria-pressed="${S.repartir}">Repartir las horas según este orden</button></div>
     <p class="meta">Con el chip, las horas automáticas siguen este orden; lo fijo (planes, eventos y bloques de tiempo) y las horas que elegiste no se mueven.</p>
     <div class="actions"><button class="link" id="ag-rk-x">Cancelar</button><button class="primary" id="ag-rk-ok">Guardar el orden</button></div>`);
   const body = $('#sheet-body');
-  ordWire(body.querySelector('#ag-rk-lista'), K => { S.ids = K; const sc = $('#sheet-body'), top = sc.scrollTop; agRkPintar(); $('#sheet-body').scrollTop = top; });
+  const rkRep = () => { const sc = $('#sheet-body'), top = sc.scrollTop; agRkPintar(); $('#sheet-body').scrollTop = top; };
+  ordGesto(body.querySelector('#ag-rk-lista'), K => { S.ids = K; rkRep(); }, rkRep);   // 2.21.4 (S) · el mismo gesto que la Agenda
   body.querySelector('#ag-rk-rep').onclick = e => { S.repartir = !S.repartir; e.currentTarget.classList.toggle('on', S.repartir); e.currentTarget.setAttribute('aria-pressed', String(S.repartir)); };
   body.querySelector('#ag-rk-x').onclick = () => { agRkSel = null; closeSheet(); };
   body.querySelector('#ag-rk-ok').onclick = agRkGuardar;
@@ -19723,6 +19874,42 @@ function agRkGuardar() {
   .agp-elige { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; } .agp-elige input { flex: 1; min-width: 0; max-width: 200px; }`;
   const a = document.createElement('style'); a.textContent = css; ov.appendChild(a);
   const b = document.createElement('style'); b.textContent = css; agR.appendChild(b);
+}
+// 2.21.4 (S) · El asa ⠿ y las filas de «Organizar mi día» con el aspecto de la Agenda.
+{
+  const css = `
+  .ag-asa, .og-asa-ag { flex: none; width: 34px; height: 44px; margin: 0 -4px; position: relative; z-index: 1; padding: 0; border: 0; border-radius: 10px; background: none; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.15rem; line-height: 1; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .ag-it.arr .ag-asa, .og-r.arr .og-asa-ag { cursor: grabbing; color: var(--text); }
+  .ag-it > .ag-asa { width: 28px; margin: -8px -8px -8px -6px; align-self: center; } .ag-it > .og-rk { pointer-events: none; }   /* a la derecha, junto a la hora: lejos del borde de la pantalla (el gesto «Atrás» de Android) */
+  .ag-it.ag-ab > .ag-asa { align-self: flex-start; margin-top: 0; }
+  .ag-lista .ag-it:not(.ag-ab) > .t > small:not(:has(.ag-pil)) { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* una sola línea pequeña, aunque el asa ocupe su sitio */
+  .ag-it { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .ag-it input, .ag-it textarea { -webkit-user-select: text; user-select: text; }
+  .og-orden .og-r.og-ag { gap: 6px; padding: 4px 0; min-height: 52px; align-items: center; }
+  .og-ag .og-asa-v { flex: none; width: 26px; }
+  .og-ag .og-x-v { flex: none; width: 34px; }
+  .og-ag .op-x { flex: none; width: 44px; height: 44px; margin: 0 -10px 0 0; color: var(--muted); font-size: 1.35rem; line-height: 1; border-radius: 50%; }
+  .og-ag .og-ok { flex: none; width: 20px; height: 20px; margin: 0 4px; border-radius: 50%; }
+  .og-ag .t { min-width: 0; flex: 1; } .og-orden .og-r.og-ag .t div { overflow-wrap: break-word; word-break: normal; white-space: normal; } .og-orden .og-r.og-ag .t small { display: block; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .og-ag.ok .t div { color: var(--muted); text-decoration: line-through; }
+  .og-ag .og-hw { flex: none; position: relative; display: inline-flex; align-items: center; justify-content: flex-end; min-width: 64px; min-height: 44px; }
+  .og-orden .og-r.og-ag .og-hw .ag-time, #op-wrap .og-orden .og-r.og-ag .og-hw .ag-time { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+  .og-ag .og-hw .ag-time::-webkit-calendar-picker-indicator { display: none; }
+  .og-ag .og-ht { white-space: nowrap; color: var(--muted); }
+  .og-orden .og-r.og-ag .og-rk, #op-wrap .og-orden .og-r.og-ag .og-rk { flex: none; width: 20px; height: 20px; font-size: .78rem; font-weight: 600; color: var(--muted); background: none; letter-spacing: 0; }
+  .og-orden .og-r.og-ag .og-rk.uno, #op-wrap .og-orden .og-r.og-ag .og-rk.uno { background: none; color: var(--text); }
+  .og-orden .og-r.og-ag .og-mv-ag, #op-wrap .og-orden .og-r.og-ag .og-mv-ag { flex-direction: row; gap: 0; }
+  .og-orden .og-r.og-ag .og-mv-ag .og-b, #op-wrap .og-orden .og-r.og-ag .og-mv-ag .og-b, #ag-rk-lista .og-r.og-ag .og-mv-ag .og-b { width: 44px; height: 44px; }
+  .og-r.og-ag.arr { background: var(--soft); box-shadow: 0 8px 24px rgba(0,0,0,.18); border-radius: 12px; position: relative; z-index: 3; }
+  .og-dlb { position: absolute; right: 8px; top: -14px; padding: 2px 8px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: .72rem; font-weight: 700; pointer-events: none; white-space: nowrap; }
+  .og-orden .og-r.og-ag { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .ag-libre { margin: 4px 0 2px; } .ag-libre-a { gap: 4px 18px; flex-wrap: wrap; } .ag-libre-a .link { min-height: 44px; }
+  .agc-asa { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 3; width: 30px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1rem; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .agc-b:not([data-agc-lock]):not(.agc-estr) .agc-s { padding-right: 26px; } .agc-estr .agc-asa { width: 22px; opacity: .8; }
+  .agc-asa-c { position: static; transform: none; width: 26px; height: 44px; margin: 0 -8px 0 -2px; flex: none; }
+  @media (max-width: 359px) { .og-orden .og-r.og-ag, #op-wrap .og-orden .og-r.og-ag { gap: 3px; } .og-ag .og-hw { min-width: 58px; } .og-ag .og-ht { font-size: .8rem; } .ag-asa, .og-asa-ag { width: 30px; } }`;
+  try { const a = document.createElement('style'); a.textContent = css; ov.appendChild(a); } catch {}
+  try { const b = document.createElement('style'); b.textContent = css; agR.appendChild(b); } catch {}
 }
 window.agendarDia = (d, paso = 1) => agpAbrir(d, paso);
 
@@ -20149,7 +20336,8 @@ window.xpTardeBloquea = ref => {
   const A = ES.agendaHoy; if (!A || A.fecha !== today()) return false;
   for (const it of A.items || []) {
     if (!it || !P[xpTardeRef(it)]) continue;
-    try { if (!agVivo(it)) continue; } catch {}
+    try { if (agVisible(it) && !agVivo(it)) continue; } catch {}   // 2.21.4 (S) · un hábito ya restado hoy (2.21.3) sigue sin dar su XP
+    if (!agVisible(it) && String(it.id || '').startsWith('auto:') && +it.alta > +A.organizado) continue;   // … salvo si lo metió solo un teléfono con 2.21.3
     const r = it.tipo === 'habito' ? ['h:' + it.ref, 'h+:' + it.ref] : it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'prio' ? ['p:' + it.ref] : it.tipo === 'ini' ? ['i:' + it.ref] : it.tipo === 'libre' ? ['a:' + it.id] : [];
     if (r.includes(ref)) return true;
   }
@@ -21153,7 +21341,7 @@ function tempAct() { const T = ES.temp; return T && typeof T === 'object' && T.i
 function tempLeft(T = tempAct()) { return T ? (+T.fin - (T.pausa ? +T.pausa : Date.now())) / 1000 : 0; }   // 2.21 (H) · en pausa, congelado
 function tempCaduco(T) { return T.d !== today() && Date.now() > +T.fin + 12 * 3600000; }   // cruzar la medianoche no lo corta: termina y avisa
 function tempItem(T) { try { return T && T.d === today() ? (agPorId(T.id) || (String(T.id).startsWith('v:') ? cadVirtual(T) : null)) : null; } catch { return null; } }   // 2.21 (H) · o su fuente, si empezó fuera de la Agenda   // de otro día, ya no se marca desde aquí
-function tempFuera(it) { try { return !agVivo(it) || agSaltado(it); } catch { return false; } }   // pasado a otro día, sin fuente o «hoy no»
+function tempFuera(it) { try { return (it && it.tipo === 'habito' ? !agFuente(it) : !agVivo(it)) || agSaltado(it); } catch { return false; } }   // 2.21.4 (S) · un hábito vale si existe (no está en la Agenda)   // pasado a otro día, sin fuente o «hoy no»
 function tempDe(id) { const T = tempAct(); return T && T.id === id ? T : null; }
 function tempTxt(T, corto = false) { const l = tempLeft(T); return l > 0 ? `⏱ ${fmtClock(l)}` : corto ? '⏱ Listo' : '⏱ Tiempo cumplido'; }
 function tempFilaHtml(it) { const T = tempDe(it.id); return T ? `<span class="ag-temp" data-temp-left>${tempTxt(T)}</span> · ` : ''; }
@@ -21511,7 +21699,8 @@ function cadPend(it) { try { return !!it && !agHecho(it) && !tempFuera(it) && !(
 function cadAgOrden(its) { let M = null; try { M = agCadenaMapa(agenda()); } catch {} return agOrdenDia(its, M); }   // 2.21.2 (H) · por hora, como la lista
 function cadHabItem(h) {
   let its = []; try { its = agItems(); } catch {}
-  return its.find(x => x.tipo === 'habito' && x.ref === h.id) || { id: 'v:habito:' + h.id, tipo: 'habito', ref: h.id, t: h.nombre, min: h.modo === 'tiempo' && +h.meta > 0 ? +h.meta : AG_MIN.habito, v: 1 };
+  let viejo = null; try { const A = agenda(); viejo = (A.items || []).find(x => x && x.tipo === 'habito' && x.ref === h.id && +x.min > 0) || null; } catch {}   // 2.21.4 (S) · el tiempo que le diste en la agenda de hoy (guardada antes) se respeta
+  return its.find(x => x.tipo === 'habito' && x.ref === h.id) || { id: 'v:habito:' + h.id, tipo: 'habito', ref: h.id, t: h.nombre, min: h.modo === 'tiempo' && +h.meta > 0 ? +h.meta : viejo ? +viejo.min : AG_MIN.habito, v: 1 };
 }
 // Los pasos pendientes de una cadena (clave «tipo:id»), en orden. Sin nada pendiente, [].
 function cadPasos(key, o = {}) {
@@ -21966,15 +22155,15 @@ function agcHtml(E, hijo, o = {}) {
       const L = u.lay[i], gp = i ? Math.max(0, (L.st - u.s) * P - usado) : 0; let r = '';
       if (gp >= 2) { r = `<div class="agc-gap agc-t-${e.tk}" style="height:${gp}px" aria-hidden="true"></div>`; usado += gp; }
       const hp = i === u.segs.length - 1 ? Math.max(h - usado, 18) : Math.max(e.min * P, 18); usado += hp; return r + seg(e, hp, ancho, L.m0, estrecho, u.lock); }).join('');
-    return `<div class="agc-b${u.segs.length > 1 ? ' cad' : ''}${rn ? ' agc-rut' : ''}"${rn ? ` data-agc-rut="${esc(rn)}"` : ''} data-agc-u="${esc(u.id)}"${u.lock ? ' data-agc-lock="1"' : ''} data-agc-s="${u.s}" data-agc-d="${u.dur}" style="top:${top}px;height:${h}px;left:${u.col / u.cols * 100}%;width:${100 / u.cols}%">${rn ? `<span class="agc-rut-n" aria-hidden="true">${esc(rn)}</span>` : ''}${segs}</div>`;
+    return `<div class="agc-b${u.segs.length > 1 ? ' cad' : ''}${rn ? ' agc-rut' : ''}${estrecho ? ' agc-estr' : ''}"${rn ? ` data-agc-rut="${esc(rn)}"` : ''} data-agc-u="${esc(u.id)}"${u.lock ? ' data-agc-lock="1"' : ''} data-agc-s="${u.s}" data-agc-d="${u.dur}" style="top:${top}px;height:${h}px;left:${u.col / u.cols * 100}%;width:${100 / u.cols}%">${rn ? `<span class="agc-rut-n" aria-hidden="true">${esc(rn)}</span>` : ''}${segs}${u.lock ? '' : '<span class="agc-asa" data-agc-asa aria-hidden="true" title="Arrastrar">⠿</span>'}</div>`;
   }).join('');
   const chips = sinH.map(u => { const e = u.segs[0], n = u.segs.length - 1;
-    return `<button type="button" class="agc-chip agc-t-${e.tk}${e.ok ? ' ok' : ''}${e.meta ? ' meta' : ''}" data-agc-u="${esc(u.id)}"${u.lock ? ' data-agc-lock="1"' : ''} data-agc-d="${u.dur}"${e.open ? ` data-open="${esc(e.id)}"` : ''} aria-label="${esc(`${e.etq || agcNombre(e.tk)}: ${e.t}${n ? ` y ${n} más de la rutina` : ''}. Sin hora${u.lock ? '' : '. Mantén pulsado y arrástralo a una hora'}`)}"><span class="agc-l" aria-hidden="true">${agcLetra(e.tk)}</span><span class="agc-tt">${esc(e.t)}</span><small>${n ? `+${n} · ` : ''}${fmtMin(u.dur)}</small></button>`; }).join('');
+    return `<button type="button" class="agc-chip agc-t-${e.tk}${e.ok ? ' ok' : ''}${e.meta ? ' meta' : ''}" data-agc-u="${esc(u.id)}"${u.lock ? ' data-agc-lock="1"' : ''} data-agc-d="${u.dur}"${e.open ? ` data-open="${esc(e.id)}"` : ''} aria-label="${esc(`${e.etq || agcNombre(e.tk)}: ${e.t}${n ? ` y ${n} más de la rutina` : ''}. Sin hora${u.lock ? '' : '. Arrástralo a una hora'}`)}"><span class="agc-l" aria-hidden="true">${agcLetra(e.tk)}</span><span class="agc-tt">${esc(e.t)}</span><small>${n ? `+${n} · ` : ''}${fmtMin(u.dur)}</small>${u.lock ? '' : '<span class="agc-asa agc-asa-c" data-agc-asa aria-hidden="true">⠿</span>'}</button>`; }).join('');
   return `<section class="agc" data-agc-ctx="${o.ctx || 'ag'}" data-agc-ini="${ini}" aria-label="Calendario del día">
     ${agcLeyendaHtml(E)}
-    ${sinH.length ? `<div class="agc-tray"><p class="agc-tray-k">Sin hora · ${sinH.length}${sinH.some(u => !u.lock) ? ' · mantén pulsado y arrástralo a una hora' : ''}</p><div class="agc-tray-l">${chips}</div></div>` : ''}
+    ${sinH.length ? `<div class="agc-tray"><p class="agc-tray-k">Sin hora · ${sinH.length}${sinH.some(u => !u.lock) ? ' · arrástralo desde ⠿ a una hora' : ''}</p><div class="agc-tray-l">${chips}</div></div>` : ''}
     <div class="agc-sc"><div class="agc-tl" style="height:${alto}px">${horas}${bloques}${now}</div></div>
-    ${o.pie === false ? '' : `<p class="meta agc-ayuda">Mantén pulsado un bloque y arrástralo para cambiar la hora${o.rs === false ? '' : '; para cambiar el tiempo, mantén pulsado el borde de abajo y estíralo'}.</p>`}</section>`;
+    ${o.pie === false ? '' : `<p class="meta agc-ayuda">Arrastra un bloque desde ⠿ para cambiar la hora${o.rs === false ? '' : '; para cambiar el tiempo, mantén pulsado el borde de abajo y estíralo'}.</p>`}</section>`;
 }
 
 // ---------- La Agenda en calendario.
@@ -22110,7 +22299,20 @@ function agcWire(S, cfg) {
     cfg.repintar();
     return true;
   };
+  // 2.21.4 (S) · El asa ⠿: con el dedo, el ratón o el lápiz, levanta el bloque al apoyar (touch-action: none, captura del puntero).
+  S.addEventListener('pointerdown', e => {
+    const asa = e.target.closest?.('[data-agc-asa]'); if (!asa || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const u = asa.closest('[data-agc-u]'); if (!u || !S.contains(u) || u.dataset.agcLock) return;
+    e.preventDefault(); e.stopPropagation();
+    if (d) terminar(false);
+    empezar(u, e.clientX, e.clientY, null); levantar(); try { navigator.vibrate?.(10); } catch {}
+    const id = e.pointerId; try { asa.setPointerCapture(id); } catch {}
+    const mv = ev => { if (ev.pointerId !== id || !d) return; if (ev.cancelable) ev.preventDefault(); if (!d.moved && Math.hypot(ev.clientX - d.ax, ev.clientY - d.ay) > 4) d.moved = true; mover(ev.clientX, ev.clientY); if (!raf) raf = requestAnimationFrame(auto); };
+    const up = ev => { if (ev.pointerId !== id) return; removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); terminar(ev.type === 'pointerup'); };
+    addEventListener('pointermove', mv, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  }, true);
   const filtro = el => {
+    if (el.closest?.('[data-agc-asa]')) return null;   // 2.21.4 (S) · el asa ya lo hace
     const u = el.closest?.('[data-agc-u]'); if (!u || !S.contains(u) || u.dataset.agcLock) return null;
     const rs = el.closest('[data-agc-rs]');
     if (!rs && el.closest('[data-chk],[data-tm-go],.agc-chk')) return null;
@@ -22120,17 +22322,20 @@ function agcWire(S, cfg) {
     if (d || e.touches.length > 1) return;
     const f = filtro(e.target); if (!f) return;
     const t = e.touches[0]; empezar(f.u, t.clientX, t.clientY, f.rs);
+    const d0 = d; window.arrEspera = () => { if (d && d === d0 && !d.lifted) { clearTimeout(d.tm); d = null; soltar(); } };   // 2.21.4 (S) · algo se desplazó: no se levanta
     d.tm = setTimeout(() => { if (d && !d.lifted) { levantar(); mover(d.ax, d.ay); } }, 380);   // el borde de abajo, igual: deslizar ahí desplaza el día
   }, { passive: false });
   S.addEventListener('touchmove', e => {
     if (!d) return; const t = e.touches[0];
     if (!d.lifted) { d.cx = t.clientX; d.cy = t.clientY; if (Math.abs(t.clientX - d.x0) > 10 || Math.abs(t.clientY - d.y0) > 10) { clearTimeout(d.tm); d = null; soltar(); } return; }
+    if (!e.cancelable) { terminar(false); return; }   // 2.21.4 (S) · Chrome ya desplaza: no se arrastra con el día moviéndose debajo
     e.preventDefault(); if (!d.moved && Math.hypot(t.clientX - d.ax, t.clientY - d.ay) > 6) d.moved = true;
     mover(t.clientX, t.clientY); if (!raf) raf = requestAnimationFrame(auto);
   }, { passive: false });
   S.addEventListener('touchend', e => { if (d?.lifted) e.preventDefault(); terminar(true); }, { passive: false });
   S.addEventListener('touchcancel', () => terminar(false));
   S.addEventListener('contextmenu', e => { if (e.target.closest?.('[data-agc-u]')) e.preventDefault(); });
+  S.addEventListener('selectstart', e => { if (d) e.preventDefault(); });   // 2.21.4 (S)
   S.addEventListener('click', e => { if (Date.now() - noClick < 450) { e.stopPropagation(); e.preventDefault(); } }, true);
   S.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'mouse' || e.button !== 0 || d) return;
@@ -22167,7 +22372,7 @@ function agcOrgSheet(volver, prop) {
   const E = L.map(e => { let etq = '', rut = ''; try { etq = orgEtq(e); if (String(e.key || '').startsWith('hab:')) { rut = agRutNombre({ tipo: 'habito', ref: String(e.key).slice(4) }); etq = agEtqRut({ tipo: 'habito', ref: String(e.key).slice(4) }, etq); } } catch {}
     return { id: e.key, t: e.t, h: e.h || '', min: Math.max(5, +e.min || 30), tk: agcOrgTipo(e), ok: !!e.hecho, lock: !!(e.fijo || e.hecho || e.foco), rs: false, meta: false, open: false, chk: false, pill: '', cad: hijo.has(e.key) ? (L.find(x => x.key === hijo.get(e.key))?.t || '') : '', etq: etq || e.etq || '', rut }; });
   const listo = !M ? 'Listo: mi día está organizado' : `Listo: ${cuando} está organizado`;
-  showSheet(`<div id="agc-org" data-hecho><h2>${esc(M ? cap(cuando) : 'Tu día')}, en calendario</h2><p class="note">Mantén pulsado un bloque y arrástralo a otra hora. Lo de «Sin hora» se arrastra a la línea del día.</p>
+  showSheet(`<div id="agc-org" data-hecho><h2>${esc(M ? cap(cuando) : 'Tu día')}, en calendario</h2><p class="note">Arrastra un bloque desde ⠿ a otra hora. Lo de «Sin hora», a la línea del día.</p>
     ${E.length ? agcHtml(E, hijo, { ctx: 'org', ahora: M ? null : nowMin(), rs: false }) : '<p class="empty">No hay nada elegido todavía.</p>'}
     <div class="actions agc-org-pie"><button type="button" class="link" id="agc-org-l">Volver a la lista</button><button type="button" class="primary" id="agc-org-ok" data-guarda>${esc(listo)}</button></div></div>`);
   const b = $('#sheet-body'), S = b?.querySelector('.agc');
