@@ -486,7 +486,7 @@ function candidatos(C, fecha) {
       return !!x && !x.rutina && !(x.creado && x.creado > fecha) && programado(x, fecha) && horasDe(x).includes(h); };
     for (const it of A.items) {
       const h = horaDe(it), hb = it.tipo === 'habito' && !it.hist ? fuente(it) : null, borrada = it.enFuente && !fuente(it);
-      if (!hmOk(h) || ['evento', 'plan'].includes(it.tipo) || (borrada && !(borradoEn(it) > inicio)) || (hb && (hb.sinAviso || hb.graduado || protegido(hb, fecha))) || gobiernaHabito(it, h) || !menos(h, 10)) continue;
+      if (!hmOk(h) || ['evento', 'plan', 'cons', 'examen'].includes(it.tipo) || (borrada && !(borradoEn(it) > inicio)) || (hb && (hb.sinAviso || hb.graduado || protegido(hb, fecha))) || gobiernaHabito(it, h) || !menos(h, 10)) continue;
       const org = +it.org || 0, min = +it.min || 0, fant = +it.fantasma || 0;
       // Un bloque protegido (F25) recuerda, además, que la app calla mientras dura.
       out.push({ t: en(menos(h, 10)), clase: 1, tag: 'ag-' + it.id, franja: 'ag-' + it.id, title: `${texto(it)}${min ? ` · ${min} min` : ''}`, body: `Si ${sonlas(h)}, entonces empiezo: No molestar y el teléfono lejos.${it.foco ? ' Los avisos de la app callan en este bloque.' : ''}`,
@@ -517,6 +517,31 @@ function candidatos(C, fecha) {
     if (!pausaFija(C, fecha, 'agenda@09:30', ['agenda'], ['agenda'], e => (E.dias?.[e]?.agenda || 0) > 0))
       out.push({ t: en('09:30'), clase: 3, soloVolver: true, tag: 'agenda', franja: 'agenda@09:30', title: 'Tu día aún no tiene hora', body: 'Dos minutos y lo importante queda con hora.', url: './?v=agenda', apagar: APAGAR,
         vivo: at => tipoOn('agenda', at) && (!A.organizado || (pasado(at) && !A.hist && A.organizadoEn > at)) });
+  }
+  // 2.21.6 (C) · Acciones constantes (E.constantes): un aviso a su hora (la de su fila de hoy si la moviste), los días que toca (sus días, sus
+  // fechas, sin pausa; ligada a una ruta, hasta la víspera del examen). Vivo mientras no esté hecha ni quitada hoy; tope y silencios como todos.
+  if (hayTipo('constantes')) {
+    // La misma fuente que la agenda: la de hoy o, si aún no se abrió la app hoy, el plan que dejaste la víspera (su hora y lo que quitaste con ×).
+    const A0 = E.agendaHoy && E.agendaHoy.fecha === fecha ? E.agendaHoy : null, Q = A0 && A0.quit && typeof A0.quit === 'object' && !Array.isArray(A0.quit) ? A0.quit : {};
+    const strs = x => Array.isArray(x) ? x.filter(y => typeof y === 'string').slice(0, 300) : [];   // ocultos son textos («cons:id»): acota solo deja objetos
+    const OC = new Set([...strs(A0?.ocultos), ...(!(A0?.organizado) ? strs(planDe(E, fecha)?.ocultos) : [])]);
+    let FIL = []; try { FIL = agendaDe0(C, fecha).items.filter(x => x && x.tipo === 'cons' && !x.hist && !x.fantasma); } catch {}
+    const rutas = acota(E.estudio?.rutas, 40);
+    for (const c of acota(E.constantes, 60)) {
+      try {
+        if (!c || typeof c.id !== 'string' || typeof c.t !== 'string' || !c.t.trim() || c.pausa) continue;
+        if (fechaOk(c.desde) && fecha < c.desde) continue;
+        if (fechaOk(c.hasta) && fecha > c.hasta) continue;
+        if (typeof c.ruta === 'string' && c.ruta) { const r = rutas.find(x => x && x.id === c.ruta); if (!r || r.archivada || !fechaOk(r.fecha) || fecha >= r.fecha) continue; }
+        const D = Array.isArray(c.dias) ? c.dias.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : [];
+        if (D.length && D.length < 7 && !D.includes(w)) continue;
+        const k = 'cons:' + c.id, it = FIL.find(x => x.ref === c.id), hm = it && hmOk(it.h) ? it.h : hmOk(c.h) ? c.h : '';
+        if (!hm || OC.has(k)) continue;
+        const q = +Q[k] || 0, hv = +(c.hechos && typeof c.hechos === 'object' ? c.hechos[fecha] : 0) || (it && it.hecho === true ? 1 : 0), min = Math.max(0, Math.round(+c.min || 0)), t = sinPunto(c.t.trim());
+        out.push({ t: en(hm), clase: 1, tag: 'cons-' + c.id, franja: 'cons-' + c.id, title: `${hora12(hm)} · ${t}`, body: `${min ? min + ' min. ' : ''}Tu acción constante. ¿La empiezas?`, url: './?v=agenda', apagar: APAGAR, limite: 60,
+          vivo: at => tipoOn('constantes', at) && (!(q > 0) || (pasado(at) && q > at)) && (!(hv > 0) || (pasado(at) && hv > at)) });
+      } catch {}
+    }
   }
   // Plan con alguien: una hora antes. Si un silencio (o una pasada tardía) lo retrasa, el título dice la hora del plan en
   // lugar de «En 1 hora»; si el silencio acaba a menos de 20 minutos del plan (o la pasada llega a menos de 5), no sale.

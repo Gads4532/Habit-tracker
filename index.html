@@ -683,7 +683,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.21.5';
+const APP_VERSION = '2.21.6';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -852,6 +852,35 @@ function consLogFusion(a, b, dead) {
   }
   return out;
 }
+// 2.21.6 (C) · Acciones constantes: normalizar y combinar (fuera del módulo de Enfoque: las usan normEnfoque y mergeStates).
+function kcNorm(L) {
+  const F = v => typeof v === 'string' && /^\d{4}-\d\d-\d\d$/.test(v) ? v : '';
+  const H = v => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : '';
+  const out = [], vistos = new Set();
+  for (const c of Array.isArray(L) ? L : []) {
+    if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !c.id || vistos.has(c.id)) continue;
+    const t = String(typeof c.t === 'string' ? c.t : '').replace(/\s+/g, ' ').trim().slice(0, 80); if (!t) continue;
+    vistos.add(c.id);
+    const dias = [...new Set((Array.isArray(c.dias) ? c.dias : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b);
+    const hechos = {};
+    if (c.hechos && typeof c.hechos === 'object' && !Array.isArray(c.hechos)) for (const k of Object.keys(c.hechos).filter(k => F(k) && Number.isFinite(+c.hechos[k]) && +c.hechos[k]).sort().slice(-120)) hechos[k] = +c.hechos[k];
+    out.push({ id: c.id.slice(0, 80), t, dias: dias.length === 7 ? [] : dias, h: H(c.h), min: Math.max(5, Math.min(240, Math.round(+c.min || 15))), cat: typeof c.cat === 'string' ? c.cat.slice(0, 20) : '',
+      desde: F(c.desde), hasta: F(c.hasta), ruta: typeof c.ruta === 'string' ? c.ruta.slice(0, 80) : '', pausa: !!c.pausa, creado: +c.creado || 0, mod: +c.mod || 0, hechos, ...(typeof c.iden === 'string' && c.iden ? { iden: c.iden.slice(0, 80) } : {}) });
+    if (out.length >= 60) break;
+  }
+  return out;
+}
+// Dos copias: por id, el contenido de la cambiada más tarde (mod); lo hecho, día por día, lo último que pasó; lo borrado (forget) no vuelve.
+function kcFusion(x, y, dead) {
+  const A = kcNorm(x), B = kcNorm(y), m = new Map();
+  for (const c of [...B, ...A]) {
+    const o = m.get(c.id); if (!o) { m.set(c.id, c); continue; }
+    const g = (+c.mod || 0) >= (+o.mod || 0) ? c : o, H = { ...o.hechos };
+    for (const [k, v] of Object.entries(c.hechos)) if (!(k in H) || Math.abs(v) >= Math.abs(H[k])) H[k] = v;
+    m.set(c.id, { ...g, hechos: H });
+  }
+  return [...m.values()].filter(c => !(dead && dead.has(c.id)));
+}
 function normEnfoque(e) {
   e ||= {};
   const d = new Date(), hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -862,6 +891,7 @@ function normEnfoque(e) {
   e.dias ||= {};
   if (typeof e.dias !== 'object' || Array.isArray(e.dias)) e.dias = {};
   for (const k of Object.keys(e.dias)) { const d = e.dias[k]; if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !d || typeof d !== 'object' || Array.isArray(d)) { delete e.dias[k]; continue; } for (const f of Object.keys(d)) { const v = +d[f]; d[f] = Number.isFinite(v) ? v : 0; } }
+  e.constantes = kcNorm(e.constantes);   // 2.21.6 (C) · acciones constantes
   if (!Array.isArray(e.personas)) e.personas = [];
   for (const p of e.personas) { p.cada = +p.cada || 30; p.ultimo ||= ''; p.tel ||= ''; if (!Array.isArray(p.historial)) p.historial = []; }
   if (!Array.isArray(e.proyectos)) e.proyectos = [];
@@ -1187,6 +1217,7 @@ function mergeStates(a, b) {
       for (const i of x) { const o = m.get(i.id); if (!o) { m.set(i.id, i); continue; } const gana = (+i.cambiado || 0) >= (+o.cambiado || 0) ? i : o, otro = gana === i ? o : i;
         m.set(i.id, (+otro.notion?.en || 0) > (+gana.notion?.en || 0) ? { ...gana, notion: otro.notion } : gana); }
       return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), ...xpFusion(eN, eO, dias), ...xpPenFusion(eN, eO),   /* 2.19 (X) · pérdidas y vuelta a Novato · 2.17 (XP) · por día y referencia, la más reciente; base de la copia con baseHasta más reciente */
+    constantes: kcFusion(eN.constantes, eO.constantes, dead),   /* 2.21.6 (C) */
     objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), consistencias: consFusion(eN.consistencias, eO.consistencias, dead), consLog: consLogFusion(eN.consLog, eO.consLog, dead), consPreg: [eO.consPreg, eN.consPreg].filter(Boolean).sort().pop() || '', espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
@@ -7231,7 +7262,7 @@ const IA_TOOLS = [
   iaTool('diario_escribir', 'Guarda una entrada en la pestaña Journaling (por ejemplo, un resumen que la persona dictó o pidió guardar); si Notion está conectado, se envía sola a su base de Journaling.', { texto: S('Texto de la entrada.'), pregunta: S('Pregunta guía o vacío.') }),
   iaTool('iniciar_enfoque', 'Empieza una sesión de enfoque en la pestaña Enfoque (la persona deberá bloquear el teléfono).', {
     que: S('En qué se va a enfocar.'), minutos: { type: 'integer', description: 'Duración en minutos (5 a 120).' } }),
-  iaTool('agenda_ver', 'Devuelve la agenda de hoy (tareas, iniciativas, prioridades, estudio, Vida espiritual, bloques, planes y eventos con hora, y si están hechos) y los objetivos SMART activos con su avance. Los hábitos no están en la agenda: viven en Hábitos.', {}),
+  iaTool('agenda_ver', 'Devuelve la agenda de hoy (tareas, iniciativas, prioridades, estudio, Vida espiritual, bloques, acciones constantes, planes y eventos con hora, y si están hechos), las acciones constantes (lo que se repite y entra solo) y los objetivos SMART activos con su avance. Los hábitos no están en la agenda: viven en Hábitos.', {}),
   iaTool('agenda_organizar', 'Pone cosas en la agenda de hoy o de mañana con hora y minutos, en forma SMART. Crea la tarea si no existe. Un hábito no entra en la agenda: se crea en Hábitos con su hora (si no existe). Úsalo solo si la persona lo pidió o aceptó.', {
     dia: { type: 'string', enum: ['hoy', 'manana'], description: 'hoy, o manana para dejar organizado el día siguiente.' },
     items: { type: 'array', description: 'Cosas a agendar (máximo 15).', items: { type: 'object', properties: { tipo: { type: 'string', enum: ['habito', 'tarea', 'iniciativa', 'otro'] }, texto: S('Qué (verbo + qué). Para hábitos y tareas que ya existen, su nombre tal cual.'), hora: S('HH:MM en 24 h o vacío.'), minutos: { type: 'integer', description: 'Duración estimada en minutos (5 a 180).' }, categoria: S('Para iniciativas: estudio, proyecto, laboral, social o espiritual; vacío en otro caso.'), hecho_cuando: S('Señal medible de hecho, o vacío.'), para_que: S('Para qué sirve u objetivo al que suma, o vacío.') }, required: ['tipo', 'texto', 'hora', 'minutos', 'categoria', 'hecho_cuando', 'para_que'], additionalProperties: false } },
@@ -7356,7 +7387,7 @@ async function iaEjecutar(nombre, a) {
     case 'iniciar_enfoque': {
       const min = Math.max(5, Math.min(120, a.minutos | 0)); irA('enfoque'); startFocus(a.que, min); return { iniciada: `${min} min en «${a.que}»` };
     }
-    case 'agenda_ver': return { ...window.agendaResumen(), objetivos: objetivosActivos().map(o => ({ id: o.id, que: o.t, metrica: o.metrica, avance: `${o.actual} de ${o.meta} ${o.unidad}`, fecha_limite: o.fecha, area: o.area, ritmo: objRitmo(o) })) };
+    case 'agenda_ver': return { ...window.agendaResumen(), constantes: consResumenIA(), objetivos: objetivosActivos().map(o => ({ id: o.id, que: o.t, metrica: o.metrica, avance: `${o.actual} de ${o.meta} ${o.unidad}`, fecha_limite: o.fecha, area: o.area, ritmo: objRitmo(o) })) };
     case 'agenda_organizar': return agendaAsistente(a);
     case 'objetivo_crear': {
       if (!(a.meta > 0) || !/^\d{4}-\d\d-\d\d$/.test(a.fecha_limite)) throw new Error('Hace falta un número meta mayor que 0 y una fecha límite AAAA-MM-DD.');
@@ -9008,7 +9039,8 @@ const SMART_L = ['S', 'M', 'A', 'R', 'T'];
 const SMART_NOMBRE = { S: 'Específico', M: 'Medible', A: 'Alcanzable', R: 'Relevante', T: 'Con tiempo' };
 const AG_TIPO = { habito: 'Hábito', tarea: 'Tarea', ini: 'Iniciativa', prio: 'Prioridad', plan: 'Plan', evento: 'Calendario', libre: 'Agenda' };
 const AG_MIN = { habito: 15, tarea: 25, ini: 30, prio: 25, plan: 60, evento: 60, libre: 30 };
-AG_TIPO.estudio = 'Estudio'; AG_MIN.estudio = 50;   // 2.14 (X) · bloques de estudio de las rutas
+AG_TIPO.estudio = 'Estudio'; AG_MIN.estudio = 50;
+AG_TIPO.cons = 'Constante'; AG_MIN.cons = 15; AG_TIPO.examen = 'Examen'; AG_MIN.examen = 90;   // 2.21.6 (C)   // 2.14 (X) · bloques de estudio de las rutas
 const FRANJAS = [['Mañana', '08:00'], ['Media mañana', '10:30'], ['Mediodía', '13:00'], ['Tarde', '15:30'], ['Final de tarde', '17:30'], ['Noche', '20:00']];
 const MINUTOS_AG = [10, 15, 25, 45, 60, 90];
 // Señal de hecho por defecto de cada categoría: ninguna iniciativa entra sin algo que se pueda comprobar.
@@ -9090,6 +9122,196 @@ function iniPropuesta(k) {
   return { t, exito: EXITO_DEF[k], min: AG_MIN.ini, h: '', por: '', paso: '', src: 'idea' };
 }
 
+// ====================================================================
+// 2.21.6 (C) · «En agenda hay que agregar acciones constantes, como rutas.» Una acción que se repite (estudiar para un examen, repasar,
+// leer…) entra sola en la agenda de cada día que toca. Sin constantes de nivel superior (todo dentro de funciones: normEnfoque llama a
+// kcNorm al cargar).
+// ====================================================================
+function consL() { if (!Array.isArray(ES.constantes)) ES.constantes = []; return ES.constantes; }
+function consGet(id) { return (typeof id === 'string' && consL().find(c => c && c.id === id)) || null; }
+function consRuta(c) { if (!c || !c.ruta) return null; try { return window.est?.ruta?.(c.ruta) || null; } catch { return null; } }
+// ¿Toca ese día? Sus días, sus fechas, sin pausa y, ligada a una ruta, hasta la víspera del examen (el día del examen ya no).
+function consAplica(c, d = today()) {
+  if (!c || c.pausa || !/^\d{4}-\d\d-\d\d$/.test(d || '')) return false;
+  if (c.desde && d < c.desde) return false;
+  if (c.hasta && d > c.hasta) return false;
+  if (c.ruta) { const r = consRuta(c); if (!r || r.archivada || !r.fecha || d >= r.fecha) return false; }
+  return !c.dias.length || c.dias.includes(wd(d));
+}
+function consHecho(c, d = today()) { return !!c && +(c.hechos || {})[d] > 0; }
+function consDiasTxt(c) {
+  const d = c?.dias || []; if (!d.length) return 'Cada día';
+  const k = d.join(',');
+  if (k === '0,1,2,3,4') return 'De lunes a viernes';
+  if (k === '5,6') return 'Sábado y domingo';
+  return d.map(i => ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'][i]).join(', ');
+}
+function consLinea(c) {
+  const r = consRuta(c);
+  return [c.pausa ? 'En pausa' : '', consDiasTxt(c), c.h ? fmtHora(c.h) : 'Sin hora', fmtMin(c.min), r && r.fecha ? `hasta el examen (${fmtFecha(r.fecha)})` : c.hasta ? `hasta el ${fmtFecha(c.hasta)}` : ''].filter(Boolean).join(' · ');
+}
+// La agenda de hoy: entra cada una que toca (salvo quitada hoy); la que ya no toca (borrada, en pausa, fuera de fecha) sale si no está hecha.
+function consAgendaInyectar(A) {
+  if (!A || A.fecha !== today() || !Array.isArray(A.items)) return;
+  const d = A.fecha, oc = new Set(Array.isArray(A.ocultos) ? A.ocultos : []); let cambio = false;
+  const antes = A.items.length;
+  A.items = A.items.filter(it => { if (!it || it.tipo !== 'cons') return true; const c = consGet(it.ref); return !!c && (consAplica(c, d) || consHecho(c, d)); });
+  if (A.items.length !== antes) cambio = true;
+  for (const c of consL()) {
+    const k = 'cons:' + c.id;
+    if (!consAplica(c, d) || oc.has(k) || agQuitado(A, k) || A.items.some(it => it && it.tipo === 'cons' && it.ref === c.id)) continue;
+    A.items.push({ id: `auto:${d}:${k}:${Date.now().toString(36)}`, tipo: 'cons', ref: c.id, t: c.t, h: c.h || '', hf: c.h || '', min: c.min, minf: c.min, hecho: consHecho(c, d), alta: Date.now(), ...(c.iden ? { iden: c.iden } : {}) });
+    cambio = true;
+  }
+  if (cambio) guardarAlPintar(guardar);
+}
+// Marcar: lo hecho va a la acción (por día); 5 XP una vez por día, como una tarea; desmarcar los quita.
+function consMarcar(it, hecho) {
+  const c = consGet(it.ref), d = today(); it.hecho = !!hecho; if (!c) return;
+  c.hechos = { ...(c.hechos || {}), [d]: hecho ? Date.now() : -Date.now() };
+  const ref = `k:${c.id}:${d}`;
+  if (hecho) xpGanar(5, 'Acción constante', ref, c.cat ? { cat: c.cat } : {}); else xpQuitar(ref);
+}
+function consHoyNo(it) { closeSheet(); agQuitarAviso(it, 'Hoy no. Vuelve el próximo día que toque.'); }
+// La línea pequeña: cuántos días faltan para el examen (bloques de estudio y acciones ligadas a una ruta); el día del examen, su fila.
+function exCuentaEtq(it, s) {
+  try {
+    if (!it) return s;
+    if (it.tipo === 'examen') { const r = window.est?.ruta?.(it.ref); return `Examen · ${r?.nombre || 'hoy'}`; }
+    let fecha = '';
+    if (it.tipo === 'estudio') { const f = exBloque(it.ref), m = f && typeof f.materia === 'string' ? f.materia : ''; fecha = f?.examen || ''; s = String(s || '').replace(/ · \d+ ejercicios?(?= · |$)/, ''); if (m && agTituloEst(it).includes(m)) s = s.replace(' · ' + m, ''); }   // la materia ya va en el título («Roma · Historia»): sin repetirla
+    else if (it.tipo === 'cons') { const r = consRuta(consGet(it.ref)); fecha = r?.fecha || ''; }
+    if (!fecha) return s;
+    const d = exDias(fecha); if (!Number.isFinite(d) || d < 0) return s;
+    const q = d === 0 ? 'examen hoy' : d === 1 ? 'examen mañana' : `examen en ${d} días`;
+    return it.tipo === 'estudio' ? q[0].toUpperCase() + q.slice(1) : `${s} · ${q}`;   // un bloque: solo «Examen en 2 días» (su color y su pestaña ya dicen Estudio; cabe a 320 px)
+  } catch { return s; }
+}
+// El día del examen: su tarea («Examen: {nombre} ({materia})», el espejo de la ruta en Tareas) entra sola en la agenda de ese día, también sin
+// organizarlo (antes solo entraba con el día organizado). Quitada hoy, u organizada y dejada fuera, no vuelve (como agAutoAlta).
+function exExamenInyectar(A) {
+  if (!A || A.fecha !== today() || !Array.isArray(A.items)) return;
+  const d = A.fecha, vis = new Set(Array.isArray(A.vistos) ? A.vistos : []); let cambio = false;
+  for (const x of HT().tareas?.items || []) {
+    if (!x || x.hecha || x.fecha !== d || !x.est || typeof x.est !== 'object' || !x.est.examen) continue;
+    const k = 'tarea:' + x.id;
+    if (agQuitado(A, k) || A.items.some(it => it && it.tipo === 'tarea' && it.ref === x.id) || (+A.organizado > 0 && vis.has(k))) continue;
+    A.items.push({ id: `auto:${d}:${k}`, tipo: 'tarea', ref: x.id, t: x.titulo, h: x.hora || '', min: +x.min || AG_MIN.tarea, hecho: false, alta: Date.now() });
+    cambio = true;
+  }
+  if (cambio) guardarAlPintar(guardar);
+}
+// «Organizar mi día» (hoy u otro día): las que tocan ese día, ya puestas, con su hora; quitar una («×») la deja fuera solo ese día.
+function consOrgInit(base) {
+  if (!org) return; org.cons = new Map();
+  const D = org.dest, M = org.manana, P = M ? planDia(D) : null, A = M ? null : agenda(), oc = new Set((M ? P?.ocultos : A?.ocultos) || []);
+  for (const c of consL()) {
+    if (!consAplica(c, D)) continue;
+    const it = (base || []).find(i => i && i.tipo === 'cons' && i.ref === c.id);
+    org.cons.set(c.id, { on: !!it || (!oc.has('cons:' + c.id) && !(A && agQuitado(A, 'cons:' + c.id))), h: (it && it.h) || c.h || '' });
+  }
+}
+function consOrgLista(L) {
+  if (!org || !org.cons) return;
+  for (const [id, o] of org.cons) { if (!o.on) continue; const c = consGet(id); if (c) L.push({ key: 'cons:' + id, tipo: 'cons', t: c.t, etq: 'Constante', h: o.h || '', min: c.min, hecho: !org.manana && consHecho(c, org.dest) }); }
+}
+function consOrgGuardar(mk) {
+  if (!org || !org.cons) return;
+  for (const [id, o] of org.cons) { if (!o.on) continue; const c = consGet(id); if (c) mk('cons', id, c.t, o.h, c.min, { hf: c.h || '', minf: c.min }); }
+}
+function consOrgOcultos(A) {
+  if (!org || !org.cons || !A || typeof A !== 'object') return;
+  const on = [], off = []; for (const [id, o] of org.cons) (o.on ? on : off).push('cons:' + id);
+  if (!on.length && !off.length) return;
+  A.ocultos = [...new Set([...(Array.isArray(A.ocultos) ? A.ocultos : []).filter(r => !on.includes(r)), ...off])];
+  if (A.fecha === today()) { for (const k of off) if (!agQuitado(A, k)) agQuitMarcar(A, k, true); for (const k of on) if (agQuitado(A, k)) agQuitMarcar(A, k, false); }
+}
+// ---------- Crear y editar, simple: qué, días, hora, minutos y categoría (opcional: hasta un examen y fechas).
+function consFormHtml(c) {
+  const v = c || { t: '', dias: [], h: '', min: 15, cat: '', ruta: '', desde: '', hasta: '' };
+  let R = []; try { R = (window.est?.rutas?.() || []).filter(r => r && r.fecha && r.fecha > today()); } catch {}
+  if (v.ruta && !R.some(r => r.id === v.ruta)) { const r = consRuta(v); if (r) R.push(r); }
+  const mins = [10, 15, 25, 30, 45, 60, 90]; if (!mins.includes(v.min)) mins.push(v.min); mins.sort((a, b) => a - b);
+  const L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'], DN = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+  return `<div class="cf"><style>.cf .chip{min-height:44px;min-width:44px;justify-content:center}.cf .chips{gap:6px}.cf select,.cf input{min-height:44px}.cf summary{min-height:44px;display:flex;align-items:center;cursor:pointer}</style>
+    <div class="field"><label for="cf-t">Qué harás</label><input id="cf-t" maxlength="80" autocomplete="off" value="${esc(v.t)}" placeholder="Estudiar para el examen"></div>
+    <div class="field"><label id="cf-dias-l">Qué días</label><div class="chips" id="cf-dias" role="group" aria-labelledby="cf-dias-l"><button type="button" class="chip${v.dias.length ? '' : ' on'}" data-d="all" aria-pressed="${!v.dias.length}">Cada día</button>${L.map((n, i) => `<button type="button" class="chip${v.dias.includes(i) ? ' on' : ''}" data-d="${i}" aria-label="${DN[i]}" aria-pressed="${v.dias.includes(i)}">${n}</button>`).join('')}</div></div>
+    <div class="field"><label for="cf-h">Hora</label>${horaInput('cf-h', v.h)}</div>
+    <div class="field"><label id="cf-min-l">Minutos</label><div class="chips" id="cf-min" role="group" aria-labelledby="cf-min-l">${mins.map(m => `<button type="button" class="chip${m === v.min ? ' on' : ''}" data-m="${m}" aria-label="${m} min" aria-pressed="${m === v.min}">${m}</button>`).join('')}</div></div>
+    ${catChips('cf-cat', v.cat, { from: '#cf-t', jd: '', tocado: !!c })}
+    ${R.length ? `<div class="field"><label for="cf-ruta">Hasta un examen (opcional)</label><select id="cf-ruta"><option value="">Sin fin</option>${R.map(r => `<option value="${esc(r.id)}"${r.id === v.ruta ? ' selected' : ''}>${esc(r.nombre || 'Ruta')} · ${esc(fmtFecha(r.fecha))}</option>`).join('')}</select></div>` : ''}
+    <details class="cf-fechas"${v.desde || v.hasta ? ' open' : ''}><summary class="link">Fechas (opcional)</summary><div class="times"><div class="field"><label for="cf-desde">Desde</label><input id="cf-desde" type="date" value="${esc(v.desde)}"></div><div class="field"><label for="cf-hasta">Hasta</label><input id="cf-hasta" type="date" value="${esc(v.hasta)}"></div></div></details>
+    <p class="meta red" id="cf-err" role="alert"></p></div>`;
+}
+function consFormWire(b) {
+  const D = b.querySelector('#cf-dias'), Mn = b.querySelector('#cf-min'), pon = (y, on) => { y.classList.toggle('on', on); y.setAttribute('aria-pressed', String(on)); };
+  D?.addEventListener('click', e => {
+    const x = e.target.closest('[data-d]'); if (!x) return;
+    const all = D.querySelector('[data-d="all"]'), dias = [...D.querySelectorAll('[data-d]:not([data-d="all"])')];
+    if (x === all) { dias.forEach(y => pon(y, false)); pon(all, true); return; }
+    pon(x, !x.classList.contains('on'));
+    const n = dias.filter(y => y.classList.contains('on')).length, todo = n === 0 || n === 7;
+    if (todo) dias.forEach(y => pon(y, false));
+    pon(all, todo);
+  });
+  Mn?.addEventListener('click', e => { const x = e.target.closest('[data-m]'); if (x) Mn.querySelectorAll('[data-m]').forEach(y => pon(y, y === x)); });
+  b.querySelector('#cf-ruta')?.addEventListener('change', e => { if (!e.target.value) return; const box = catCaja(b, 'cf-cat'); if (box) { box.dataset.tocado = '1'; catPintarSel(box, 'estudio'); } });
+}
+function consFormLeer(b) {
+  const err = m => { const e = b.querySelector('#cf-err'); if (e) e.textContent = m; return null; };
+  const t = (b.querySelector('#cf-t')?.value || '').replace(/\s+/g, ' ').trim();
+  if (!t) { b.querySelector('#cf-t')?.focus(); return err('Escribe qué harás.'); }
+  const dias = [...b.querySelectorAll('#cf-dias [data-d].on')].map(x => x.dataset.d).filter(x => x !== 'all').map(Number);
+  const h = b.querySelector('#cf-h')?.value || '', min = +(b.querySelector('#cf-min [data-m].on')?.dataset.m) || 15;
+  const ruta = b.querySelector('#cf-ruta')?.value || '', desde = b.querySelector('#cf-desde')?.value || '', hasta = b.querySelector('#cf-hasta')?.value || '';
+  if (desde && hasta && hasta < desde) return err('«Hasta» va después de «Desde».');
+  let cat = catLeer(b, 'cf-cat'); if (ruta && !cat) cat = 'estudio';
+  return { t, dias: dias.length === 7 ? [] : dias, h: /^\d\d:\d\d$/.test(h) ? h : '', min, cat, ruta, desde, hasta };
+}
+function consCrear(d) {
+  const c = kcNorm([{ ...d, ...(d && d.ruta && !d.cat ? { cat: 'estudio' } : {}), id: crypto.randomUUID(), creado: Date.now(), mod: Date.now(), hechos: {} }])[0]; if (!c) return null;
+  consL().push(c); guardar(); renderE(); renderAg(); try { if (view === 'inicio') iniRepintar(); } catch {}
+  return c;
+}
+function consAvisoCreada(c) { toast(consAplica(c) ? 'Lista. Ya está en tu agenda de hoy.' : `Lista. Entra sola: ${consDiasTxt(c).toLowerCase()}.`); }
+function consRepintar() { guardar(); renderE(); renderAg(); try { if (view === 'inicio') iniRepintar(); } catch {} }
+function consListaSheet() {
+  const L = consL();
+  showSheet(`<h2>Acciones constantes</h2><p class="note">Entran solas en tu agenda los días que elegiste.</p>
+    ${L.length ? `<div class="rows" id="cl-rows">${L.map(c => `<button class="row" data-cons="${esc(c.id)}" style="min-height:44px"><span class="dot" style="--c:${c.pausa ? 'var(--empty)' : 'var(--agc-cons, var(--accent))'}"></span><span class="t"><div>${esc(c.t)}</div><small style="white-space:normal">${esc(consLinea(c))}</small></span><span class="tag">›</span></button>`).join('')}</div>` : '<p class="empty">Aún no tienes ninguna.</p>'}
+    <div class="actions"><button class="link" id="cl-x">Cerrar</button><button class="primary" id="cl-new">+ Nueva</button></div>`);
+  const b = $('#sheet-body');
+  b.querySelectorAll('[data-cons]').forEach(x => x.onclick = () => { const c = consGet(x.dataset.cons); if (c) consEditarSheet(c); });
+  $('#cl-x').onclick = closeSheet;
+  $('#cl-new').onclick = () => consNuevaSheet(true);
+}
+function consNuevaSheet(desdeLista = false) {
+  showSheet(`<h2>Nueva acción constante</h2>${consFormHtml(null)}<div class="actions"><button class="link" id="cf-back">${desdeLista ? 'Atrás' : 'Cancelar'}</button><button class="primary" id="cf-ok">Crear</button></div>`);
+  const b = $('#sheet-body'); consFormWire(b);
+  $('#cf-back').onclick = () => desdeLista ? consListaSheet() : closeSheet();
+  $('#cf-ok').onclick = () => { const d = consFormLeer(b); if (!d) return; const c = consCrear(d); if (!c) return; if (desdeLista) consListaSheet(); else closeSheet(); consAvisoCreada(c); };
+}
+function consEditarSheet(c0) {
+  const c = consGet(c0?.id); if (!c) return;
+  showSheet(`<h2>${esc(c.t)}</h2>${consFormHtml(c)}
+    <div class="actions stack"><button class="primary" id="cf-ok">Guardar</button><button class="outline" id="cf-pausa">${c.pausa ? 'Reanudar' : 'Pausar'}</button><button class="link red" id="cf-del" style="min-height:44px">Eliminar</button><button class="link" id="cf-back" style="min-height:44px">Atrás</button></div>`);
+  const b = $('#sheet-body'); consFormWire(b);
+  $('#cf-back').onclick = consListaSheet;
+  $('#cf-ok').onclick = () => { const d = consFormLeer(b); if (!d) return; const x = consGet(c.id); if (!x) return; Object.assign(x, d, { mod: Date.now() }); consRepintar(); consListaSheet(); toast('Guardada.'); };
+  $('#cf-pausa').onclick = () => { const x = consGet(c.id); if (!x) return; x.pausa = !x.pausa; x.mod = Date.now(); consRepintar(); consListaSheet(); toast(x.pausa ? 'En pausa. No entra en tu agenda hasta que la reanudes.' : 'Reanudada.'); };
+  $('#cf-del').onclick = () => { if (!confirm(`¿Eliminar «${c.t}»? Lo ya hecho sigue contado.`)) return; forget(c.id); ES.constantes = consL().filter(x => x.id !== c.id); consRepintar(); consListaSheet(); toast('Eliminada.'); };
+}
+// El asistente (agenda_ver).
+function consResumenIA() {
+  return consL().map(c => { const r = consRuta(c); return { texto: c.t, dias: consDiasTxt(c), hora: c.h || '', minutos: c.min, categoria: (typeof CAT_N === 'object' && CAT_N[c.cat]) || '', hasta_examen: r ? `${r.nombre || 'Ruta'} (${r.fecha})` : '', en_pausa: !!c.pausa, toca_hoy: consAplica(c), hecha_hoy: consHecho(c) }; });
+}
+
+// Para las pruebas y la consola (como window.cs): lo de las acciones constantes.
+window.cons = { lista: () => JSON.parse(JSON.stringify(consL())), aplica: (id, d) => consAplica(consGet(id), d), crear: d => consCrear(d), listaSheet: () => consListaSheet(), ia: () => consResumenIA(),
+  _t: { agMarcar: (id, v) => { const it = agPorId(id); if (it) agMarcar(it, v); }, ficha: (id, abrir) => agItemSheet(agPorId(id), abrir), agenda: () => agenda(), quitMarcar: (k, v) => { agQuitMarcar(agenda(), k, v); guardar(); renderAg(); }, renderAg: () => renderAg(),
+    orgInit: d => orgInit(d === 'manana' ? diaManana() : d || today()), orgLista: () => orgLista(), orgGuardar: () => orgGuardar(), orgFuera: k => orgFuera(k), orgOn: (id, v) => { const o = org?.cons?.get(id); if (o) o.on = v; }, plan: () => planDia(diaManana()),
+    xpTotal: () => xpTotal(), ia: (n, a) => iaEjecutar(n, a || {}), avisos: () => AVISOS.map(a => a[0]), avTipo: t => AV_TIPO(t), borrar: id => { forget(id); ES.constantes = consL().filter(x => x.id !== id); guardar(); renderAg(); } } };
+
 // ---------- Datos: la agenda de hoy y, de noche, el plan de mañana.
 function agenda() {
   if (ES.agendaHoy.fecha !== today()) {
@@ -9105,6 +9327,7 @@ function agenda() {
   ES.agendaHoy.ocultos ||= [];
   btAgendaInyectar(ES.agendaHoy);   // 2.16 (B) · los bloques de tiempo de hoy, con hora fija (salvo los que quitaste)
   exAgendaInyectar(ES.agendaHoy);   // 2.14 (X) · los bloques de estudio de hoy, salvo los que quitaste
+  exExamenInyectar(ES.agendaHoy); consAgendaInyectar(ES.agendaHoy);   // 2.21.6 (C) · el día del examen y las acciones constantes
   return ES.agendaHoy;
 }
 // El plan entra con sus iniciativas y sus prioridades (en su orden, delante); lo que ya hubiera en la agenda de hoy (eventos, algo añadido suelto) se queda.
@@ -9134,6 +9357,7 @@ const agFuente = it => {
   if (it.tipo === 'estudio') return window.est?.bloque?.(it.ref) || null;   // 2.14 (X) · la fuente es el bloque de la ruta
   if (it.tipo === 'plan') return ES.planes.find(x => x.id === it.ref);
   if (it.tipo === 'bt') return btFuenteAg(it);   // 2.16 (B) · la fuente es el bloque de tiempo
+  if (it.tipo === 'cons') return consGet(it.ref);   // 2.21.6 (C)
   return it;
 };
 // 2.20 · Una tarea que se repite deja una nueva al completarse (origen = la anterior): la viva es la última de la cadena.
@@ -9152,6 +9376,7 @@ function agHecho(it, k = today()) {
   if (it.tipo === 'ini' && k !== today()) return (ES.iniHist?.[k] || []).includes(it.ref);
   const f = agFuente(it);
   if (it.tipo === 'estudio') return f ? !!f.hecho : !!it.hecho;   // 2.14 (X)
+  if (it.tipo === 'cons') { if (!f) return !!it.hecho; const v = +(f.hechos || {})[k] || 0; return v ? v > 0 : !!it.hecho; }   // 2.21.6 (C) · sin registro ese día (un teléfono con 2.21.5), la marca de la fila
   if (it.tipo === 'tarea') return f ? !!f.hecha : !!it.hecho;
   if (it.tipo === 'ini' || it.tipo === 'prio' || it.tipo === 'plan') return f ? !!f.hecho : !!it.hecho;
   return !!it.hecho;
@@ -9264,6 +9489,7 @@ function agSync(A) {
     else if (it.tipo === 'prio') { const x = ES.prioridades.items.find(y => y.id === it.ref); if (x) { t = x.t; if (!!x.hecho !== !!it.hecho) { it.hecho = !!x.hecho; cambio = true; } } }
     else if (it.tipo === 'estudio') { const x = window.est?.bloque?.(it.ref); if (x) { t = window.est.textoBloque(x); h = x.h || ''; } }   // 2.14 (X)
     else if (it.tipo === 'plan') { const x = ES.planes.find(y => y.id === it.ref); if (x) { t = `${cap(x.titulo)}${x.con ? ' con ' + x.con : ''}`; h = x.hora || ''; } }
+    else if (it.tipo === 'cons') { const x = consGet(it.ref); if (x) { t = x.t; const fh = x.h || ''; if ((it.hf ?? '') !== fh) { if ((it.h || '') === (it.hf ?? '')) h = fh; it.hf = fh; cambio = true; } if (it.minf !== x.min) { it.min = x.min; it.minf = x.min; cambio = true; } } }   // 2.21.6 (C) · la hora de la acción, si hoy nadie la movió
     if (t && t !== it.t) { it.t = t; cambio = true; }
     if (h !== null && h !== it.h) { it.h = h; cambio = true; }
   }
@@ -9394,7 +9620,8 @@ function prioMarcar(id, hecho) {
 function agMarcar(it, hecho = !agHecho(it), extra = {}) {
   if (it && it.tipo === 'bt' && btAgMarcar(it, hecho)) return;   // 2.16 (B) · con algo dentro, la casilla abre la ficha del bloque
   const f = agFuente(it);
-  if (it.tipo === 'estudio') { exAgMarcar(it, hecho, extra); guardar(); renderE(); renderAg(); agCompleta(); return; }   // 2.14 (X) · 10 XP una vez; nada se resta
+  if (it.tipo === 'estudio') { exAgMarcar(it, hecho, extra); guardar(); renderE(); renderAg(); agCompleta(); return; }
+  if (it.tipo === 'cons') { consMarcar(it, hecho); guardar(); renderE(); renderAg(); agCompleta(); return; }   // 2.21.6 (C)   // 2.14 (X) · 10 XP una vez; nada se resta
   if (it.tipo === 'habito') { if (!f) return; if (hecho) complete(f, 'full'); else setMark(f, ''); }
   else if (it.tipo === 'tarea') { if (!f) return; if (it.obj && !f.obj) f.obj = it.obj; if (hecho) completeTask(f); else uncompleteTask(f); save(); if (view === 'tareas') renderTareas(); gAuto(); }
   else if (it.tipo === 'ini') iniMarcar(iniIdx(it.ref), hecho);
@@ -9410,7 +9637,7 @@ function agMarcar(it, hecho = !agHecho(it), extra = {}) {
 window.objAvanceTarea = (x, hecho) => { if (x?.obj && ES.objetivos.some(o => o.id === x.obj)) objAvance(x.obj, hecho ? 1 : -1, x.titulo, 'tarea:' + x.id); };
 // Agenda completa: el premio es una vez al día, aunque luego se reorganice.
 function agCompleta() {
-  const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt');
+  const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt').filter(it => it.tipo !== 'examen');
   const llena = its.length >= 3 && its.every(it => agHecho(it));
   if (llena && !A.completa) { A.completa = true; guardar(); if (!(dayOf().agendas > 0)) { bump('agendas'); buzz([40, 60, 40]); setTimeout(() => xpGanar(25, 'Agenda del día completa', 'b:agenda:' + today(), { si: () => !!agenda().completa, no: () => { if ((dayOf().agendas || 0) > 0) bump('agendas', -1); } }), 800); } }
   else if (A.completa && its.some(it => !agHecho(it))) { A.completa = false; if (xpQuitar('b:agenda:' + today()) && (dayOf().agendas || 0) > 0) bump('agendas', -1); guardar(); }   // 2.17 (XP) · vuelve al completarla otra vez
@@ -9426,6 +9653,8 @@ function agQuitarTxt(it, ok) {
   if (ok) return 'Sale de hoy. Lo que ya hiciste sigue contado.';
   if (it.tipo === 'habito') { const h = HT().habits.find(x => x && x.id === it.ref); let resta = false; try { resta = !!h && xpHabitoDebia(h, today()); } catch {} return `Sale de hoy. Mañana vuelve si toca.${resta ? ' Hoy no te resta XP por dejarlo sin hacer.' : ''}`; }   // 2.21 (N6)
   if (it.tipo === 'tarea') { const f = agFuente(it); if (f && !f.hecha && f.fecha && f.fecha <= today()) return `Sale de hoy. Mañana vuelve si sigue pendiente. ${f.fecha < today() ? 'Sigue vencida' : 'Su fecha sigue siendo hoy'}: mientras no la hagas, resta cada día. Si hoy no toca, usa «Mover a mañana».`; return 'Sale de hoy. La tarea sigue en Tareas, igual.'; }
+  if (it.tipo === 'cons') return 'Sale de hoy. Vuelve el próximo día que toque.';   // 2.21.6 (C)
+  if (it.tipo === 'examen') return 'Sale de hoy. La ruta sigue igual.';
   if (it.tipo === 'estudio') return 'Sale de hoy. El bloque sigue en su ruta.';
   if (it.tipo === 'bt') return 'Sale de hoy. El bloque de tiempo no se borra.';
   if (it.tipo === 'plan') return 'Sale de tu agenda de hoy. El plan no se borra.';
@@ -9632,6 +9861,7 @@ function orgInit(dest = today()) {
   }
   agbOrgInit(base, organizado);
   exOrgInit(base, organizado);   // 2.14 (X) · los bloques de estudio del día destino
+  consOrgInit(base);   // 2.21.6 (C) · las acciones constantes de ese día, ya puestas
   if (!organizado) orgIniSugerir();
   jdMananaEnOrg();   // 2.13 (J) · lo que el cierre dejó para este día
   orgOrdenInit(base);   // 2.17 (O) · el orden guardado (rango)
@@ -9759,6 +9989,7 @@ function orgLista() {
   for (const [id, o] of org.tar) if (o.on) { const x = s.tareas.items.find(y => y.id === id); if (x) L.push({ key: 'tar:' + id, tipo: 'tarea', t: x.titulo, etq: 'Tarea', h: o.h || '', min: x.hecha ? x.min || AG_MIN.tarea : agbMin('tar:' + id, 'tarea', x.min || AG_MIN.tarea), hecho: !!x.hecha }); }
   for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) L.push({ key: 'hab:' + id, tipo: 'habito', t: h.nombre, etq: agbCorto() && h.minima ? `Hábito · primero 2 min: ${h.minima}` : 'Hábito', h: o.h || '', min: h.modo === 'tiempo' ? h.meta : AG_MIN.habito, hecho: !M && ['full', 'min'].includes(s.log[id]?.[D]) }); }
   exOrgLista(L);   // 2.14 (X)
+  consOrgLista(L);   // 2.21.6 (C)
   for (const it of org.libres) L.push({ key: 'lib:' + it.id, tipo: 'libre', t: it.t, etq: it.esp ? 'Vida espiritual' : it.cat ? `Extra de ${iniNombre(it.cat).toLowerCase()}` : 'Agenda', h: it.h || '', min: it.hecho ? it.min || AG_MIN.libre : agbMin('lib:' + it.id, 'libre', it.min || AG_MIN.libre), hecho: !!it.hecho });
   for (const pl of ES.planes.filter(p => p.fecha === D && !p.hecho && orgSolo('plan:' + p.id))) L.push({ key: 'plan:' + pl.id, tipo: 'plan', t: `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, etq: 'Plan', h: pl.hora, min: 60, fijo: true });
   if (!M) for (const it of agenda().items.filter(i => i.tipo === 'evento')) L.push({ key: 'ev:' + it.id, tipo: 'evento', t: it.t, etq: 'Calendario', h: it.h, min: it.min, fijo: true });
@@ -9771,6 +10002,7 @@ function orgSetHora(key, h) {
   else if (tipo === 'tar') { const o = org.tar.get(id); if (o) o.h = h; } else if (tipo === 'hab') { const o = org.hab.get(id); if (o) o.h = h; }
   else if (tipo === 'lib') { const it = org.libres.find(x => x.id === id); if (it) it.h = h; }
   else if (tipo === 'est') exOrgSetHora(id, h);   // 2.14 (X) · el bloque y, si es su espejo, la iniciativa de estudio
+  else if (tipo === 'cons') { const o = org.cons?.get(id); if (o) o.h = h; }   // 2.21.6 (C)
 }
 // Horas automáticas, en tres capas: 1) planes, eventos y lo hecho no se mueven; 2) las horas elegidas (por ti, por el hábito o por
 // la franja de la plantilla) se respetan, y si dos chocan, la segunda pasa al siguiente hueco; 3) lo demás (sin hora, con hora
@@ -9879,6 +10111,7 @@ function orgGuardar() {
   for (const [id, o] of org.hab) if (o.on) { const h = s.habits.find(y => y.id === id); if (h) mk('habito', id, h.nombre, o.h, h.modo === 'tiempo' ? h.meta : AG_MIN.habito, { hf: (h.horas || [])[0] || '' }); }
   const vistosOrg = [...s.habits.filter(h => h && !h.rutina && (!h.creado || h.creado <= D) && isSched(h, D)).map(h => 'habito:' + h.id), ...[...org.tar.keys()].map(id => 'tarea:' + id)];   // 2.21.4 (S) · los hábitos de ese día cuentan como vistos (un teléfono con 2.21.3 no los mete solos)   // 2.20 · lo visto al organizar no vuelve solo
   exOrgGuardar(mk, items);   // 2.14 (X) · los bloques encendidos, con su hora (que vuelve al bloque)
+  consOrgGuardar(mk);   // 2.21.6 (C)
   for (const pl of ES.planes.filter(p => p.fecha === D && (!p.hecho || prev.has('plan:' + p.id)) && orgSolo('plan:' + p.id))) mk('plan', pl.id, `${cap(pl.titulo)}${pl.con ? ' con ' + pl.con : ''}`, pl.hora, 60);
   for (const it of org.libres) items.push({ ...it, min: agbMin('lib:' + it.id, 'libre', it.min || AG_MIN.libre) });
   for (const it of items) if (it.foco && !(it.tipo === 'prio' && it.ref === F)) delete it.foco;   // un solo bloque: el de ahora
@@ -9890,6 +10123,7 @@ function orgGuardar() {
     ES.agendaPlan = { fecha: D, items, vistos: vistosOrg, ini: planIni, rana: org.rana?.t ? { id: org.rana.id, t: org.rana.t } : null, prios: prioOrgPlan(), organizado: Date.now() };
     if (org.foco?.quitado) ES.agendaPlan.focoNo = true;
     exOrgOcultos(ES.agendaPlan);   // 2.14 (X) · los apagados no entran mañana
+    consOrgOcultos(ES.agendaPlan);   // 2.21.6 (C)
     if (agpFijar(D, agpPrev)) return;   // 2.17 (O) · otro día: agendaPlanes[D]; agendaPlan sigue siendo el de mañana
     // Si ya es ese día (pasó la medianoche), el plan es la agenda de hoy: agenda() lo aplica al pintar y cuenta como día organizado.
     const yaEsHoy = D === today(), clave = yaEsHoy ? 'agenda' : 'planManana', primera = !dayOf()[clave];
@@ -9905,6 +10139,7 @@ function orgGuardar() {
   for (const it of A.items) if (!items.some(x => x.id === it.id)) forget(it.id);
   A.items = items; A.organizado = Date.now(); A.vistos = [...new Set([...(Array.isArray(A.vistos) ? A.vistos : []), ...vistosOrg])];   // 2.20
   exOrgOcultos(A);   // 2.14 (X) · los apagados no vuelven a entrar hoy; los encendidos salen de ocultos
+  consOrgOcultos(A);   // 2.21.6 (C)
   if (org.foco?.quitado) A.focoNo = true; else if (F) delete A.focoNo;
   const primera = !dayOf().agenda; if (primera) bump('agenda');
   org = null; guardar(); closeSheet(); agCompleta(); renderE(); renderAg(); irA('agenda');
@@ -9916,7 +10151,7 @@ function agCopiarAyer() { orgInit(today()); orgDesdeHist(dayKey(addDays(new Date
 function agAddSheet(tipo = '') {
   if (tipo === 'habito') tipo = '';   // 2.21.4 (S) · los hábitos se crean en Hábitos
   const A = agenda(), s = HT(), en = new Set(A.items.map(it => it.tipo + ':' + it.ref));
-  const chips = `<div class="chips" id="aa-tipos">${[['tarea', 'Tarea'], ['ini', 'Iniciativa'], ['libre', 'Otra cosa']].map(([k, n]) => `<button class="chip${tipo === k ? ' on' : ''}" data-k="${k}">${n}</button>`).join('')}</div>`;
+  const chips = `<div class="chips" id="aa-tipos">${[['tarea', 'Tarea'], ['ini', 'Iniciativa'], ['libre', 'Otra cosa'], ['cons', 'Constante']].map(([k, n]) => `<button class="chip${tipo === k ? ' on' : ''}" data-k="${k}" style="min-height:44px">${n}</button>`).join('')}</div>`;
   let cuerpo = '<p class="empty">Elige qué quieres añadir.</p>';
   if (tipo === 'habito') { const habs = s.habits.filter(h => !h.rutina && !en.has('habito:' + h.id)); cuerpo = `${habs.length ? `<div class="rows">${habs.map(h => `<button class="row" data-ha="${esc(h.id)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc(h.nombre)}</div><small>${isSched(h, today()) ? 'Toca hoy' : 'Otro día, pero puede entrar hoy'}${hbCuandoTxt(h) ? ' · ' + esc(hbCuandoTxt(h)) : ''}</small></span><span class="tag">+</span></button>`).join('')}</div>` : ''}
     <details ${habs.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear un hábito nuevo</summary>${habFormHtml('ah')}${btcChips('ah-bt')}<div class="actions" style="margin-top:0"><button class="primary" id="aa-crear">Crear y poner hoy</button></div></details>`; }
@@ -9924,7 +10159,8 @@ function agAddSheet(tipo = '') {
     <details ${ts.length ? '' : 'open'} style="margin-top:14px"><summary class="link" style="cursor:pointer">+ Crear una tarea</summary>${tarFormHtml('at', true)}${btcChips('at-bt')}<div class="actions" style="margin-top:0"><button class="primary" id="aa-crear">Crear y poner hoy</button></div></details>`; }
   if (tipo === 'ini') cuerpo = `<div class="rows">${INI4.map(([k, n, d]) => { const x = ini4Semana().items[iniIdx(k)]; return `<button class="row" data-k="${k}"><span class="dot" style="--c:${x.hecho ? 'var(--green)' : x.t ? 'var(--accent)' : 'var(--empty)'}"></span><span class="t"><div>${n}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</div><small>${x.hecho ? 'Hecha hoy: otra de esta categoría entra como extra' : esc(x.t || d)}</small></span><span class="tag">›</span></button>`; }).join('')}</div>`;
   if (tipo === 'libre') cuerpo = `${tarFormHtml('al', true)}<div class="actions" style="margin-top:0"><button class="primary" id="aa-ok">Añadir</button></div>`;
-  showSheet(`<h2>Añadir a la agenda</h2>${chips}${cuerpo}<div class="actions"><button class="link" id="aa-close">Cerrar</button></div>`);
+  if (tipo === 'cons') cuerpo = `<p class="note">Se repite: entra sola en tu agenda los días que elijas.</p>${consFormHtml(null)}<div class="actions" style="margin-top:0"><button class="primary" id="aa-cons">Crear</button></div>`;   // 2.21.6 (C)
+  showSheet(`<h2>Añadir a la agenda</h2>${chips}${cuerpo}<div class="actions"><button class="link" id="aa-close" style="min-height:44px">Cerrar</button></div>`);
   const b = $('#sheet-body'); activarFranjas(b);
   $('#aa-tipos').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) agAddSheet(c.dataset.k); });
   $('#aa-close').onclick = closeSheet;
@@ -9944,6 +10180,7 @@ function agAddSheet(tipo = '') {
     if (tipo === 'habito') { const d = habFormLeer(b, 'ah'); if (!d) return; const crear = () => { const h = agCrearHabito(d); poner('habito', h.id, h.nombre, d.hora, AG_MIN.habito); }; if (window.enfNoEstrenar?.(crear, d.nombre)) return; crear(); }
     else { const d = tarFormLeer(b, 'at', true); if (!d) return; const x = agCrearTarea({ titulo: d.titulo, hora: d.hora, min: d.min, exito: d.exito, iden: d.iden || '', cat: d.cat }); btcTras(d.bt, { tipo: 'tarea', ref: x.id }); poner('tarea', x.id, x.titulo, d.hora, d.min, { exito: d.exito, iden: d.iden || '' }); }
   });
+  if (tipo === 'cons') { consFormWire(b); $('#aa-cons').onclick = () => { const d = consFormLeer(b); if (!d) return; const c = consCrear(d); closeSheet(); if (c) consAvisoCreada(c); }; }   // 2.21.6 (C)
   $('#aa-ok')?.addEventListener('click', () => { const d = tarFormLeer(b, 'al', true); if (!d) return; poner('libre', '', d.titulo, d.hora, d.min, { exito: d.exito, iden: d.iden || '', ...(d.cat ? { cat: d.cat } : {}) }); });
 }
 // Ficha de un ítem: qué, SMART (con los campos para completar lo que falta), empezar, hecha, hora, objetivo, quitar.
@@ -9951,7 +10188,7 @@ function agItemSheet(it0, abrir = false) {
   if (!it0) return;
   if (!abrir && agHojaMas.id === it0.id && agHojaMas.open && sheet.open) abrir = true;   // 2.21 (A) · al volver a pintarla (p. ej., «Después de»), «Más» sigue abierto
   if (it0.tipo === 'bt' && btDesdeAgenda(it0)) return;   // 2.16 (B) · tocarlo abre la ficha del bloque de tiempo
-  const it = agPorId(it0.id) || it0, ok = agHecho(it), f = agFuente(it) || {}, fijo = it.tipo === 'evento' || it.tipo === 'plan';
+  const it = agPorId(it0.id) || it0, ok = agHecho(it), f = agFuente(it) || {}, fijo = it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'examen';
   const src = () => agSmartSrc(agPorId(it.id) || it), s0 = smartDe(src());
   const conObj = ['tarea', 'libre', 'ini', 'prio', 'estudio'].includes(it.tipo), objs = objetivosActivos();
   const cortaMv = abrir === 'hora' && !fijo && !ok && !agHojaSinHora(it);   // 2.21 (A) · lo hecho: la hora está en «Más»
@@ -9962,7 +10199,7 @@ function agItemSheet(it0, abrir = false) {
     ${agbFichaFocoHtml(it)}
     ${exFichaHtml(it)}
     ${src().paso ? `<p class="meta" style="margin:0 0 8px">A · Primer paso: ${esc(src().paso)}</p>` : ''}
-    ${!fijo && it.tipo !== 'habito' ? `<div class="field"><label>M · Hecha cuando</label><input id="ai-ex" maxlength="100" value="${esc(src().exito || '')}" placeholder="Enviada · 10 ejercicios resueltos · mensaje enviado"></div>
+    ${!fijo && it.tipo !== 'habito' && it.tipo !== 'cons' ? `<div class="field"><label>M · Hecha cuando</label><input id="ai-ex" maxlength="100" value="${esc(src().exito || '')}" placeholder="Enviada · 10 ejercicios resueltos · mensaje enviado"></div>
       <div class="field"><label>R · Para qué</label><input id="ai-por" maxlength="100" value="${esc(src().por || '')}" placeholder="Qué acerca, o a qué objetivo suma"></div>` : ''}
     ${it.tipo === 'habito' ? `<div class="field"><label>M · Versión de 2 minutos</label><input id="ai-minima" maxlength="60" value="${esc(f.minima || '')}" placeholder="Leer 1 página"></div>` : ''}
     ${it.tipo === 'evento' && /^https:\/\//.test(it.enlace || '') ? `<p class="meta"><a href="${esc(it.enlace)}" target="_blank" rel="noopener">Abrir en Google Calendar</a></p>` : ''}
@@ -9972,7 +10209,7 @@ function agItemSheet(it0, abrir = false) {
     <div class="actions stack" style="margin-top:4px">
       ${ok || it.tipo === 'evento' ? '' : `<button class="primary" id="ai-go" aria-label="Empezar acción: ${it.min ? fmtMin(Math.min(120, it.min)) : '25 min'} de enfoque">Empezar acción</button>`}
       <button class="outline" id="ai-ok">${ok ? 'Deshacer «hecha»' : 'Marcar hecha'}</button>
-      ${it.tipo === 'estudio' ? '<button class="link" id="ai-est">Ver la ruta</button>' : ''}
+      ${it.tipo === 'estudio' || it.tipo === 'examen' ? '<button class="link" id="ai-est">Ver la ruta</button>' : ''}${it.tipo === 'cons' ? '<button class="link" id="ai-cons" style="min-height:44px">Editar la acción</button>' : ''}
       ${it.tipo === 'ini' ? '<button class="link" id="ai-ini">Ver la iniciativa</button>' : it.tipo === 'habito' ? '<button class="link" data-goview="hoy">Ir a Hábitos y metas de consistencia</button>' : it.tipo === 'tarea' ? '<button class="link" data-goview="tareas">Ir a Tareas</button>' : ''}
       ${btcAgItem(it)}<p class="meta" id="ai-del-txt" style="margin:8px 0 0">${esc(agQuitarTxt(it, ok))}</p>${it.tipo === 'tarea' && !ok && agFuente(it) ? '<button class="outline" id="ai-man2">Mover a mañana</button>' : ''}<button class="link red" id="ai-del" style="min-height:44px">${it.tipo === 'evento' ? 'Ocultar de la agenda de hoy' : 'Quitar de la agenda'}</button></div></details>
     <div class="actions" style="margin-top:6px"><button class="link" id="ai-close">Cerrar</button></div>`);
@@ -9992,7 +10229,8 @@ function agItemSheet(it0, abrir = false) {
   $('#ai-go')?.addEventListener('click', () => { closeSheet(); irA('enfoque'); if (it.tipo === 'estudio') return exEmpezar(cur()); startFocus(it.t, Math.max(5, Math.min(120, it.min || 25)), f.pro || ''); });   // 2.14 (X)
   $('#ai-ok').onclick = () => { closeSheet(); if (it.tipo === 'estudio' && !ok && exPedirEj(cur())) return; agMarcar(cur(), !ok); };   // 2.14 (X) · con ejercicios, pregunta cuántos
   $('#ai-ini')?.addEventListener('click', () => ini4Sheet(iniIdx(it.ref)));
-  $('#ai-est')?.addEventListener('click', () => { closeSheet(); window.est?.abrir((agFuente(cur()) || {}).ruta || ''); });   // 2.14 (X)
+  $('#ai-est')?.addEventListener('click', () => { closeSheet(); window.est?.abrir(cur().tipo === 'examen' ? cur().ref : ((agFuente(cur()) || {}).ruta || '')); });   // 2.14 (X)
+  $('#ai-cons')?.addEventListener('click', () => { const c = consGet(cur().ref); if (c) consEditarSheet(c); });   // 2.21.6 (C)
   $('#ai-del').onclick = () => { closeSheet(); agQuitarAviso(cur()); };   // 2.21 (N) · con «Deshacer», como al deslizar
   $('#ai-man2')?.addEventListener('click', () => { closeSheet(); agMover(cur(), 'manana'); });   // 2.21 (N) · «Mover a mañana» (la fecha de la tarea pasa a mañana)
   $('#ai-close').onclick = closeSheet;
@@ -10249,7 +10487,7 @@ const AG_PEST_KEY = 'ag-pestana';
 // otros días, objetivos, metas y mañanas protegidas, plegados en «Más» (abierto o cerrado, recordado en el teléfono).
 function agMasAbierto() { try { return localStorage.getItem('ag-mas') === '1'; } catch { return false; } }
 function agMasPoner(v) { try { localStorage.setItem('ag-mas', v ? '1' : '0'); } catch {} }
-function agPestDe(it) { if (!it) return 'otro'; if (it.foco || it.tipo === 'prio') return 'prio'; if (it.tipo === 'libre') return typeof it.esp === 'string' && it.esp ? 'esp' : (it.extraIni && it.cat && INI4.some(([k]) => k === it.cat)) ? 'ini' : 'otro'; return AG_PEST.some(([k]) => k === it.tipo) ? it.tipo : 'otro'; }
+function agPestDe(it) { if (!it) return 'otro'; if (it.foco || it.tipo === 'prio') return 'prio'; if (it.tipo === 'libre') return typeof it.esp === 'string' && it.esp ? 'esp' : (it.extraIni && it.cat && INI4.some(([k]) => k === it.cat)) ? 'ini' : 'otro'; if (it.tipo === 'examen') return 'estudio'; if (it.tipo === 'cons') { const c = consGet(it.ref); return c && (c.ruta || c.cat === 'estudio') ? 'estudio' : c && c.cat === 'espiritual' ? 'esp' : 'otro'; } return AG_PEST.some(([k]) => k === it.tipo) ? it.tipo : 'otro'; }
 let agPestMem = null;   // la elegida también en memoria (sin almacenamiento, tocar una pestaña igual la cambia)
 function agPestGuardada() { const ok = v => v && v.d === today() && AG_PEST.some(([k]) => k === v.k) ? v.k : ''; if (ok(agPestMem)) return agPestMem.k; try { return ok(JSON.parse(localStorage.getItem(AG_PEST_KEY) || 'null')); } catch { return ''; } }
 function agPestPoner(k) { agPestMem = { d: today(), k }; try { localStorage.setItem(AG_PEST_KEY, JSON.stringify(agPestMem)); } catch {} }
@@ -10366,7 +10604,7 @@ var agHojaMas = { id: '', open: false };
 function agLs(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; }
 function agNotaHora() { const v = agLs('ag-nota-hora'); if (v && v !== today()) return false; if (!v) agLs('ag-nota-hora', today()); return true; }   // solo el primer día con algo sin hora
 function agSaltado(it) { if (!it || it.tipo !== 'habito') return false; const v = HT().log?.[it.ref]?.[today()]; return v === 'skip' || v === 'just'; }
-function agFocoPend(its) { return its.filter(it => it && it.tipo !== 'evento' && it.tipo !== 'bt' && !agHecho(it) && !agSaltado(it) && !(it.tipo === 'habito' && window.hbProtegido?.(it.ref, today()))); }
+function agFocoPend(its) { return its.filter(it => it && it.tipo !== 'evento' && it.tipo !== 'bt' && it.tipo !== 'examen' && !agHecho(it) && !agSaltado(it) && !(it.tipo === 'habito' && window.hbProtegido?.(it.ref, today()))); }
 // El siguiente de una cadena cuyo anterior ya se hizo (o se dejó «hoy no»): el del anterior marcado más tarde.
 function agFocoSigue(pend) {
   const M = agCadenaMapa(agenda()), now = nowMin(); let mejor = null, t0 = -1;
@@ -10398,7 +10636,7 @@ function agFocoSiguiente(a = agFocoAhora()) {
   const conH = pend.filter(it => it.h && toMin(it.h) >= desde && toMin(it.h) + 60 >= now).sort(agOrden)[0]; if (conH) return { it: conH };
   const sinH = agSinHoraOrden(pend.filter(it => !it.h))[0]; return sinH ? { it: sinH } : null;
 }
-function agFocoTipo(it) { return it.tipo === 'habito' ? (hbRutDe(HT().habits.find(x => x && x.id === it.ref)) ? 'Hoy no (toda la rutina sigue)' : 'Hoy no') : 'Mañana'; }
+function agFocoTipo(it) { return it.tipo === 'habito' ? (hbRutDe(HT().habits.find(x => x && x.id === it.ref)) ? 'Hoy no (toda la rutina sigue)' : 'Hoy no') : it.tipo === 'cons' ? 'Hoy no' : 'Mañana'; }
 function agFocoHtml(o = 'ag') {
   let a = null, d = null; try { a = agFocoAhora(); d = a?.it ? agFocoSiguiente(a) : null; } catch (e) { console.warn('Ahora', e); return ''; }
   if (!a) return `<section class="ag-foco-c ag-foco-fin" id="${o}-foco" aria-label="Ahora"><p class="ag-foco-k">Ahora${agHorasOcultas() ? '' : ` · ${fmtHora(hhmm(new Date()))}`}</p><p class="ag-foco-t">${agVacia() ? 'Tu agenda de hoy está vacía.' : 'Todo lo de hoy está hecho.'}</p><div class="ag-foco-b"><button type="button" class="ag-fb-go" data-foco="add">+ Añadir</button></div></section>`;
@@ -10409,7 +10647,7 @@ function agFocoHtml(o = 'ag') {
   const dsp = agDespuesTxt(d, oc);
   return `<section class="ag-foco-c" id="${o}-foco" data-foco-id="${esc(it.id)}" aria-label="Ahora"><p class="ag-foco-k">${k}</p>
     <p class="ag-foco-t">${esc(nom)}</p><p class="ag-foco-m">${esc(cat)}${it.h && !a.luego && !oc ? ` · ${fmtHora(it.h)}` : ''}${it.min ? ` · ${fmtMin(it.min)}` : ''}</p>
-    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-foco="hecho">✓ Hecho</button>${agEmpBtn(it)}<button type="button" class="ag-fb-man" data-foco="manana">${it.tipo === 'habito' ? 'Hoy no' : 'Mañana'}</button></div>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-foco="hecho">✓ Hecho</button>${agEmpBtn(it)}<button type="button" class="ag-fb-man" data-foco="manana">${it.tipo === 'habito' || it.tipo === 'cons' ? 'Hoy no' : 'Mañana'}</button></div>
     ${dsp ? `<p class="ag-foco-d">${dsp}</p>` : ''}</section>`;
 }
 // 2.21 (E) · «Lo de ahora / después debe estar al lado de la hora.» En la Agenda, la línea de la hora de la lista lleva lo de ahora (con sus
@@ -10424,7 +10662,7 @@ function agAhoraLineaHtml() {
   const dsp = agDespuesTxt(d, oc);
   return `<section class="ag-ahora" id="ag-foco"${it ? ` data-foco-id="${esc(it.id)}"` : ''} aria-label="Ahora"><div class="ag-now"><span class="ag-now-h">Ahora${hora}</span>${it ? ` <span class="ag-now-n">· ${esc(nom)}</span>` : ''}</div>
     ${it && a.sigue ? `<p class="ag-ahora-s">Sigue después de ${esc(a.sigue.ant)}</p>` : ''}
-    ${it ? `<div class="ag-ahora-b"><button type="button" class="ag-fb-ok" data-foco="hecho">✓ Hecho</button>${agEmpBtn(it)}<button type="button" class="ag-fb-man" data-foco="manana">${it.tipo === 'habito' ? 'Hoy no' : 'Mañana'}</button></div>` : ''}
+    ${it ? `<div class="ag-ahora-b"><button type="button" class="ag-fb-ok" data-foco="hecho">✓ Hecho</button>${agEmpBtn(it)}<button type="button" class="ag-fb-man" data-foco="manana">${it.tipo === 'habito' || it.tipo === 'cons' ? 'Hoy no' : 'Mañana'}</button></div>` : ''}
     ${!a ? `<p class="ag-ahora-d">${agVacia() ? 'Tu agenda de hoy está vacía.' : 'Todo lo de hoy está hecho.'} <button type="button" class="link ag-ahora-add" data-foco="add">+ Añadir</button></p>` : a.nada ? '<p class="ag-ahora-d">Lo que pasó su hora sigue en la lista, en ámbar.</p>' : ''}
     ${dsp ? `<p class="ag-ahora-d">${dsp}</p>` : ''}</section>`;
 }
@@ -10524,6 +10762,8 @@ function agMananaDe(it) {
   it = agPorId(it.id) || it;
   if (agHecho(it) || agSaltado(it)) { toast(agSaltado(it) ? 'Ya está como «hoy no».' : 'Ya está hecho: queda en hoy.'); return; }
   if (it.tipo === 'habito') return agHoyNo(it);
+  if (it.tipo === 'cons') return consHoyNo(it);   // 2.21.6 (C) · solo hoy
+  if (it.tipo === 'examen') return toast('Es el día del examen.');
   if (it.tipo === 'evento') return toast('Se cambia en Google Calendar.');
   if (it.tipo === 'bt') { if (!btDesdeAgenda(it)) toast('Se cambia en el bloque de tiempo.'); return; }
   if (it.tipo === 'prio') {
@@ -10573,7 +10813,7 @@ function agMover(it0, destino = 'manana') {
   const A = agenda(), it = agPorId(it0?.id) || it0; if (!it) return false;
   if (agHecho(it)) { toast('Ya está hecho: queda en hoy.'); return false; }   // su XP ya se dio: moverlo lo daría otra vez
   if (/^\d\d:\d\d$/.test(destino || '')) {   // otra hora, hoy
-    if (it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'bt') { toast(it.tipo === 'evento' ? 'Se cambia en Google Calendar.' : 'Tiene su hora fija.'); return false; }
+    if (it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'bt' || it.tipo === 'examen') { toast(it.tipo === 'evento' ? 'Se cambia en Google Calendar.' : 'Tiene su hora fija.'); return false; }
     const h = it.tipo === 'habito' ? HT().habits.find(x => x && x.id === it.ref) : null, pr = h ? hbPrevioRutina(h) : null;
     if (pr) { toast(`Va después de «${pr.nombre}».`); return false; }   // regla de 2.20.2: la hora es del primero de la rutina
     const antes = it.h || '', cad = !!it.cad, prevN = cad ? agTrasTxt(agCadenaMapa(A).get(it.id)) : '';
@@ -10585,6 +10825,8 @@ function agMover(it0, destino = 'manana') {
   const D = destino === 'manana' ? diaManana() : destino;
   if (!/^\d{4}-\d\d-\d\d$/.test(D || '') || D <= today() || D > agpMax()) { toast('Elige un día desde mañana hasta dentro de 60 días.'); return false; }
   if (it.tipo === 'habito') { agHoyNo(it); return false; }   // los hábitos se repiten: «Hoy no», confirmado
+  if (it.tipo === 'cons') { consHoyNo(it); return false; }   // 2.21.6 (C) · se repite: «Hoy no»
+  if (it.tipo === 'examen') { toast('Es el día del examen.'); return false; }
   if (it.tipo === 'evento') { toast('Se cambia en Google Calendar.'); return false; }
   if (it.tipo === 'bt') { if (!btDesdeAgenda(it)) toast('Se cambia en el bloque de tiempo.'); return false; }
   const f = agFuente(it), deshacerAg = agFoto(it);
@@ -10625,13 +10867,13 @@ function agMover(it0, destino = 'manana') {
   return true;
 }
 // Quitar con «Deshacer» (lo de siempre: agQuitar).
-function agQuitarAviso(it) {
+function agQuitarAviso(it, msg0 = '') {
   const und = it.tipo === 'bt' ? null : agFoto(it), kq = agQuitClave(it);
   agQuitar(it);
   const fin = () => { guardar(); renderE(); renderAg(); try { if (view === 'tareas') renderTareas(); } catch {} };
   if (it.tipo === 'bt') agAviso('Quitado de la agenda de hoy.', () => { const A = agenda(); A.ocultos = (Array.isArray(A.ocultos) ? A.ocultos : []).filter(r => r !== it.ref); agQuitMarcar(A, kq, false); agenda(); fin(); try { btRefrescarFicha(); } catch {} });   // 2.21 (N)
   else if (und) { const esp = it.tipo === 'libre' && typeof it.esp === 'string' ? it.esp : '';
-    agAviso('Quitado de la agenda de hoy.', () => { const bEn = state.borradosEn && state.borradosEn[it.id]; und(); const A = agenda(); agQuitMarcar(A, kq, false);
+    agAviso(msg0 || 'Quitado de la agenda de hoy.', () => { const bEn = state.borradosEn && state.borradosEn[it.id]; und(); const A = agenda(); agQuitMarcar(A, kq, false);
     const x = A.items.find(y => y && y.id === it.id); if (x && kq && it.tipo !== 'evento') x.id = String(it.id).slice(0, 100) + '~' + Date.now().toString(36);   // 2.21 (N) · id nuevo (lo que tiene clave: se reconoce por ella): un borrado que ya llegó a la nube no se lo lleva
     if (x && esp) { if (!(state.borrados || []).includes(it.id)) forget(it.id); if (bEn && state.borradosEn) state.borradosEn[it.id] = bEn; x.id = espIdAgenda(today(), esp); }   // 2.21 (N7) · la norma vuelve con el id siguiente del día; el viejo sigue borrado (dos teléfonos eligen el mismo)
     fin(); }); }
@@ -10639,15 +10881,15 @@ function agQuitarAviso(it) {
 // ---------- A3 · La hoja corta.
 function agHojaSinHora(it) { const h = it?.tipo === 'habito' ? HT().habits.find(x => x && x.id === it.ref) : null; return h ? hbPrevioRutina(h) : null; }
 function agHojaCortaHtml(it, ok, mvAbierto = false) {
-  const fijo = it.tipo === 'evento' || it.tipo === 'plan', prevR = agHojaSinHora(it), min = it.min ? fmtMin(Math.max(5, Math.min(120, it.min))) : '25 min', m = diaManana();
+  const fijo = it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'examen', prevR = agHojaSinHora(it), min = it.min ? fmtMin(Math.max(5, Math.min(120, it.min))) : '25 min', m = diaManana();
   return `<div class="ai-q" data-hecho-sec>
     <button type="button" class="primary ai-qb" id="ai-q-ok">${ok ? 'Deshacer' : '✓ Hecho'}</button>
     ${ok || it.tipo === 'evento' ? '' : `<button type="button" class="outline ai-qb" id="ai-q-go">Empezar ${min}</button>`}
     ${ok || it.tipo === 'evento' || it.tipo === 'bt' ? '' : tempHojaHtml(it)}
-    ${ok ? '' : it.tipo === 'evento' ? '<p class="meta" style="margin:0">Se cambia en Google Calendar.</p>' : `<button type="button" class="outline ai-qb" id="ai-q-man">${esc(agFocoTipo(it))}</button>`}
+    ${ok || it.tipo === 'examen' ? '' : it.tipo === 'evento' ? '<p class="meta" style="margin:0">Se cambia en Google Calendar.</p>' : `<button type="button" class="outline ai-qb" id="ai-q-man">${esc(agFocoTipo(it))}</button>`}
     ${prevR ? `<p class="meta ai-q-tras" style="margin:4px 0 0">Va después de «${esc(prevR.nombre)}».</p><button type="button" class="outline ai-qb" id="ai-q-orden">Cambiar el orden de la rutina</button>`
       : fijo || ok ? '' : `<button type="button" class="outline ai-qb" id="ai-q-hora" aria-expanded="${mvAbierto}">Mover a otra hora</button><div class="ai-q-mv" id="ai-q-mv"${mvAbierto ? '' : ' hidden'}>${horaInput('ai-qh', it.h, 'aria-label="Nueva hora"')}${franjaChips('ai-qh', it.h)}${it.h ? '<button type="button" class="outline ai-qb" id="ai-q-sinh">Sin hora</button><p class="meta" style="margin:0">Sigue en la lista, por su orden.</p>' : ''}</div>`}
-    ${ok || it.tipo === 'habito' || it.tipo === 'evento' ? '' : `<button type="button" class="outline ai-qb" id="ai-q-dia" aria-expanded="false">Otro día…</button><div class="ai-q-mv ai-q-dias" id="ai-q-dias" hidden><input type="date" id="ai-q-fecha" min="${m}" max="${agpMax()}" value="${agpDia(today(), 2)}" aria-label="Día al que lo pasas"><button type="button" class="primary" id="ai-q-pasar">Pasar a ese día</button></div>`}
+    ${ok || it.tipo === 'habito' || it.tipo === 'evento' || it.tipo === 'cons' || it.tipo === 'examen' ? '' : `<button type="button" class="outline ai-qb" id="ai-q-dia" aria-expanded="false">Otro día…</button><div class="ai-q-mv ai-q-dias" id="ai-q-dias" hidden><input type="date" id="ai-q-fecha" min="${m}" max="${agpMax()}" value="${agpDia(today(), 2)}" aria-label="Día al que lo pasas"><button type="button" class="primary" id="ai-q-pasar">Pasar a ese día</button></div>`}
   </div>`;
 }
 function agHojaCortaWire(it, cur, ok) {
@@ -10676,7 +10918,7 @@ function agMenuHtml(org0, its, hayAyer, vacio = false) {
   const it = (id, t, a = '') => `<button type="button" class="ag-menu-i" ${id ? `id="${id}"` : ''} ${a}>${t}</button>`;
   return `<details class="ag-menu"><summary aria-label="Más opciones de la agenda">Más ▾</summary><div class="ag-menu-l">
     ${org0 ? it('ag-org', 'Reorganizar el día') : ''}${vacio ? '' : it('ag-add', '+ Añadir')}${its.length > 1 ? it('ag-rk', 'Reordenar el día') : ''}${hayAyer && org0 ? it('ag-copy2', 'Copiar la de ayer') : ''}
-    ${it('ag-horas', agHorasOcultas() ? 'Mostrar horas' : 'Ocultar horas', `aria-pressed="${agHorasOcultas()}"`)}${it('', 'Agendar otros días', 'data-ag-ir="ag-dias"')}${it('', 'Objetivos SMART', 'data-ag-ir="ag-objs"')}${it('', 'Metas', 'data-ag-metas')}${it('', 'Mañanas protegidas', 'data-ag-ir="ag-mp-sec"')}${it('', 'La brecha', 'data-ag-ir="ag-gap"')}
+    ${it('ag-horas', agHorasOcultas() ? 'Mostrar horas' : 'Ocultar horas', `aria-pressed="${agHorasOcultas()}"`)}${it('', 'Agendar otros días', 'data-ag-ir="ag-dias"')}${it('', 'Acciones constantes', 'data-ag-cons')}${it('', 'Objetivos SMART', 'data-ag-ir="ag-objs"')}${it('', 'Metas', 'data-ag-metas')}${it('', 'Mañanas protegidas', 'data-ag-ir="ag-mp-sec"')}${it('', 'La brecha', 'data-ag-ir="ag-gap"')}
   </div></details>`;
 }
 function agIrA(id) {
@@ -10691,8 +10933,8 @@ function agSwAbrir(row, it) {
   agSwCerrar();
   if (row?.dataset?.rut) return agRutSwAbrir(row, it);   // 2.21.3 (C)
   const hecho = agHecho(it);   // lo ya hecho se queda en hoy (su XP se dio una vez): solo «Quitar»
-  const man = hecho || it.tipo === 'evento' || it.tipo === 'bt' ? '' : `<button type="button" data-sw="manana">${it.tipo === 'habito' ? 'Hoy no' : 'Mañana'}</button>`;
-  const mov = hecho || it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'bt' ? '' : '<button type="button" data-sw="mover">Mover</button>';
+  const man = hecho || it.tipo === 'evento' || it.tipo === 'bt' || it.tipo === 'examen' ? '' : `<button type="button" data-sw="manana">${it.tipo === 'habito' || it.tipo === 'cons' ? 'Hoy no' : 'Mañana'}</button>`;
+  const mov = hecho || it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'bt' || it.tipo === 'examen' ? '' : '<button type="button" data-sw="mover">Mover</button>';
   row.insertAdjacentHTML('afterend', `<div class="ag-sw" data-sw-id="${esc(it.id)}" role="group" aria-label="Acciones de ${esc(it.t)}">${man}${mov}<button type="button" data-sw="quitar">Quitar</button></div>`);
   const box = row.nextElementSibling;
   box.querySelectorAll('[data-sw]').forEach(b => b.onclick = () => { const x = agItems().find(y => y.id === box.dataset.swId); box.remove(); if (!x) return;
@@ -10749,6 +10991,7 @@ function agAWire(pTodo) {
   agW.querySelector('#ag-horas')?.addEventListener('click', () => { const v = !agHorasOcultas(); agHorasPoner(v); renderAg(); try { if (typeof iniRepintar === 'function') iniRepintar(); } catch {} toast(v ? 'Horas ocultas. El orden no cambia.' : 'Horas a la vista.'); });   // 2.21 (E)
   agW.querySelectorAll('[data-ag-ir]').forEach(b => b.onclick = () => agIrA(b.dataset.agIr));
   agW.querySelector('[data-ag-metas]')?.addEventListener('click', () => irA('metas'));
+  agW.querySelector('[data-ag-cons]')?.addEventListener('click', () => consListaSheet());   // 2.21.6 (C)
   agW.querySelector('#ag-desliza-ok')?.addEventListener('click', () => { agLs('ag-desliza', '1'); agW.querySelector('#ag-desliza')?.remove(); });
   agW.querySelectorAll('[data-mas]').forEach(b => b.onclick = e => { e.stopPropagation(); agItemSheet(agItems().find(x => x.id === b.dataset.mas)); });
   const L = agW.querySelector('.ag-lista'); agSwipeWire(L);
@@ -10844,7 +11087,7 @@ var agArrNoClick = 0;
 // ¿Se puede levantar? '' = sí; un texto = no, con aviso y la fila se sacude; null = no, en silencio (lo fijo y lo hecho).
 function agArrPuede(it) {
   if (!it || agHecho(it)) return null;
-  if (it.tipo === 'evento' || it.tipo === 'plan') return null;
+  if (it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'examen') return null;
   if (it.tipo === 'bt' && !agcBtEditable(it)) return null;
   if (it.tipo === 'habito') {
     const h = HT().habits.find(x => x && x.id === it.ref), pr = h ? hbPrevioRutina(h) : null;
@@ -11238,6 +11481,7 @@ function orgFuera(k) {
   else if (tp === 'tar') { const o = org.tar.get(id); if (o) o.on = false; }
   else if (tp === 'ini') { if (org.ini[id]) { org.ini[id].on = false; org.ini[id].tocada = true; } }
   else if (tp === 'lib') org.libres = org.libres.filter(x => x.id !== id);
+  else if (tp === 'cons') { const o = org.cons?.get(id); if (o) o.on = false; }   // 2.21.6 (C) · solo ese día
   org.orden = (org.orden || []).filter(x => x !== k);
 }
 function orgPropuestaSheet(dest = today(), sigue = false) {
@@ -12930,7 +13174,7 @@ function agbNum(n) { return String(Math.round(n * 10) / 10).replace('.', ','); }
 
 // ---------- Estado del flujo: lo que ya había, el bloque y el día corto
 // Clave de un ítem de la agenda con el formato de orgLista (para saber qué es nuevo en esta organización).
-function agbClave(it) { const p = { prio: 'prio:', ini: 'ini:', tarea: 'tar:', habito: 'hab:', plan: 'plan:', evento: 'ev:', estudio: 'est:' }[it.tipo] || 'lib:'; return p + (it.tipo === 'libre' || it.tipo === 'evento' ? it.id : it.ref); }
+function agbClave(it) { const p = { prio: 'prio:', ini: 'ini:', tarea: 'tar:', habito: 'hab:', plan: 'plan:', evento: 'ev:', estudio: 'est:', cons: 'cons:' }[it.tipo] || 'lib:'; return p + (it.tipo === 'libre' || it.tipo === 'evento' ? it.id : it.ref); }
 // Día corto (F7): lo eligió la persona hoy (dias.corto). Solo para organizar hoy, nunca mañana.
 function agbCorto() { return !!org && !org.manana && (dayOf().corto || 0) > 0; }
 function agbCorto25() { return agbCorto() && !org.sinCorto; }
@@ -13258,7 +13502,7 @@ function avAbierto(url, enVivo) {
 window.avAbierto = avAbierto;
 // Cada tipo de aviso se apaga con un toque desde el propio aviso; un lote mezcla tipos, así que abre los ajustes.
 // El plan para volver (rt-) se apaga con «Hora de cada hábito», que lo incluye.
-const AV_TIPO = tag => /^rt-/.test(tag) ? 'habitos' : /^ag-/.test(tag) || /^est-/.test(tag) || tag === 'agenda' ? 'agenda' : /^p-/.test(tag) ? 'planes' : /^r-/.test(tag) ? 'proyectos' : tag === 'resumen' ? 'manana'
+const AV_TIPO = tag => /^rt-/.test(tag) ? 'habitos' : /^ag-/.test(tag) || /^est-/.test(tag) || tag === 'agenda' ? 'agenda' : /^cons-/.test(tag) ? 'constantes' : /^p-/.test(tag) ? 'planes' : /^r-/.test(tag) ? 'proyectos' : tag === 'resumen' ? 'manana'
   : ['mediodia', 'ini4', 'social6'].includes(tag) ? 'mediodia' : ['esp', 'noche', 'dormir'].includes(tag) ? 'noche' : ['semana', 'viernes'].includes(tag) ? 'semana' : '';
 function avApagar(tag) {
   if (/^h-/.test(tag)) { const h = (HT().habits || []).find(x => x.id === tag.slice(2)); toast(h ? `Listo: ya no te aviso de «${h.nombre}». Lo vuelves a activar en su ficha.` : 'Listo: ese aviso ya no llega.'); return; }
@@ -16879,7 +17123,7 @@ function qaSheet(o = {}) {
     <button class="primary qa-ok" id="qa-ok">Añadir</button>
     <details class="qa-tipos" id="qa-tipos"><summary>Elegir el tipo</summary>
       <p class="meta" style="margin:4px 0 8px">Los formularios completos de siempre.</p>
-      <div class="qa-tipos-b"><button type="button" class="outline" data-qa-tipo="habito">Hábito</button><button type="button" class="outline" data-qa-tipo="tarea">Tarea</button><button type="button" class="outline" data-qa-tipo="ini">Iniciativa</button><button type="button" class="outline" data-qa-tipo="libre">Otra cosa</button></div>
+      <div class="qa-tipos-b"><button type="button" class="outline" data-qa-tipo="habito">Hábito</button><button type="button" class="outline" data-qa-tipo="tarea">Tarea</button><button type="button" class="outline" data-qa-tipo="ini">Iniciativa</button><button type="button" class="outline" data-qa-tipo="libre">Otra cosa</button><button type="button" class="outline" data-qa-tipo="cons">Constante</button></div>
       <button type="button" class="link" id="qa-form-hab">Hábito nuevo con todos los campos</button></details>
     <div class="actions"><button class="link" id="qa-x">Cerrar</button></div>`);
   const b = $('#sheet-body'), inp = b.querySelector('#qa-in');
@@ -17027,7 +17271,7 @@ document.body.appendChild(qaFab);
   .qa-ok { width: 100%; min-height: 52px; font-size: 1.05rem; margin-top: 10px; }
   .qa-tipos { margin-top: 14px; border-top: 1px solid var(--line); } .qa-tipos > summary { list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; color: var(--muted); }
   .qa-tipos > summary::after { content: ' ›'; margin-left: 4px; } .qa-tipos[open] > summary::after { content: ' ⌄'; }
-  .qa-tipos-b { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 8px; } .qa-tipos-b button { min-height: 48px; }
+  .qa-tipos-b { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 8px; } .qa-tipos-b button { min-height: 48px; } .qa-tipos-b button:last-child:nth-child(odd) { grid-column: 1 / -1; }
   #qa-form-hab { min-height: 44px; }`;
   ov.appendChild(st); }
 let qaTeclado = false;
@@ -19021,6 +19265,7 @@ function catDeX(tipo, o, prof = 0) {
 const catDe = (tipo, o) => { try { return catDeX(tipo, o) || ''; } catch { return ''; } };
 // ---------- La etiqueta «{Tipo} · {Categoría}».
 const CAT_TIPO = { habito: 'Hábito', tarea: 'Tarea', ini: 'Iniciativa', prio: 'Prioridad', plan: 'Plan', evento: 'Calendario', libre: 'Agenda', estudio: 'Estudio', est: 'Estudio', ruta: 'Estudio', bt: 'Bloque de tiempo', norma: 'Vida espiritual', proyecto: 'Paso de proyecto', objetivo: 'Objetivo' };
+CAT_TIPO.cons = 'Constante'; CAT_TIPO.examen = 'Examen';   // 2.21.6 (C)
 function catMateria(o) {
   try {
     const E = window.est; if (!E) return '';
@@ -19398,7 +19643,8 @@ function catMezcla(c, base) {
 function catNumPrio(c, n) { return n ? c.replace(/^Prioridad(?!\s*\d)/, `Prioridad ${n}`) : c; }
 // Agenda: el ítem con lo que sabe su fuente (la tarea, el hábito, el bloque…).
 function agCatObj(it) { let f = null; try { f = agFuente(it); } catch {} return f && f !== it && typeof f === 'object' ? { ...it, ...f, tipo: it.tipo, ref: it.ref } : it; }
-function agEtqCat(it) {
+function agEtqCat(it) { return exCuentaEtq(it, agEtqCat0(it)); }   // 2.21.6 (C) · «examen en N días»
+function agEtqCat0(it) {
   const base = agEtiqueta(it);
   if (!it || it.foco || it.tipo === 'evento') return base;
   const n = it.tipo === 'prio' ? (ES.prioridades.fecha === today() ? ES.prioridades.items.findIndex(x => x.id === it.ref) + 1 : 0) : 0;
@@ -19415,6 +19661,7 @@ function orgFuente(e) {
     if (p === 'prio') return ['prio', ES.prioridades.items.find(x => x.id === id) || { id, t: e.t }];
     if (p === 'rana') return ['prio', (org?.prios || []).find(x => x.id === id) || { id, t: e.t }];
     if (p === 'est') return ['estudio', window.est?.bloque?.(id) || { ref: id, t: e.t }];
+    if (p === 'cons') return ['cons', consGet(id) || { t: e.t }];   // 2.21.6 (C)
     if (p === 'lib') return ['libre', (org?.libres || []).find(x => x.id === id)];
     if (p === 'plan') return ['plan', ES.planes.find(x => x.id === id)];
     if (p === 'bt') return ['bt', typeof btGet === 'function' ? btGet(id) : null];
@@ -19471,6 +19718,7 @@ function orgKeyDe(it, M) {
     case 'tarea': return 'tar:' + r;
     case 'habito': return 'hab:' + r;
     case 'estudio': return 'est:' + r;
+    case 'cons': return 'cons:' + r;
     case 'libre': return 'lib:' + it.id;
     case 'plan': return 'plan:' + r;
     case 'evento': return 'ev:' + it.id;
@@ -20305,8 +20553,9 @@ function xpTardeItems() {
   let cadM = new Map(); try { cadM = agCadenaMapa(A); } catch {}
   const ahora = nowMin();
   const vence = it => new Date(`${t}T${it.h}:00`).getTime() + XP_TARDE_MIN * 60000;
-  return A.items.filter(it => { if (!it || !it.h || ['evento', 'bt'].includes(it.tipo) || !/^\d\d:\d\d$/.test(it.h) || toMin(it.h) + XP_TARDE_MIN > ahora) return false;
+  return A.items.filter(it => { if (!it || !it.h || ['evento', 'bt', 'examen'].includes(it.tipo) || !/^\d\d:\d\d$/.test(it.h) || toMin(it.h) + XP_TARDE_MIN > ahora) return false;
     if (String(it.id || '').startsWith('auto:') && +it.alta > 0 && +it.alta >= vence(it)) return false;
+    if (it.tipo === 'tarea') { const x = (HT().tareas?.items || []).find(y => y && y.id === it.ref); if (x && x.est && typeof x.est === 'object' && x.est.examen) return false; }   // 2.21.6 (C)
     if (it.tipo === 'habito' && cadM.get(it.id)?.prev && !agMarcaMin(cadM.get(it.id).prev)) return false;   // 2.20.2 · «después de» un hábito aún sin marcar: todavía no empezó su hora
     if (+it.suelto > 0 && +it.suelto >= vence(it)) return false;   // 2.20.2 · su cadena se soltó cuando ya había vencido: no tuvo hora para marcarlo   // 2.20 · entró sola (agAutoAlta) cuando ya había vencido: no hubo hora para marcarla
     try { return agVivo(it); } catch { return true; } });   // 2.20 · lo que ya no está en la agenda (una tarea movida a otro día) no resta
@@ -20338,7 +20587,7 @@ window.xpTardeBloquea = ref => {
     if (!it || !P[xpTardeRef(it)]) continue;
     try { if (agVisible(it) && !agVivo(it)) continue; } catch {}   // 2.21.4 (S) · un hábito ya restado hoy (2.21.3) sigue sin dar su XP
     if (!agVisible(it) && String(it.id || '').startsWith('auto:') && +it.alta > +A.organizado) continue;   // … salvo si lo metió solo un teléfono con 2.21.3
-    const r = it.tipo === 'habito' ? ['h:' + it.ref, 'h+:' + it.ref] : it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'prio' ? ['p:' + it.ref] : it.tipo === 'ini' ? ['i:' + it.ref] : it.tipo === 'libre' ? ['a:' + it.id] : [];
+    const r = it.tipo === 'habito' ? ['h:' + it.ref, 'h+:' + it.ref] : it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'prio' ? ['p:' + it.ref] : it.tipo === 'ini' ? ['i:' + it.ref] : it.tipo === 'libre' ? ['a:' + it.id] : it.tipo === 'cons' ? ['k:' + it.ref + ':' + today()] : [];
     if (r.includes(ref)) return true;
   }
   return false;
@@ -21265,7 +21514,7 @@ window.mtAccionHtml = (tipo, ref, cls, style) => mtAccion(tipo, ref, cls, style)
 const VAPID_PUBLIC = 'BCkSUFWA-q7GyyocviKZMTzTPNMvWGUNO-G_js0Y9zvBo5DtHoALCHHQIu5SoWc9ML1xaIO9JdPiP_DNG_FMito';
 const AV_KEY = 'rumbo-avisos';
 const AVISOS = [['manana', 'Resumen de la mañana', 'Prioridades, agenda, bloques de estudio y examen que viene, planes, hábitos, tareas y a quién escribir'], ['habitos', 'Hora de cada hábito', 'A su hora, si aún no lo hiciste, y tu plan para volver tras un «Hoy no». A diario las 3 primeras semanas, en días alternos hasta la 6.ª y después solo si cuesta'],
-  ['planes', 'Una hora antes de cada plan', 'Con una idea para la conversación'], ['proyectos', 'Paso de proyecto', 'A la hora que fijaste para el siguiente paso'], ['agenda', 'Agenda del día', '10 minutos antes de cada cosa con hora; cada bloque de estudio a su hora; a las 9:30, si el día aún no tiene hora'],
+  ['planes', 'Una hora antes de cada plan', 'Con una idea para la conversación'], ['proyectos', 'Paso de proyecto', 'A la hora que fijaste para el siguiente paso'], ['agenda', 'Agenda del día', '10 minutos antes de cada cosa con hora; cada bloque de estudio a su hora; a las 9:30, si el día aún no tiene hora'], ['constantes', 'Acciones constantes', 'A su hora, los días que elegiste'],
   ['mediodia', 'Prioridad, iniciativas y social', 'Juntos, al empezar tu ventana del mediodía o de la tarde, si algo sigue pendiente'], ['noche', 'Noche: espiritual, cierre y hora de dormir', 'Tu momento espiritual y el cierre del día en tu ventana de la noche; y 30 min antes de dormir, soltar el teléfono'], ['semana', 'Lunes y viernes', 'Revisión semanal y gracias del viernes']];
 const avCfg = () => { try { return JSON.parse(localStorage.getItem(AV_KEY)) || {}; } catch { return {}; } };
 const avSetCfg = c => { try { localStorage.setItem(AV_KEY, JSON.stringify(c)); } catch {} };
@@ -22059,13 +22308,14 @@ agStyle.textContent += `
 // ====================================================================
 const AGC_PPM = 2.4;   // píxeles por minuto: 1 h = 144 px
 const AGC_TIPOS = [['habito', 'Hábito', 'H'], ['tarea', 'Tarea', 'T'], ['ini', 'Iniciativa', 'I'], ['prio', 'Prioridad', 'P'], ['estudio', 'Estudio', 'E'],
-  ['esp', 'Vida espiritual', 'V'], ['bt', 'Bloque de tiempo', 'B'], ['ev', 'Evento o plan', 'C'], ['libre', 'Otra cosa', 'O']];
+  ['esp', 'Vida espiritual', 'V'], ['bt', 'Bloque de tiempo', 'B'], ['ev', 'Evento o plan', 'C'], ['libre', 'Otra cosa', 'O'], ['cons', 'Constante', 'A']];   // 2.21.6 (C) · A de acción
 var agcArr = false, agcArrT = 0, agcPend = false;
 const agcScroll = { ag: null, org: null };
 function agcTipoDe(it) {
   if (!it) return 'libre';
   if (it.foco || it.tipo === 'prio') return 'prio';
   if (it.tipo === 'evento' || it.tipo === 'plan') return 'ev';
+  if (it.tipo === 'examen') return 'estudio';   // 2.21.6 (C)
   if (it.tipo === 'libre') return typeof it.esp === 'string' && it.esp ? 'esp' : it.extraIni ? 'ini' : 'libre';
   return AGC_TIPOS.some(([k]) => k === it.tipo) ? it.tipo : 'libre';
 }
@@ -22173,7 +22423,7 @@ function agcAgendaHtml(its, A, cadM, org0) {
   const E = its.map(it => {
     // Un hábito de rutina cuyo anterior no está hoy en la agenda: su hora es la del primero (2.20.2), así que no se arrastra (como en la lista).
     let prevR = null; try { prevR = hijo.has(it.id) ? null : agHojaSinHora(it); } catch {}
-    const ok = agHecho(it), lock = it.tipo === 'evento' || it.tipo === 'plan' || (it.tipo === 'bt' && !agcBtEditable(it)) || !!prevR, pil = agPildoraHtml(it, ok);
+    const ok = agHecho(it), lock = it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'examen' || (it.tipo === 'bt' && !agcBtEditable(it)) || !!prevR, pil = agPildoraHtml(it, ok);
     let etq = ''; try { etq = it.foco ? 'Bloque protegido' : agEtqRut(it, agEtqCat(it)); } catch {}
     return { id: it.id, t: it.foco ? agbFocoTitulo(it) : agTituloEst(it), h: it.h || '', min: Math.max(5, agMinDe(it)), tk: agcTipoDe(it), ok, lock, rs: true, meta: agcMeta(it),
       open: true, chk: it.tipo !== 'evento', pill: /data-tm-go/.test(pil) ? pil.replace(/^ · /, '') : '', cad: hijo.has(it.id) ? agTrasTxt(cadM.get(it.id)) : prevR ? `«${prevR.nombre}», que hoy no está` : '', etq, rut: agRutNombre(it) };
@@ -22403,7 +22653,7 @@ window.agCal = { vista: () => agcVista(), poner: v => { agcVistaPoner(v === 'cal
   .agc-vista .ag-ahora { margin-bottom: 4px; }
   .agc { margin: 0; }
   .agc-t-habito { --c: var(--agc-habito); } .agc-t-tarea { --c: var(--agc-tarea); } .agc-t-ini { --c: var(--agc-ini); } .agc-t-prio { --c: var(--agc-prio); } .agc-t-estudio { --c: var(--agc-estudio); }
-  .agc-t-esp { --c: var(--agc-esp); } .agc-t-bt { --c: var(--agc-bt); } .agc-t-ev { --c: var(--agc-ev); } .agc-t-libre { --c: var(--agc-libre); }
+  .agc-t-esp { --c: var(--agc-esp); } .agc-t-bt { --c: var(--agc-bt); } .agc-t-ev { --c: var(--agc-ev); } .agc-t-libre { --c: var(--agc-libre); } .agc-t-cons { --c: var(--agc-cons); }
   .agc-ley { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 10px; font-size: .78rem; color: var(--muted); }
   .agc-ly { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
   .agc-l { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 5px; background: var(--c); color: var(--agc-fg); font-size: .68rem; font-weight: 800; line-height: 1; font-style: normal; }
@@ -22460,9 +22710,9 @@ window.agCal = { vista: () => agcVista(), poner: v => { agcVistaPoner(v === 'cal
   const b = document.createElement('style'); b.textContent = css; ov.appendChild(b);
   // Paleta por tipo (claro y oscuro): contraste de 3:1 o más contra el fondo; la letra distingue aunque dos colores se parezcan.
   const pal = `
-  :root { --agc-habito: #1e7d32; --agc-tarea: #1f5fbf; --agc-ini: #b0318f; --agc-prio: #c43c12; --agc-estudio: #8f6d00; --agc-esp: #007a87; --agc-bt: #5b6675; --agc-ev: #6a45c8; --agc-libre: #6d4c41; --agc-fg: #ffffff; --agc-mix: 15%; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --agc-habito: #5ecb6f; --agc-tarea: #6ea6ff; --agc-ini: #ee8ad8; --agc-prio: #ff8a65; --agc-estudio: #e8c547; --agc-esp: #3ec9d6; --agc-bt: #a3afbf; --agc-ev: #b29bff; --agc-libre: #c7a58e; --agc-fg: #0e0e0e; --agc-mix: 22%; } }
-  :root[data-theme="dark"] { --agc-habito: #5ecb6f; --agc-tarea: #6ea6ff; --agc-ini: #ee8ad8; --agc-prio: #ff8a65; --agc-estudio: #e8c547; --agc-esp: #3ec9d6; --agc-bt: #a3afbf; --agc-ev: #b29bff; --agc-libre: #c7a58e; --agc-fg: #0e0e0e; --agc-mix: 22%; }`;
+  :root { --agc-habito: #1e7d32; --agc-tarea: #1f5fbf; --agc-ini: #b0318f; --agc-prio: #c43c12; --agc-estudio: #8f6d00; --agc-esp: #007a87; --agc-bt: #5b6675; --agc-ev: #6a45c8; --agc-libre: #6d4c41; --agc-cons: #3d5200; --agc-fg: #ffffff; --agc-mix: 15%; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --agc-habito: #5ecb6f; --agc-tarea: #6ea6ff; --agc-ini: #ee8ad8; --agc-prio: #ff8a65; --agc-estudio: #e8c547; --agc-esp: #3ec9d6; --agc-bt: #a3afbf; --agc-ev: #b29bff; --agc-libre: #c7a58e; --agc-cons: #8aab1f; --agc-fg: #0e0e0e; --agc-mix: 22%; } }
+  :root[data-theme="dark"] { --agc-habito: #5ecb6f; --agc-tarea: #6ea6ff; --agc-ini: #ee8ad8; --agc-prio: #ff8a65; --agc-estudio: #e8c547; --agc-esp: #3ec9d6; --agc-bt: #a3afbf; --agc-ev: #b29bff; --agc-libre: #c7a58e; --agc-cons: #8aab1f; --agc-fg: #0e0e0e; --agc-mix: 22%; }`;
   const c = document.createElement('style'); c.textContent = pal; document.head.appendChild(c);
 }
 
