@@ -1,0 +1,102 @@
+name: App Android
+
+# Compila la app para Android (android/): un WebView con paquete propio que carga la app web publicada, para que
+# Android cuente el tiempo de uso a «Organización Personal» y no a Chrome. Sube el APK como artefacto y, en main,
+# lo publica en la versión (release) «android»:
+#   https://github.com/Gads4532/Habit-tracker/releases/download/android/organizacion-personal.apk
+#
+# Firma: si existen los secretos ANDROID_KEYSTORE_B64 (el keystore en base64) y ANDROID_KEYSTORE_PASS, se usan y el APK
+# se actualiza encima del anterior. Si no existen, el job genera un keystore nuevo en cada compilación: cada APK lleva
+# una clave distinta y, para actualizar, hay que desinstalar la app antes de instalar la nueva. Es aceptable porque el APK
+# solo aloja la app web (su contenido se actualiza solo y los datos vuelven con la sincronización de la cuenta).
+# Nunca se sube un keystore ni un secreto al repositorio.
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
+
+      - name: Preparar la firma
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          KS="$RUNNER_TEMP/organizacion.jks"
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            echo "$KS_B64" | base64 -d > "$KS"
+            PASS="$KS_PASS"
+            echo "Firma: keystore de los secretos del repositorio (el APK se actualiza encima del anterior)."
+          else
+            # Sin secretos: clave nueva en cada compilación. Para instalar un APK nuevo hay que desinstalar el anterior.
+            PASS="$(openssl rand -hex 16)"
+            keytool -genkeypair -v -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias organizacion \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Organizacion Personal" >/dev/null 2>&1
+            echo "::warning::Sin ANDROID_KEYSTORE_B64/ANDROID_KEYSTORE_PASS: este APK lleva una clave nueva. Para actualizar, desinstala la app antes."
+          fi
+          echo "::add-mask::$PASS"
+          ALIAS="$(keytool -list -keystore "$KS" -storepass "$PASS" 2>/dev/null | awk -F, '/PrivateKeyEntry/ {print $1; exit}')"
+          {
+            echo "ANDROID_KEYSTORE_FILE=$KS"
+            echo "ANDROID_KEYSTORE_PASS=$PASS"
+            echo "ANDROID_KEY_ALIAS=${ALIAS:-organizacion}"
+          } >> "$GITHUB_ENV"
+
+      - name: Compilar el APK firmado
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Comprobar y renombrar
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -v -i "public key" | head -5
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging "$APK" | head -3
+          cp "$APK" "$GITHUB_WORKSPACE/organizacion-personal.apk"
+          rm -f "$RUNNER_TEMP/organizacion.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: organizacion-personal-apk
+          path: organizacion-personal.apk
+          if-no-files-found: error
+
+      - name: Publicar en la versión «android» (solo main)
+        if: github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NOTAS="App para Android: cuenta tu tiempo de uso en el teléfono. Descarga organizacion-personal.apk y ábrelo; si Android lo pide, permite instalar apps de esta fuente. Compilación ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})."
+          if gh release view android >/dev/null 2>&1; then
+            gh release upload android organizacion-personal.apk --clobber
+            gh release edit android --notes "$NOTAS" --title "App para Android"
+          else
+            gh release create android organizacion-personal.apk --title "App para Android" --notes "$NOTAS" --target "$GITHUB_SHA" --latest=false
+          fi
