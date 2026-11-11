@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Organización Personal</string>
+    <string name="sin_red">Sin conexión. La app abre lo último guardado en cuanto vuelva la red.</string>
+    <string name="sin_app">No hay una app para abrir ese enlace.</string>
+    <string name="descargado">Guardado en Descargas</string>
+    <string name="no_descarga">No se pudo guardar el archivo.</string>
+</resources>

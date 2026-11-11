@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+// La firma llega por variables de entorno (las pone .github/workflows/android.yml); nunca hay un keystore en el repositorio.
+def ksFile = System.getenv('ANDROID_KEYSTORE_FILE')
+def ksPass = System.getenv('ANDROID_KEYSTORE_PASS')
+def ksAlias = System.getenv('ANDROID_KEY_ALIAS') ?: 'organizacion'
+// La contraseña de la clave: la misma del almacén (así es en un PKCS12) salvo que llegue ANDROID_KEY_PASS.
+def keyPass = System.getenv('ANDROID_KEY_PASS') ?: ksPass
+
+android {
+    namespace 'io.github.gads4532.organizacion'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'io.github.gads4532.organizacion'
+        minSdk 24
+        targetSdk 35
+        versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
+        versionName '1.0.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+
+    signingConfigs {
+        release {
+            if (ksFile && ksPass) {
+                storeFile file(ksFile)
+                storePassword ksPass
+                keyAlias ksAlias
+                keyPassword keyPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (ksFile && ksPass) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation 'androidx.browser:browser:1.8.0'
+}
