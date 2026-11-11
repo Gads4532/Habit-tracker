@@ -373,7 +373,7 @@ function jdLinea(C, fecha) {
 function resumen(C, fecha) {
   const st = C.st, E = st.enfoque || {}, L = [];
   const P = prioDe(E, fecha) || [];
-  L.push(P.length ? `Prioridades: ${P.slice(0, 4).map((x, i) => `${i + 1}. ${x.t}`).join(' · ')}${P.length > 4 ? '…' : ''}` : 'Aún sin prioridades: la primera, la más importante.');
+  L.push(P.length ? `Prioridades: ${P.slice(0, 4).map((x, i) => `${i + 1}. ${x.t}`).join(' · ')}${P.length > 4 ? '…' : ''}` : 'Aún sin prioridades: van en el orden en que las harás.');
   const FA = fuentesAg(C, fecha), ag = agendaDe(C, fecha).items.filter(it => !it.fantasma && !it.hist && FA.vivoF(it)).map(it => ({ t: FA.texto(it), h: FA.horaDe(it) })).filter(e => e.t).sort((a, b) => (a.h || '99') < (b.h || '99') ? -1 : 1);
   if (ag.length) L.push(`Agenda: ${ag.slice(0, 4).map(e => `${hmOk(e.h) ? hora12(e.h) + ' ' : ''}${e.t}`).join(' · ')}${ag.length > 4 ? '…' : ''}`);
   // 2.14 · Estudio: hasta dos bloques de hoy que siguen pendientes y el examen que viene en la semana («mañana» si es mañana).
@@ -587,7 +587,7 @@ function candidatos(C, fecha) {
         if (i < 0) return { tag: 'mediodia', soloVolver: true, duda: true, corto: 'aún no tienes prioridades', title: 'Aún no tienes prioridades', body: '' };
         return { tag: 'mediodia', corto: `Tu prioridad ${i + 1} sigue libre`, title: `Tu prioridad ${i + 1} sigue libre`, body: '' }; }
       const P = (P0 || []).filter(x => x && sinPunto(x.t));
-      if (!P.length) return { tag: 'mediodia', soloVolver: true, corto: 'aún no tienes prioridades', title: 'Aún no tienes prioridades', body: 'En orden: la primera, la más importante. ¿Las eliges ahora o en tu próxima ventana?' };
+      if (!P.length) return { tag: 'mediodia', soloVolver: true, corto: 'aún no tienes prioridades', title: 'Aún no tienes prioridades', body: 'En el orden en que las harás. ¿Las eliges ahora o en tu próxima ventana?' };
       let i = P.findIndex(x => !x.hecho);
       if (i < 0) { if (actual(at) || P.every(x => hechoAntes(x, at))) return null; i = P.findIndex(x => !hechoAntes(x, at)); }
       const tarde = aMin(fechaHM(at, tz)) >= 15 * 60;
