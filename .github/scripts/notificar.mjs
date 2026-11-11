@@ -199,9 +199,15 @@ function btFaltan(E, A, fecha) {
       min: Math.min(720, Math.round(+b.min)), hecho: false, enFuente: true, org: +b.creado > 1e11 ? +b.creado : 1, alta: +b.creado > 0 ? +b.creado : 0 }));
   } catch { return []; }
 }
+// 2.21.4 (I) · El nombre vivo de la iniciativa de un bloque: la de ese día en iniciativas4 o, si no, la del plan de ese día.
+function btIniVivo(E, fecha, ref) {
+  try { if (!E || typeof fecha !== 'string' || !fecha || typeof ref !== 'string') return '';
+    const I = E.iniciativas4; if (I && I.dia === fecha) return btTx(acota(I.items, 12).find(x => x && x.k === ref)?.t);
+    return btTx(planDe(E, fecha)?.ini?.[ref]?.t); } catch { return ''; }
+}
 function btCuerpoAviso(C, b) {
   const st = C.st, T = acota(st.tareas?.items, 2000), H = habitosDe(st);
-  const nombre = i => i.tipo === 'tarea' ? btTx(T.find(x => x.id === i.ref)?.titulo) || btTx(i.t) : i.tipo === 'habito' ? btTx(H.find(h => h.id === i.ref)?.nombre) || btTx(i.t) : i.tipo === 'ini' ? btTx(i.sub) || btTx(i.t) : btTx(i.t);
+  const nombre = i => i.tipo === 'tarea' ? btTx(T.find(x => x.id === i.ref)?.titulo) || btTx(i.t) : i.tipo === 'habito' ? btTx(H.find(h => h.id === i.ref)?.nombre) || btTx(i.t) : i.tipo === 'ini' ? btIniVivo(st.enfoque, b?.fecha, i.ref) || btTx(i.sub) || btTx(i.t) : btTx(i.t);
   const L = acota(b?.items, 30).map(nombre).map(sinPunto).filter(Boolean).slice(0, 2);
   return `${L.length ? L.join(' · ') + '. ' : ''}¿Empiezas, lo mueves o lo dejas?`;
 }

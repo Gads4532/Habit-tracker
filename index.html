@@ -683,7 +683,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.21.3';
+const APP_VERSION = '2.21.4';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1018,7 +1018,8 @@ const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart
 function save() {
   window.avAntesDeGuardar?.();   // 2.12 · avisos: lo que llegó desde una notificación y las horas de los hábitos
   window.xpPenLevantar?.();   // 2.19 (X) · un hábito marcado para un día que ya restó devuelve su XP
-  window.mtTrasGuardar?.();   // 2.18 (M) · lo recién creado desde «Crear algo nuevo para esta meta» queda vinculado
+  window.mtTrasGuardar?.();
+  window.iniAntesDeGuardar?.();   // 2.21.4 (I) · cada iniciativa que cambió lleva su mod   // 2.18 (M) · lo recién creado desde «Crear algo nuevo para esta meta» queda vinculado
   state.cambiado = Date.now();
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
   pushCloud();
@@ -1139,6 +1140,20 @@ function tareasRemap(E, ren) {
   }
 }
 // Combinar dos estados sin perder nada: unión de hábitos, días y tareas; en conflicto manda el más reciente.
+// 2.21.4 (I) · Las iniciativas del mismo día en dos copias, por categoría (sin mod, el contenido de la copia más nueva, I).
+function iniFusion(I, J, t) {
+  const L = x => Array.isArray(x) ? x : [];
+  if (!I || !J || I === J || I.dia !== t || J.dia !== t || !L(I.items).length || !L(J.items).length) return I;
+  // El contenido (texto, hora, minutos…) sale de la de mod más reciente; lo hecho, de la de hmod más reciente (sin hmod en ninguna: hecha si
+  // lo está en alguna). Así, marcada en un teléfono y renombrada en el otro queda renombrada y hecha.
+  const items = L(I.items).map(x => { const y = x && L(J.items).find(z => z && z.k === x.k); if (!y) return x;
+    const C = (+y.mod || 0) > (+x.mod || 0) ? y : x, hx = +x.hmod || 0, hy = +y.hmod || 0, H = hy > hx ? y : hx > hy ? x : null;
+    const hecho = H ? !!H.hecho : (!!x.hecho || !!y.hecho), S = H || (x.hecho ? x : y.hecho ? y : C), hm = Math.max(hx, hy);
+    if (!!C.hecho === hecho && !!C.smartBonus === !!S.smartBonus && (+C.hmod || 0) === hm) return C;
+    const o = { ...C, hecho }; if (hm) o.hmod = hm; else delete o.hmod; if (S.smartBonus) o.smartBonus = true; else delete o.smartBonus; return o; });
+  for (const y of L(J.items)) if (y && typeof y.k === 'string' && !items.some(x => x && x.k === y.k)) items.push(y);
+  return { ...I, items };
+}
 function mergeStates(a, b) {
   a = normalize(a); b = normalize(b);
   const newer = a.cambiado >= b.cambiado ? a : b, older = newer === a ? b : a;
@@ -1196,7 +1211,7 @@ function mergeStates(a, b) {
     E.agQuitHist = agQuitHistUnir(eN, eO);   // 2.21 (N6) · también lo quitado en la agenda de un día que el otro teléfono no había archivado
     if (!L(eN.prioridades?.items).length && L(eO.prioridades?.items).length && eN.agendaHoy?.fecha !== t) E.prioridades = eO.prioridades;
     const I = eN.iniciativas4?.dia !== t && eO.iniciativas4?.dia === t ? eO.iniciativas4 : eN.iniciativas4, Id = I === eN.iniciativas4 ? eO.iniciativas4 : eN.iniciativas4;
-    E.iniciativas4 = I;
+    E.iniciativas4 = iniFusion(I, Id, t);   // 2.21.4 (I)
     // Historial de iniciativas: por día, lo hecho en cualquiera de las dos copias, y las de un día anterior que aquí se descartan.
     const IH = {}, add = (k, ks) => { IH[k] = [...new Set([...L(IH[k]), ...L(ks)])]; };
     for (const e of [eO, eN]) for (const [k, ks] of Object.entries(e.iniHist && typeof e.iniHist === 'object' ? e.iniHist : {})) add(k, ks);
@@ -6598,8 +6613,17 @@ function ini4Semana() {
     ES.iniciativas4 = { dia: today(), items: INI4.map(([k]) => ({ k, t: '', por: '', paso: '', cuando: '', hora: '', hecho: false })) };
   }
   while (ES.iniciativas4.items.length < N_INI) ES.iniciativas4.items.push({ k: INI4[ES.iniciativas4.items.length][0], t: '', por: '', paso: '', cuando: '', hora: '', hecho: false });
+  iniFirmaVer();   // 2.21.4 (I)
   return ES.iniciativas4;
 }
+// 2.21.4 (I) · La firma de una iniciativa (lo que se ve de ella). save() pone mod = ahora a la que cambió desde la última vez.
+const INI_FIRMA = new WeakMap();
+// mod: cuándo cambió su contenido; hmod: cuándo se marcó o desmarcó (por separado, para combinar cada cosa con lo más reciente).
+const iniFirma = x => JSON.stringify(['t', 'hora', 'min', 'exito', 'por', 'paso', 'donde', 'obst', 'plan', 'obj', 'iden', 'est', 'cuando'].map(c => x[c] ?? ''));
+function iniFirmaVer() { try { for (const x of ES.iniciativas4?.items || []) if (x && typeof x === 'object' && !INI_FIRMA.has(x)) INI_FIRMA.set(x, [iniFirma(x), !!x.hecho]); } catch {} }
+window.iniAntesDeGuardar = () => { try { for (const x of state.enfoque?.iniciativas4?.items || []) { if (!x || typeof x !== 'object') continue; const f = iniFirma(x), h = !!x.hecho, a = INI_FIRMA.get(x); if (a) { if (a[0] !== f) x.mod = Date.now(); if (a[1] !== h) x.hmod = Date.now(); } INI_FIRMA.set(x, [f, h]); } } catch {} };
+// La hora al cambiar de iniciativa: la que pusiste al crearla (hm) manda; si no, la que ya tenía (la de la Agenda); si no, la de la elegida.
+const iniHoraNueva = (r, actual) => (r && r.hm && r.h) ? r.h : (actual || (r && (r.h || r.hora)) || '');
 // Sugerencias según lo que ya hay en la app, para que proponer no empiece de cero.
 function ini4Sugerencias(k) {
   const p = pendientes();
@@ -6632,8 +6656,8 @@ function iniAplicar(i, o) {
   const I = ini4Semana(), x = I.items[i];
   // Si es otra iniciativa, no hereda el para qué, el primer paso, la señal de hecho ni el objetivo de la anterior (solo la hora y los minutos).
   if (o.t && o.t !== x.t) Object.assign(x, { por: '', paso: '', donde: '', obst: '', plan: '', exito: EXITO_DEF[x.k] || '', obj: '', iden: '' });
-  Object.assign(x, { t: o.t || x.t, por: o.por || x.por, paso: o.paso || x.paso, hora: o.hora || x.hora, donde: o.donde || x.donde || '', obst: o.obst || x.obst || '', plan: o.plan || x.plan || '', exito: o.exito || x.exito || '', min: o.min || x.min || 0, obj: o.obj || x.obj || '', iden: o.iden || x.iden || '' });
-  guardar(); renderE(); ini4Sheet(i);
+  Object.assign(x, { t: o.t || x.t, por: o.por || x.por, paso: o.paso || x.paso, hora: iniHoraNueva({ h: o.hora, hm: o.hm }, x.hora), donde: o.donde || x.donde || '', obst: o.obst || x.obst || '', plan: o.plan || x.plan || '', exito: o.exito || x.exito || '', min: o.min || x.min || 0, obj: o.obj || x.obj || '', iden: o.iden || x.iden || '' });
+  iniCambio(); ini4Sheet(i);   // 2.21.4 (I) · la Agenda, el Inicio y el bloque, al momento
 }
 function iniCatalogo(i) {
   const [k, n] = INI4[i], mias = ES.catalogoIni[k], usadas = Object.values(ES.iniHist || {}).flat();
@@ -6653,7 +6677,7 @@ function iniCatalogo(i) {
 // Crear una iniciativa propia con la estructura que la asegura: acción concreta, por qué, primer paso, cuándo y dónde,
 // obstáculo con plan «si…, entonces…» (Gollwitzer y Sheeran, 2006) y señal de hecha (Locke y Latham, 2002).
 function iniCrear(i, base = {}) {
-  iniCrearSmart(INI4[i][0], o => { if (!o) return ini4Sheet(i); iniAplicar(i, { t: o.t, por: o.por, paso: o.paso, hora: o.h, exito: o.exito, min: o.min, obj: o.obj, iden: o.iden }); }, base);
+  iniCrearSmart(INI4[i][0], o => { if (!o) return ini4Sheet(i); iniAplicar(i, { hm: o.hm, t: o.t, por: o.por, paso: o.paso, hora: o.h, exito: o.exito, min: o.min, obj: o.obj, iden: o.iden }); }, base);
 }
 // Traer iniciativas desde una página de Notion: cada viñeta, número, casilla o párrafo corto se convierte en una opción.
 async function iniDesdeNotion(i) {
@@ -6714,15 +6738,31 @@ function ini4Sheet(abrir = -1) {
   const body = $('#sheet-body');
   const leer = () => body.querySelectorAll('[data-f]').forEach(inp => { I.items[+inp.dataset.i][inp.dataset.f] = inp.value.trim(); });
   body.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { leer(); guardar(); const i = +b.dataset.open; ini4Sheet(body.querySelector(`.ini-f[data-i="${i}"]`).hidden ? i : -2); });
-  body.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { body.querySelector(`[data-f="t"][data-i="${b.dataset.sug}"]`).value = b.dataset.t; });
+  body.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const inp = body.querySelector(`[data-f="t"][data-i="${b.dataset.sug}"]`); inp.value = b.dataset.t; inp.dispatchEvent(new Event('input', { bubbles: true })); });   // 2.21.4 (I)
   body.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { leer(); guardar(); iniCatalogo(+b.dataset.cat); });
   body.querySelector('[data-bw]')?.addEventListener('click', () => { leer(); guardar(); closeSheet(); irA('bienestar'); });
   body.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => { leer(); guardar(); iniCrear(+b.dataset.crear); });
   body.querySelectorAll('[data-notion]').forEach(b => b.onclick = () => { leer(); guardar(); iniDesdeNotion(+b.dataset.notion); });
-  body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { leer(); const i = +b.dataset.done; iniMarcar(i, !I.items[i].hecho); guardar(); renderE(); if (view === 'agenda') renderAg(); ini4Sheet(i); });
-  $('#i4-ok').onclick = () => { leer(); guardar(); closeSheet(); renderE(); };
+  body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { leer(); const i = +b.dataset.done; iniMarcar(i, !I.items[i].hecho); iniCambio(); ini4Sheet(i); });
+  $('#i4-ok').onclick = () => { leer(); iniSucio = false; closeSheet(); iniCambio(); };   // 2.21.4 (I) · también la Agenda y el Inicio
   body.querySelectorAll('[data-btc-ini]').forEach(b => b.onclick = () => { leer(); guardar(); const x = I.items.find(y => y.k === b.dataset.btcIni); btcAbrir([{ tipo: 'ini', ref: b.dataset.btcIni, ...(x?.t ? { sub: x.t } : {}) }]); });   // 2.16 (C) · con su texto
 }
+// 2.21.4 (I) · «Cambié una iniciativa y no se actualizó.» Después de cambiar una iniciativa (la fuente), todo lo que la muestra se entera:
+// la agenda toma su texto, hora y minutos (agSync), se guarda y se repintan Enfoque, la Agenda, el Inicio y el bloque en Google Calendar.
+function iniCambio() {
+  try { agSync(agenda()); } catch (e) { console.warn('Iniciativa', e); }
+  guardar();
+  try { renderE(); } catch (e) { console.warn('Iniciativa', e); }
+  try { if (view === 'agenda') renderAg(); } catch (e) { console.warn('Iniciativa', e); }
+  try { iniRepintar(); } catch {}
+  try { btAuto(); } catch {}
+}
+// Lo escrito en la hoja va a la iniciativa al teclear; al cerrarla (con «Guardar», Atrás o tocando fuera), todo se entera.
+let iniSucio = false;
+const INI_CAMPO = '.ini-f [data-f][data-i]';
+$('#sheet-body')?.addEventListener('input', e => { const inp = e.target?.closest?.(INI_CAMPO); if (!inp) return; const x = ini4Semana().items[+inp.dataset.i]; if (!x) return; x[inp.dataset.f] = inp.value.trim(); iniSucio = true; });
+$('#sheet-body')?.addEventListener('change', e => { if (!e.target?.closest?.(INI_CAMPO) || !iniSucio) return; iniSucio = false; iniCambio(); });
+sheet.addEventListener('close', () => { if (!iniSucio) return; iniSucio = false; iniCambio(); });
 // ---------- Tres cosas buenas (Seligman et al., 2005): al cerrar el día, en vez de un último scroll.
 function buenasSheet(paso) {
   if (paso !== 2) { cierreAvances(); return; }
@@ -7303,7 +7343,7 @@ async function iaEjecutar(nombre, a) {
       if (a.accion === 'definir') { if (a.que && a.que !== x.t) Object.assign(x, { t: a.que, por: '', paso: '', obst: '', plan: '', obj: '', iden: '', exito: EXITO_DEF[a.tipo] || '' }); if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; if (a.obstaculo) x.obst = a.obstaculo; if (a.plan) x.plan = a.plan; if (a.exito) x.exito = a.exito;
         if (a.guardar_en_mis_iniciativas && x.t && !ES.catalogoIni[a.tipo].some(o => o.t === x.t)) ES.catalogoIni[a.tipo].push({ id: crypto.randomUUID(), t: x.t, por: x.por, paso: x.paso, hora: x.hora, obst: x.obst, plan: x.plan, exito: x.exito, iden: x.iden || '', origen: 'Asistente', veces: 1 }); }
       else if (!x.hecho) iniMarcar(i, true);
-      guardar(); renderE(); if (view === 'agenda') renderAg(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
+      iniCambio(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
     }
     case 'bienestar_abrir': { if (!window.practicaIniciar(a.clave)) throw new Error('No existe esa clave.'); return { abierto: a.clave }; }
     case 'diario_escribir': {
@@ -9213,7 +9253,8 @@ function agSync(A) {
   if (A.quit && A.fecha === today()) for (const it of A.items) { const k = agQuitClave(it); if (agQuitado(A, k) && !(+it.alta > A.quit[k])) { agQuitMarcar(A, k, false); cambio = true; } }   // 2.21 (N) · está en la agenda después de quitarlo: lo pusiste otra vez
   for (const it of A.items) {
     let t = '', h = null;
-    if (it.tipo === 'ini') { const x = I.find(y => y.k === it.ref); if (x?.t) { t = x.t; h = x.hora || ''; } }
+    if (it.tipo === 'ini') { const x = I.find(y => y.k === it.ref); if (x?.t) { t = x.t; h = x.hora || ''; const m = Math.round(+x.min) || 0;
+      if (m > 0 && it.imf !== m) { if (+it.min !== m && (it.imf !== undefined || !(+it.min === 25 && m > 25))) it.min = m; it.imf = m; cambio = true; } } }   // 2.21.4 (I) · sus minutos (imf: los últimos vistos; el tope de un día corto se respeta)
     else if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x) { t = x.titulo; if (x.hora) h = x.hora; } }
     else if (it.tipo === 'habito') { const x = s.habits.find(y => y.id === it.ref); if (x) { t = x.nombre; const fh = (x.horas || [])[0] || ''; if (it.hf === undefined) { it.hf = fh; cambio = true; } else if (it.hf !== fh) { if (it.h === it.hf) h = fh; it.hf = fh; cambio = true; } } }   // 2.20 · la hora del hábito, si nadie la cambió a mano
     else if (it.tipo === 'prio') { const x = ES.prioridades.items.find(y => y.id === it.ref); if (x) { t = x.t; if (!!x.hecho !== !!it.hecho) { it.hecho = !!x.hecho; cambio = true; } } }
@@ -9519,7 +9560,7 @@ function iniCrearSmart(k, cb, base = {}) {
     if (!ES.catalogoIni[k].some(x => x.t === ini.t)) ES.catalogoIni[k].push(ini);
     guardar(); toast('Guardada en «Mis iniciativas».');
     const btcSel = btcLeer(body, 'is-bt');
-    cb({ t: ini.t, exito: ini.exito, min, h, por: ini.por, paso: ini.paso, obj: ini.obj, iden: ini.iden, src: 'mia:' + ini.id });
+    cb({ t: ini.t, exito: ini.exito, min, h, por: ini.por, paso: ini.paso, obj: ini.obj, iden: ini.iden, src: 'mia:' + ini.id, hm: 1 });   // 2.21.4 (I) · hm: la hora la pusiste tú
     if (btcSel && ini4Semana().items[iniIdx(k)]?.t === ini.t) btcTras(btcSel, { tipo: 'ini', ref: k, sub: ini.t });   // 2.16 (C) · si quedó como la de hoy, con su texto
   };
   prev();
@@ -9675,7 +9716,7 @@ function organizarDia(paso = 1, sigue = false) {
       const b = e.target.closest('[data-ion],[data-iel]'); if (!b || b.disabled) return;
       const k = b.dataset.ion || b.dataset.iel, o = org.ini[k];
       if (b.dataset.ion && o) { o.on = !o.on; o.tocada = true; return organizarDia(3, true); }
-      iniElegir(k, r => { if (r) { org.ini[k] = { ...r, on: true }; if (r.h) org.auto.delete('ini:' + k); } organizarDia(3, true); }, o || {}, { manana: M });
+      iniElegir(k, r => { if (r) { const h0 = iniHoraNueva(r, o?.h || ''); org.ini[k] = { ...r, h: h0, on: true }; if (r.h && h0 === r.h) org.auto.delete('ini:' + k); } organizarDia(3, true); }, o || {}, { manana: M });
     });
     exOrgPaso3Wire(filas, horas);   // 2.14 (X)
     $('#og-back').onclick = () => organizarDia(2, true);
@@ -9890,8 +9931,10 @@ function agAddSheet(tipo = '') {
     const it = ini4Semana().items[iniIdx(k)];
     // La de hoy ya está hecha: no se pisa; la nueva entra como extra de esa categoría.
     if (it.hecho) return poner('libre', '', r.t, r.h, r.min || AG_MIN.ini, { exito: r.exito || EXITO_DEF[k], por: r.por || '', cat: k, iden: r.iden || '', extraIni: true });
-    Object.assign(it, { t: r.t, exito: r.exito || EXITO_DEF[k], hora: r.h || '', por: r.por || '', paso: r.paso || '', min: r.min || AG_MIN.ini, obj: r.obj || '', iden: r.iden || '' });
-    A.items = A.items.filter(i => !(i.tipo === 'ini' && i.ref === k)); poner('ini', k, r.t, r.h, r.min, { obj: r.obj || '', iden: r.iden || '' }); }); });
+    const ya = A.items.find(i => i && i.tipo === 'ini' && i.ref === k), hIni = iniHoraNueva(r, it.hora || ya?.h || '');   // 2.21.4 (I)
+    Object.assign(it, { t: r.t, exito: r.exito || EXITO_DEF[k], hora: hIni, por: r.por || '', paso: r.paso || '', min: r.min || AG_MIN.ini, obj: r.obj || '', iden: r.iden || '' });
+    if (ya) { A.items = A.items.filter(i => i === ya || !(i.tipo === 'ini' && i.ref === k)); Object.assign(ya, { t: it.t, h: hIni, min: it.min, obj: it.obj, iden: it.iden }); delete ya.ha; if (agQuitado(A, agQuitClave(ya))) agQuitMarcar(A, agQuitClave(ya), false); closeSheet(); toast('En la agenda.'); iniCambio(); agCompleta(); return; }   // 2.21.4 (I) · el mismo ítem: su id, su número y su temporizador
+    poner('ini', k, r.t, hIni, r.min, { obj: r.obj || '', iden: r.iden || '' }); }); });
   $('#aa-crear')?.addEventListener('click', () => {
     if (tipo === 'habito') { const d = habFormLeer(b, 'ah'); if (!d) return; const crear = () => { const h = agCrearHabito(d); poner('habito', h.id, h.nombre, d.hora, AG_MIN.habito); }; if (window.enfNoEstrenar?.(crear, d.nombre)) return; crear(); }
     else { const d = tarFormLeer(b, 'at', true); if (!d) return; const x = agCrearTarea({ titulo: d.titulo, hora: d.hora, min: d.min, exito: d.exito, iden: d.iden || '', cat: d.cat }); btcTras(d.bt, { tipo: 'tarea', ref: x.id }); poner('tarea', x.id, x.titulo, d.hora, d.min, { exito: d.exito, iden: d.iden || '' }); }
@@ -12139,7 +12182,7 @@ function xmDatos() { return HT().celebracion === 'datos'; }
 function xmPop(cant, motivo) {
   const el = $('#xp-pop'); if (!el) return;
   el.classList.remove('menos');   // 2.17 (XP) · el gris es solo para lo deshecho
-  el.innerHTML = cant && !xmDatos() ? `<small>+${cant} XP</small> · ${esc(motivo)}` : esc(motivo);
+  el.innerHTML = cant && !xmDatos() ? `<b>+${cant} XP</b>` : esc(motivo);   // 2.21.4 X · solo el número
   el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); clearTimeout(xpPopT); xpPopT = setTimeout(() => el.classList.remove('go'), 1700);
 }
 window.xmAviso = t => xmPop(0, t);
@@ -19882,7 +19925,7 @@ function xpPopMenos(n, motivo) {
     xpMenos = { n: 0, m: motivo };
     setTimeout(() => {
       const x = xpMenos; xpMenos = null; const el = $('#xp-pop'); if (!el || !x) return;
-      el.innerHTML = xmDatos() ? `${esc(x.m)} (deshecho)` : `<small>−${x.n} XP</small> · ${esc(x.m)} (deshecho)`;
+      el.innerHTML = xmDatos() ? `${esc(x.m)} (deshecho)` : `<b>−${x.n} XP</b>`;   // 2.21.4 X
       el.classList.add('menos'); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
       clearTimeout(xpPopT); xpPopT = setTimeout(() => el.classList.remove('go'), 1700);
     }, 0);
