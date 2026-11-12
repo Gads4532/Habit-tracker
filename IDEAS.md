@@ -612,6 +612,13 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.21.8: rutas con días y meta de horas, calendario con deuda, «Empezar» en Hábitos y XP desde Google Tasks
+
+- **Qué días estudias y cuántas horas en total.** En la ruta eliges los días (L M X J V S D) y una meta de horas hasta el examen; el plan reparte esas horas solo en esos días, en bloques del tamaño que elijas («10 h en 5 días · unos 145 min por día»). Si no cabe, lo dice. La tarjeta muestra el avance real («Meta: 2 h de 10 h»). Las rutas que ya tenías siguen igual hasta que toques días u horas.
+- **Calendario de la ruta, 100 % flexible.** Un mes hasta el examen: toca un día para quitarlo o agregarlo, mantén pulsado para cambiar sus minutos o moverlo a otro día; todo se deshace. La meta queda fija y arriba ves el balance: «Meta 10 h · Plan 8 h 40 min · Deuda 1 h 20 min», «Superávit» o «Al día», con lo que quitaste y agregaste. Lo estudiado de verdad cuenta (menos de lo previsto suma deuda). «Repartir la deuda» la sube a los días que quedan, sin pasar del máximo por día.
+- **«Empezar» en Hábitos.** Cada hábito pendiente tiene «▶ Empezar · N min» y la rutina «▶ Empezar la rutina · N min» en cadena, con el mismo temporizador de la Agenda; «✓ Hecho» lo marca igual que su casilla y «Guardar como tiempo de este hábito» lo recuerda.
+- **Google Tasks da XP.** Lo que completas en Google Tasks da sus 5 XP (una vez, solo si fue hoy); desmarcarlo allí los quita.
+
 ## 2.21.7: el número es el orden, relevancia del 1 al 5, lo estudiado de verdad y app para Android
 
 - **El número de la izquierda es solo el orden** (1, 2, 3… de arriba abajo), grande y en negrita, sin adornos. Vale en la Agenda, «Organizar mi día», «Tu día propuesto», «Reordenar el día» y Prioridades. Se renumera al arrastrar. Ya nada dice «la más importante».
