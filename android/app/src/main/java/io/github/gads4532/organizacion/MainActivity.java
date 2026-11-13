@@ -1,11 +1,14 @@
 package io.github.gads4532.organizacion;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Insets;
@@ -15,6 +18,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Message;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
@@ -38,6 +42,9 @@ import android.widget.Toast;
 
 import androidx.browser.customtabs.CustomTabColorSchemeParams;
 import androidx.browser.customtabs.CustomTabsIntent;
+import androidx.core.app.NotificationManagerCompat;
+
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -58,12 +65,17 @@ public class MainActivity extends Activity {
     static final String HOME = "https://" + HOST + PATH;
     static final String UA_SUFIJO = " OrgPersonalAndroid/1";
     static final int REQ_ARCHIVO = 41;
+    static final int REQ_AVISOS = 42;
 
     private WebView web;
     private FrameLayout root;
     private TextView sinRed;
     private ValueCallback<Uri[]> archivoCb;
     private int fondo = Color.WHITE;
+    // La página principal es la app (https://gads4532.github.io/Habit-tracker/...): solo entonces el puente programa avisos o guarda archivos.
+    private volatile boolean enLaApp = false;
+    private boolean cargada = false;
+    private String accionPendiente = null;   // «✓ Hecho» / «+5 min» tocado antes de que la página termine de cargar
 
     // Se inyecta al terminar de cargar cada página de la app: guarda las descargas blob:/data: (la copia de seguridad .json)
     // con el puente OrgAndroid y avisa del color de fondo para pintar igual las barras del sistema.
@@ -122,6 +134,7 @@ public class MainActivity extends Activity {
         web.setDownloadListener((url, ua, disp, mime, largo) -> descargar(url, ua, disp, mime));
 
         if (saved == null || web.restoreState(saved) == null) web.loadUrl(HOME);
+        if (saved == null && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) accionDelAviso(getIntent());   // no al volver desde Recientes
     }
 
     // ---------- La app de borde a borde, con el color de fondo de la app detrás de las barras y el contenido entre ellas.
@@ -244,8 +257,23 @@ public class MainActivity extends Activity {
         }
 
         @Override
+        public void onPageStarted(WebView v, String url, android.graphics.Bitmap f) {
+            enLaApp = url != null && esDeLaApp(Uri.parse(url));
+            cargada = false;
+        }
+
+        @Override
+        public void doUpdateVisitedHistory(WebView v, String url, boolean recarga) {
+            enLaApp = url != null && esDeLaApp(Uri.parse(url));
+        }
+
+        @Override
         public void onPageFinished(WebView v, String url) {
-            if (esDeLaApp(Uri.parse(url))) v.evaluateJavascript(JS_PUENTE, null);
+            enLaApp = url != null && esDeLaApp(Uri.parse(url));
+            if (!enLaApp) return;
+            v.evaluateJavascript(JS_PUENTE, null);
+            cargada = true;
+            if (accionPendiente != null) { v.evaluateJavascript(accionPendiente, null); accionPendiente = null; }
         }
 
         @Override
@@ -364,10 +392,13 @@ public class MainActivity extends Activity {
         }
     }
 
-    // ---------- El puente que ve la página (window.OrgAndroid). Solo guarda archivos y lee el color de fondo.
+    // ---------- El puente que ve la página (window.OrgAndroid): guarda archivos, lee el color de fondo y programa el aviso del
+    // temporizador. addJavascriptInterface lo expone a toda página que cargue el WebView: cada método que hace algo comprueba
+    // que la página principal sea la app (enLaApp); lo de fuera se abre en otra app o en Chrome y no llega aquí.
     private class Puente {
         @JavascriptInterface
         public void guardar(String base64, String mime, String nombre) {
+            if (!enLaApp) return;
             try { guardarBytes(Base64.decode(base64, Base64.DEFAULT), mime == null ? "application/octet-stream" : mime, nombre == null ? "archivo" : nombre); }
             catch (Exception e) { aviso(getString(R.string.no_descarga)); }
         }
@@ -379,6 +410,81 @@ public class MainActivity extends Activity {
             int c = Color.rgb(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)));
             runOnUiThread(() -> { if (c != fondo) { fondo = c; pintarBarras(); } });
         }
+
+        // El temporizador de la página: un aviso a la hora «cuando» (milisegundos desde 1970). Reemplaza el de la misma clave.
+        @JavascriptInterface
+        public void programarAviso(String id, double cuando, String titulo, String texto, boolean sonido) {
+            if (!enLaApp || Double.isNaN(cuando) || cuando <= 0) return;
+            AvisoReceptor.programar(getApplicationContext(), corto(id, 300), (long) cuando, corto(titulo, 200), corto(texto, 400), sonido);
+            runOnUiThread(MainActivity.this::pedirAvisos);
+        }
+
+        @JavascriptInterface
+        public void cancelarAviso(String id) {
+            if (!enLaApp) return;
+            AvisoReceptor.cancelar(getApplicationContext(), corto(id, 300));   // vacío: todas
+        }
+
+        // ¿El aviso nativo de esta clave y esta hora ya salió? La página no vuelve a sonar al abrirla.
+        @JavascriptInterface
+        public boolean avisoDado(String id, double cuando) {
+            return enLaApp && !Double.isNaN(cuando) && AvisoReceptor.dado(getApplicationContext(), corto(id, 300), (long) cuando);
+        }
+
+        @JavascriptInterface
+        public boolean avisosPermitidos() {
+            return enLaApp && AvisoReceptor.permitidos(getApplicationContext());
+        }
+
+        @JavascriptInterface
+        public boolean avisoExacto() {
+            return !enLaApp || AvisoReceptor.exacto(getApplicationContext());
+        }
+
+        @JavascriptInterface
+        public void permitirExacto() {
+            if (!enLaApp) return;
+            runOnUiThread(MainActivity.this::abrirAjusteExacto);
+        }
+    }
+
+    static String corto(String t, int n) { if (t == null) return ""; return t.length() > n ? t.substring(0, n) : t; }
+
+    // Android 13+: el permiso de notificaciones se pide la primera vez que empiezas un temporizador (una sola vez; si lo niegas,
+    // se activa en Ajustes de Android › Apps › Organización Personal › Notificaciones).
+    void pedirAvisos() {
+        if (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+        SharedPreferences p = getSharedPreferences(AvisoReceptor.PREFS, MODE_PRIVATE);
+        if (p.getBoolean("pidio_avisos", false)) return;
+        p.edit().putBoolean("pidio_avisos", true).apply();
+        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_AVISOS);
+    }
+
+    // Android 12+: el ajuste «Alarmas y recordatorios» de esta app (para el aviso a la hora exacta).
+    void abrirAjusteExacto() {
+        if (Build.VERSION.SDK_INT < 31) return;
+        try {
+            startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); }
+            catch (Exception e2) { aviso(getString(R.string.sin_app)); }
+        }
+    }
+
+    // «✓ Hecho», «+5 min» o tocar el aviso: la página lo hace (window.opTempAccion). Solo con la firma de esta app (la llevan los
+    // avisos que crea AvisoReceptor), así otra app no puede pedirlo abriendo la actividad.
+    void accionDelAviso(Intent i) {
+        if (i == null) return;
+        String acc = i.getStringExtra(AvisoReceptor.EXTRA_ACC);
+        if (acc == null) return;
+        String f = i.getStringExtra(AvisoReceptor.EXTRA_FIRMA), id = i.getStringExtra(AvisoReceptor.EXTRA_ID);
+        i.removeExtra(AvisoReceptor.EXTRA_ACC);
+        if (f == null || !f.equals(AvisoReceptor.firma(this))) return;
+        if (!acc.equals("hecho") && !acc.equals("mas5")) acc = "ver";
+        NotificationManagerCompat.from(this).cancel(id == null ? "" : corto(id, 300), AvisoReceptor.ID_AVISO);
+        String js = "(function(){try{return typeof window.opTempAccion==='function'?!!window.opTempAccion(" + JSONObject.quote(acc) + ","
+                + JSONObject.quote(corto(id, 300)) + "):null}catch(e){return null}})()";
+        if (cargada && web != null) web.evaluateJavascript(js, null); else accionPendiente = js;
     }
 
     // ---------- Atrás: primero lo que la app sabe cerrar (hojas, diálogos, volver a Inicio); si no queda nada, sale.
@@ -396,6 +502,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
+        setIntent(i);
+        accionDelAviso(i);
         Uri u = i.getData();
         if (u != null && esDeLaApp(u)) web.loadUrl(u.toString());
     }
@@ -409,11 +517,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        AvisoReceptor.appVisible = true;   // a la vista, el temporizador suena en la página (la alarma no avisa)
         web.onResume();
     }
 
     @Override
     protected void onPause() {
+        AvisoReceptor.appVisible = false;
         web.onPause();
         CookieManager.getInstance().flush();
         super.onPause();

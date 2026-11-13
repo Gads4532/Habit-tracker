@@ -1,6 +1,6 @@
 // Guarda la app en el teléfono para que abra sin internet.
 // La página se pide a la red primero (así llegan las versiones nuevas) y, sin red, sale de la caché.
-const CACHE = 'habitos-v2.21.8';
+const CACHE = 'habitos-v2.21.9';
 const CORE = ['./', './index.html', './vendor/anthropic-sdk-0.134.0.mjs', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
@@ -60,8 +60,21 @@ function anotarRecibido(tag) {
   });
 }
 // Al tocarla se abre la app (o se trae al frente) en la pestaña que corresponde.
+// 2.21.9 · El aviso del temporizador: «✓ Hecho» y «+5 min» funcionan desde la notificación. Trae la app al frente y le pide la acción;
+// si estaba cerrada, la abre con ?temp=…&tk=… y la app la hace al cargar (una vez: el temporizador de esa clave).
+function temporizadorClick(e, data) {
+  const acc = e.action === 'hecho' || e.action === 'mas5' ? e.action : 'ver', k = String(data.k || '').slice(0, 300);
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => {
+    const w = ws.find(c => c.url.startsWith(self.registration.scope));
+    if (w) return Promise.resolve(w.focus ? w.focus() : null).catch(() => null).then(() => w.postMessage({ temp: { acc, k } }));
+    const u = new URL('./', self.registration.scope);
+    u.searchParams.set('temp', acc); if (k) u.searchParams.set('tk', k);
+    return self.clients.openWindow(u.href);
+  });
+}
 self.addEventListener('notificationclick', e => {
   e.notification.close();
+  if (e.notification.data && e.notification.data.temp) { e.waitUntil(temporizadorClick(e, e.notification.data)); return; }
   const data = e.notification.data || {}, u = new URL(data.url || './', self.registration.scope);
   // La app anota qué aviso abriste (n=…) para saber cuáles sirven; con «Apagar», apaga ese tipo (off=1).
   if (data.tag) u.searchParams.set('n', data.tag);

@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.21.9: iniciativas opcionales y el temporizador suena al terminar
+
+- **Las iniciativas son opcionales.** Sin mínimo diario ni semanal, sin «te faltan», sin tarjetas que insisten, sin perder XP por no hacerlas y sin avisos que solo empujan a hacerlas. El día y la agenda pueden quedar cumplidos sin ellas, y en «Organizar mi día» no se marca ninguna sola: puedes seguir sin elegir. Siguen existiendo con su XP (y deshacer) y los bonos quedan solo como premio. Una iniciativa que pongas a una hora en tu Agenda avisa como cualquier otra fila.
+- **El temporizador suena al terminar.** Un tono corto, vibración y una notificación «Se cumplió el tiempo · …» con «✓ Hecho» y «+5 min» (en una rutina, avisa en cada paso). Suena una sola vez; si la app estaba congelada, suena al volver. Se puede apagar en Ajustes («Sonido al terminar el temporizador»).
+- **App para Android:** la alarma la programa el teléfono, así que suena a la hora exacta aunque la app esté cerrada (pide permiso de notificaciones la primera vez; en Android 14 «Aviso a la hora exacta · Permitir» para que no se retrase). Hay que desinstalar la anterior e instalar la nueva.
+
 ## 2.21.8: rutas con días y meta de horas, calendario con deuda, «Empezar» en Hábitos y XP desde Google Tasks
 
 - **Qué días estudias y cuántas horas en total.** En la ruta eliges los días (L M X J V S D) y una meta de horas hasta el examen; el plan reparte esas horas solo en esos días, en bloques del tamaño que elijas («10 h en 5 días · unos 145 min por día»). Si no cabe, lo dice. La tarjeta muestra el avance real («Meta: 2 h de 10 h»). Las rutas que ya tenías siguen igual hasta que toques días u horas.
