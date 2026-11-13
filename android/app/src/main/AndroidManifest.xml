@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Internet: la app web no usa cámara, micrófono ni ubicación; los avisos de cada día llegan por la app de Chrome. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- El aviso al terminar el temporizador: mostrarlo (Android 13+ lo pide la primera vez que empiezas uno), vibrar
+         (también navigator.vibrate en la página) y, si Android lo deja, a la hora exacta. Sin el permiso de alarma exacta
+         (en Android 14+ se da en Ajustes), el aviso llega igual, con unos minutos de margen. Nunca USE_EXACT_ALARM. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!-- Para abrir enlaces de fuera en una pestaña personalizada (Custom Tabs) o en la app que los abra (Android 11+). -->
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.Organizacion">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- La alarma del temporizador: solo la usa esta app (no exportado). -->
+        <receiver
+            android:name=".AvisoReceptor"
+            android:exported="false" />
+    </application>
+</manifest>
