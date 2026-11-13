@@ -593,22 +593,7 @@ function candidatos(C, fecha) {
       const tarde = aMin(fechaHM(at, tz)) >= 15 * 60;
       return { tag: 'mediodia', duda: sim && P.some(sinHora), corto: `Tu prioridad ${i + 1} sigue libre`, title: `Tu prioridad ${i + 1} sigue libre`, body: `${sinPunto(P[i].t)}. ¿La empiezas 10 minutos ahora o ${tarde ? 'le pones hora' : 'la agendas a las 4:00 PM'}?` };
     } });
-    sueltos.push({ nominal: '16:00', tags: ['ini4'], tipo: 'mediodia', parte: at => {
-      if (!tipoOn('mediodia', at)) return null;
-      const I = I4 || [], min = [1, 2, 3, 4].includes(+E.minIni) ? +E.minIni : 2;
-      const hechas = actual(at) ? I.filter(x => x.hecho).length : I4 ? I.filter(x => hechoAntes(x, at)).length : sim ? Math.max(0, +Dd.ini4 || 0) : 0;
-      if (hechas >= min && (actual(at) || I4)) return null;
-      const falta = Math.max(1, min - (actual(at) ? hechas : 0)), pend = I.filter(x => x.t && !x.hecho).map(x => sinPunto(x.t)).slice(0, 2).join(' · ') || 'estudio, proyecto, laboral, social o espiritual';
-      return { tag: 'ini4', duda: sim && (I4 ? I.some(sinHora) : hechas >= min), corto: falta === 1 ? 'falta una iniciativa' : `faltan ${falta} iniciativas`, title: `Iniciativas: ${min - falta} de ${min} hoy`, body: `${falta === 1 ? 'Falta una' : `Faltan ${falta}`}: ${pend}. ¿10 minutos ahora o le pones hora?` };
-    } });
-    sueltos.push({ nominal: '16:00', tags: ['social6'], tipo: 'mediodia', parte: at => {
-      if (!tipoOn('mediodia', at)) return null;
-      const minSoc = [3, 4, 5, 6, 7].includes(+E.minSocial) ? +E.minSocial : 6, lunesK = masDias(fecha, -w), soc = I4?.find(x => x.k === 'social');
-      const hoyHecho = actual(at) ? (+Dd.ini_social || 0) > 0 : I4 ? hechoAntes(soc, at) : false;
-      const socDias = Object.keys(D).filter(k => k >= lunesK && k < fecha && (+D[k]?.ini_social || 0) > 0).length, quedan = 7 - w;
-      if (hoyHecho || !(socDias < minSoc && minSoc - socDias >= quedan)) return null;
-      return { tag: 'social6', duda: sim && (I4 ? sinHora(soc) : (+Dd.ini_social || 0) > 0), corto: 'hoy cuenta para social', title: `Social: ${socDias} de ${minSoc} días esta semana`, body: 'Hoy cuenta para llegar al mínimo: ¿un mensaje, una llamada o un plan que propongas tú?' };
-    } });
+    // 2.21.9 (I) · «A partir de ahora las iniciativas no son obligatorias»: sin «faltan N iniciativas» ni «Social: N de 6 días».
   }
   if (hayTipo('semana') && w === 4) sueltos.push({ nominal: '17:00', tags: ['viernes'], tipo: 'semana', parte: at => {
     if (!tipoOn('semana', at)) return null;
@@ -617,12 +602,7 @@ function candidatos(C, fecha) {
     return { tag: 'viernes', duda: sim && G.length > 0, corto: 'el gracias del viernes', title: 'Gracias del viernes', body: '¿A quién le agradeces algo concreto esta semana? Un mensaje corto basta.' };
   } });
   if (hayTipo('noche')) {
-    sueltos.push({ nominal: '20:00', tags: ['esp'], tipo: 'noche', parte: at => {
-      if (!tipoOn('noche', at)) return null;
-      const esp = I4?.find(x => x.k === 'espiritual');
-      if (actual(at) ? (+Dd.ini_esp || 0) > 0 : hechoAntes(esp, at)) return null;
-      return { tag: 'esp', duda: sim && (I4 ? sinHora(esp) : (+Dd.ini_esp || 0) > 0), corto: 'tu momento espiritual', title: 'Tu momento espiritual', body: 'Unos minutos de oración, silencio, gratitud o servicio, cuando te venga bien antes de dormir.' };
-    } });
+    // 2.21.9 (I) · sin «Tu momento espiritual» (empujaba la iniciativa espiritual). Lo que tenga hora en tu Agenda avisa como siempre.
     sueltos.push({ nominal: '21:00', tags: ['noche'], tipo: 'noche', parte: at => {
       if (!tipoOn('noche', at)) return null;
       const B = acota(E.buenas, 200).filter(x => x.d === fecha);

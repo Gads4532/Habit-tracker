@@ -683,7 +683,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.21.8';
+const APP_VERSION = '2.21.9';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -5429,13 +5429,11 @@ function ahoraSugerido() {
   if (x) { const mov = P.indexOf(x) === 0 && !x.per && !e212bMovisteHoy();
     return { k: 'Tu prioridad ahora', t: x.t, p: mov ? 'Primero 10 min de paseo rápido; luego tu prioridad 1.' : P.indexOf(x) === 0 ? 'La primera de tu lista: empieza por aquí.' : 'Una sola cosa, 25 minutos, No molestar y el teléfono lejos.', b: 'Empezar 25 min', a: () => x.per ? personaSheet(ES.personas.find(q => q.id === x.per)) : (mov && e212bCaminarAntes(), focusForm(x.t, 25, x.pro || '')) }; }
   { const r = exAhora(); if (r) return r; }   // 2.14 (X) · un bloque de estudio pendiente sin hora, o con el examen cerca
-  const conHora = I.map((it, i) => ({ it, i })).filter(({ it }) => it.t && !it.hecho && it.hora).sort((a, b) => toMin(a.it.hora) - toMin(b.it.hora)).find(({ it }) => toMin(it.hora) <= nowM + 60);
+  const conHora = I.map((it, i) => ({ it, i })).filter(({ it }) => it.t && !it.hecho && it.hora).sort((a, b) => toMin(a.it.hora) - toMin(b.it.hora)).find(({ it }) => toMin(it.hora) <= nowM + 60 && nowM <= toMin(it.hora) + (+it.min || 30) + 30);   // 2.21.9 (I) · hasta su hora + duración + 30 min, como la agenda
   if (conHora) return { k: `Iniciativa de ${INI4[conHora.i][1].toLowerCase()} · ${fmtHora(conHora.it.hora)}`, t: conHora.it.t, p: conHora.it.paso ? `Primer paso: ${conHora.it.paso}` : '', b: 'Hacerla', a: () => ini4Sheet(conHora.i) };
   { const r = jdAhora(p); if (r) return r; }   // 2.13 (J) · una identidad con 3 o más días sin votos: su acción de 2 minutos
-  if (iniHechasHoy() < ES.minIni) { const i = I.findIndex(it => it.t && !it.hecho); if (i >= 0) return { k: `Iniciativa de ${INI4[i][1].toLowerCase()}`, t: I[i].t, p: `Te faltan ${ES.minIni - iniHechasHoy()} para el mínimo de hoy.`, b: 'Hacerla', a: () => ini4Sheet(i) };
-    return { k: 'Tus iniciativas de hoy', t: `Elige ${ES.minIni - iniHechasHoy()} de las cinco`, p: 'Estudio, proyecto, laboral, social, espiritual.', b: 'Elegir', a: () => ini4Sheet() }; }
-  if (h >= 11 && !espHoy()) return { k: 'Espiritual · todos los días', t: I[4].t || espSugerencia() || (h < 15 ? 'Oración mental o Santa Misa' : h < 20 ? 'Lectura espiritual o visita al Santísimo' : 'Examen de conciencia y tres avemarías'), p: 'Cinco minutos con Dios. Cuenta como tu iniciativa espiritual.', b: 'Ir a Vida espiritual', a: () => irA('espiritu') };
-  if (socialEnRiesgo() && !(dayOf().ini_social > 0)) return { k: 'Social · hoy cuenta', t: I[3].t || 'Un mensaje, una llamada o un plan que propongas tú', p: `${socialDiasSemana()} de ${ES.minSocial} días esta semana.`, b: 'Hacerla', a: () => ini4Sheet(3) };
+  // 2.21.9 (I) · Las iniciativas son opcionales: aquí ya no salen «Te faltan N», «Elige N de las cinco», «Espiritual · todos los días»
+  // ni «Social · hoy cuenta». Una elegida con hora sale arriba (conHora), como cualquier cosa de tu agenda.
   const hab = (p?.habits || []).find(hb => (hb.horas || []).some(hm => Math.abs(toMin(hm) - nowM) <= 60)) || (p?.habits || [])[0];
   if (hab && e2aPocaEnergia()) return e2aHabitoCorto(hab);
   if (hab) return { k: 'Hábito', t: hab.nombre, p: hab.minima ? `Versión de 2 minutos: ${hab.minima}` : '', b: 'Ir a Hábitos y metas de consistencia', a: () => irA('hoy') };
@@ -6207,8 +6205,8 @@ function renderIni() {
   rows.push(`<button class="row" data-man="mision"><span class="dot" style="--c:${hecha ? 'var(--empty)' : 'var(--green)'}"></span>
     <span class="t"><div style="${hecha ? 'text-decoration:line-through;color:var(--muted)' : ''}">${esc(mi.t)}</div><small>${reto7Dia() ? `Reto de desconocidos · día ${reto7Dia()} de 7` : 'Misión social de hoy'}</small></span><span class="tag">${hecha ? 'Hecha' : 'Misión'}</span></button>`);
   const I4 = ini4Semana(), ih = I4.items.filter(x => x.hecho).length, ri = rachaIni();
-  rows.unshift(`<button class="row" data-man="ini4"><span class="dot" style="--c:${ih >= ES.minIni ? 'var(--green)' : 'var(--red)'}"></span>
-    <span class="t"><div>Las 5 iniciativas de hoy${ri > 1 ? ` · racha ${ri}` : ''}</div><small>${INI4.map(([k, n], i) => `${n}${I4.items[i]?.hecho ? ' ✓' : ''}`).join(' · ')}${ih < ES.minIni ? ` · faltan ${ES.minIni - ih} para el mínimo` : ''}${socialEnRiesgo() && !(dayOf().ini_social > 0) ? ` · <span class="red">social hoy (${socialDiasSemana()}/${ES.minSocial} esta semana)</span>` : ''}${!espHoy() ? ' · <span class="amber">espiritual pendiente</span>' : ''}</small></span><span class="tag" style="${ih >= ES.minIni && espHoy() ? 'color:var(--green)' : ''}">${ih} de ${N_INI}</span></button>`);
+  rows.unshift(`<button class="row" data-man="ini4"><span class="dot" style="--c:${ih ? 'var(--green)' : 'var(--muted)'}"></span>
+    <span class="t"><div>Las 5 iniciativas de hoy${ri > 1 ? ` · racha ${ri}` : ''}</div><small>${INI4.map(([k, n], i) => `${n}${I4.items[i]?.hecho ? ' ✓' : ''}`).join(' · ')}${ih ? '' : ' · opcionales'}</small></span><span class="tag" style="${ih ? 'color:var(--green)' : ''}">${ih} de ${N_INI}</span></button>`);   // 2.21.9 (I)
   for (const pl of prox.slice(0, 2)) rows.push(`<button class="row" data-plan="${esc(pl.id)}"><span class="dot" style="--c:var(--muted)"></span>
     <span class="t"><div>${esc(cap(pl.titulo))}${pl.con ? ' con ' + esc(pl.con) : ''}</div><small>${fmtFecha(pl.fecha)} · ${fmtHora(pl.hora)}</small></span><span class="tag">Plan</span></button>`);
   const hoyD = new Date(), nuevo = (wd(today()) === 0 || hoyD.getDate() === 1) && ES.revision !== today();
@@ -6551,7 +6549,7 @@ function revisionSemanal() {
     <h3>3. Prioridades</h3>
     <p class="meta">Ordena tus proyectos por prioridad: solo uno o dos en «Alta». ${prs.filter(p => p.prioridad === 1).length > 2 ? '<span class="amber">Ahora tienes ' + prs.filter(p => p.prioridad === 1).length + ' en alta: elige.</span>' : ''}</p>
     <h3>4. Las 5 iniciativas</h3>
-    <p class="meta">La semana pasada: ${ks.reduce((a, k) => a + (dayOf(k).ini4 || 0), 0)} iniciativas en 7 días (mínimo ${ES.minIni} al día = ${ES.minIni * 7}). Social: ${ks.filter(k => (dayOf(k).ini_social || 0) > 0).length} de 7 días (mínimo ${ES.minSocial}). Espiritual: ${ks.filter(k => (dayOf(k).ini_esp || 0) > 0).length} de 7. Racha actual: ${rachaIni()} ${rachaIni() === 1 ? 'día' : 'días'}. <button class="link" id="rv-ini4">Las de hoy</button></p>
+    <p class="meta">La semana pasada: ${ks.reduce((a, k) => a + (dayOf(k).ini4 || 0), 0)} iniciativas en 7 días. Social: ${ks.filter(k => (dayOf(k).ini_social || 0) > 0).length} de 7 días. Espiritual: ${ks.filter(k => (dayOf(k).ini_esp || 0) > 0).length} de 7. Son opcionales: aquí solo se cuenta lo que hiciste. <button class="link" id="rv-ini4">Las de hoy</button></p>
     <h3>5. Personas</h3>
     <p class="meta">${personasDue().length ? `Te toca escribir a ${personasDue().slice(0, 4).map(p => esc(p.nombre)).join(', ')}.` : 'Estás al día con tus círculos.'} Meta: ${ES.metaSemanal} iniciativas esta semana.</p>
     ${pantallaRevHtml()}
@@ -6712,7 +6710,7 @@ const INI4 = [
   ['proyecto', 'Proyecto', 'Avanzar un proyecto propio', 'El siguiente paso de un proyecto, o uno nuevo'],
   ['laboral', 'Laboral', 'Una propuesta, una reunión o un problema anticipado', 'Algo en el trabajo que nadie te pidió'],
   ['social', 'Social', 'Un plan, una llamada o una conversación que propones tú', 'Con quién y para qué'],
-  ['espiritual', 'Espiritual', 'Un momento de oración, silencio, gratitud o servicio. Todos los días', 'Orar, meditar, leer algo que te eleve, servir a alguien'],
+  ['espiritual', 'Espiritual', 'Un momento de oración, silencio, gratitud o servicio', 'Orar, meditar, leer algo que te eleve, servir a alguien'],
 ];
 const N_INI = INI4.length;
 const XP_INI = 30;
@@ -6725,7 +6723,8 @@ const socialEnRiesgo = () => socialDiasSemana() < ES.minSocial && ES.minSocial -
 const espHoy = () => (dayOf().ini_esp || 0) > 0;
 function rachaEsp() { let n = espHoy() ? 1 : 0; for (let i = 1; i < 400; i++) { if ((dayOf(dayKey(addDays(new Date(), -i))).ini_esp || 0) > 0) n++; else break; } return n; }
 // Días seguidos (hasta ayer, más hoy si ya llegó) con al menos el mínimo de iniciativas.
-function rachaIni() { let n = iniHechasHoy() >= ES.minIni ? 1 : 0; for (let i = 1; i < 400; i++) { const k = dayKey(addDays(new Date(), -i)); if ((ES.iniHist?.[k] || (dayOf(k).ini4 ? [1] : [])).length >= ES.minIni || (dayOf(k).ini4 || 0) >= ES.minIni) n++; else break; } return n; }
+// 2.21.9 (I) · Días seguidos con alguna iniciativa (ya no hay mínimo).
+function rachaIni() { let n = iniHechasHoy() >= 1 ? 1 : 0; for (let i = 1; i < 400; i++) { const k = dayKey(addDays(new Date(), -i)); if ((ES.iniHist?.[k] || (dayOf(k).ini4 ? [1] : [])).length >= 1 || (dayOf(k).ini4 || 0) >= 1) n++; else break; } return n; }
 function ini4Semana() {
   // Cada día empiezan de cero; lo de ayer se guarda en el historial (para la racha y para «Tus datos»).
   if (ES.iniciativas4.dia !== today()) {
@@ -6761,8 +6760,8 @@ function iniPremios(I) {
   if (ultima) { ultima.premiada = true; xpGanar(XP_INI, `Iniciativa de ${INI4.find(([k]) => k === ultima.k)[1].toLowerCase()}`, 'i:' + ultima.k); }
   // Volver a tomar la iniciativa después de un día sin llegar al mínimo vale +15 (Milkman et al., 2021).
   const ayerIni = dayKey(addDays(new Date(), -1));
-  if (h === 1 && !I.vuelta && Object.keys(ES.iniHist || {}).length && (ES.iniHist?.[ayerIni] || []).length < ES.minIni) { I.vuelta = true; setTimeout(() => xpGanar(15, 'Volviste a tomar la iniciativa', 'b:ini+:' + today(), { si: () => iniHechasHoy() >= 1, no: () => { I.vuelta = false; } }), 800); }
-  if (h >= ES.minIni && !I.minimo) { I.minimo = true; setTimeout(() => { if (xpGanar(40, `Mínimo del día: ${ES.minIni} iniciativas`, 'b:inimin:' + today(), { si: () => iniHechasHoy() >= ES.minIni, no: () => { I.minimo = false; } })) buzz([40, 60, 40]); }, 1200); }
+  if (h === 1 && !I.vuelta && Object.keys(ES.iniHist || {}).length && (ES.iniHist?.[ayerIni] || []).length < 1) { I.vuelta = true;   /* 2.21.9 (I) · tras un día sin ninguna */ setTimeout(() => xpGanar(15, 'Volviste a tomar la iniciativa', 'b:ini+:' + today(), { si: () => iniHechasHoy() >= 1, no: () => { I.vuelta = false; } }), 800); }
+  if (h >= ES.minIni && !I.minimo) { I.minimo = true; setTimeout(() => { if (xpGanar(40, `Bono: ${ES.minIni} ${ES.minIni === 1 ? 'iniciativa' : 'iniciativas'} hoy`, 'b:inimin:' + today(), { si: () => iniHechasHoy() >= ES.minIni, no: () => { I.minimo = false; } })) buzz([40, 60, 40]); }, 1200); }
   if (h === N_INI && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, 'Las 5 iniciativas del día', 'b:ini5:' + today(), { si: () => iniHechasHoy() >= N_INI, no: () => { I.bonus = false; } }), 2400); }
   if (I.items[4]?.hecho && !I.espBonus) { I.espBonus = true; const r = rachaEsp(); if (r && r % 7 === 0) setTimeout(() => xpGanar(40, `Espiritual ${r} días seguidos`, 'b:esp7:' + today(), { si: () => !!ini4Semana().items[4]?.hecho, no: () => { I.espBonus = false; } }), 3000); }
   if (socialDiasSemana() >= ES.minSocial && !ES.socialBonus?.[lunes()]) { ES.socialBonus = { [lunes()]: true }; setTimeout(() => xpGanar(60, `Social ${ES.minSocial} días esta semana`, 'b:social:' + lunes(), { si: () => socialDiasSemana() >= ES.minSocial, no: () => { ES.socialBonus = {}; } }), 3600); }
@@ -6836,10 +6835,10 @@ async function iniDesdeNotion(i) {
 function ini4Sheet(abrir = -1) {
   const I = ini4Semana(), hechas = I.items.filter(x => x.hecho).length, r = rachaIni();
   showSheet(`<h2>Las 5 iniciativas de hoy</h2>
-    <p class="sci">Cinco frentes, el mismo peso: estudio, proyecto, trabajo, social y espiritual. Mínimo ${ES.minIni} al día; la espiritual, todos los días, y la social, ${ES.minSocial} días a la semana. Qué, por qué importa y el primer paso de 5 minutos; con fecha y hora se cumple más que solo con la fecha (Milkman et al., 2011).</p>
-    <div class="meter"><span>Hoy${r ? ` · racha de ${r} ${r === 1 ? 'día' : 'días'}` : ''}</span><b class="${hechas >= ES.minIni ? 'green' : ''}">${hechas} de ${N_INI} · mínimo ${ES.minIni}</b></div><div class="meter-bar"><i style="width:${hechas / N_INI * 100}%;${hechas >= ES.minIni ? '' : 'background:var(--amber)'}"></i></div>
-    <div class="meter"><span>Espiritual · todos los días</span><b class="${espHoy() ? 'green' : ''}">${espHoy() ? 'hecha hoy' : 'pendiente hoy'}${rachaEsp() > 1 ? ` · racha ${rachaEsp()}` : ''}</b></div>
-    <div class="meter"><span>Social esta semana (mínimo ${ES.minSocial} días)</span><b class="${socialDiasSemana() >= ES.minSocial ? 'green' : socialEnRiesgo() ? 'red' : ''}">${socialDiasSemana()} de ${ES.minSocial}${socialEnRiesgo() && socialDiasSemana() < ES.minSocial ? ' · hoy cuenta' : ''}</b></div><div class="meter-bar"><i style="width:${Math.min(100, socialDiasSemana() / ES.minSocial * 100)}%;${socialEnRiesgo() && socialDiasSemana() < ES.minSocial ? 'background:var(--red)' : ''}"></i></div>
+    <p class="sci">Cinco frentes, el mismo peso: estudio, proyecto, trabajo, social y espiritual. Son opcionales: haz las que quieras, cuando quieras. Qué, por qué importa y el primer paso de 5 minutos; con fecha y hora se cumple más que solo con la fecha (Milkman et al., 2011).</p>
+    <div class="meter"><span>Hoy${r ? ` · racha de ${r} ${r === 1 ? 'día' : 'días'}` : ''}</span><b class="${hechas ? 'green' : ''}">${hechas} de ${N_INI}</b></div><div class="meter-bar"><i style="width:${hechas / N_INI * 100}%"></i></div>
+    <div class="meter"><span>Espiritual</span><b class="${espHoy() ? 'green' : ''}">${espHoy() ? 'hecha hoy' : 'sin marcar hoy'}${rachaEsp() > 1 ? ` · racha ${rachaEsp()}` : ''}</b></div>
+    <div class="meter"><span>Social esta semana</span><b class="${socialDiasSemana() ? 'green' : ''}">${socialDiasSemana()} ${socialDiasSemana() === 1 ? 'día' : 'días'}</b></div>
     ${I.items.map((x, i) => { const [k, n, d, ph] = INI4[i], sug = ini4Sugerencias(k).filter(t => t !== x.t), open = abrir === i || (abrir < 0 && !x.hecho && !x.t && i === I.items.findIndex(y => !y.hecho && !y.t));
       return `<div class="rows"><button class="row" data-open="${i}"><span class="box" style="${x.hecho ? 'background:var(--green);border-color:var(--green)' : ''}"></span>
         <span class="t"><div>Iniciativa de ${n.toLowerCase()}${x.hecho ? ' · <span class="green">hecha</span>' : ''}</div><small style="white-space:normal">${x.t ? esc(x.t) + (x.cuando ? ` · ${fmtFecha(x.cuando)}${x.hora ? ' ' + fmtHora(x.hora) : ''}` : '') : esc(d)}</small></span><span class="tag">${open ? '▾' : '›'}</span></button></div>
@@ -6923,10 +6922,7 @@ function intervenciones() {
     h >= 20 && !ES.buenas.some(x => x.d === today()) && { id: 'buenas', t: 'Antes del último scroll', p: 'Un minuto para cerrar con lo que avanzaste y lo mejor del día.', sci: 'Redelmeier, Katz y Kahneman (2003)', b: 'Cerrar el día', a: () => buenasSheet() },
     retoDia() === 21 && { id: 'reto21', t: 'Reto de 3 semanas: semana 3 de 3', p: 'Una hora menos al día durante tres semanas. El efecto medio es pequeño; lo que ganas seguro es tiempo para lo tuyo. Mira tus datos.', sci: 'Burnell et al. (2025); Lemahieu et al. (2025)', b: 'Ver tus datos', a: () => datosSheet() },
     h >= 10 && h < 20 && !ES.misiones.some(x => x.d === today()) && { id: 'mision', t: 'Misión social de hoy', p: misionHoy().t, sci: misionHoy().tipo === 'desconocido' ? 'Sandstrom, Boothby y Cooney (2022)' : 'Hall et al. (2023)', b: 'Ver misión', a: () => misionSheet() },
-    h >= 19 && !espHoy() && { id: 'esp', t: 'Tu momento con Dios de hoy', p: 'Todos los días: oración mental, Santa Misa, Rosario o examen de conciencia. Cinco minutos bastan para empezar.', sci: 'Koenig (2012); Emmons y McCullough (2003)', b: document.querySelector('.tabs .tab[data-view="espiritu"]') ? 'Ir a Vida espiritual' : 'Ir a Bienestar', a: () => irA(document.querySelector('.tabs .tab[data-view="espiritu"]') ? 'espiritu' : 'bienestar') },
-    h >= 9 && ini4Semana().items.filter(x => x.t).length < ES.minIni && { id: 'ini4', t: `Tus ${ES.minIni} iniciativas de hoy`, p: `Elige al menos ${ES.minIni} de las cinco (estudio, proyecto, laboral, social, espiritual) y ponles hora.`, sci: 'Parker, Bindl y Strauss (2010); Milkman et al. (2011)', b: 'Elegirlas', a: () => ini4Sheet() },
-    h >= 12 && socialEnRiesgo() && !(dayOf().ini_social > 0) && { id: 'social6', t: `Social: ${socialDiasSemana()} de ${ES.minSocial} días esta semana`, p: 'Para llegar al mínimo, la iniciativa social de hoy cuenta. Un mensaje, una llamada o un plan que propongas tú.', sci: 'Hall et al. (2023); Liu et al. (2023)', b: 'Hacerla ahora', a: () => ini4Sheet(3) },
-    h >= 16 && iniHechasHoy() < ES.minIni && ini4Semana().items.some(x => x.t && !x.hecho) && { id: 'ini4b', t: `Te faltan ${ES.minIni - iniHechasHoy()} para el mínimo de hoy`, p: ini4Semana().items.filter(x => x.t && !x.hecho).map(x => x.t).join(' · '), sci: 'Parker, Bindl y Strauss (2010)', b: 'Verlas', a: () => ini4Sheet() },
+    // 2.21.9 (I) · sin esp, ini4, social6 ni ini4b: las iniciativas son opcionales
     enVentana() && { id: 'ventana', t: 'Estás en tu ventana de revisión', p: `Revisa redes y mensajes con calma hasta las ${fmtHora(addMin(enVentana(), ES.ventanaMin))}. Fuera de ella, la espera es el doble.`, sci: 'Fitz et al. (2019)', b: '', a: null },
     ...intervE212b(),
     top && top[1] >= 3 && { id: 'emo', t: `Lo que más te empuja al teléfono: ${top[0].toLowerCase()}`, p: EMO_TIP[top[0]], sci: 'Throuvala et al. (2020)', b: 'Ver tus datos', a: () => datosSheet() },
@@ -6962,7 +6958,7 @@ function datosSheet() {
       <dt>Al salir de una app</dt><dd>${valioTxt()}</dd>
       <dt>Lo que te empuja</dt><dd>${emo.length ? emo.map(([k, v]) => `${esc(k)} (${v})`).join(' · ') : 'Aún sin datos: marca qué sientes en la puerta.'}</dd>
       <dt>Prueba de realidad (FOMO)</dt><dd>${tot ? `En ${si} de ${tot} ocasiones había algo importante (${Math.round(si / tot * 100)} %).` : 'Aún sin datos.'}</dd>
-      <dt>Iniciativas</dt><dd>${sum('iniciativas')} en total · ${sum('ini4')} de las 4 diarias · racha de ${rachaIni()} días con el mínimo (${ES.minIni}) · social ${socialDiasSemana()} de ${ES.minSocial} días esta semana · ${sum('pasos')} pasos de proyecto</dd>
+      <dt>Iniciativas</dt><dd>${sum('iniciativas')} en total · ${sum('ini4')} de las 5 del día · racha de ${rachaIni()} días con alguna · social ${socialDiasSemana()} días esta semana · ${sum('pasos')} pasos de proyecto</dd>
       <dt>Predicciones sociales</dt><dd>${b ? sesgoTxt(b) : 'Aún sin datos: predice antes de escribir a alguien.'}</dd>
       <dt>Desconocidos</dt><dd>${xs.length ? `${xs.filter(x => x.abierto).length} de ${xs.length} estaban abiertos a hablar.` : 'Aún sin datos.'}</dd>
       <dt>Tiempo con personas</dt><dd>${amig.length ? amig.map(p => `${esc(p.nombre)} ${fmtHoras(p.horas)}`).join(' · ') : 'Aún sin datos.'}</dd>
@@ -7052,7 +7048,7 @@ const CIENCIA = [
   ['Autocompasión y afirmación de valores', 'La autocompasión reduce ansiedad y depresión y sostiene mejor que la autoestima por logros; afirmar los propios valores protege bajo amenaza.', 'Ferrari et al. (2019), Mindfulness; Cohen y Sherman (2014), Annual Review of Psychology'],
   ['Esperanza y decisiones', 'Escribir sobre el mejor yo posible aumenta el optimismo; razonar sobre el propio problema como si fuera de un amigo mejora la sabiduría de la decisión.', 'Meevissen et al. (2011), J. Behavior Therapy and Experimental Psychiatry; Grossmann y Kross (2014), Psychological Science'],
   ['Vida cristiana práctica', 'La práctica religiosa regular se asocia con mejor salud mental; orar por otros aumenta el perdón; las intervenciones de perdón reducen depresión y ansiedad; ayudar a otros mejora el bienestar.', 'Koenig (2012), ISRN Psychiatry; Lambert et al. (2010), Psychological Science; Wade et al. (2014), JCCP; Curry et al. (2018), JESP'],
-  ['Iniciativa espiritual diaria', 'Las emociones positivas cultivadas a diario (meditación, gratitud) amplían los recursos personales con el tiempo. Por eso la iniciativa espiritual es de cada día, breve y práctica.', 'Fredrickson et al. (2008), JPSP'],
+  ['Iniciativa espiritual', 'Las emociones positivas cultivadas a diario (meditación, gratitud) amplían los recursos personales con el tiempo. Por eso la iniciativa espiritual es breve y práctica, el día que quieras.', 'Fredrickson et al. (2008), JPSP'],
   ['Descanso con propósito', 'Según la teoría de la restauración de la atención, el descanso sin pantalla, y mejor en la naturaleza, devuelve la atención que el scroll no devuelve. Por eso cada descanso tiene un propósito y un tiempo elegido.', 'Kaplan (1995), J. Environmental Psychology'],
   ['Plan de rescate', 'Cuando el día no tiene rumbo: unos suspiros cíclicos (dos inhalaciones y una exhalación larga) ayudan a calmarse; hacer un plan concreto para lo pendiente quita su interferencia aunque aún no esté hecho; y una sola cosa con un primer paso de 2 minutos hace fácil empezar.', 'Balban et al. (2023), Cell Reports Medicine; Masicampo y Baumeister (2011), JPSP'],
   ['Intervención del momento', 'Un solo mensaje elegido por la hora, el día y tus datos: prioridades por la mañana, revisión los lunes, gratitud los viernes, tres cosas buenas por la noche.', 'Combina las fuentes de esta lista; el principio es «la señal correcta en el momento correcto» (Gollwitzer y Sheeran, 2006)'],
@@ -7063,7 +7059,7 @@ const CIENCIA = [
   ['Misión social del día', 'Una conversación de calidad al día con un amigo mejora el bienestar de ese día; cara a cara rinde más.', 'Hall et al. (2023), Communication Research'],
   ['Horas juntos', 'Una amistad se construye con horas compartidas: hacen falta bastantes para pasar de conocidos a amigos, y muchas más para llegar a buenos amigos. Las metas de horas de la app son una guía, no una regla.', 'Hall (2019), J. Social and Personal Relationships'],
   ['36 preguntas', 'Preguntas de apertura creciente aumentan la cercanía entre personas que acaban de conocerse.', 'Aron et al. (1997), Personality and Social Psychology Bulletin'],
-  ['Las 5 iniciativas del día', 'Estudio, proyecto, laboral, social y espiritual, con el mismo peso, un mínimo diario y la espiritual cada día. La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios de pequeños negocios más que una formación clásica.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
+  ['Las 5 iniciativas del día', 'Estudio, proyecto, laboral, social y espiritual, con el mismo peso y opcionales: eliges cuáles y cuándo. La proactividad depende de «puedo», «quiero» y «tengo energía»; entrenar la iniciativa personal aumentó los beneficios de pequeños negocios más que una formación clásica.', 'Parker, Bindl y Strauss (2010), J. of Management; Campos et al. (2017), Science'],
   ['Ánimo antes y después', 'Actuar según el plan y no según el ánimo, y programar actividades que te gratifiquen (activación conductual), mejora el ánimo; registrarlo lo hace visible. Por eso, cuando quitas el feed, la app te ofrece una alternativa que sume.', 'Ekers et al. (2014), PLOS ONE; Cuijpers, van Straten y Warmerdam (2007), Clinical Psychology Review'],
   ['Tres cosas buenas', 'Escribir cada noche tres cosas buenas y por qué pasaron aumentó la felicidad durante meses.', 'Seligman, Steen, Park y Peterson (2005), American Psychologist'],
   ['Tres prioridades al día', 'Ante una elección, tendemos a hacer lo urgente aunque lo importante dé más («efecto de la mera urgencia»). Nombrar lo importante cada mañana contrarresta ese sesgo.', 'Zhu, Yang y Hsee (2018), Journal of Consumer Research'],
@@ -7114,9 +7110,9 @@ function settings() {
       <select id="s-wait">${[5, 10, 20, 30].map(n => `<option value="${n}" ${n === ES.espera ? 'selected' : ''}>${n} s</option>`).join('')}</select></div>
     <div class="set-row"><span>Presupuesto de distracción<small>Tu máximo de redes al día; la revisión semanal te ayuda a ajustarlo a tu dato real</small></span>
       <select id="s-bud">${[15, 30, 45, 60].map(n => `<option value="${n}" ${n === ES.presupuesto ? 'selected' : ''}>${n} min</option>`).join('')}</select></div>
-    <div class="set-row"><span>Iniciativas mínimas al día<small>De las cinco: estudio, proyecto, laboral, social, espiritual</small></span>
+    <div class="set-row"><span>Bono de iniciativas al día<small>Opcional: con esas hechas en un día, +40 XP. No hacerlas no resta</small></span>
       <select id="s-ini">${[1, 2, 3, 4].map(n => `<option value="${n}" ${n === ES.minIni ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
-    <div class="set-row"><span>Social: días mínimos a la semana<small>La iniciativa social hecha</small></span>
+    <div class="set-row"><span>Bono social a la semana<small>Opcional: días con la social hecha para +60 XP</small></span>
       <select id="s-soc">${[3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === ES.minSocial ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Meta de XP al día<small>Lo que cuenta como un buen día</small></span>
       <select id="s-xp">${[50, 100, 150, 200].map(n => `<option value="${n}" ${n === ES.metaXp ? 'selected' : ''}>${n} XP</option>`).join('')}</select></div>
@@ -7135,6 +7131,8 @@ function settings() {
     <h3>Alternativas</h3>
     <div class="field"><textarea id="s-alts">${esc(ES.alternativas.join('\n'))}</textarea><p class="meta" style="margin-top:6px">Una por línea.</p></div>
     <div class="set-row"><span>Configura tu teléfono<small>${CONFIG.filter(c => ES.config[c[0]]).length} de ${CONFIG.length} hechos</small></span><button class="link" id="s-conf">Ver</button></div>
+    <label class="set-row" id="s-tson-row" style="cursor:pointer;min-height:44px"><span>Sonido al terminar el temporizador<small>${OP_ANDROID ? 'Te avisa esta app, aunque esté cerrada' : 'Con el aviso del sistema'}. Suena aunque tengas horas de silencio</small></span><input type="checkbox" id="s-tson" role="switch"${tempSonidoOn() ? ' checked' : ''} style="flex:none;width:26px;height:26px;min-height:0;margin:0 0 0 12px;padding:0;accent-color:var(--text)"></label>
+    ${OP_ANDROID && (() => { try { return typeof window.OrgAndroid?.avisoExacto === 'function' && !window.OrgAndroid.avisoExacto(); } catch { return false; } })() ? `<div class="set-row" id="s-texacto-row"><span>Aviso a la hora exacta<small>Sin este permiso, Android puede retrasar el aviso unos minutos</small></span><button class="link" id="s-texacto" style="min-height:44px">Permitir</button></div>` : ''}
     ${OP_ANDROID ? `<div class="set-row" id="s-av-opa"><span>Notificaciones<small>${OP_AV_MSG}</small></span></div>`
       : `<div class="set-row"><span>Notificaciones<small>${avCfg().on ? 'Activadas' : 'Para no tener que abrir la app'}</small></span><button class="link" id="s-av">Configurar</button></div>`}
     ${OP_CHROME_ANDROID ? `<div class="set-row" id="s-apk-row" style="border-bottom:0;padding-bottom:4px${opApkSi() ? '' : ';display:none'}"><span>App para Android<small>Cuenta tu tiempo de uso en el teléfono</small></span><a class="link" id="s-apk" href="${OP_APK}" target="_blank" rel="noopener" style="min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:flex-end;flex:none">Descargar</a></div>
@@ -7156,6 +7154,8 @@ function settings() {
   $('#s-help').onclick = welcome;
   $('#s-conf').onclick = configSheet;
   { const b = $('#s-av'); if (b) b.onclick = avisosSheet; }   // 2.21.7 (A) · en la app Android no hay botón
+  $('#s-tson')?.addEventListener('change', e => { const on = !!e.target.checked; tempSonidoPoner(on); if (on) { tempPreparar(); tempSonar(); } toast(on ? 'Sonará al terminar el temporizador.' : 'El temporizador termina sin sonido. La vibración sigue.'); try { tempNativo('cambio'); } catch {} });   // 2.21.9 (T)
+  $('#s-texacto')?.addEventListener('click', () => { try { window.OrgAndroid?.permitirExacto?.(); } catch {} });
   if (OP_CHROME_ANDROID && !opApkSi()) opApkVer().then(si => { if (si) ['#s-apk-row', '#s-apk-nota'].forEach(k => { const e = $(k); if (e) e.style.display = ''; }); });   // 2.21.7 (A)
   // 2.20.1 (N) · lo cambiado en Ajustes se aplica antes de pasar a Notion (si no, se perdía sin aviso).
   $('#s-nt').onclick = () => { aplicarAjustes(); renderE(); window.xmBono?.(); notionSheet(); };
@@ -7303,7 +7303,7 @@ Cómo trabajas:
 - La persona es católica y vive la espiritualidad del Opus Dei sin ser numeraria: lo espiritual es católico, práctico y breve (su plan de vida: ofrecimiento de obras, oración mental, Santa Misa, Ángelus, lectura espiritual, Rosario, visita al Santísimo, examen de conciencia; la confesión frecuente; santificar el trabajo ordinario y la presencia de Dios durante el día). Míralo con vida_espiritual_ver; en la pestaña Bienestar hay escenarios (esperanza, consolación, confianza con autoridad/autoestima/identidad, paz, fortaleza, dirección, perdón, gratitud) y prácticas de mente con evidencia; ábrelos con bienestar_abrir cuando encajen con lo que cuenta.
 - Principio: que sea imposible no hacer algo con propósito, incluido el descanso. Si no hay nada pendiente, propón un descanso con propósito (siesta, caminar, respirar, no hacer nada sin pantalla) con tiempo elegido; nunca scroll.
 - Lo importante antes que lo urgente: las prioridades del día, las que la persona quiera, en el orden en que las hará (el número es el puesto). La relevancia (1 a 5) es aparte y no cambia el orden.
-- Cada día hay 5 iniciativas con el mismo peso: estudio, proyecto, laboral, social y espiritual (30 XP cada una); la espiritual es todos los días, y la persona se comprometió a un mínimo diario (ver iniciativas_hoy.minimo_diario) y a hacer la social al menos iniciativas_hoy.social_minimo_semanal días por semana; si social_en_riesgo es true, la de hoy es la que toca. Ayuda a elegir cuáles hoy, con qué, por qué, primer paso y hora; si va tarde y faltan, recuérdalo con tacto.
+- Cada día hay 5 iniciativas posibles con el mismo peso: estudio, proyecto, laboral, social y espiritual (30 XP cada una al hacerla). Son opcionales: no hay mínimo al día ni a la semana, ninguna es obligatoria y no hacerlas no resta XP. Si la persona quiere, ayúdala a elegir alguna, con qué, por qué, primer paso y hora; no le recuerdes las que no hizo ni la presiones con ellas.
 - Cada acción buena suma XP (prioridades, hábitos, tareas, enfoque, resistir las redes, escribir a alguien, pasos de proyecto…). Si la persona lo pregunta, cuéntale su nivel y cuánto falta; no inventes puntos.
 - Basa tus sugerencias en lo que tiene evidencia: planes «si…, entonces…» con día, hora y lugar; un siguiente paso físico de menos de 25 minutos; la versión de 2 minutos en días difíciles; escribir primero a las personas (se valora más de lo que se cree); revisar redes por lotes en ventanas y no a cada rato; perdonarse un tropiezo en lugar de culparse.
 - Si aparece malestar serio, sugiere con tacto hablar con un profesional; no eres terapeuta.
@@ -7353,7 +7353,7 @@ const IA_TOOLS = [
     titulo: S('Título del evento.'), fecha: S('AAAA-MM-DD.'), hora_inicio: S('HH:MM en 24 h.'), hora_fin: S('HH:MM en 24 h.'), lugar: S('Lugar o vacío.'), descripcion: S('Descripción o vacío.') }),
   iaTool('pizarra_agregar', 'Pone ideas como notas en una pizarra de la pestaña Ideas (la crea si no existe). Útil para lluvias de ideas, planes y mapas.', {
     pizarra: S('Nombre de la pizarra.'), notas: { type: 'array', items: { type: 'string' }, description: 'Textos breves, uno por nota (máximo 20).' } }),
-  iaTool('iniciativa_dia', 'Define o marca como hecha una de las 5 iniciativas de hoy (estudio, proyecto, laboral, social, espiritual; la espiritual es diaria). La persona debe hacer un mínimo al día. Al definir, usa la estructura completa cuando puedas: obstáculo, plan «si…, entonces…» y señal de hecha.', {
+  iaTool('iniciativa_dia', 'Define o marca como hecha una de las 5 iniciativas de hoy (estudio, proyecto, laboral, social, espiritual). Son opcionales: sin mínimo. Al definir, usa la estructura completa cuando puedas: obstáculo, plan «si…, entonces…» y señal de hecha.', {
     tipo: { type: 'string', enum: ['estudio', 'proyecto', 'laboral', 'social', 'espiritual'] }, accion: { type: 'string', enum: ['definir', 'hecha'] },
     que: S('Qué va a hacer (al definir) o vacío.'), por_que: S('Por qué importa, o vacío.'), primer_paso: S('Primer paso de menos de 5 minutos, o vacío.'), hora: S('HH:MM en 24 h o vacío.'),
     obstaculo: S('Obstáculo probable o vacío.'), plan: S('Si aparece el obstáculo, entonces… (o vacío).'), exito: S('Sabré que está hecha cuando… (o vacío).'), guardar_en_mis_iniciativas: { type: 'boolean', description: 'true para guardarla también como opción reutilizable.' } }),
@@ -7412,7 +7412,7 @@ function iaEstado() {
     ultimos_7_dias: { enfoque_min: sum('enfoque'), iniciativas: sum('iniciativas'), aperturas_redes: sum('aperturas'), distraccion_min: sum('distraccion'), pasos_proyecto: sum('pasos') },
     meta_iniciativas_semana: ES.metaSemanal, iniciativas_esta_semana: iniciativasSemana(),
     mis_iniciativas: Object.fromEntries(Object.entries(ES.catalogoIni).map(([k, v]) => [k, v.slice(0, 15).map(o => o.t)])),
-    iniciativas_hoy: { minimo_diario: ES.minIni, hechas: iniHechasHoy(), racha_dias: rachaIni(), espiritual_hecha_hoy: espHoy(), espiritual_racha: rachaEsp(), social_dias_esta_semana: socialDiasSemana(), social_minimo_semanal: ES.minSocial, social_en_riesgo: socialEnRiesgo(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
+    iniciativas_hoy: { opcionales: true, hechas: iniHechasHoy(), racha_dias: rachaIni(), espiritual_hecha_hoy: espHoy(), espiritual_racha: rachaEsp(), social_dias_esta_semana: socialDiasSemana(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
     ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
     estudio: window.est?.resumenIA?.() || null,   // 2.14 (S) · rutas activas, bloques de hoy, pendientes, sin hacer y avisos
@@ -7478,7 +7478,7 @@ async function iaEjecutar(nombre, a) {
       if (a.accion === 'definir') { if (a.que && a.que !== x.t) Object.assign(x, { t: a.que, por: '', paso: '', obst: '', plan: '', obj: '', iden: '', exito: EXITO_DEF[a.tipo] || '' }); if (a.por_que) x.por = a.por_que; if (a.primer_paso) x.paso = a.primer_paso; if (a.hora) x.hora = a.hora; if (a.obstaculo) x.obst = a.obstaculo; if (a.plan) x.plan = a.plan; if (a.exito) x.exito = a.exito;
         if (a.guardar_en_mis_iniciativas && x.t && !ES.catalogoIni[a.tipo].some(o => o.t === x.t)) ES.catalogoIni[a.tipo].push({ id: crypto.randomUUID(), t: x.t, por: x.por, paso: x.paso, hora: x.hora, obst: x.obst, plan: x.plan, exito: x.exito, iden: x.iden || '', origen: 'Asistente', veces: 1 }); }
       else if (!x.hecho) iniMarcar(i, true);
-      iniCambio(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), minimo_diario: ES.minIni };
+      iniCambio(); return { tipo: a.tipo, que: x.t, hecha: x.hecho, hechas_hoy: iniHechasHoy(), opcionales: true };
     }
     case 'bienestar_abrir': { if (!window.practicaIniciar(a.clave)) throw new Error('No existe esa clave.'); return { abierto: a.clave }; }
     case 'diario_escribir': {
@@ -9744,7 +9744,8 @@ function agMarcar(it, hecho = !agHecho(it), extra = {}) {
 window.objAvanceTarea = (x, hecho) => { if (x?.obj && ES.objetivos.some(o => o.id === x.obj)) objAvance(x.obj, hecho ? 1 : -1, x.titulo, 'tarea:' + x.id); };
 // Agenda completa: el premio es una vez al día, aunque luego se reorganice.
 function agCompleta() {
-  const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt').filter(it => it.tipo !== 'examen');
+  const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt').filter(it => it.tipo !== 'examen')
+    .filter(it => !((it.tipo === 'ini' || (it.tipo === 'libre' && it.extraIni)) && !agHecho(it)));   // 2.21.9 (I) · las iniciativas son opcionales: una sin hacer no hace falta; una hecha cuenta como siempre
   const llena = its.length >= 3 && its.every(it => agHecho(it));
   if (llena && !A.completa) { A.completa = true; guardar(); if (!(dayOf().agendas > 0)) { bump('agendas'); buzz([40, 60, 40]); setTimeout(() => xpGanar(25, 'Agenda del día completa', 'b:agenda:' + today(), { si: () => !!agenda().completa, no: () => { if ((dayOf().agendas || 0) > 0) bump('agendas', -1); } }), 800); } }
   else if (A.completa && its.some(it => !agHecho(it))) { A.completa = false; if (xpQuitar('b:agenda:' + today()) && (dayOf().agendas || 0) > 0) bump('agendas', -1); guardar(); }   // 2.17 (XP) · vuelve al completarla otra vez
@@ -10044,13 +10045,13 @@ function organizarDia(paso = 1, sigue = false) {
   if (paso === 3) {
     const on = Object.values(org.ini).filter(o => o?.on).length;
     showSheet(`${pieOrg(3, 'Iniciativas')}<h2>Las iniciativas ${M ? agpDe(org.dest) : 'de hoy'}</h2>
-      <p class="note">Mínimo ${ES.minIni} al día; la espiritual, todos los días; la social, ${ES.minSocial} días a la semana (${socialDiasSemana()} de ${ES.minSocial} esta semana). Ya hay una propuesta por categoría: toca el círculo para ponerla o quitarla, o «Cambiar» para elegir otra o crear la tuya.</p>
+      <p class="note" id="og-ini-op">Opcionales: pon las que quieras o sigue sin ninguna. Hay una idea por categoría: toca el círculo para ponerla o quitarla, o «Cambiar» para elegir otra o crear la tuya.</p>
       <div class="rows" id="og-ini">${INI4.map(([k, n, d]) => { const o = org.ini[k], ok = !M && !!ini4Semana().items[iniIdx(k)]?.hecho;
         return `<div class="row"><button class="box" data-ion="${k}" aria-label="Poner o quitar" style="${ok ? boxHecho : boxSt(o?.on)};width:22px;height:22px" ${ok ? 'disabled' : ''}></button>
-          <button class="t" data-iel="${k}" style="text-align:left"><div>${esc(catEtq('ini', { ...(o || {}), k, ref: k, tipo: 'ini' }) || n)}${k === 'espiritual' ? ' · cada día' : ''}${ok ? ' <span class="green">· hecha</span>' : ''}</div><small style="white-space:normal">${o ? esc(o.t) + (o.h ? ` · ${fmtHora(o.h)}` : '') + ' ' + smartDots(smartDe({ ...o, tipo: 'ini' })) : esc(d)}</small></button>
+          <button class="t" data-iel="${k}" style="text-align:left"><div>${esc(catEtq('ini', { ...(o || {}), k, ref: k, tipo: 'ini' }) || n)}${ok ? ' <span class="green">· hecha</span>' : ''}</div><small style="white-space:normal">${o ? esc(o.t) + (o.h ? ` · ${fmtHora(o.h)}` : '') + ' ' + smartDots(smartDe({ ...o, tipo: 'ini' })) : esc(d)}</small></button>
           ${ok ? '' : `<button class="tag" data-iel="${k}">${o ? 'Cambiar' : 'Elegir'} ›</button>`}</div>`; }).join('')}</div>
       ${exOrgPaso3Html()}
-      <p class="meta" style="margin-top:10px">${on >= ES.minIni ? `${on} elegidas.` : `<span class="amber">${on} de ${ES.minIni} mínimas.</span>`}${agbCorto() ? ' Día corto: con el mínimo basta.' : ''}</p>
+      <p class="meta" style="margin-top:10px">${on ? `${on} ${on === 1 ? 'elegida' : 'elegidas'}.` : 'Ninguna elegida: puedes seguir.'}</p>
       <div class="actions"><button class="link" id="og-back">Atrás</button><button class="primary" id="og-next">Siguiente</button></div>`);
     body().querySelector('#og-ini').addEventListener('click', e => {
       const b = e.target.closest('[data-ion],[data-iel]'); if (!b || b.disabled) return;
@@ -10406,8 +10407,8 @@ function objetivoSheet(o) {
 }
 
 // ---------- Cómo se gana XP y qué pide cada nivel: la meta del día también es SMART (un número, hoy, antes de dormir).
-const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ...(xpNuevo() ? [] : [['Desde el 4 de noviembre, lo que queda sin hacer resta', null]]), ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Justificar ese día después devuelve lo restado.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Tarea con fecha sin hacer: el día de su fecha y cada día que siga vencida', '−10 por día', 'Completarla corta la pérdida desde ese día.'], ['Algo de la agenda con hora que pasa una hora sin marcar', '−10', 'Y si lo marcas después, ya no da su XP.'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin el mínimo', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['Prioridad 1', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
-  ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Mínimo de ${ES.minIni} iniciativas en el día`, 40], ['Las 5 iniciativas', 50], [`Social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
+const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marcar, vuelve.', null], ...(xpNuevo() ? [] : [['Desde el 4 de noviembre, lo que queda sin hacer resta', null]]), ['Hábito programado que queda sin hacer (también con «Hoy no»)', '−10 por día', 'Un día justificado o protegido y un hábito «por gusto» no restan. Justificar ese día después devuelve lo restado.'], ['Tarea de la agenda del día que no se hizo ese día', '−10'], ['Tarea con fecha sin hacer: el día de su fecha y cada día que siga vencida', '−10 por día', 'Completarla corta la pérdida desde ese día.'], ['Algo de la agenda con hora que pasa una hora sin marcar', '−10', 'Y si lo marcas después, ya no da su XP. Las iniciativas no restan: son opcionales.'], ['Si el XP baja, el nivel también', null, 'Para subir hay que hacer, y para mantenerse, seguir haciendo.'], ['Hábito cumplido (una vez al día)', 10], ['Versión de 2 minutos', 5], ['Rutina completa (una vez al día)', 15], ['Hábito o práctica «por gusto»', 'sin XP; cuenta igual en tu racha'], ['Volver tras un día sin hacerlo', 15], ['Volver a tomar la iniciativa tras un día sin ninguna', 15], ['Sorpresa (a veces, sin aviso; como mucho dos al día)', 10], ['Semana con tu meta (5 de 7 días): +30 XP la primera, +40 la segunda seguida y +50 desde la tercera', null, 'Cinco de siete: dos días libres por semana, sin romper nada.'], ['Tarea completada: +5 (hasta 50 al día)', null, 'Lo que más suma: la prioridad 1, las tres primeras y el enfoque sin interrupciones.'], ['Prioridad 1', 40], ['Prioridad 2 y 3', 25], ['Prioridad 4 en adelante', 10], ['Las tres primeras prioridades (en un día corto, con dos)', 50],
+  ['Iniciativa del día', XP_INI], ['Iniciativa SMART completa', 10], [`Bono opcional: ${ES.minIni} ${ES.minIni === 1 ? 'iniciativa' : 'iniciativas'} en el día`, 40], ['Las 5 iniciativas', 50], [`Bono opcional: social ${ES.minSocial} días en la semana`, 60], ['Espiritual 7 días seguidos', 40],
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho, en Estudio, la Agenda, el enfoque o el asistente (una vez por bloque)', 10], ['Tema de una ruta visto', 15], ['Tarea o entrega de una ruta', 'como una tarea'], ['Normas de Vida espiritual', 'cuentan en tu iniciativa espiritual del día'], ['Lo de dentro de un bloque de tiempo', 'lo suyo; el bloque no suma aparte'],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
   ['Escribir, llamar o proponer un plan', '20–25'], ['Paso de proyecto', 30], ['Misión social', 25], ['Práctica de Bienestar (una vez al día cada una)', '5–15'], ['Chequeo de ánimo', 5],
@@ -11252,7 +11253,7 @@ function agArrWire(L, pTodo) {
   const etiqueta = d => {
     const x = destino(d), h0 = /^\d\d:\d\d$/.test(d.it.h || '');
     if (!x.mismo && !x.sin && x.hh && x.hh === (d.it.h || '')) x.mismo = true;   // el hueco da su misma hora: no cambia
-    d.lb.textContent = x.mismo ? (h0 ? `Sigue a las ${fmtHora(d.it.h)}` : 'Sigue sin hora') : x.sin ? (h0 ? 'Quedará sin hora' : pTodo ? 'Cambia su puesto en «Sin hora»' : 'Sigue sin hora') : x.hh ? (agcPasada(x.hh) ? 'Esa hora ya pasó: no se moverá' : `Pasará a las ${fmtHora(x.hh)}${d.cad?.size ? ', con su rutina' : ''}`) : 'Se queda donde estaba';
+    d.lb.textContent = x.mismo ? (h0 ? `Sigue a las ${fmtHora(d.it.h)}` : 'Sigue sin hora') : x.sin ? (h0 ? 'Quedará sin hora' : pTodo ? 'Cambia su puesto en «Sin hora»' : 'Sigue sin hora') : x.hh ? (agcPasada(x.hh) && !iniOpcEs(d.it) ? 'Esa hora ya pasó: no se moverá' : `Pasará a las ${fmtHora(x.hh)}${d.cad?.size ? ', con su rutina' : ''}`) : 'Se queda donde estaba';
   };
   const seguir = d => {   // la fila, bajo el dedo (sin salirse de más de su alto)
     d.row.style.transform = '';
@@ -12680,12 +12681,12 @@ function xmNivelNota(L) {
 // La estadística real más fuerte, en días: con el mínimo de iniciativas, con algún hábito hecho, con enfoque o con un paso de proyecto.
 function xmHistoria(L) {
   const D = ES.dias || {}, ks = Object.keys(D);
-  const ini = new Set(ks.filter(k => (+D[k].ini4 || 0) >= ES.minIni));
-  for (const [k, v] of Object.entries(ES.iniHist || {})) if (Array.isArray(v) && v.length >= ES.minIni) ini.add(k);
-  if (iniHechasHoy() >= ES.minIni) ini.add(today());
+  const ini = new Set(ks.filter(k => (+D[k].ini4 || 0) >= 1));   // 2.21.9 (I) · días con alguna (sin mínimo)
+  for (const [k, v] of Object.entries(ES.iniHist || {})) if (Array.isArray(v) && v.length >= 1) ini.add(k);
+  if (iniHechasHoy() >= 1) ini.add(today());
   const rut = new Set((HT().habits || []).filter(h => h.rutina).map(h => h.id)), hab = new Set();
   for (const [id, m] of Object.entries(HT().log || {})) if (!rut.has(id)) for (const [k, v] of Object.entries(m || {})) if (v === 'full' || v === 'min') hab.add(k);
-  const c = [[ini.size, 'días con tu mínimo de iniciativas'], [hab.size, 'días con al menos un hábito hecho'],
+  const c = [[ini.size, 'días con alguna iniciativa'], [hab.size, 'días con al menos un hábito hecho'],
     [ks.filter(k => (+D[k].enfoque || 0) > 0).length, 'días con tiempo de enfoque'], [ks.filter(k => (+D[k].pasos || 0) > 0).length, 'días con un paso de proyecto']]
     .sort((x, y) => y[0] - x[0])[0];
   return c[0] > 0 ? `Nivel ${L} · ${nivelNombre(L)}: ${c[0]} ${c[0] === 1 ? c[1].replace('días', 'día') : c[1]}.` : '';
@@ -13311,14 +13312,9 @@ function agbFocoRef() { const F = org?.foco; if (!F?.on) return null; if (org.ma
 function agbFocoKey() { const r = agbFocoRef(); return r ? (org.manana ? 'rana:' : 'prio:') + r : ''; }
 // Propuesta de iniciativas: la espiritual, la social si está en riesgo y lo que falte para el mínimo.
 // En un día corto se para en el mínimo. Nunca cambia lo que la persona ya tocó.
-function agbIniElegir(corto) {
-  const libre = k => !!org.ini[k] && !!org.ini[k].auto && !org.ini[k].tocada;
-  let on = Object.values(org.ini).filter(o => o?.on).length;
-  const cabe = () => !corto || on < ES.minIni;
-  if (libre('espiritual') && !org.ini.espiritual.on && cabe()) { org.ini.espiritual.on = true; on++; }
-  if (socialEnRiesgo() && libre('social') && !org.ini.social.on && cabe()) { org.ini.social.on = true; on++; }
-  for (const k of ['proyecto', 'estudio', 'laboral', 'social']) { if (on >= ES.minIni) break; if (libre(k) && !org.ini[k].on) { org.ini[k].on = true; on++; } }
-}
+// 2.21.9 (I) · Las iniciativas son opcionales: ya no se marca ninguna sola (ni la espiritual, ni la social, ni las del mínimo). Las ideas
+// de cada categoría siguen en el paso, apagadas; lo que ya elegiste (hoy, el plan de anoche, ayer) entra como siempre.
+function agbIniElegir() {}
 // «Plan corto» elegido a mitad del flujo: la propuesta de iniciativas baja al mínimo y el bloque, a 50 min.
 function agbCortoAplicar() {
   if (!org || org.manana) return;
@@ -13449,7 +13445,7 @@ function agbMananasWire() {
 // De hoy cuenta lo hecho y lo que ya pasó de su hora. Las prioridades de días anteriores a 2.12 no traían su «hecha» fiable: no cuentan.
 function agbBrecha() {
   const now = nowMin(), falta = {}; let N = 0, M = 0, dias = 0;
-  const nota = (it, ok) => { N++; if (ok) M++; else falta[it.tipo] = (falta[it.tipo] || 0) + 1; };
+  const nota = (it, ok) => { if (!ok && (it.tipo === 'ini' || (it.tipo === 'libre' && it.extraIni))) return; N++; if (ok) M++; else falta[it.tipo] = (falta[it.tipo] || 0) + 1; };   // 2.21.9 (I)
   for (let i = 6; i >= 1; i--) {
     const H = (ES.agendaHist?.[dayKey(addDays(new Date(), -i))] || []).filter(it => it && agVisible(it) && it.tipo !== 'evento' && (it.tipo !== 'prio' || it.pv));
     if (H.length) dias++;
@@ -14629,7 +14625,7 @@ function jdAhora(p) {
   // 2.13 (IX) · Un hábito pendiente con hora a menos de una hora es «algo con hora» (el mismo criterio que la rama del hábito de «Ahora»)
   // y una iniciativa del día definida y pendiente por debajo del mínimo va antes: ninguno de los dos cede ante el voto.
   { const nm = nowMin(); if ((p?.habits || []).some(hb => (hb?.horas || []).some(hm => Math.abs(toMin(hm) - nm) <= 60))) return null; }
-  try { if (iniHechasHoy() < ES.minIni && ini4Semana().items.some(it => it && it.t && !it.hecho)) return null; } catch {}
+  // 2.21.9 (I) · ya no cede ante una iniciativa «por debajo del mínimo»: no hay mínimo.
   // Solo una identidad con acción de 2 minutos (algo vinculado); la que no tiene nada se atiende desde su tarjeta en Identidad.
   const i = jdSin(3).sort((a, b) => (Number.isFinite(jdDias(b)) ? jdDias(b) : -1) - (Number.isFinite(jdDias(a)) ? jdDias(a) : -1)).find(x => { try { return !jdAccion(x).vacio; } catch { return false; } });
   if (!i) return null;
@@ -21063,14 +21059,14 @@ function orgArrWire(cont, repintar, alOrden) {
         return hh === (e.h || '') ? { mismo: true } : { hh };
       };
       const etiqueta = () => { const z = destino(), h0 = /^\d\d:\d\d$/.test(e.h || '');
-        lb.textContent = z.mismo ? (h0 ? `Sigue a las ${fmtHora(e.h)}` : 'Sigue sin hora') : !z.hh ? 'Quedará sin hora' : (!org?.manana && agcPasada(z.hh)) ? 'Esa hora ya pasó: no se moverá' : `Pasará a las ${fmtHora(z.hh)}`; };
+        lb.textContent = z.mismo ? (h0 ? `Sigue a las ${fmtHora(e.h)}` : 'Sigue sin hora') : !z.hh ? 'Quedará sin hora' : (!org?.manana && agcPasada(z.hh) && !orgIniKey(e.key)) ? 'Esa hora ya pasó: no se moverá' : `Pasará a las ${fmtHora(z.hh)}`; };
       const L = ordLevantar(cont, row, y, { filas, num: true, alColocar: etiqueta });   // 2.21.7 (R) · se renumera al moverla
       return { mv: (x2, y2) => L.mv(y2), fin: ok => {
         L.parar(); lb.remove();
         if (!ok) { repintar(); return; }
         const z = destino();
         if (z.mismo) { repintar(); return; }
-        if (z.hh && !org?.manana && agcPasada(z.hh)) { toast(agcPasadaTxt()); repintar(); return; }
+        if (z.hh && !org?.manana && agcPasada(z.hh) && !orgIniKey(e.key)) { toast(agcPasadaTxt()); repintar(); return; }   // 2.21.9 (I)
         orgSetHora(e.key, z.hh); org.auto.delete(e.key);   // como escribir la hora en su campo
         repintar(); toast(z.hh ? `Pasa a las ${fmtHora(z.hh)}.` : 'Queda sin hora.');
       } };
@@ -21862,6 +21858,7 @@ function xpTardeItems() {
   const ahora = nowMin();
   const vence = it => new Date(`${t}T${it.h}:00`).getTime() + XP_TARDE_MIN * 60000;
   return A.items.filter(it => { if (!it || !it.h || ['evento', 'bt', 'examen'].includes(it.tipo) || !/^\d\d:\d\d$/.test(it.h) || toMin(it.h) + XP_TARDE_MIN > ahora) return false;
+    if (it.tipo === 'ini' || (it.tipo === 'libre' && it.extraIni)) return false;   // 2.21.9 (I) · las iniciativas son opcionales: no restan
     if (String(it.id || '').startsWith('auto:') && +it.alta > 0 && +it.alta >= vence(it)) return false;
     if (it.tipo === 'tarea') { const x = (HT().tareas?.items || []).find(y => y && y.id === it.ref); if (x && x.est && typeof x.est === 'object' && x.est.examen) return false; }   // 2.21.6 (C)
     if (it.tipo === 'habito' && cadM.get(it.id)?.prev && !agMarcaMin(cadM.get(it.id).prev)) return false;   // 2.20.2 · «después de» un hábito aún sin marcar: todavía no empezó su hora
@@ -21895,7 +21892,7 @@ window.xpTardeBloquea = ref => {
     if (!it || !P[xpTardeRef(it)]) continue;
     try { if (agVisible(it) && !agVivo(it)) continue; } catch {}   // 2.21.4 (S) · un hábito ya restado hoy (2.21.3) sigue sin dar su XP
     if (!agVisible(it) && String(it.id || '').startsWith('auto:') && +it.alta > +A.organizado) continue;   // … salvo si lo metió solo un teléfono con 2.21.3
-    const r = it.tipo === 'habito' ? ['h:' + it.ref, 'h+:' + it.ref] : it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'prio' ? ['p:' + it.ref] : it.tipo === 'ini' ? ['i:' + it.ref] : it.tipo === 'libre' ? ['a:' + it.id] : it.tipo === 'cons' ? ['k:' + it.ref + ':' + today()] : [];
+    const r = it.tipo === 'habito' ? ['h:' + it.ref, 'h+:' + it.ref] : it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'prio' ? ['p:' + it.ref] : it.tipo === 'ini' ? [] : it.tipo === 'libre' ? (it.extraIni ? [] : ['a:' + it.id]) : it.tipo === 'cons' ? ['k:' + it.ref + ':' + today()] : [];
     if (r.includes(ref)) return true;
   }
   return false;
@@ -22823,7 +22820,7 @@ const VAPID_PUBLIC = 'BCkSUFWA-q7GyyocviKZMTzTPNMvWGUNO-G_js0Y9zvBo5DtHoALCHHQIu
 const AV_KEY = 'rumbo-avisos';
 const AVISOS = [['manana', 'Resumen de la mañana', 'Prioridades, agenda, bloques de estudio y examen que viene, planes, hábitos, tareas y a quién escribir'], ['habitos', 'Hora de cada hábito', 'A su hora, si aún no lo hiciste, y tu plan para volver tras un «Hoy no». A diario las 3 primeras semanas, en días alternos hasta la 6.ª y después solo si cuesta'],
   ['planes', 'Una hora antes de cada plan', 'Con una idea para la conversación'], ['proyectos', 'Paso de proyecto', 'A la hora que fijaste para el siguiente paso'], ['agenda', 'Agenda del día', '10 minutos antes de cada cosa con hora; cada bloque de estudio a su hora; a las 9:30, si el día aún no tiene hora'], ['constantes', 'Acciones constantes', 'A su hora, los días que elegiste'],
-  ['mediodia', 'Prioridad, iniciativas y social', 'Juntos, al empezar tu ventana del mediodía o de la tarde, si algo sigue pendiente'], ['noche', 'Noche: espiritual, cierre y hora de dormir', 'Tu momento espiritual y el cierre del día en tu ventana de la noche; y 30 min antes de dormir, soltar el teléfono'], ['semana', 'Lunes y viernes', 'Revisión semanal y gracias del viernes']];
+  ['mediodia', 'Prioridad del día', 'Juntos, al empezar tu ventana del mediodía o de la tarde, si algo sigue pendiente'], ['noche', 'Noche: cierre y hora de dormir', 'El cierre del día en tu ventana de la noche; y 30 min antes de dormir, soltar el teléfono'], ['semana', 'Lunes y viernes', 'Revisión semanal y gracias del viernes']];
 const avCfg = () => { try { return JSON.parse(localStorage.getItem(AV_KEY)) || {}; } catch { return {}; } };
 const avSetCfg = c => { try { localStorage.setItem(AV_KEY, JSON.stringify(c)); } catch {} };
 const b64u = t => { const b = atob((t + '='.repeat((4 - t.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
@@ -22958,6 +22955,7 @@ function tempEmpezar(it0, min) {
   const it = agPorId(it0?.id) || it0; if (!it) return;
   if (agHecho(it)) { toast('Ya está hecho.'); return; }
   if (ES.sesion) { toast('Ya hay una sesión de enfoque en marcha.'); return; }
+  tempPreparar();   // 2.21.9 (T)
   const m = Math.max(1, Math.min(720, Math.round(+min || agMinDe(it)))), prev = tempAct(), ahora = Date.now();
   ES.temp = { id: it.id, d: today(), t: it.t, tipo: it.tipo || '', ref: it.ref || '', esp: it.esp || '', min: m, ext: 0, ini: ahora, fin: ahora + m * 60000 };   // 2.21 (H) · tipo y ref
   guardar(); closeSheet(); tempIniciar(); tempRepintar();
@@ -22982,11 +22980,12 @@ function tempHecho() {
   if (it && !agHecho(it)) agFocoHecho(it);   // las reglas de siempre (agMarcar), con «Deshacer»
   tempRepintar();
 }
-function tempParo() { clearInterval(tempT); tempT = 0; clearTimeout(tempAvT); tempAvT = 0; tempChip(null); }
+function tempParo() { clearInterval(tempT); tempT = 0; clearTimeout(tempAvT); tempAvT = 0; tempChip(null); tempNativo('paro'); }   // 2.21.9 (T) · quita la alarma y el aviso
 function tempIniciar() {
   clearInterval(tempT); clearTimeout(tempAvT);
   tempT = setInterval(tempTick, 1000);
   const l = tempLeft(); if (l > 0) tempAvT = setTimeout(tempTick, Math.ceil(l * 1000) + 60);
+  tempNativo('cambio');   // 2.21.9 (T) · la alarma (Android) o el aviso programado, al nuevo fin
   tempTick();
 }
 function tempRepintar() { try { renderAg(); } catch {} try { iniRepintar(); } catch {} try { cadOtrosRepintar(); } catch {} try { const T = tempAct(); tempChip(T, tempLeft(T)); } catch {} }
@@ -23004,39 +23003,196 @@ function tempTick() {
     if (l <= 0 && T.cad && cadSigue(T, 'fin')) return;   // 2.21 (H) · en cadena: empieza solo el siguiente (el último termina como siempre)
     if (l > 0 && cadDe(T) && !T.cad.perdVisto && cadPerdPend(T.cad).length && document.visibilityState === 'visible' && !tempOcupado()) { T.cad.perdVisto = 1; guardar(); tempSheet(); }   // 2.21 (H) · lo que pasó sin mirar
     if (l <= 0) {
-      if (!T.avisado) { T.avisado = 1; guardar(); tempFinAviso(T); }
+      if (!T.avisado) { T.avisado = 1; guardar(); tempFinAviso(T, { tarde: Date.now() - +T.fin > 60000 }); }   // 2.21.9 (T) · a la vista, tempFinAviso quita la alarma de Android
       if (document.visibilityState !== 'visible') return;
       if (sheet.open && $('#sheet-body')?.querySelector('#tm-seguir')) tempSheet();   // la hoja en marcha, abierta: pasa a «Se cumplió el tiempo»
       else if (!T.visto) tempFinMostrar(T);
     }
   } catch (e) { console.warn('Temporizador', e); }
 }
-function tempFinAviso(T) {
-  if (ES.sesion || !$('#focus')?.hidden) { T.avisado = 0; return; }   // en una sesión de enfoque, silencio: avisa al terminarla
-  buzz([200, 100, 200]);
-  if (document.visibilityState === 'visible') tempSonar();
-  tempNotificar(T);
+// 2.21.9 (T) · «Debe sonar una notificación cuando termine el temporizador.» Al cumplirse: timbre corto (WebAudio generado, sin archivo),
+// vibración y aviso del sistema «Se cumplió el tiempo · …» con «✓ Hecho» y «+5 min» (sw.js los atiende). Una vez por temporizador: la clave
+// es id|inicio|fin (+5 o «Que queden» mueven el fin: suena al nuevo fin). Suena aunque tengas horas de silencio: lo empezaste tú.
+// En la app Android no hay notificaciones web: una alarma nativa (OrgAndroid.programarAviso) avisa con la app cerrada; a la vista, suena aquí.
+const TEMP_VIB = [300, 120, 300, 120, 500];
+var tempNotQ = Promise.resolve(), tempTardeT = 0;
+function tempClave(T) { return T ? `${T.id}|${T.ini}|${T.fin}` : ''; }
+function tempAccK(T) { return T ? `${T.id}|${T.ini}` : ''; }   // la de las acciones del aviso (✓ Hecho, +5 min): el temporizador, empiece donde empiece su fin
+function tempSonidoOn() { try { return localStorage.getItem('ag-temp-sonido') !== '0'; } catch { return true; } }
+function tempSonidoPoner(v) { try { if (v) localStorage.removeItem('ag-temp-sonido'); else localStorage.setItem('ag-temp-sonido', '0'); } catch {} }
+function tempYaSono(T) { try { return localStorage.getItem('ag-temp-sonado') === tempClave(T); } catch { return false; } }
+function tempSonoPoner(T) { try { localStorage.setItem('ag-temp-sonado', tempClave(T)); } catch {} }
+// Lo que cada aviso puede marcar (por su clave): «✓ Hecho» desde un aviso viejo (el paso de una cadena que ya pasó) marca esa cosa, una vez.
+function tempAvisosMapa() { try { const m = JSON.parse(localStorage.getItem('ag-temp-avisos') || '{}'); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch { return {}; } }
+function tempAvisoRecordar(T) {
+  try {
+    const m = tempAvisosMapa(); m[tempAccK(T)] = { id: T.id, tipo: T.tipo || '', ref: T.ref || '', esp: T.esp || '', t: T.t, d: T.d, at: Date.now() };
+    const ks = Object.keys(m).sort((a, b) => (+m[b].at || 0) - (+m[a].at || 0)).slice(0, 20);
+    localStorage.setItem('ag-temp-avisos', JSON.stringify(Object.fromEntries(ks.map(k => [k, m[k]]))));
+  } catch {}
+}
+function tempAudioCtx(crear) { try { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; if (!tempAudio && crear) tempAudio = new C(); return tempAudio; } catch { return null; } }
+// En el toque de «Empezar»: el navegador deja sonar después (un sonido mudo de una muestra), y en Chrome pide el permiso de avisos una vez.
+function tempPreparar() {
+  try { const a = tempAudioCtx(true); if (a) { if (a.state === 'suspended') a.resume?.()?.catch?.(() => {}); const b = a.createBuffer(1, 1, 22050), x = a.createBufferSource(); x.buffer = b; x.connect(a.destination); x.start(0); } } catch {}
+  try {
+    if (OP_ANDROID || !('Notification' in window) || Notification.permission !== 'default' || localStorage.getItem('ag-temp-perm')) return;
+    localStorage.setItem('ag-temp-perm', '1');
+    Notification.requestPermission()?.catch?.(() => {});
+  } catch {}
 }
 function tempSonar() {
   try {
-    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
-    const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
-    const a = tempAudio || (tempAudio = new C()); a.resume?.();
-    for (const t0 of [0, 0.35]) {
-      const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + t0;
-      o.frequency.value = 880; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-      o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 0.32);
-    }
-  } catch {}
+    if (!tempSonidoOn()) return false;
+    const a = tempAudioCtx(!navigator.userActivation || navigator.userActivation.hasBeenActive); if (!a) return false;
+    if (a.state === 'suspended') a.resume?.()?.catch?.(() => {});
+    const t0 = a.currentTime + 0.03, out = a.createGain(); out.gain.value = 0.9; out.connect(a.destination);
+    [[523.25, 0], [659.25, 0.16], [783.99, 0.32], [1046.5, 0.5]].forEach(([f, d], i) => {   // do, mi, sol, do: suave, con un armónico
+      for (const [k, v] of [[1, 0.22], [2, 0.05]]) {
+        const o = a.createOscillator(), g = a.createGain(), t = t0 + d, dur = i === 3 ? 1.1 : 0.6;
+        o.type = 'sine'; o.frequency.value = f * k;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+      }
+    });
+    return true;
+  } catch { return false; }
 }
-async function tempNotificar(T) {   // solo si la app ya tiene permiso (no lo pide) y no estás mirándola
+// ¿La app Android ya mostró su aviso por este fin? Lo dice la propia alarma (AvisoReceptor lo anota al publicarlo): al volver a la app,
+// aunque sea en el primer minuto o tocando el aviso, no suena dos veces.
+function tempNatDado(T) { try { const A = OP_ANDROID ? window.OrgAndroid : null; return !!A && typeof A.avisoDado === 'function' && !!A.avisoDado(tempAccK(T), +T.fin); } catch { return false; } }
+// La lista de alarmas que la página pidió (clave y fin), para quitar las que ya no tocan sin tocar la del paso que acaba de terminar.
+function tempNatLista() { try { const L = JSON.parse(localStorage.getItem('ag-temp-nat') || '[]'); return Array.isArray(L) ? L.filter(o => o && typeof o.k === 'string') : []; } catch { return []; } }
+function tempNatGuardar(L) { try { if (L.length) localStorage.setItem('ag-temp-nat', JSON.stringify(L.slice(-40))); else localStorage.removeItem('ag-temp-nat'); } catch {} }
+// A la vista, el fin de T ya suena aquí: su alarma (y su aviso, si salió) sobran.
+function tempNatQuitar(T) {
   try {
-    if (!('Notification' in window) || Notification.permission !== 'granted' || document.visibilityState === 'visible') return;
-    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null);
-    const o = { body: `Se cumplió el tiempo de «${T.t}». Al abrir la app eliges: Hecho, +5 min o Dejarlo.`, icon: 'icon-192.png', tag: 'temporizador' };
-    reg ? reg.showNotification('Temporizador', o) : new Notification('Temporizador', o);
+    const A = window.OrgAndroid, k = tempAccK(T); if (!A || typeof A.cancelarAviso !== 'function') return;
+    A.cancelarAviso(k); tempNatGuardar(tempNatLista().filter(o => o.k !== k));
   } catch {}
 }
+// T: el que terminó. o.sig: el siguiente de la cadena. o.tarde: se cumplió hace más de un minuto (la página estuvo congelada).
+function tempFinAviso(T, o = {}) {
+  const vis = document.visibilityState === 'visible', dado = tempNatDado(T);
+  if (OP_ANDROID && vis) tempNatQuitar(T);   // a la vista suena aquí (en segundo plano no se quita: con la alarma inexacta, la callaría)
+  if (ES.sesion || !$('#focus')?.hidden) { T.avisado = 0; return; }   // en una sesión de enfoque, silencio: avisa al terminarla
+  if (tempYaSono(T)) return;   // ya sonó (antes de recargar, en otra pestaña)
+  tempSonoPoner(T);
+  if (dado) return;   // la app Android ya avisó con la app cerrada (aunque vuelvas enseguida)
+  if (o.tarde && vis) { if (Date.now() - tempTardeT < 3000) return; tempTardeT = Date.now(); }   // al ponerse al día, una cadena puede pasar varios pasos: un solo timbre
+  buzz(TEMP_VIB);
+  if (vis) tempSonar();
+  if (!vis || !o.tarde) tempNotificar(T, o.sig);   // al volver tarde ya ves la hoja: sin aviso del sistema
+}
+function tempNotifTxt(T, N) {
+  const tot = (+T.min || 0) + (+T.ext || 0);
+  return [`Se cumplió el tiempo · ${T.t}`, N ? `Sigue «${N.t}»${N.cad ? ` (${cadEtq(N)})` : ''}.` : `Pasaron los ${fmtMin(tot)} que le diste. ¿Listo o 5 minutos más?`];
+}
+function tempNotifOpts(T, N) {
+  const [titulo, body] = tempNotifTxt(T, N);
+  tempAvisoRecordar(T);
+  return [titulo, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'temporizador', renotify: true, silent: !tempSonidoOn(), vibrate: TEMP_VIB, data: { temp: 1, k: tempAccK(T), url: './' },
+    actions: N ? [{ action: 'hecho', title: '✓ Hecho' }] : [{ action: 'hecho', title: '✓ Hecho' }, { action: 'mas5', title: '+5 min' }] }];
+}
+// Todo lo de avisos del sistema va en fila (mostrar, quitar, programar): así quitar el viejo nunca borra el nuevo.
+function tempNotCola(fn) { tempNotQ = tempNotQ.then(fn).catch(() => {}); return tempNotQ; }
+function tempReg() { try { return navigator.serviceWorker?.getRegistration?.().catch(() => null) || Promise.resolve(null); } catch { return Promise.resolve(null); } }
+function tempNotificar(T, N) {
+  if (OP_ANDROID) return Promise.resolve(false);   // en la app Android lo hace la alarma nativa (no hay Notification en el WebView)
+  return tempNotCola(async () => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (T.trig && T.trig === tempClave(T)) return;   // programado con showTrigger: ya lo muestra el sistema
+    const reg = await tempReg(), [titulo, op] = tempNotifOpts(T, N);
+    if (reg?.showNotification) { await reg.showNotification(titulo, op); return; }
+    try { new Notification(titulo, { body: op.body, icon: op.icon, tag: op.tag, silent: op.silent }); } catch {}   // sin service worker (escritorio): sin botones; en Android Chrome no existe y se ignora
+  });
+}
+// El aviso programado: en Android, la alarma nativa; en Chrome, Notification Triggers si existe. por: 'cambio' (empieza o cambia el fin),
+// 'paro' (Hecho, Dejarlo, Parar, pausa) o 'fin'. En Android: una alarma por clave (los pasos de una cadena conviven); cancelarAviso('') las quita todas.
+function tempNativo(por) {
+  try {
+    const T = tempAct(), corre = !!T && !T.pausa && +T.fin > Date.now() && !T.avisado;
+    if (OP_ANDROID) {
+      const A = window.OrgAndroid; if (!A) return;
+      if (corre && typeof A.programarAviso === 'function') {
+        const plan = tempNatPlan(T), ahora = Date.now(), nuevas = new Set(plan.map(p => p.k)), L = tempNatLista(), son = tempSonidoOn();
+        // Las que ya no tocan (la cadena cambió, +5 min): fuera. La de un paso que ya terminó se queda: su aviso puede no haber salido aún.
+        for (const o of L) if (!nuevas.has(o.k) && +o.fin > ahora && typeof A.cancelarAviso === 'function') A.cancelarAviso(o.k);
+        plan.forEach(p => A.programarAviso(p.k, p.fin, p.titulo, p.texto, son));
+        tempNatGuardar([...L.filter(o => !nuevas.has(o.k) && +o.fin <= ahora && ahora - +o.fin < 6 * 3600000), ...plan.map(p => ({ k: p.k, fin: p.fin }))]);
+      } else if (typeof A.cancelarAviso === 'function') { A.cancelarAviso(''); tempNatGuardar([]); }   // '': todas
+      return;
+    }
+    if (por === 'fin') return;
+    tempNotCola(async () => {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const reg = await tempReg(); if (!reg?.getNotifications) return;
+      const conTrig = 'showTrigger' in Notification.prototype && typeof window.TimestampTrigger === 'function';
+      for (const n of await reg.getNotifications(conTrig ? { tag: 'temporizador', includeTriggered: true } : { tag: 'temporizador' })) n.close();   // el «Se cumplió» viejo sale de la bandeja
+      const X = tempAct();
+      if (!conTrig || !X || X.pausa || +X.fin <= Date.now() || X.avisado) return;
+      const [titulo, op] = tempNotifOpts(X, cadDe(X) ? cadDespues(X) : null);
+      op.showTrigger = new window.TimestampTrigger(+X.fin);
+      await reg.showNotification(titulo, op);
+      X.trig = tempClave(X); guardar();
+    });
+  } catch {}
+}
+// Las alarmas de Android para T: su fin y, en una cadena, el de los pasos que siguen (cada uno empieza donde termina el anterior, igual que
+// al ponerse al día al volver). Así, con la pantalla apagada y la página congelada, cada paso avisa. Cuando la página corre, cada paso
+// vuelve a pedir la suya con la misma clave y el mismo fin (no se duplica). Hasta 12 y 12 h.
+function tempNatPlan(T) {
+  const C = cadDe(T), N0 = C ? cadDespues(T) : null, [t0, x0] = tempNotifTxt(T, N0), out = [{ k: tempAccK(T), fin: +T.fin, titulo: t0, texto: x0 }];
+  tempAvisoRecordar(T);
+  if (!C || !N0 || typeof window.OrgAndroid?.avisoDado !== 'function') return out;
+  try {
+    let j = cadProx(C, C.i + 1), ini = +T.fin;
+    while (j >= 0 && out.length < 12 && ini - +T.fin < 12 * 3600000) {
+      const p = C.pasos[j], it = cadItem(p); if (!it) break;
+      const m = Math.max(1, Math.min(720, Math.round(+p.minX || +agMinDe(it) || p.min || 25))), j2 = cadProx(C, j + 1), N = j2 >= 0 ? cadItem(C.pasos[j2]) : null;
+      const X = { id: it.id, d: T.d, t: it.t, tipo: it.tipo || '', ref: it.ref || '', esp: it.esp || '', min: m, ext: 0, ini, fin: ini + m * 60000 }, [ti, tx] = tempNotifTxt(X, N);
+      tempAvisoRecordar(X);
+      out.push({ k: tempAccK(X), fin: X.fin, titulo: ti, texto: tx });
+      ini = X.fin; j = j2;
+    }
+  } catch (e) { console.warn('Temporizador', e); }
+  return out;
+}
+// «✓ Hecho», «+5 min» o tocar el aviso (sw.js, la app Android o ?temp=…&tk=…). k: tempAccK del temporizador del aviso.
+function tempAccion(acc, k) {
+  try {
+    acc = ['hecho', 'mas5'].includes(acc) ? acc : 'ver'; k = String(k || '').slice(0, 300);
+    const T = tempAct();
+    if (T && k && tempAccK(T) === k) {
+      if (!T.avisado && !T.pausa && Date.now() >= +T.fin) { T.avisado = 1; tempSonoPoner(T); guardar(); }   // ya viste el aviso: no suena otra vez al volver
+      if (acc === 'hecho') { const it = tempItem(T); if (it && agHecho(it)) { toast('Ya estaba hecho.'); return true; } tempHecho(); return true; }
+      if (acc === 'mas5') { tempMas(5); return true; }
+      if (!tempOcupado()) tempSheet();
+      return true;
+    }
+    const info = tempAvisosMapa()[k];
+    if (acc === 'hecho' && info && info.d === today()) {
+      const x = cadItem(info);
+      if (x && !agHecho(x)) { agFocoHecho(x); try { tempRepintar(); } catch {} return true; }
+      if (x) toast('Ya estaba hecho.');
+      return !!x;
+    }
+    if (acc === 'mas5' && k) toast('Ese temporizador ya no está en marcha.');
+    else if (acc === 'ver' && T && !tempOcupado()) tempSheet();
+    return false;
+  } catch (e) { console.warn('Temporizador', e); return false; }
+}
+function tempUrl(href) {
+  try {
+    const u = new URL(href, location.href), acc = u.searchParams.get('temp'); if (!acc) return;
+    const k = u.searchParams.get('tk') || '';
+    u.searchParams.delete('temp'); u.searchParams.delete('tk');
+    history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+    setTimeout(() => tempAccion(acc, k), 400);
+  } catch {}
+}
+window.opTempAccion = (acc, k) => tempAccion(acc, k);
+window.opTempUrl = href => tempUrl(href);
 function tempOcupado() {
   if (!$('#focus')?.hidden) return true;
   if (document.querySelector('#msg-dialog[open], #form-dialog[open]')) return true;
@@ -23328,7 +23484,7 @@ function cadEnSesion() { try { return !!ES.sesion || !$('#focus')?.hidden; } cat
 function cadPausaTick(T) {
   if (!T || !T.cad) return false;
   if (cadEnSesion()) {
-    if (!T.pausa) { const s0 = +ES.sesion?.inicio || Date.now(); T.pausa = Math.max(+T.ini || 0, Math.min(Date.now(), s0)); guardar(); }
+    if (!T.pausa) { const s0 = +ES.sesion?.inicio || Date.now(); T.pausa = Math.max(+T.ini || 0, Math.min(Date.now(), s0)); guardar(); tempNativo('paro'); }   // 2.21.9 (T)
     tempChip(T, tempLeft(T));
     return true;
   }
@@ -23384,7 +23540,7 @@ function cadSigue(T, por) {
   if (!cadIr(T.cad, j, por === 'fin' ? Math.min(ahora, fin) : ahora)) return false;
   const N = ES.temp, sig = `«${N.t}» · ${cadEtq(N)}`;
   if (por === 'fin') {
-    if (!viejo) cadFinAviso(T, N);
+    if (!viejo) cadFinAviso(T, N); else cadFinAviso(T, N, document.visibilityState === 'visible');   // 2.21.9 (T) · pasó sin mirar: al volver, un timbre (oculta: el aviso)
     if (!viejo && prev && cadPend(prev)) agAviso(`Se cumplió el tiempo de «${T.t}». Sigue: ${sig}.`, () => { const x = cadItem({ id: prev.id, tipo: prev.tipo, ref: prev.ref, esp: prev.esp }); if (x && !agHecho(x)) agMarcarAviso(x, true); }, '✓ Hecho');
     else if (!viejo) toast(`Sigue: ${sig}.`);
   } else if (por === 'hecho') { const x = prev; agAviso(`Hecho: ${T.t}. Sigue: ${sig}.`, x ? () => { const y = cadItem({ id: x.id, tipo: x.tipo, ref: x.ref, esp: x.esp }); if (y && agHecho(y)) { agFocoUlt = ''; agMarcar(y, false); } } : null); }
@@ -23393,16 +23549,9 @@ function cadSigue(T, por) {
   return true;
 }
 // Al pasar al siguiente por tiempo: vibración, sonido (a la vista) y, en segundo plano con permiso ya dado, aviso del sistema.
-function cadFinAviso(T, N) {
+function cadFinAviso(T, N, tarde = false) {
   if (ES.sesion || !$('#focus')?.hidden) return;
-  buzz([200, 100, 200]);
-  if (document.visibilityState === 'visible') { tempSonar(); return; }
-  try {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const o = { body: `Se cumplió el tiempo de «${T.t}». Sigue «${N.t}» (${cadEtq(N)}).`, icon: 'icon-192.png', tag: 'temporizador' };
-    navigator.serviceWorker?.getRegistration().then(reg => { reg ? reg.showNotification('Temporizador', o) : new Notification('Temporizador', o); }).catch(() => { try { new Notification('Temporizador', o); } catch {} });
-    if (!navigator.serviceWorker) new Notification('Temporizador', o);
-  } catch {}
+  tempFinAviso(T, { sig: N, tarde });   // 2.21.9 (T) · timbre, vibración y aviso con «✓ Hecho» del paso que terminó
 }
 function cadFin(T) {
   const C = T.cad; ES.temp = null; guardar(); tempParo();
@@ -23426,6 +23575,7 @@ function cadEmpezar(key, o = {}) {
   const pasos = cadPasos(key, o);
   if (!pasos.length) { toast('Aquí no queda nada pendiente para hoy.'); return; }
   const C = { key, n: cadNombre(key), pasos, i: 0, res: {}, desde: o.desde || '' };
+  tempPreparar();   // 2.21.9 (T)
   closeSheet();
   if (!cadIr(C, 0, Date.now())) { toast('Aquí no queda nada pendiente para hoy.'); return; }
   const N = ES.temp, quita = T0 && (T0.cad ? ` Se paró «${T0.cad.n}».` : ` El de «${T0.t}» se quitó.`);
@@ -23684,6 +23834,9 @@ function agcMeta(it) {
 function agcBtEditable(it) { try { return it?.tipo === 'bt' && !!btGet(it.ref); } catch { return false; } }
 // 2.19.8 · Soltar algo sin marcar a una hora que pasó hace una hora o más restaría XP enseguida (xpTardeRevisar): no se suelta ahí.
 function agcPasada(hh) { try { return /^\d\d:\d\d$/.test(hh || '') && toMin(hh) + (typeof XP_TARDE_MIN === 'number' ? XP_TARDE_MIN : 60) <= nowMin(); } catch { return false; } }
+// 2.21.9 (I) · Una iniciativa (o un extra de iniciativa) no resta por estar sin marcar: se puede poner a una hora ya pasada.
+function iniOpcEs(it) { return !!it && (it.tipo === 'ini' || (it.tipo === 'libre' && !!it.extraIni)); }
+function orgIniKey(k) { k = String(k || ''); if (k.startsWith('ini:')) return true; if (!k.startsWith('lib:')) return false; try { const x = (org?.libres || []).find(y => 'lib:' + y.id === k); return !!(x && !x.esp && (x.cat || x.extraIni)); } catch { return false; } }
 function agcPasadaTxt() { let n = 10; try { n = XP_PEN; } catch {} return `Esa hora pasó hace más de una hora: ahí, sin marcar, resta ${n} XP. Ponlo más tarde o márcalo como hecho.`; }
 
 // Unidades: cada cosa suelta, o una cadena de hábitos (el primero y los que van «después de», en orden) como un solo bloque.
@@ -23793,7 +23946,7 @@ const agcCfgAg = {
       agAviso(`Pasa a las ${fmtHora(hh)}.`, () => { const x = agPorId(id); if (x) agPonerHora(x, antes); });
       return;
     }
-    if (agcPasada(hh)) { toast(agcPasadaTxt()); return; }   // 2.19.8 · ahí, sin marcar, restaría XP al momento
+    if (agcPasada(hh) && !iniOpcEs(it)) { toast(agcPasadaTxt()); return; }   // 2.19.8 · ahí, sin marcar, restaría XP al momento (2.21.9 I: una iniciativa no)
     agMover(it, hh);   // la regla de la rutina, «Deshacer», agPonerHora (la tarea, la iniciativa, el bloque de estudio)
   },
   durar(id, m) {
@@ -23974,7 +24127,7 @@ function agcOrgSheet(volver, prop) {
   const b = $('#sheet-body'), S = b?.querySelector('.agc');
   if (S) agcWire(S, {
     mover(key, hh) {
-      if (!M && agcPasada(hh)) { toast(agcPasadaTxt()); return; }   // hoy: lo mismo que en la Agenda (2.19.8)
+      if (!M && agcPasada(hh) && !orgIniKey(key)) { toast(agcPasadaTxt()); return; }   // hoy: lo mismo que en la Agenda (2.19.8); 2.21.9 (I) · una iniciativa, sí
       const k = hijo.has(key) ? (() => { let x = key, n = 0; while (hijo.has(x) && n++ < 60) x = hijo.get(x); return x; })() : key;
       orgSetHora(k, hh); org.auto.delete(k); orgAutoHoras(false);
     },
@@ -24486,6 +24639,13 @@ let lastDay = today();
 setInterval(() => { if (today() !== lastDay) { lastDay = today(); renderE(); } }, 60000);
 // 2.21.7 (A) · El Atrás del sistema en la app Android: lo mismo que el Atrás de la app; sin nada que cerrar y en Inicio, devuelve false y la app se cierra.
 if (OP_ANDROID) window.opAtras = () => { try { if (!atrasHaceFalta()) return false; atrasPaso(); atrasSync(); return true; } catch { return false; } };
+// 2.21.9 (I) · Para las pruebas: lo que decide si algo empuja las iniciativas (nada aquí cambia datos por sí solo).
+window.iniOpc = { ahora: () => { const a = ahoraSugerido(); return a ? { k: a.k, t: a.t, p: a.p } : null; }, interv: () => intervenciones().map(x => x.id), hoja: () => ini4Sheet(), tarde: () => xpTardeRevisar(),
+  completa: () => { agCompleta(); return !!agenda().completa; }, marcar: (id, h) => { const it = agenda().items.find(x => x.id === id); if (it) agMarcar(it, h); return !!it; }, xp: () => xpTotal(),
+  ia: async () => ({ sys: IA_SYSTEM, est: (await iaEjecutar('ver_estado', {})).iniciativas_hoy, tool: (IA_TOOLS.find(t => t.name === 'iniciativa_dia') || {}).description || '' }),
+  abrir: n => { const f = { revision: revisionSemanal, datos: datosSheet, buenas: buenasSheet, xp: xpSheet, ajustes: settings }[n]; if (f) f(); return !!f; },
+  elegidas: () => org ? Object.values(org.ini).filter(o => o && o.on).length : -1, hecha: i => !!ini4Semana().items[i]?.hecho,
+  mover: (id, hh) => { agcCfgAg.mover(id, hh); return agPorId(id)?.h || ''; }, orgIni: k => orgIniKey(k), pasada: hh => agcPasada(hh) };
 })();
 
 render();
@@ -24499,6 +24659,8 @@ abrirVista(location.href);
 window.avAbierto?.(location.href, false);   // 2.12 · anota el aviso que abriste (y lo apaga si tocaste su botón)
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.abrir) abrirVista(e.data.abrir); });
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.abrir) window.avAbierto?.(e.data.abrir, true); });
+navigator.serviceWorker?.addEventListener('message', e => { const x = e.data?.temp; if (x && typeof x === 'object') window.opTempAccion?.(x.acc, x.k); });   // 2.21.9 (T) · ✓ Hecho / +5 min del aviso
+window.opTempUrl?.(location.href);
 setSync('local');
 renderAccount();
 connectCloud();
