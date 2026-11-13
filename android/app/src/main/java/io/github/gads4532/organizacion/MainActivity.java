@@ -411,7 +411,7 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> { if (c != fondo) { fondo = c; pintarBarras(); } });
         }
 
-        // El temporizador de la página: un aviso a la hora «cuando» (milisegundos desde 1970). Reemplaza el anterior.
+        // El temporizador de la página: un aviso a la hora «cuando» (milisegundos desde 1970). Reemplaza el de la misma clave.
         @JavascriptInterface
         public void programarAviso(String id, double cuando, String titulo, String texto, boolean sonido) {
             if (!enLaApp || Double.isNaN(cuando) || cuando <= 0) return;
@@ -422,7 +422,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void cancelarAviso(String id) {
             if (!enLaApp) return;
-            AvisoReceptor.cancelar(getApplicationContext());
+            AvisoReceptor.cancelar(getApplicationContext(), corto(id, 300));   // vacío: todas
+        }
+
+        // ¿El aviso nativo de esta clave y esta hora ya salió? La página no vuelve a sonar al abrirla.
+        @JavascriptInterface
+        public boolean avisoDado(String id, double cuando) {
+            return enLaApp && !Double.isNaN(cuando) && AvisoReceptor.dado(getApplicationContext(), corto(id, 300), (long) cuando);
         }
 
         @JavascriptInterface
@@ -475,7 +481,7 @@ public class MainActivity extends Activity {
         i.removeExtra(AvisoReceptor.EXTRA_ACC);
         if (f == null || !f.equals(AvisoReceptor.firma(this))) return;
         if (!acc.equals("hecho") && !acc.equals("mas5")) acc = "ver";
-        NotificationManagerCompat.from(this).cancel(AvisoReceptor.ID_AVISO);
+        NotificationManagerCompat.from(this).cancel(id == null ? "" : corto(id, 300), AvisoReceptor.ID_AVISO);
         String js = "(function(){try{return typeof window.opTempAccion==='function'?!!window.opTempAccion(" + JSONObject.quote(acc) + ","
                 + JSONObject.quote(corto(id, 300)) + "):null}catch(e){return null}})()";
         if (cargada && web != null) web.evaluateJavascript(js, null); else accionPendiente = js;
