@@ -689,7 +689,16 @@ function planDia(C, fecha) {
   }
   return env.map((a, i) => ({ ...a, body: `${a.body}\n(aviso ${i + 1} de ${max} de hoy)` }));
 }
+// 2.22.0 (J) · La app guarda en iniciativas4.items solo las 5 de siempre; las demás (organización del tiempo, ideas y journaling) en
+// iniciativas4Mas del mismo día. Aquí se leen juntas, sin tocar el estado recibido.
+function iniUnir(st) {
+  try { const E = st?.enfoque, I = E?.iniciativas4, M = E?.iniciativas4Mas;
+    if (!I || typeof I !== 'object' || !Array.isArray(I.items) || !M || typeof M !== 'object' || M.dia !== I.dia || !Array.isArray(M.items)) return st;
+    const mas = M.items.filter(x => x && typeof x === 'object' && typeof x.k === 'string' && !I.items.some(y => y && y.k === x.k));
+    return mas.length ? { ...st, enfoque: { ...E, iniciativas4: { ...I, items: [...I.items, ...mas] } } } : st; } catch { return st; }
+}
 function avisos(st, tz, prefs, desde, hasta) {
+  st = iniUnir(st);
   const C = { st: st && typeof st === 'object' ? st : {}, tz, prefs: prefs && typeof prefs === 'object' ? prefs : {}, desde, ahora: hasta, t0: performance.now() }, out = [];
   for (const fecha of [...new Set([fechaEn(desde, tz), fechaEn(hasta, tz)])])
     for (const a of planDia(C, fecha)) if (a.t > desde && a.t <= hasta) { const { t, franja, seguro, ...x } = a; out.push(x); }

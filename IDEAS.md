@@ -612,6 +612,11 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.0: apartado Iniciativas, Organización del tiempo e Ideas y journaling
+
+- **Nuevo apartado «Iniciativas»** en Inicio, justo debajo de Agenda e igual que ella: «¿Te sientes aburrido? Haz iniciativas.» Dentro, las iniciativas de hoy con el mismo diseño de la Agenda (número, relevancia, «▶ Empezar», casilla con XP y deshacer, «Ahora») y «Elige una»: una tarjeta por categoría con 3 ideas que cambian cada día (un toque la añade), «Más ideas» y «+ Iniciativa propia». Lo que marcas aquí se ve en la Agenda y al revés. Siguen siendo opcionales.
+- **Dos categorías nuevas:** «Organización del tiempo» (planificar la semana, preparar la agenda de mañana…) e «Ideas y journaling» (escribir 10 min, vaciar la cabeza, ordenar tus ideas…), con «Abrir Journaling» y «Abrir Ideas» a un toque. Estudio sale primero. El bono de 5 en el día sigue igual de alcanzable.
+
 ## 2.21.9: iniciativas opcionales y el temporizador suena al terminar
 
 - **Las iniciativas son opcionales.** Sin mínimo diario ni semanal, sin «te faltan», sin tarjetas que insisten, sin perder XP por no hacerlas y sin avisos que solo empujan a hacerlas. El día y la agenda pueden quedar cumplidos sin ellas, y en «Organizar mi día» no se marca ninguna sola: puedes seguir sin elegir. Siguen existiendo con su XP (y deshacer) y los bonos quedan solo como premio. Una iniciativa que pongas a una hora en tu Agenda avisa como cualquier otra fila.
