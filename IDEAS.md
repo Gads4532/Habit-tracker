@@ -612,6 +612,11 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.2: Google Tasks y Calendar en la app de Android
+
+- En la app de Android, Google ya no se conecta en una ventana de Chrome (Google la bloquea dentro de la app): el permiso lo da Android con los servicios de Google Play, sin ventanas, y se renueva solo cada hora. La app se firma siempre con la misma clave y está registrada en Google Cloud. ✅
+- Con la app de Android vieja sale «Actualiza la app de Android para conectar Google aquí.» con el enlace de descarga. En Chrome todo sigue igual. ✅
+
 ## 2.22.1: Reflexiones guiadas y píldora verde al completar
 
 - **Reflexiones guiadas** (Journaling y Bienestar · Mente): introspección con una pregunta del día, propósito, ikigai con sus cuatro círculos, valores, rueda de la vida (el área más baja se vuelve una tarea), carta a tu yo del futuro (se abre en la fecha que elijas, solo en la app), «Agradezco, aprendí, suelto» y pre-mortem de una meta. «Mi mejor yo posible» sigue en Bienestar. Da +10 XP una vez al día y se puede pasar a Journaling y a Notion. ✅

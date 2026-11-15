@@ -687,7 +687,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.1';
+const APP_VERSION = '2.22.2';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -4348,7 +4348,7 @@ const OP_UA = navigator.userAgent || '';
 const OP_ANDROID = /OrgPersonalAndroid\//.test(OP_UA);
 const OP_CHROME_ANDROID = !OP_ANDROID && /Android/i.test(OP_UA) && /Chrome\/\d/.test(OP_UA) && !/; wv\)|SamsungBrowser|EdgA?\/|OPR\/|YaBrowser|Firefox|UCBrowser|MiuiBrowser|HeyTapBrowser|Vivaldi|DuckDuckGo/i.test(OP_UA);
 const OP_APK = 'https://github.com/Gads4532/Habit-tracker/releases/download/android/organizacion-personal.apk';
-const OP_G_MSG = 'Conéctalo desde la app de Chrome: Google no deja iniciar sesión dentro de esta app.';
+const OP_G_MSG = 'Actualiza la app de Android para conectar Google aquí.';   // 2.22.2 (G) · la APK sin el puente de Google
 const OP_AV_MSG = 'Los avisos te llegan por la app de Chrome';
 // ¿Ya está publicado el APK? Solo se pregunta en Chrome para Android. El sí se recuerda; el no, solo en esta sesión.
 const opApkSi = () => { try { return localStorage.getItem('rumbo-apk') === '1'; } catch { return false; } };
@@ -4377,11 +4377,91 @@ function gLoad() {
 // Pide el permiso con un toque (ventana de Google). La primera vez pregunta; después suele ser inmediato.
 const G_CAL = 'https://www.googleapis.com/auth/calendar.events';
 const gCalOk = () => gValid() && !!gCfg().cal;
+// 2.22.2 (G) · En la app Android, el permiso lo da el teléfono (servicios de Google Play) por el puente: Google no deja iniciar sesión
+// dentro de un WebView. La respuesta llega en window.opGToken(reqId, json): { ok, token, scopes } o { ok: false, error, msg }.
+const gNat = () => { try { return OP_ANDROID && typeof window.OrgAndroid?.googleToken === 'function'; } catch { return false; } };
+const G_NAT_ERR = { no_registrada: 'Falta registrar la app en Google Cloud (paso 2 de las instrucciones).', cancelado: 'Cancelaste el permiso de Google.',
+  sin_play: 'Este teléfono no tiene los servicios de Google.', ocupado: 'La ventana de Google ya está abierta.', tiempo: 'Google no respondió. Prueba otra vez.' };
+const gNatPend = new Map();
+const gNatTarde = new Set();   // ventanas que pasaron la espera: si al final dan permiso, se guarda igual
+let gNatN = 0, gNatFallo = 0, gNatSilencio = null, gNat401 = 0, gNatRech = '', gNatOlvido = 0;
+window.opGToken = (id, json) => {
+  id = String(id);
+  let r = null; try { r = typeof json === 'string' ? JSON.parse(json) : json; } catch {}
+  if (!r || typeof r !== 'object') r = { ok: false, error: 'error' };
+  const p = gNatPend.get(id);
+  if (!p) {   // la respuesta llegó tarde, o la app se recreó con la ventana abierta («restaurado»): el permiso dado no se pierde
+    if ((gNatTarde.has(id) || id === 'restaurado') && r.ok && r.token) {
+      gNatTarde.delete(id); gNatFallo = 0; gNatGuardar(r);
+      try { gVivo(true); if (view === 'tareas') renderTareas(); if (agEnVista()) window.renderAgendaTab?.(); } catch {}
+    }
+    return;
+  }
+  gNatPend.delete(id); clearTimeout(p.t);
+  p.res(r);
+};
+function gNatPedir(interactive, cal) {
+  return new Promise(res => {
+    const id = 'g' + Date.now().toString(36) + '-' + (++gNatN);
+    const t = setTimeout(() => { gNatPend.delete(id); if (interactive) gNatTarde.add(id); res({ ok: false, error: 'tiempo' }); }, interactive ? 300000 : 15000);
+    gNatPend.set(id, { res, t });
+    try { window.OrgAndroid.googleToken(id, !!interactive, !!cal); } catch { clearTimeout(t); gNatPend.delete(id); res({ ok: false, error: 'error' }); }
+  });
+}
+const gNatGuardar = r => { gSetCfg({ ...gCfg(), token: r.token, exp: Date.now() + 50 * 60 * 1000, ok: true, cal: Array.isArray(r.scopes) && r.scopes.includes(G_CAL), nativo: true, renovar: false }); gNatVida(r.token); return r.token; };
+// Google Play puede dar un token que ya tenía guardado: se mira cuánto le queda de verdad y, si es menos de 50 min, vence antes.
+function gNatVida(tok) {
+  try {
+    fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(tok)).then(r => r.ok ? r.json() : null).then(j => {
+      const sg = Number(j?.expires_in), c = gCfg(); if (!Number.isFinite(sg) || c.token !== tok) return;
+      const exp = Date.now() + Math.max(0, sg - 120) * 1000; if (exp >= c.exp) return;
+      if (sg < 300 && Date.now() - gNatOlvido > 120000) { gNatOlvido = Date.now(); try { window.OrgAndroid?.googleOlvidar?.(tok); } catch {} }   // casi vencido: que Google Play dé otro
+      gSetCfg({ ...c, exp });
+    }).catch(() => {});
+  } catch {}
+}
+async function gNatToken(interactive, cal) {
+  if (!gNat()) { if (!interactive) return null; throw new Error(OP_G_MSG); }
+  if (interactive) {   // como en Chrome: un permiso para Tasks y Calendar
+    const r = await gNatPedir(true, true);
+    if (r && r.ok && r.token) { gNatFallo = 0; return gNatGuardar(r); }
+    throw new Error(G_NAT_ERR[r?.error] || 'Google no abrió la ventana de permiso.');
+  }
+  const c = gCfg(); if (!c.ok || (cal && !c.cal)) return null;
+  if (gNatSilencio) return gNatSilencio;
+  if (gNatFallo && Date.now() - gNatFallo < 120000) return null;   // tras un fallo, en silencio como mucho una vez cada 2 min
+  gNatSilencio = gNatPedir(false, !!c.cal).then(r => {
+    if (r && r.ok && r.token && gCfg().ok) { gNatFallo = 0; return gNatGuardar(r); }
+    gNatFallo = Date.now();
+    if (r?.error === 'necesita_permiso' && gCfg().ok) gSetCfg({ ...gCfg(), renovar: true });   // Google pide la ventana otra vez: el siguiente toque la abre
+    return null;
+  }).finally(() => { gNatSilencio = null; });
+  return gNatSilencio;
+}
+// Google rechazó el token (401): Google Play lo olvida y, en Android, se pide otro en silencio.
+function gNatCaduco() {
+  try {
+    // Varios 401 a la vez con el mismo token cuentan como uno (el primero ya lo borró).
+    const c = gCfg(); if (!OP_ANDROID || !c.nativo || !c.token || c.token === gNatRech) return;
+    gNatRech = c.token;
+    window.OrgAndroid?.googleOlvidar?.(c.token);
+    if (gNat401 && Date.now() - gNat401 < 120000) gNatFallo = Date.now();   // dos tokens seguidos rechazados: espera
+    gNat401 = Date.now();
+    setTimeout(gNatRenovar, 1500);
+  } catch {}
+}
+function gNatRenovar() {
+  try {
+    const c = gCfg(); if (!gNat() || !c.ok || gValid() || document.visibilityState !== 'visible') return;
+    gToken(false, !!c.cal).then(t => { if (!t) return; gVivo(true); try { if (agEnVista()) window.renderAgendaTab?.(); } catch {} }).catch(() => {});
+  } catch {}
+}
+if (OP_ANDROID) setInterval(gNatRenovar, 20000);
 // Con cal = true se pide también Google Calendar (la primera vez, Google vuelve a preguntar).
 async function gToken(interactive, cal = false) {
   if (gValid() && (!cal || gCfg().cal)) return gCfg().token;
+  if (OP_ANDROID) return gNatToken(interactive, cal);   // 2.22.2 (G)
   if (!interactive) return null;
-  if (OP_ANDROID) throw new Error(OP_G_MSG);   // 2.21.7 (A) · Google bloquea su inicio de sesión en un WebView (disallowed_useragent)
   await gLoad();
   return new Promise((res, rej) => {
     const client = google.accounts.oauth2.initTokenClient({
@@ -4396,7 +4476,7 @@ async function gToken(interactive, cal = false) {
 const CAL_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
 async function gCalFetch(url, opt = {}) {
   const r = await fetch(url, { ...opt, headers: { Authorization: 'Bearer ' + gCfg().token, 'Content-Type': 'application/json' } });
-  if (r.status === 401) { gSetCfg({ ...gCfg(), token: '', exp: 0 }); throw new Error('El permiso de Google caducó. Toca «Conectar Google Calendar».'); }
+  if (r.status === 401) { gNatCaduco(); gSetCfg({ ...gCfg(), token: '', exp: 0 }); throw new Error('El permiso de Google caducó. Toca «Conectar Google Calendar».'); }
   if (r.status === 403) { gSetCfg({ ...gCfg(), cal: false }); throw new Error('Google Calendar no está activado: activa la API de Google Calendar en tu proyecto de Google Cloud y vuelve a conectar.'); }
   if (!r.ok) throw new Error(`Google Calendar respondió ${r.status}.`);
   return r.json();
@@ -4422,7 +4502,7 @@ async function gSync(interactive) {
     const tok = await gToken(interactive); if (!tok) return;
     const api = async (path, opt = {}) => {
       const r = await fetch(G_API + path, { ...opt, headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' } });
-      if (r.status === 401) { gSetCfg({ ...gCfg(), token: '', exp: 0 }); throw new Error('El permiso de Google caducó. Vuelve a sincronizar.'); }
+      if (r.status === 401) { gNatCaduco(); gSetCfg({ ...gCfg(), token: '', exp: 0 }); throw new Error('El permiso de Google caducó. Vuelve a sincronizar.'); }
       if (!r.ok) throw new Error(`Google respondió ${r.status}.`);
       return r.status === 204 ? null : r.json();
     };
@@ -4500,19 +4580,25 @@ function gVivo(forzar = false) {
   } catch {}
 }
 setInterval(() => gVivo(), 5000);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { gRenovarIntento = false; gVivo(true); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { gRenovarIntento = false; gVivo(true); if (OP_ANDROID) gNatRenovar(); } });
 document.addEventListener('click', () => {
-  const c = gCfg(); if (!c.ok || gValid() || gRenovarIntento || gSyncing) return;
+  const c = gCfg();
+  if (OP_ANDROID) {   // 2.22.2 (G) · en silencio, sin ventana; solo si Google pidió permiso otra vez, el toque abre la ventana (una vez)
+    if (!c.ok || gValid() || gSyncing) return;
+    if (c.renovar && gNat()) { if (gRenovarIntento) return; gRenovarIntento = true; gToken(true, !!c.cal).then(t => { if (t) gVivo(true); }).catch(() => {}); return; }
+    gNatRenovar(); return;
+  }
+  if (!c.ok || gValid() || gRenovarIntento || gSyncing) return;
   gRenovarIntento = true;
   gToken(true, !!c.cal).then(t => { if (t) gVivo(true); }).catch(() => {});
 }, true);
-setTimeout(() => { if (gCfg().ok) gLoad().then(() => gVivo(true)).catch(() => {}); }, 2500);
+setTimeout(() => { if (!gCfg().ok) return; if (OP_ANDROID) { gNatRenovar(); gVivo(true); return; } gLoad().then(() => gVivo(true)).catch(() => {}); }, 2500);
 function gtasksSheet() {
   const c = gCfg();
-  if (OP_ANDROID && !c.ok) {   // 2.21.7 (A)
+  if (OP_ANDROID && !c.ok && !gNat()) {   // 2.21.7 (A) · 2.22.2 (G) · solo la APK vieja, sin el puente de Google
     showMsg(`<h2>Conectar Google Tasks</h2>
-      <p class="meta" style="margin-top:12px" id="g-opa">${OP_G_MSG}</p>
-      <p class="meta">Lo que sincronices allí llega aquí con tu cuenta.</p>
+      <p class="meta" style="margin-top:12px" id="g-opa">${OP_G_MSG} <a href="${OP_APK}" id="g-apk" rel="noopener">Descargar la app</a></p>
+      <p class="meta">Mientras, lo que conectes en la app de Chrome llega aquí con tu cuenta.</p>
       <div class="dialog-actions"><button class="primary" data-close>Entendido</button></div>`);
     return;
   }
@@ -4524,11 +4610,17 @@ function gtasksSheet() {
     return;
   }
   showMsg(`<h2>Google Tasks</h2>
-    <p class="meta" style="margin-top:12px">${c.ultima ? `Última sincronización: ${new Date(c.ultima).toLocaleString('es', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.` : 'Aún no se ha sincronizado.'} Los cambios se sincronizan solos mientras el permiso esté activo (una hora); después, un toque aquí lo renueva.</p>
+    <p class="meta" style="margin-top:12px">${c.ultima ? `Última sincronización: ${new Date(c.ultima).toLocaleString('es', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.` : 'Aún no se ha sincronizado.'} ${OP_ANDROID ? (c.renovar ? 'Google pide tu permiso otra vez: toca «Sincronizar ahora» para renovarlo.' : 'Los cambios se sincronizan solos.') : 'Los cambios se sincronizan solos mientras el permiso esté activo (una hora); después, un toque aquí lo renueva.'}</p>
     <p class="meta">Las tareas repetidas de esta app aparecen en Google como tareas sueltas: Google no permite crear repeticiones desde otras apps.</p>
     <div class="dialog-actions"><button class="link danger" id="g-off">Desconectar</button><button class="link" data-close>Cerrar</button><button class="primary" id="g-now">Sincronizar ahora</button></div>`);
   $('#g-now').onclick = () => { $('#msg-dialog').close(); gSync(true); };
-  $('#g-off').onclick = () => { try { google?.accounts?.oauth2?.revoke?.(c.token, () => {}); } catch {} localStorage.removeItem('habit-gtasks'); $('#msg-dialog').close(); renderTareas(); };
+  $('#g-off').onclick = () => {
+    if (OP_ANDROID) {   // 2.22.2 (G) · sin el script de Google: revoca por la API de OAuth y Google Play olvida el token
+      try { if (c.token) { window.OrgAndroid?.googleOlvidar?.(c.token); fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(c.token), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }).catch(() => {}); } } catch {}
+      gNatFallo = 0; gNatRech = ''; gNatTarde.clear();
+    } else { try { google?.accounts?.oauth2?.revoke?.(c.token, () => {}); } catch {} }
+    localStorage.removeItem('habit-gtasks'); $('#msg-dialog').close(); renderTareas();
+  };
 }
 
 function listForm(title, value, onSave) {
@@ -4707,7 +4799,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   scrollTo(0, 0);
   if (view === 'enfoque') window.enfoqueVisible?.();
   // Se precarga el inicio de sesión de Google para que la ventana de permiso abra al primer toque.
-  if (view === 'tareas') { gLoad().catch(() => {}); if (gCfg().ok && gValid()) gSync(false); }
+  if (view === 'tareas') { if (!OP_ANDROID) gLoad().catch(() => {}); if (gCfg().ok && gValid()) gSync(false); else if (OP_ANDROID) gNatRenovar(); }
 });
 // 2.14 · La barra se desplaza: el degradado del borde (mas-izq / mas-der) dice que hay más pestañas hacia ese lado.
 { const nav = document.querySelector('.tabs'); const borde = () => { nav.classList.toggle('mas-izq', nav.scrollLeft > 2); nav.classList.toggle('mas-der', nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2); };
