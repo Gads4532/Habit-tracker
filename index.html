@@ -687,7 +687,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.0';
+const APP_VERSION = '2.22.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -905,6 +905,48 @@ function relFusion(x, y) {
   for (const [k, o] of Object.entries(A)) if (!out[k] || o.m >= out[k].m) out[k] = o;
   return relNorm(out);
 }
+// 2.22.1 (R) · Reflexiones guiadas: normalizar y combinar. Cada una: { id, tipo, d, creado, mod, fin, finD, r, abrir?, abierta?, xp?, jr?, tarea? }.
+// r guarda las respuestas (textos, listas cortas y la rueda { área: 1..10 }). Tipos desconocidos se conservan (versiones futuras). Hasta 400.
+function rfNorm(L) {
+  const F = v => typeof v === 'string' && /^\d{4}-\d\d-\d\d$/.test(v) ? v : '';
+  const MAL = new Set(['__proto__', 'constructor', 'prototype']);
+  const out = [], vistos = new Set();
+  for (const x of Array.isArray(L) ? L : []) {
+    if (!x || typeof x !== 'object' || typeof x.id !== 'string' || !x.id || vistos.has(x.id)) continue;
+    const tipo = typeof x.tipo === 'string' ? x.tipo.slice(0, 20) : ''; if (!tipo) continue;
+    vistos.add(x.id);
+    const R = x.r && typeof x.r === 'object' && !Array.isArray(x.r) ? x.r : {}, r = {};
+    for (const k0 of Object.keys(R).slice(0, 30)) {
+      const k = k0.slice(0, 20), v = R[k0]; if (MAL.has(k)) continue;
+      if (typeof v === 'string') r[k] = v.replace(/\r/g, '').slice(0, 8000);
+      else if (Array.isArray(v)) r[k] = v.filter(t => typeof t === 'string' && t.trim()).map(t => t.replace(/\s+/g, ' ').trim().slice(0, 40)).slice(0, 12);
+      else if (v && typeof v === 'object') { const o = {}; for (const [a, n] of Object.entries(v).slice(0, 12)) { const m = Math.round(+n); if (!MAL.has(a) && m >= 1 && m <= 10) o[a.slice(0, 20)] = m; } r[k] = o; }
+      else if (typeof v === 'number' && Number.isFinite(v)) r[k] = v;
+    }
+    const S = (v, n) => typeof v === 'string' && v ? { v: v.slice(0, n) } : null;
+    const o = { id: x.id.slice(0, 80), tipo, d: F(x.d), creado: +x.creado > 0 ? +x.creado : 0, mod: +x.mod > 0 ? +x.mod : 0, fin: !!x.fin, r };
+    if (o.fin && F(x.finD)) o.finD = x.finD;
+    if (F(x.abrir)) o.abrir = x.abrir;
+    if (+x.abierta > 0) o.abierta = +x.abierta;
+    if (F(x.xp)) o.xp = x.xp;
+    { const j = S(x.jr, 80); if (j) o.jr = j.v; }
+    { const t = S(x.tarea, 80); if (t) o.tarea = t.v; }
+    if (!o.d) o.d = o.creado ? (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)(new Date(o.creado)) : '';
+    if (!o.d) continue;
+    out.push(o);
+  }
+  return out.length > 400 ? out.sort((a, b) => (b.creado || b.mod) - (a.creado || a.mod)).slice(0, 400) : out;
+}
+// Dos copias: por id, la cambiada más tarde (mod); «abierta» (la carta) se conserva si cualquiera la abrió; lo borrado no vuelve.
+function rfFusion(x, y, dead) {
+  const A = rfNorm(x), B = rfNorm(y), m = new Map();
+  for (const c of [...B, ...A]) {
+    const o = m.get(c.id); if (!o) { m.set(c.id, c); continue; }
+    const g = (+c.mod || 0) >= (+o.mod || 0) ? c : o, h = g === c ? o : c;
+    m.set(c.id, !g.abierta && h.abierta ? { ...g, abierta: h.abierta } : g);
+  }
+  return [...m.values()].filter(c => !(dead && dead.has(c.id)));
+}
 // 2.22.0 (J) · Las 5 iniciativas que entiende 2.21.9 (por índice). Al guardar, el resto va en iniciativas4Mas (ver normEnfoque).
 function iniBase5() { return ['estudio', 'proyecto', 'laboral', 'social', 'espiritual']; }   // función: normEnfoque corre al cargar, antes de cualquier const de aquí
 function iniEnfoqueJSON() {
@@ -927,6 +969,7 @@ function normEnfoque(e) {
   for (const k of Object.keys(e.dias)) { const d = e.dias[k]; if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !d || typeof d !== 'object' || Array.isArray(d)) { delete e.dias[k]; continue; } for (const f of Object.keys(d)) { const v = +d[f]; d[f] = Number.isFinite(v) ? v : 0; } }
   e.constantes = kcNorm(e.constantes);   // 2.21.6 (C) · acciones constantes
   e.relevancia = relNorm(e.relevancia);   // 2.21.7 (R) · relevancia 1 a 5
+  e.reflexiones = rfNorm(e.reflexiones);   // 2.22.1 (R) · reflexiones guiadas
   if (!Array.isArray(e.personas)) e.personas = [];
   for (const p of e.personas) { p.cada = +p.cada || 30; p.ultimo ||= ''; p.tel ||= ''; if (!Array.isArray(p.historial)) p.historial = []; }
   if (!Array.isArray(e.proyectos)) e.proyectos = [];
@@ -1281,6 +1324,7 @@ function mergeStates(a, b) {
       return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), ...xpFusion(eN, eO, dias), ...xpPenFusion(eN, eO),   /* 2.19 (X) · pérdidas y vuelta a Novato · 2.17 (XP) · por día y referencia, la más reciente; base de la copia con baseHasta más reciente */
     constantes: kcFusion(eN.constantes, eO.constantes, dead),   /* 2.21.6 (C) */
     relevancia: relFusion(eN.relevancia, eO.relevancia),   /* 2.21.7 (R) */
+    reflexiones: rfFusion(eN.reflexiones, eO.reflexiones, dead),   /* 2.22.1 (R) */
     objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), consistencias: consFusion(eN.consistencias, eO.consistencias, dead), consLog: consLogFusion(eN.consLog, eO.consLog, dead), consPreg: [eO.consPreg, eN.consPreg].filter(Boolean).sort().pop() || '', espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
@@ -1933,7 +1977,7 @@ function hbRutina(h) {
   const r = hbRutinaDe(h), t = today(); if (!r || (r.xpRutinaDia === t && !window.xpDeshecho?.('r:' + r.id))) return;
   const kids = hbHijos(r); if (!kids.length || !kids.every(x => isDone(x, t))) return;
   r.xpRutinaDia = t; save();
-  setTimeout(() => window.xpGanar?.(15, 'Rutina completa', 'r:' + r.id, { dia: t, si: () => hbHijos(r).every(x => isDone(x, t)), no: () => { if (r.xpRutinaDia === t) { r.xpRutinaDia = ''; save(); } } }), 2000);   // 2.17f (XP) · si no llegó, el día queda libre
+  (window.fbLuego || setTimeout)(() => window.xpGanar?.(15, 'Rutina completa', 'r:' + r.id, { dia: t, si: () => hbHijos(r).every(x => isDone(x, t)), no: () => { if (r.xpRutinaDia === t) { r.xpRutinaDia = ''; save(); } } }), 2000);   // 2.17f (XP) · si no llegó, el día queda libre
 }
 function hbRutinaCele(h) {
   const r = hbRutinaDe(h), kids = r ? hbHijos(r) : [];
@@ -2561,16 +2605,9 @@ $('#hb-t-orden')?.addEventListener('click', () => {
 // («Hecho: …» de la Agenda o el Inicio), el beneficio sale en la línea de XP.
 function hbAvisoMarca(h, xv) {
   if (!h || typeof window.toast !== 'function') return;
-  const ben = String((h.beneficios || [])[0] || '').trim(), datos = xcModo() === 'datos';
-  const cab = h.sinXp ? xcGusto(h, xv.value) : `${xv.dio && !datos ? `+${xv.xp} XP · ` : ''}${xv.acto || `${xcSinPunto(h.nombre)}${xv.value === 'min' ? ' · 2 min' : ''}`}`;
-  const msg = `${xcSinPunto(cab)}${ben ? ` · Lo que ganas: ${xcSinPunto(ben)}` : ''}.`;
-  const id = h.id;
-  window.toast(msg, { deshacer: () => { const x = state.habits.find(y => y && y.id === id); if (x && mark(x, today())) setMark(x, ''); try { window.renderEnfoque?.(); } catch {} } });
-  const pop = (document.getElementById('view-overlays')?.shadowRoot || document).querySelector('#xp-pop'); pop?.classList.remove('go');
-  if (ben) setTimeout(() => {
-    const t = (document.getElementById('view-overlays')?.shadowRoot || document).querySelector('#toast');
-    if (t && !t.textContent.includes('Lo que ganas')) window.xmAviso?.(`Lo que ganas: ${xcSinPunto(ben)}`);
-  }, 0);
+  const id = h.id;   // 2.22.1 (P) · la píldora «✓ Hecho · +10 XP» con «Deshacer»: sin el nombre (el XP lo pone xpGanar en el mismo toque)
+  const deshacer = () => { const x = state.habits.find(y => y && y.id === id); if (x && mark(x, today())) setMark(x, ''); try { window.renderEnfoque?.(); } catch {} };
+  if (typeof window.fbHecho === 'function') window.fbHecho({ deshacer }); else window.toast('Hecho.', { deshacer });
 }
 // ---------- Tareas: chips de fecha y deslizar.
 const tFinde = () => { const d = new Date(today() + 'T12:00'), w = d.getDay(); return w === 6 || w === 0 ? today() : dayKey(addDays(d, 6 - w)); };
@@ -2880,8 +2917,7 @@ function xcCelebrar(h, xv) {
 function xcCeleLinea(h, xv) {
   if (!xv) return '';
   if (h.sinXp) return `<p class="meta xc-acto">${esc(xcGusto(h, xv.value))}</p>`;
-  const xp = xv.dio && xcModo() !== 'datos' ? ` <br><small class="xc-xp">+${xv.xp} XP${xv.volvio ? ' · +15 por volver' : ''}</small>` : '';
-  return `<p class="meta xc-acto">${esc(xv.acto)}${xp}</p>`;
+  return `<p class="meta xc-acto">${esc(xv.acto)}</p>`;   // 2.22.1 (P) · sin el XP junto al nombre: lo dice la píldora verde
 }
 // ---------- Ajustes de Hábitos: «Celebración: Completa · Discreta · Solo datos».
 function xcCfgOpciones() {
@@ -3922,7 +3958,7 @@ function complete(h, value) {
     h.xpDia = today();
     if (!h.sinXp) {
       window.xpGanar?.(xv.xp, xv.motivo, 'h:' + h.id);
-      if (xv.volvio) { const dia = today(); setTimeout(() => window.xpGanar?.(15, 'Volviste', 'h+:' + h.id, { padre: 'h:' + h.id, dia }), 900); } else window.xpSorpresa?.('h:' + h.id);
+      if (xv.volvio) { const dia = today(); (window.fbLuego || setTimeout)(() => window.xpGanar?.(15, 'Volviste', 'h+:' + h.id, { padre: 'h:' + h.id, dia }), 900); } else window.xpSorpresa?.('h:' + h.id);
     }
   }
   if (!h.sinXp) hbRutina(h);
@@ -4421,7 +4457,7 @@ async function gSync(interactive) {
         if (!x) { x = { id: crypto.randomUUID(), gid: g.id, lista: L.id, creado: Date.now(), repite: '', dias: [], ...remote, hechaEn: remote.hecha ? Date.parse(g.completed || '') || Date.now() : 0 }; x.gsnap = gSnap(x); T.items.push(x); continue; }
         x.lista = L.id;
         if (gSnap(x) !== x.gsnap) await api(`lists/${L.gid}/tasks/${g.id}`, { method: 'PATCH', body: JSON.stringify(gBody(x)) });
-        else { const antes = !!x.hecha; if (remote.hecha && !x.hecha) x.hechaEn = Date.parse(g.completed || '') || Date.now(); /* 2.19 (X) · el día en que de verdad se completó */ if (gSnap({ ...x, ...remote }) !== gSnap(x)) x.mod = Date.now(); Object.assign(x, remote); if (antes !== !!x.hecha) { window.xpDesdeGoogle = true; try { window.estEspejo?.tarea(x, x.hecha); } finally { window.xpDesdeGoogle = false; } if (!x.hecha) window.xmTareaDeshacer?.(x); else if (+x.hechaEn > 0 && dayKey(new Date(+x.hechaEn)) === today()) { try { window.xmTarea?.(x); } catch {} /* 2.21.8 (G) · completada hoy en Google: sus 5 XP, una vez */ } } }   // 2.14.1 (S) · lo marcado en Google marca su pendiente en Estudio
+        else { const antes = !!x.hecha; if (remote.hecha && !x.hecha) x.hechaEn = Date.parse(g.completed || '') || Date.now(); /* 2.19 (X) · el día en que de verdad se completó */ if (gSnap({ ...x, ...remote }) !== gSnap(x)) x.mod = Date.now(); Object.assign(x, remote); if (antes !== !!x.hecha) { window.xpDesdeGoogle = true; try { window.estEspejo?.tarea(x, x.hecha); } finally { window.xpDesdeGoogle = false; } window.fbCallado = true; try { if (!x.hecha) window.xmTareaDeshacer?.(x); else if (+x.hechaEn > 0 && dayKey(new Date(+x.hechaEn)) === today()) { try { window.xmTarea?.(x); } catch {} } } finally { window.fbCallado = false; } if (0) { /* 2.22.1 (P) · Google Tasks: sin aviso */ /* 2.21.8 (G) · completada hoy en Google: sus 5 XP, una vez */ } } }   // 2.14.1 (S) · lo marcado en Google marca su pendiente en Estudio
         x.gsnap = gSnap(x);
       }
       for (const x of T.items.filter(i => i.lista === L.id)) {
@@ -4639,6 +4675,7 @@ $('#view-tareas').addEventListener('click', e => {
         completeTask(task);
         cleanJust = pendBefore === 1 && !T.items.some(x => x.lista === task.lista && !x.hecha);
         save();
+        window.fbHecho?.({ deshacer: () => { const y = T.items.find(z => z.id === task.id); if (!y || !y.hecha) return; uncompleteTask(y); save(); renderTareas(); try { window.renderEnfoque?.(); } catch {} } });   // 2.22.1 (P)
       }, () => renderTareas());
       break;
     case 'edit': taskForm(task); break;
@@ -4659,6 +4696,7 @@ $('#view-tareas').addEventListener('click', e => {
 document.querySelector('.tabs').addEventListener('click', e => {
   const b = e.target.closest('.tab');
   if (!b) return;
+  if (view === 'journal' && b.dataset.view !== 'journal') try { window.rfSalir?.(); } catch (e) { console.warn('Reflexiones', e); }   // 2.22.1 (R)
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
   document.querySelector('.tabs .tab.on')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });   // 2.14 · la activa siempre a la vista
@@ -5749,6 +5787,8 @@ let toastT = 0;
 function toast(msg, o) {   // 2.21 (B) · con { deshacer: fn }, el aviso trae «Deshacer» (44 px) y dura 6 s; sin él, como siempre
   const t = $('#toast'); if (!t) return;
   const fn = o && typeof o.deshacer === 'function' ? o.deshacer : null;
+  if (fn && /^(Hecho: |Rutina hecha: )/.test(String(msg))) { fbHecho({ deshacer: fn }); return; }   // 2.22.1 (P) · lo completado: la píldora, sin el nombre
+  t.classList.remove('fb', 'fb-menos', 'fb-u', 'fb-pop'); t.removeAttribute('aria-live'); fbS = null;   // 2.22.1 (P) · otro aviso reemplaza la píldora
   t.textContent = msg; t.setAttribute('role', 'status'); t.style.pointerEvents = '';
   if (fn) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ag-toast-b qa-toast-b'; b.textContent = 'Deshacer';
@@ -5758,6 +5798,98 @@ function toast(msg, o) {   // 2.21 (B) · con { deshacer: fn }, el aviso trae «
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => { t.classList.remove('on'); t.style.pointerEvents = ''; }, fn ? 6000 : 2800);
 }
 window.toast = toast;
+
+// ====================================================================
+// 2.22.1 (P) · «Al completar no salga el nombre con XP: la píldora verde que diga volviste, o hecho.» Un solo aviso al completar, en el
+// sitio del aviso de siempre (#toast): «✓ Hecho · +10 XP» con «Deshacer» dentro (44 px). Sin el nombre. Bonos con su nombre corto
+// («Volviste · +15 XP», «¡Día completo! · +25 XP»). Sin XP: «✓ Hecho». Deshacer: «Deshecho · −10 XP», neutra. «Solo datos»: sin números.
+// Lo de un mismo toque (el XP, la sorpresa, el «Deshacer» del hábito y el de la Agenda) se junta en la misma píldora.
+// ====================================================================
+var fbS = null;   // { t, xp, undo, etq, bono, menos, nueva, id }
+var fbN = 0, fbBonoFid;   // fbN: el número de la última píldora; fbBonoFid: de qué píldora es el bono que llega ahora (fbLuego)
+const FB_MISMO = 250, FB_JUNTA = 1500;
+window.fbCallado = false;
+function fbVivo() { const t = $('#toast'); return !!(t && fbS && t.classList.contains('on') && t.classList.contains('fb')); }
+window.fbVivo = fbVivo;
+function fbId() { return fbVivo() && !fbS.menos ? fbS.id : 0; }
+window.fbId = fbId;
+// Un bono que llega después (900 ms, 1,4 s…) recuerda la píldora que se veía al ganarlo: si a su llegada se ve la de OTRA cosa marcada
+// después, no se lleva su «Deshacer» ni su texto (el XP cuenta igual).
+function fbLuego(fn, ms) { const fid = fbId(); return setTimeout(() => { const p = fbBonoFid; fbBonoFid = fid; try { fn(); } finally { fbBonoFid = p; } }, ms); }
+window.fbLuego = fbLuego;
+// El nombre corto de un bono (sin el nombre de la cosa); '' si no es un bono.
+function fbEtq(ref, m) {
+  ref = String(ref || ''); m = String(m || '').trim();
+  if (ref.startsWith('h+:') || ref.startsWith('b:ini+:') || /^Volviste/.test(m)) return 'Volviste';
+  if (ref.startsWith('b:agenda:')) return '¡Día completo!';
+  if (ref.startsWith('sor:') || m === '¡Sorpresa!') return '¡Sorpresa!';
+  if (/^(oc|mc|me):/.test(ref)) return m.split(':')[0].trim().slice(0, 40) || 'Hecho';
+  if (ref.startsWith('b:')) return m.replace(/^Bono: /, '').split(':')[0].trim().slice(0, 40) || '¡Bono!';
+  return '';
+}
+// o: { xp, deshacer, bono }. Dentro de un mismo toque (250 ms) todo se junta; hasta 1,5 s, si no choca (dos «Deshacer» o dos XP con uno).
+function fbHecho(o = {}) {
+  if (window.fbCallado) return;
+  const now = Date.now(), xp = Math.max(0, Math.round(+o.xp || 0)), fn = typeof o.deshacer === 'function' ? o.deshacer : null;
+  const S = fbVivo() && !fbS.menos ? fbS : null, edad = S ? now - S.t : 1e9;
+  if (o.bono) {
+    const fid = 'fid' in o ? o.fid : fbBonoFid, suya = !S || fid === undefined || fid === S.id;
+    if (!suya && S.undo) return;   // la píldora viva es de otra cosa y trae su «Deshacer»: se queda como está
+    fbS = { t: now, xp, undo: fn || (suya && S ? S.undo : null), etq: String(o.bono), bono: true, nueva: true, id: suya && S ? S.id : ++fbN };
+  }
+  else if (S && (edad < FB_MISMO || (edad < FB_JUNTA && !(fn && S.undo) && !(xp && S.xp && S.undo)))) { if (!S.bono) S.xp += xp; if (fn) S.undo = fn; }
+  else fbS = { t: now, xp, undo: fn, etq: '', nueva: true, id: ++fbN };
+  fbPintar();
+}
+window.fbHecho = fbHecho;
+function fbXp(n, motivo, ref) { const b = fbEtq(ref, motivo); fbHecho(b ? { bono: b, xp: n } : { xp: n }); }
+function fbMenos(n) {
+  if (window.fbCallado) return;
+  n = Math.max(0, Math.round(+n || 0)); const now = Date.now();
+  if (fbVivo() && fbS.menos && now - fbS.t < FB_MISMO) fbS.xp += n; else fbS = { t: now, xp: n, menos: true, nueva: true, id: ++fbN };
+  fbPintar();
+}
+function fbPintar() {
+  const t = $('#toast'), S = fbS; if (!t || !S) return;
+  const datos = xmDatos(), num = !datos && S.xp > 0;
+  const etq = S.menos ? 'Deshecho' : S.bono ? S.etq : '✓ Hecho', etqSr = S.menos ? 'Deshecho' : S.bono ? S.etq : 'Hecho';
+  t.textContent = '';
+  const a = document.createElement('span'); a.className = 'fb-t'; a.setAttribute('aria-hidden', 'true'); a.textContent = etq + (num ? ` · ${S.menos ? '−' : '+'}${S.xp} XP` : '');
+  const sr = document.createElement('span'); sr.className = 'fb-sr'; sr.textContent = etqSr + (num ? `, ${S.menos ? 'menos' : 'más'} ${S.xp} XP` : '');
+  t.append(a, sr);
+  const fn = S.menos ? null : S.undo;
+  t.classList.add('fb'); t.classList.toggle('fb-menos', !!S.menos); t.classList.toggle('fb-u', !!fn);
+  t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite');
+  if (fn) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ag-toast-b qa-toast-b fb-b'; b.textContent = 'Deshacer';
+    b.onclick = e => {
+      e.stopPropagation(); if (fbS !== S || !S.undo) return; const f = S.undo; S.undo = null;
+      fbS = { t: Date.now(), xp: 0, menos: true, nueva: true, id: ++fbN }; fbPintar();
+      try { f(); } catch (err) { console.warn('Deshacer', err); } try { window.qa?.repintar?.(); } catch {}
+    };
+    t.append(b); t.style.pointerEvents = 'auto';
+  } else t.style.pointerEvents = '';
+  if (S.nueva) { S.nueva = false; t.classList.remove('fb-pop'); if (!S.menos && HT().celebracion !== 'discreta') { void t.offsetWidth; t.classList.add('fb-pop'); } }
+  t.classList.add('on'); clearTimeout(toastT);
+  toastT = setTimeout(() => { t.classList.remove('on'); t.style.pointerEvents = ''; }, fn ? 6000 : S.menos ? 2200 : 2600);
+}
+{
+  const st = document.createElement('style');
+  st.textContent = `
+  #toast.fb { display: flex; align-items: center; justify-content: center; gap: 6px; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box;
+    min-height: 44px; padding: 6px 18px; border-radius: 22px; background: #17803f; color: #fff; font-weight: 700; font-size: .95rem; line-height: 1.25; }
+  #toast.fb.fb-u { padding: 0 2px 0 18px; }
+  #toast.fb.fb-menos { background: var(--empty); color: var(--text); }
+  #toast.fb .fb-t { display: inline-block; min-width: 0; overflow-wrap: anywhere; }
+  #toast.fb .fb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  #toast.fb .fb-b { flex: none; min-height: 44px; min-width: 44px; margin: 0; padding: 0 14px; border: 0; border-left: 1px solid rgba(255,255,255,.4); border-radius: 0 22px 22px 0;
+    background: transparent; color: inherit; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
+  #xp-pop { display: none !important; }
+  @media (prefers-reduced-motion: no-preference) { #toast.fb.fb-pop .fb-t { animation: fbpop .36s cubic-bezier(.2, .8, .3, 1.2) both; } }
+  @keyframes fbpop { 0% { transform: scale(.82); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #toast.fb { transition: none; } }`;
+  ov.appendChild(st);
+}
 const buzz = p => { try { if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(p); } catch {} };
 
 // ---------- Las cuatro respuestas
@@ -6165,7 +6297,7 @@ $('#prio').addEventListener('click', e => {
   if (e.target.closest('#prio-edit')) return prioForm();
   if (chk) {
     const x = P.items.find(i => i.id === chk.dataset.pchk); prioMarcar(x.id, !x.hecho); guardar(); renderE(); if (agEnVista()) renderAg();
-    if (x.hecho && !(ES.proyectos.find(p => p.id === x.pro)?.paso === x.t)) toast(P.items.every(i => i.hecho) ? 'Todas tus prioridades, hechas.' : 'Hecha. Sigue con la siguiente.');
+    if (x.hecho && !(ES.proyectos.find(p => p.id === x.pro)?.paso === x.t)) fbHecho({ deshacer: () => { const y = ES.prioridades.items.find(i => i.id === x.id); if (!y || !y.hecho) return; prioMarcar(y.id, false); guardar(); renderE(); if (agEnVista()) renderAg(); } });   // 2.22.1 (P) · la píldora
   }
   if (go) { const x = P.items.find(i => i.id === go.dataset.pgo); if (x.per) personaSheet(ES.personas.find(p => p.id === x.per)); else focusForm(x.t, 25, x.pro || ''); }
 });
@@ -6810,11 +6942,11 @@ function iniPremios(I) {
   if (ultima) { ultima.premiada = true; xpGanar(XP_INI, `Iniciativa de ${INI4.find(([k]) => k === ultima.k)[1].toLowerCase()}`, 'i:' + ultima.k); }
   // Volver a tomar la iniciativa después de un día sin llegar al mínimo vale +15 (Milkman et al., 2021).
   const ayerIni = dayKey(addDays(new Date(), -1));
-  if (h === 1 && !I.vuelta && Object.keys(ES.iniHist || {}).length && (ES.iniHist?.[ayerIni] || []).length < 1) { I.vuelta = true;   /* 2.21.9 (I) · tras un día sin ninguna */ setTimeout(() => xpGanar(15, 'Volviste a tomar la iniciativa', 'b:ini+:' + today(), { si: () => iniHechasHoy() >= 1, no: () => { I.vuelta = false; } }), 800); }
-  if (h >= ES.minIni && !I.minimo) { I.minimo = true; setTimeout(() => { if (xpGanar(40, `Bono: ${ES.minIni} ${ES.minIni === 1 ? 'iniciativa' : 'iniciativas'} hoy`, 'b:inimin:' + today(), { si: () => iniHechasHoy() >= ES.minIni, no: () => { I.minimo = false; } })) buzz([40, 60, 40]); }, 1200); }
-  if (h >= INI_BONO_N && !I.bonus) { I.bonus = true; setTimeout(() => xpGanar(50, '5 iniciativas en el día', 'b:ini5:' + today(), { si: () => iniHechasHoy() >= INI_BONO_N, no: () => { I.bonus = false; } }), 2400); }   // 2.22.0 (N)
-  if (I.items[4]?.hecho && !I.espBonus) { I.espBonus = true; const r = rachaEsp(); if (r && r % 7 === 0) setTimeout(() => xpGanar(40, `Espiritual ${r} días seguidos`, 'b:esp7:' + today(), { si: () => !!ini4Semana().items[4]?.hecho, no: () => { I.espBonus = false; } }), 3000); }
-  if (socialDiasSemana() >= ES.minSocial && !ES.socialBonus?.[lunes()]) { ES.socialBonus = { [lunes()]: true }; setTimeout(() => xpGanar(60, `Social ${ES.minSocial} días esta semana`, 'b:social:' + lunes(), { si: () => socialDiasSemana() >= ES.minSocial, no: () => { ES.socialBonus = {}; } }), 3600); }
+  if (h === 1 && !I.vuelta && Object.keys(ES.iniHist || {}).length && (ES.iniHist?.[ayerIni] || []).length < 1) { I.vuelta = true;   /* 2.21.9 (I) · tras un día sin ninguna */ (window.fbLuego || setTimeout)(() => xpGanar(15, 'Volviste a tomar la iniciativa', 'b:ini+:' + today(), { si: () => iniHechasHoy() >= 1, no: () => { I.vuelta = false; } }), 800); }
+  if (h >= ES.minIni && !I.minimo) { I.minimo = true; (window.fbLuego || setTimeout)(() => { if (xpGanar(40, `Bono: ${ES.minIni} ${ES.minIni === 1 ? 'iniciativa' : 'iniciativas'} hoy`, 'b:inimin:' + today(), { si: () => iniHechasHoy() >= ES.minIni, no: () => { I.minimo = false; } })) buzz([40, 60, 40]); }, 1200); }
+  if (h >= INI_BONO_N && !I.bonus) { I.bonus = true; (window.fbLuego || setTimeout)(() => xpGanar(50, '5 iniciativas en el día', 'b:ini5:' + today(), { si: () => iniHechasHoy() >= INI_BONO_N, no: () => { I.bonus = false; } }), 2400); }   // 2.22.0 (N)
+  if (I.items[4]?.hecho && !I.espBonus) { I.espBonus = true; const r = rachaEsp(); if (r && r % 7 === 0) (window.fbLuego || setTimeout)(() => xpGanar(40, `Espiritual ${r} días seguidos`, 'b:esp7:' + today(), { si: () => !!ini4Semana().items[4]?.hecho, no: () => { I.espBonus = false; } }), 3000); }
+  if (socialDiasSemana() >= ES.minSocial && !ES.socialBonus?.[lunes()]) { ES.socialBonus = { [lunes()]: true }; (window.fbLuego || setTimeout)(() => xpGanar(60, `Social ${ES.minSocial} días esta semana`, 'b:social:' + lunes(), { si: () => socialDiasSemana() >= ES.minSocial, no: () => { ES.socialBonus = {}; } }), 3600); }
 }
 // Catálogo de opciones por tipo: muchas ideas concretas, en formato acción, para elegir en un toque.
 const INI_CAT = {
@@ -6917,7 +7049,7 @@ function ini4Sheet(abrir = -1) {
   body.querySelector('[data-bw]')?.addEventListener('click', () => { leer(); guardar(); closeSheet(); irA('bienestar'); });
   body.querySelectorAll('[data-crear]').forEach(b => b.onclick = () => { leer(); guardar(); iniCrear(+b.dataset.crear); });
   body.querySelectorAll('[data-notion]').forEach(b => b.onclick = () => { leer(); guardar(); iniDesdeNotion(+b.dataset.notion); });
-  body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { leer(); const i = +b.dataset.done; iniMarcar(i, !I.items[i].hecho); iniCambio(); ini4Sheet(i); });
+  body.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { leer(); const i = +b.dataset.done, ya = !!I.items[i].hecho; iniMarcar(i, !ya); iniCambio(); ini4Sheet(i); if (!ya) fbHecho({ deshacer: () => { const y = ini4Semana().items[i]; if (!y || !y.hecho) return; iniMarcar(i, false); iniCambio(); try { if ($('#sheet-body')?.querySelector(`[data-done="${i}"]`)) ini4Sheet(i); } catch {} } }); });   // 2.22.1 (P)
   $('#i4-ok').onclick = () => { leer(); iniSucio = false; closeSheet(); iniCambio(); };   // 2.21.4 (I) · también la Agenda y el Inicio
   body.querySelectorAll('[data-btc-ini]').forEach(b => b.onclick = () => { leer(); guardar(); const x = I.items.find(y => y.k === b.dataset.btcIni); btcAbrir([{ tipo: 'ini', ref: b.dataset.btcIni, ...(x?.t ? { sub: x.t } : {}) }]); });   // 2.16 (C) · con su texto
 }
@@ -7384,7 +7516,7 @@ const iaTool = (name, description, props) => ({ name, description, strict: true,
   input_schema: { type: 'object', properties: props, required: Object.keys(props), additionalProperties: false } });
 const S = d => ({ type: 'string', description: d });
 const IA_TOOLS = [
-  iaTool('ver_estado', 'Devuelve el estado actual de la app: prioridades de hoy, hábitos y tareas pendientes, proyectos con su siguiente paso, personas a las que toca escribir, planes próximos, números de hoy y de la semana, iniciativa laboral y emociones más frecuentes ante el impulso de usar el teléfono.', {}),
+  iaTool('ver_estado', 'Devuelve el estado actual de la app: prioridades de hoy, hábitos y tareas pendientes, proyectos con su siguiente paso, personas a las que toca escribir, planes próximos, números de hoy y de la semana, iniciativa laboral, emociones más frecuentes ante el impulso de usar el teléfono y lo que la persona escribió en Reflexiones guiadas (propósito, ikigai, valores principales, última rueda de la vida).', {}),
   iaTool('gestionar_prioridad', 'Agrega, completa o quita una de las prioridades de hoy (sin límite, en el orden en que la persona las hará).', {
     accion: { type: 'string', enum: ['agregar', 'completar', 'quitar'] }, texto: S('Texto de la prioridad al agregar; vacío en otro caso.'), numero: { type: 'integer', description: 'Número de la prioridad (1, 2, 3…) al completar o quitar; al agregar, 0 la pone al final y otro número la pone en ese lugar.' } }),
   iaTool('crear_tarea', 'Crea una tarea en la lista de Tareas (se sincroniza con Google Tasks si está conectado).', {
@@ -7467,6 +7599,7 @@ function iaEstado() {
     iniciativas_hoy: { opcionales: true, hechas: iniHechasHoy(), racha_dias: rachaIni(), espiritual_hecha_hoy: espHoy(), espiritual_racha: rachaEsp(), social_dias_esta_semana: socialDiasSemana(), items: ini4Semana().items.map(x => ({ tipo: x.k, que: x.t, por_que: x.por, primer_paso: x.paso, hora: x.hora, hecha: x.hecho })) },
     emociones_frecuentes_ante_el_impulso: emociones().slice(0, 3).map(([k, v]) => `${k} (${v})`),
     ventanas_de_revision: ES.ventanas, google_calendar_conectado: gCalOk(), pizarras: ES.pizarras.map(b => b.nombre),
+    reflexiones: window.rfResumenIA?.() || null,   // 2.22.1 (R) · propósito, ikigai, valores principales y última rueda de la vida
     estudio: window.est?.resumenIA?.() || null,   // 2.14 (S) · rutas activas, bloques de hoy, pendientes, sin hacer y avisos
     agenda_hoy: window.agendaResumen(), objetivos: objetivosActivos().map(o => ({ id: o.id, que: o.t, metrica: o.metrica, avance: `${o.actual} de ${o.meta} ${o.unidad}`, fecha_limite: o.fecha, area: o.area })),
   };
@@ -8281,11 +8414,13 @@ function jrRefrescar(x, verOrden = false) {
   if (verOrden) q('#jr-orden-box').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function renderJournal() {
+  if (typeof rfVista !== 'undefined' && rfVista) return rfPintar(true);   // 2.22.1 (R) · Reflexiones guiadas, dentro de la pestaña
   if (jrEdit) { if (jrW.querySelector('#jr-txt')) { jrCapturar(); return jrRefrescar(jrEdit); } return jrEditor(jrEdit, false); }
   const c = ntCfg(), L = [...ES.diario].sort((a, b) => (b.d + b.h) < (a.d + a.h) ? -1 : 1), hoyL = L.filter(x => x.d === today() || (x.d === dayKey(addDays(new Date(), -1)) && (x.creado || '') === today()));
   const pend = L.filter(x => ntDiarioOk() && (!x.notion || jrPendiente(x)) && !jrEnviando.has(x.id)).length;
   jrW.innerHTML = `<p class="paso">Journaling</p><h2 style="margin-top:0">${esc(cap(djFecha(today())))}</h2>
     <button class="row" id="jr-new" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--text)"></span><span class="t"><div>Nueva entrada</div><small>${esc(jrPregHoy())}</small></span><span class="tag">›</span></button>
+    <button class="row" id="jr-rf" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Reflexiones guiadas</div><small>${esc(rfLinea())}</small></span><span class="tag">›</span></button>
     ${hoyL.map(x => `<button class="row" data-jr="${esc(x.id)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Seguir con la de ${x.d === today() ? 'hoy' : 'ayer'} · ${esc(jrTipo(x.tipo)[1])}</div><small>${esc(x.txt.split('\n')[0].slice(0, 70))}</small></span><span class="tag">›</span></button>`).join('')}
     <button class="row" id="jr-nt" style="border-bottom:1px solid var(--line)"><span class="dot" style="--c:${ntDiarioOk() ? 'var(--green)' : 'var(--empty)'}"></span><span class="t"><div>${ntDiarioOk() ? `Va directo a «${esc(c.diario.t)}»` : c.token ? 'Elige el destino en Notion' : 'Conectar Notion'}</div><small>${ntDiarioOk() ? `${c.diario.db ? 'Base de datos' : 'Página'} · cada entrada se envía al guardar${pend ? ` · ${pend} pendiente${pend === 1 ? '' : 's'}` : ''}` : 'Para que cada entrada llegue a tu Journaling sin copiar nada'}</small></span><span class="tag">${ntDiarioOk() ? 'Cambiar' : '›'}</span></button>
     ${pend ? `<p class="more"><button class="link" id="jr-reintentar">Enviar ${pend === 1 ? 'la pendiente' : 'las ' + pend + ' pendientes'}</button></p>` : ''}
@@ -8295,6 +8430,7 @@ function renderJournal() {
       <p class="more">${L.length} ${L.length === 1 ? 'entrada' : 'entradas'} · <button class="link" id="jr-sem">Enviar la última semana como entrada semanal</button></p>` : '<p class="empty">Aún no hay entradas. Dos minutos al final del día bastan: qué pasó, qué aprendiste, qué harías distinto.</p>'}
     <p class="sci" style="margin-top:18px">Escribir sobre lo vivido, sobre todo lo que pesa, mejora el ánimo y la salud con efectos pequeños pero consistentes (Pennebaker y Chung, 2011; Frattaroli, 2006). Lo que más rinde: nombrar lo aprendido y el siguiente paso.</p>`;
   jrW.querySelector('#jr-new').onclick = () => jrEditor(null);
+  jrW.querySelector('#jr-rf')?.addEventListener('click', () => rfAbrir());   // 2.22.1 (R)
   jrW.querySelector('#jr-nt').onclick = () => notionSheet('diario');
   jrW.querySelector('#jr-reintentar')?.addEventListener('click', async e => {
     e.target.disabled = true; const lista = L.filter(y => !y.notion || jrPendiente(y)); let ok = 0;
@@ -8346,6 +8482,451 @@ function jrEditor(x = null, enfocar = true) {
   q('#jr-del')?.addEventListener('click', () => { if (!confirm('¿Eliminar esta entrada de la app? En Notion se conserva.')) return; forget(x0.id); ES.diario = ES.diario.filter(e => e.id !== x0.id); guardar(); jrEdit = null; renderJournal(); });
   if (enfocar) setTimeout(() => q('#jr-txt')?.focus(), 50);
 }
+// ====================================================================
+// 2.22.1 (R) · Reflexiones guiadas. «Agreguemos nuevas cosas en apartados de reflexiones, como introspecciones naturales, propósitos,
+// ikigai, etc.» Viven en Journaling (fila «Reflexiones guiadas»; desde Bienestar → Mente, un enlace). Una pregunta por pantalla; todo es
+// opcional, se puede saltar y dejar a medias. Se guardan en ES.reflexiones (rfNorm / rfFusion). Nada se guarda al pintar.
+// ====================================================================
+var rfVista = null, rfDraft = null, rfPaso = 0, rfSucio = false, rfOtraN = 0, rfEraFin = false;
+const RF_PREGUNTAS = ['¿Qué te dio energía hoy?', '¿Qué te quitó energía hoy?', '¿Qué estás evitando y por qué?', '¿Qué te gustaría que fuera más simple?',
+  '¿Qué te hizo sonreír esta semana?', '¿Qué conversación te quedó dando vueltas?', '¿Qué hiciste bien hoy, aunque sea pequeño?', '¿Qué necesitas ahora mismo?',
+  '¿Qué harías hoy con el doble de calma?', '¿Qué te preocupa y qué parte depende de ti?', '¿Qué aprendiste de algo que salió mal?', '¿A quién te gustaría dar las gracias y por qué?',
+  '¿A qué dirías que sí si no tuvieras miedo?', '¿Qué quieres dejar de cargar?', '¿Qué momento de hoy quieres recordar?', '¿En qué momento te sentiste más tú?',
+  '¿Qué hábito te está ayudando más?', '¿Qué te gustaría hacer más seguido?', '¿Qué cosa pequeña cambiaría tu semana?', '¿Qué te dirías con el cariño que le tienes a un amigo?',
+  '¿Qué te está pidiendo tu cuerpo?', '¿Qué está funcionando bien ahora?', '¿Qué te gustaría que alguien supiera de ti?', '¿Qué decisión estás postergando?',
+  '¿Qué te hace perder la noción del tiempo?', '¿Qué esperas de mañana?', '¿Qué te enseñó alguien esta semana?', '¿Qué te gustaría soltar antes de dormir?',
+  '¿En qué pusiste tu atención hoy?', '¿Qué te da paz?'];
+const RF_VALORES = ['Familia', 'Fe', 'Salud', 'Honestidad', 'Libertad', 'Aprender', 'Amistad', 'Servir', 'Creatividad', 'Disciplina', 'Alegría', 'Justicia',
+  'Paz', 'Generosidad', 'Valentía', 'Humildad', 'Excelencia', 'Aventura', 'Estabilidad', 'Gratitud', 'Respeto', 'Amor'];
+// [clave, nombre, corto (en la rueda)]
+const RF_AREAS = [['salud', 'Salud', 'Salud'], ['trabajo', 'Trabajo o estudio', 'Trabajo'], ['dinero', 'Dinero', 'Dinero'], ['familia', 'Familia', 'Familia'],
+  ['amigos', 'Amistades', 'Amigos'], ['amor', 'Amor', 'Amor'], ['ocio', 'Descanso y ocio', 'Ocio'], ['fe', 'Fe y crecimiento', 'Fe']];
+const RF_IK = [['ama', 'Lo que amas', 'Amas'], ['bueno', 'En lo que eres bueno', 'Eres bueno'], ['necesita', 'Lo que el mundo necesita', 'El mundo necesita'], ['pagan', 'Por lo que te pueden pagar', 'Te pagan']];
+const RF_TIPOS = {
+  intro: { n: 'Introspección', d: 'Una pregunta abierta y una respuesta corta', pasos: [{ k: 'txt', tipo: 'intro' }] },
+  proposito: { n: 'Propósito', d: 'Tres preguntas y una frase: «Mi propósito es…»', pasos: [
+    { k: 'importa', q: '¿Qué te importa de verdad?', ayuda: 'Personas, causas, cosas que te mueven. Sin pensarlo mucho.' },
+    { k: 'servir', q: '¿A quién quieres servir?', ayuda: 'Una persona, un grupo, una comunidad.' },
+    { k: 'nadie', q: '¿Qué harías aunque nadie lo viera?', ayuda: 'Lo que harías sin aplausos y sin pago.' },
+    { k: 'frase', q: 'Tu propósito en una frase', ayuda: 'Junta lo anterior. Puedes cambiarla cuando quieras.', pre: 'Mi propósito es…', ph: 'acompañar a… a…', corto: true }] },
+  ikigai: { n: 'Ikigai', d: 'Lo que amas, en lo que eres bueno, lo que el mundo necesita y por lo que te pueden pagar', pasos: [
+    { k: 'ama', q: 'Lo que amas', ayuda: '¿Qué te gusta tanto que el tiempo se te pasa volando?', corto: true },
+    { k: 'bueno', q: 'En lo que eres bueno', ayuda: '¿En qué te piden ayuda? ¿Qué te sale con naturalidad?', corto: true },
+    { k: 'necesita', q: 'Lo que el mundo necesita', ayuda: '¿Qué problema te gustaría ayudar a resolver?', corto: true },
+    { k: 'pagan', q: 'Por lo que te pueden pagar', ayuda: '¿Qué de lo anterior alguien valoraría con dinero?', corto: true },
+    { k: 'frase', q: 'Tu ikigai en una frase', ayuda: 'Mira dónde se cruzan los cuatro círculos.', vista: 'ikigai', corto: true }] },
+  valores: { n: 'Valores', d: 'Elige hasta 5 y ordena tus 3 principales', pasos: [{ k: 'lista', tipo: 'elige' }, { k: 'top', tipo: 'orden' },
+    { k: 'semana', q: it => (it.r.top || [])[0] ? `¿Cómo viviste «${it.r.top[0]}» esta semana?` : '¿Cómo viviste tus valores esta semana?', ayuda: 'Una o dos líneas, sin juzgarte.', corto: true }] },
+  rueda: { n: 'Rueda de la vida', d: '8 áreas del 1 al 10 y un paso para la más baja', pasos: [{ k: 'v', tipo: 'rueda' }, { k: 'paso', tipo: 'paso' }] },
+  carta: { n: 'Carta a tu yo del futuro', d: 'Escríbela hoy y ábrela en la fecha que elijas', pasos: [
+    { k: 'txt', q: 'Escríbele a tu yo del futuro', ayuda: 'Cómo estás hoy, qué esperas, qué quieres recordarte.', largo: true }, { k: 'abrir', tipo: 'fecha' }] },
+  soltar: { n: 'Agradezco, aprendí, suelto', d: 'Tres líneas para cerrar la semana', pasos: [
+    { k: 'gracias', q: 'Lo que agradezco', ayuda: 'Algo concreto de estos días.', corto: true },
+    { k: 'aprendi', q: 'Lo que aprendí', ayuda: 'De algo que salió bien o de algo que no.', corto: true },
+    { k: 'suelto', q: 'Lo que suelto', ayuda: 'Algo que ya no te sirve: una preocupación, una exigencia, un enojo.', corto: true }] },
+  premortem: { n: 'Pre-mortem de una meta', d: 'Imagina que no salió y descubre por qué, antes de que pase', pasos: [{ k: 'meta', tipo: 'meta' },
+    { k: 'que', q: 'Imagina que pasó un año y la meta no salió. ¿Qué pasó?', ayuda: 'Escribe las razones más probables.' },
+    { k: 'senales', q: '¿Qué señales verías antes?', ayuda: 'Lo que te avisaría a tiempo.', corto: true },
+    { k: 'evitar', q: '¿Qué harás para evitarlo?', ayuda: 'Una o dos cosas concretas.', corto: true }] },
+};
+const RF_ORDEN = ['intro', 'proposito', 'ikigai', 'valores', 'rueda', 'carta', 'soltar', 'premortem'];
+const rfL = () => Array.isArray(ES.reflexiones) ? ES.reflexiones : [];
+const rfDe = id => rfL().find(x => x && x.id === id) || null;
+const rfBorrada = id => (HT().borrados || []).includes(id);
+const rfTxt = v => typeof v === 'string' ? v.trim() : '';
+const rfLarga = d => d ? new Date(d + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+const rfCorta = d => !d ? '' : d === today() ? 'Hoy' : d === dayKey(addDays(new Date(), -1)) ? 'Ayer' : new Date(d + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'short' });
+const rfMas = m => { const d = new Date(), dia = d.getDate(); d.setHours(12, 0, 0, 0); d.setDate(1); d.setMonth(d.getMonth() + m); d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return dayKey(d); };
+const rfPregHoy = () => { const d = new Date(), n = Math.floor((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(d.getFullYear(), 0, 1)) / 864e5); return RF_PREGUNTAS[(n + rfOtraN) % RF_PREGUNTAS.length]; };
+const rfSellada = it => it.tipo === 'carta' && it.fin && !!it.abrir && it.abrir > today() && !it.abierta;
+const rfParaAbrir = it => it.tipo === 'carta' && it.fin && !!it.abrir && it.abrir <= today() && !it.abierta;
+function rfTieneAlgo(it) {
+  return Object.entries(it.r || {}).some(([k, v]) => k !== 'q' && (typeof v === 'string' ? !!v.trim() : Array.isArray(v) ? v.length > 0 : v && typeof v === 'object' ? Object.keys(v).length > 0 : false));
+}
+const rfPropTxt = f => { f = rfTxt(f).replace(/^mi prop[oó]sito es\s*/i, '').replace(/^…\s*/, ''); return f; };
+function rfUltimo(tipo, ok) { return rfL().filter(x => x && x.tipo === tipo && ok(x)).sort((a, b) => (b.mod || 0) - (a.mod || 0))[0] || null; }
+const rfPropActual = () => { const x = rfUltimo('proposito', y => !!rfPropTxt(y.r.frase)); return x ? rfPropTxt(x.r.frase) : ''; };
+const rfMetas = () => (Array.isArray(ES.metas) ? ES.metas : []).filter(m => m && m.id && !m.hecho && !m.archivada);
+function rfRuedaPrev(it) { return rfL().filter(x => x && x.tipo === 'rueda' && x.fin && x.id !== it.id && (x.creado || 0) < (it.creado || Date.now()) && x.r.v && Object.keys(x.r.v).length).sort((a, b) => (b.creado || 0) - (a.creado || 0))[0] || null; }
+function rfBaja(v) { let b = null; for (const [k, n] of RF_AREAS) { const x = +v?.[k] || 0; if (x && (!b || x < b.v)) b = { k, n, v: x }; } return b; }
+function rfTitulo(it) {
+  const T = RF_TIPOS[it.tipo], r = it.r || {};
+  if (it.tipo === 'proposito' && rfPropTxt(r.frase)) return 'Mi propósito es ' + rfPropTxt(r.frase);
+  if (it.tipo === 'ikigai' && rfTxt(r.frase)) return rfTxt(r.frase);
+  if (it.tipo === 'intro' && rfTxt(r.q)) return rfTxt(r.q);
+  if (it.tipo === 'valores' && (r.top || r.lista || []).length) return (r.top?.length ? r.top : r.lista).join(' · ');
+  if (it.tipo === 'premortem' && rfTxt(r.metaT)) return 'Pre-mortem: ' + rfTxt(r.metaT);
+  return T ? T.n : 'Reflexión';
+}
+function rfSub(it) {
+  const T = RF_TIPOS[it.tipo], r = it.r || {}, b = [T ? T.n : 'Reflexión', rfCorta(it.d)];
+  if (!it.fin) b.push('a medias');
+  if (rfSellada(it)) b.push('se abre el ' + rfLarga(it.abrir));
+  else if (rfParaAbrir(it)) b.push('lista para abrir');
+  else if (it.tipo === 'rueda') { const x = rfBaja(r.v); if (x) b.push(`más baja: ${x.n} (${x.v})`); }
+  else { const t = rfTxt(it.tipo === 'intro' ? r.txt : it.tipo === 'carta' ? r.txt : it.tipo === 'soltar' ? r.gracias : it.tipo === 'premortem' ? r.que : ''); if (t) b.push(t.split('\n')[0].slice(0, 60)); }
+  return b.join(' · ');
+}
+const rfCartasHoy = () => rfL().filter(rfParaAbrir).length;
+window.rfCartasHoy = rfCartasHoy;
+function rfLinea() { const n = rfCartasHoy(); return n ? 'Hoy se abre una carta que te escribiste' : 'Introspección, propósito, ikigai, valores y más'; }
+// Lo que ve el asistente (ver_estado) y la línea de Identidad.
+window.rfResumenIA = () => {
+  const ik = rfUltimo('ikigai', x => !!rfTxt(x.r.frase)), va = rfUltimo('valores', x => (x.r.top || []).length > 0 || (x.r.lista || []).length > 0), rd = rfUltimo('rueda', x => x.fin && !!x.r.v);
+  return { proposito: rfPropActual() ? 'Mi propósito es ' + rfPropActual() : '', ikigai: ik ? rfTxt(ik.r.frase) : '', valores_principales: va ? (va.r.top?.length ? va.r.top : va.r.lista) : [],
+    rueda_de_la_vida: rd ? { fecha: rd.d, ...Object.fromEntries(RF_AREAS.map(([k, n]) => [n, +rd.r.v[k] || null])) } : null, reflexiones_guardadas: rfL().length };
+};
+window.rfPropositoHtml = () => { const p = rfPropActual(); return p ? `<p class="note" id="idn-prop"><b>Tu propósito:</b> ${esc(p)}</p>` : ''; };
+window.rfAbrir = () => rfAbrir();
+function rfAbrir() { rfVista = { p: 'lista' }; if (view !== 'journal') irA('journal'); else rfPintar(); try { window.scrollTo({ top: 0 }); } catch {} }
+function rfPintar(desdeFuera = false) {
+  if (!rfVista) return renderJournal();
+  if (rfVista.p === 'flujo' && rfDraft) { if (desdeFuera && jrW.querySelector('#rf-flujo')) return; return rfPintarPaso(); }
+  if (rfVista.p === 'ver' && rfDe(rfVista.id)) return rfVer(rfVista.id);
+  rfVista = { p: 'lista' }; return rfLista();
+}
+// ---------- SVG: los cuatro círculos del ikigai con tus palabras, y la rueda de la vida (con la anterior, punteada).
+function rfLineas(t, n, max = 2) {
+  const w = rfTxt(t).replace(/\s+/g, ' ').split(' ').filter(Boolean), out = [];
+  let cur = '';
+  for (const p of w) { if (!cur) cur = p; else if ((cur + ' ' + p).length <= n) cur += ' ' + p; else { out.push(cur); cur = p; } if (out.length === max) break; }
+  if (cur && out.length < max) out.push(cur);
+  const usado = out.join(' ').length;
+  return out.map((l, i) => { l = l.length > n ? l.slice(0, n - 1) + '…' : l; return i === out.length - 1 && usado < rfTxt(t).replace(/\s+/g, ' ').length && !l.endsWith('…') ? (l.length >= n ? l.slice(0, n - 1) : l) + '…' : l; });
+}
+function rfIkigaiSvg(r) {
+  const C = [[180, 108, 180, 36, 14], [112, 168, 72, 146, 10], [248, 168, 288, 146, 10], [180, 228, 180, 268, 12]];
+  const desc = RF_IK.map(([k, n]) => `${n}: ${rfTxt(r[k]) || 'sin responder'}`).join('. ') + (rfTxt(r.frase) ? `. Tu ikigai: ${rfTxt(r.frase)}` : '');
+  return `<svg class="rf-svg rf-ik-svg" viewBox="16 14 328 306" role="img" aria-labelledby="rf-ik-t rf-ik-d"><title id="rf-ik-t">Tu ikigai: cuatro círculos que se cruzan</title><desc id="rf-ik-d">${esc(desc)}</desc>
+    ${C.map(([cx, cy], i) => `<circle class="rf-ik rf-ik${i}" cx="${cx}" cy="${cy}" r="88"/>`).join('')}
+    ${C.map(([, , x, y, n], i) => { const [k, , corto] = RF_IK[i], L = rfLineas(r[k], n); return `<text class="rf-k" x="${x}" y="${y}" text-anchor="middle">${esc(corto)}</text>${L.map((l, j) => `<text class="rf-w" x="${x}" y="${y + 16 + j * 16}" text-anchor="middle">${esc(l)}</text>`).join('')}`; }).join('')}
+    <text class="rf-c" x="180" y="172" text-anchor="middle">Ikigai</text></svg>`;
+}
+function rfRuedaSvg(v, prev) {
+  const cx = 170, cy = 160, R = 100, n = RF_AREAS.length, ang = i => -Math.PI / 2 + i * 2 * Math.PI / n;
+  const pt = (i, x) => [cx + Math.cos(ang(i)) * R * x / 10, cy + Math.sin(ang(i)) * R * x / 10].map(z => Math.round(z * 10) / 10);
+  const pol = f => RF_AREAS.map(([k], i) => pt(i, Math.max(0, Math.min(10, +f(k) || 0))).join(',')).join(' ');
+  const desc = RF_AREAS.map(([k, nom]) => `${nom}: ${+v?.[k] || 0} de 10${prev ? ` (antes ${+prev[k] || 0})` : ''}`).join('. ');
+  return `<svg class="rf-svg rf-rd-svg" viewBox="-4 0 360 320" role="img" aria-labelledby="rf-rd-t rf-rd-d"><title id="rf-rd-t">Tu rueda de la vida${prev ? ', comparada con la anterior' : ''}</title><desc id="rf-rd-d">${esc(desc)}</desc>
+    ${[2, 4, 6, 8, 10].map(x => `<polygon class="rf-grid" points="${pol(() => x)}"/>`).join('')}
+    ${RF_AREAS.map((_, i) => `<line class="rf-grid" x1="${cx}" y1="${cy}" x2="${pt(i, 10)[0]}" y2="${pt(i, 10)[1]}"/>`).join('')}
+    ${prev ? `<polygon class="rf-prev" points="${pol(k => prev[k])}"/>` : ''}
+    <polygon class="rf-cur" points="${pol(k => v?.[k])}"/>
+    ${RF_AREAS.map(([k], i) => { const [x, y] = pt(i, +v?.[k] || 0); return `<circle class="rf-pt" cx="${x}" cy="${y}" r="3.5"/>`; }).join('')}
+    ${RF_AREAS.map(([k, , corto], i) => { const c = Math.cos(ang(i)), s = Math.sin(ang(i)), x = Math.round(cx + c * (R + 16)), y = Math.round(cy + s * (R + 16) + (s > 0.3 ? 10 : s < -0.3 ? -2 : 4));
+      return `<text class="rf-w" x="${x}" y="${y}" text-anchor="${c > 0.3 ? 'start' : c < -0.3 ? 'end' : 'middle'}">${esc(corto)} <tspan class="rf-n">${+v?.[k] || 0}</tspan></text>`; }).join('')}</svg>`;
+}
+function rfCompararHtml(v, prev) {
+  if (!prev) return '<p class="meta">Es tu primera rueda. La próxima vez verás aquí la comparación.</p>';
+  const cambios = RF_AREAS.map(([k, n]) => [n, +prev.r.v[k] || 0, +v?.[k] || 0]).filter(([, a, b]) => a !== b);
+  return `<p class="meta rf-cmp-k">Comparada con la del ${esc(rfLarga(prev.d))} (punteada):</p>${cambios.length ? `<ul class="rf-cmp">${cambios.map(([n, a, b]) => `<li>${esc(n)}: ${a} → ${b} (${b > a ? '+' : ''}${b - a})</li>`).join('')}</ul>` : '<p class="meta">Igual que la última vez.</p>'}`;
+}
+// ---------- La lista
+function rfItHtml(it) {
+  const id = esc(it.id), t = esc(rfTitulo(it)), sell = rfSellada(it) || rfParaAbrir(it);
+  return `<div class="rf-it" data-id="${id}"><button class="rf-it-t" data-rf-ver="${id}"><b>${t}</b><small>${esc(rfSub(it))}</small></button>
+    <div class="rf-acc"><button class="link rf-l" data-rf-ver="${id}" aria-label="Ver: ${t}">Ver</button>${sell ? '' : `<button class="link rf-l" data-rf-ed="${id}" aria-label="Editar: ${t}">Editar</button>`}<button class="link rf-l" data-rf-del="${id}" aria-label="Borrar: ${t}">Borrar</button></div></div>`;
+}
+function rfLista() {
+  rfVista = { p: 'lista' }; rfDraft = null;
+  const L = [...rfL()].filter(x => x && RF_TIPOS[x.tipo]).sort((a, b) => (b.creado || 0) - (a.creado || 0) || (b.mod || 0) - (a.mod || 0));
+  const abrir = L.filter(rfParaAbrir), prop = rfUltimo('proposito', y => !!rfPropTxt(y.r.frase)), ik = rfUltimo('ikigai', x => !!rfTxt(x.r.frase)),
+    va = rfUltimo('valores', x => (x.r.top || []).length > 0 || (x.r.lista || []).length > 0), rd = rfUltimo('rueda', x => x.fin && !!x.r.v);
+  const tu = (x, k, txt) => x ? `<button class="rf-tu" data-rf-ver="${esc(x.id)}"><small>${k}</small><span>${esc(txt)}</span></button>` : '';
+  const baja = rd ? rfBaja(rd.r.v) : null;
+  jrW.innerHTML = `<div class="rf" id="rf-lista">
+    <p class="meta" style="margin:0"><button class="link rf-l" id="rf-jr">‹ Journaling</button></p>
+    <p class="paso">Reflexiones guiadas</p><h2 style="margin-top:0">Reflexiones</h2>
+    <p class="note">Preguntas cortas para conocerte mejor. Responde las que quieras y deja a medias lo que necesites.</p>
+    ${abrir.map(it => `<div class="rf-card rf-carta-hoy"><p class="k">Hoy se abre una carta</p><b>La escribiste el ${esc(rfLarga(it.d))}</b><div class="rf-card-b"><button class="primary rf-b" data-rf-abrir="${esc(it.id)}">Abrir la carta</button></div></div>`).join('')}
+    <div class="rf-card rf-hoy"><p class="k">Pregunta de hoy</p><b id="rf-preg">${esc(rfPregHoy())}</b><div class="rf-card-b"><button class="primary rf-b" id="rf-resp">Responder</button><button class="link rf-l" id="rf-otra-l">Otra pregunta</button></div></div>
+    ${prop || ik || va || rd ? `<h3>Lo tuyo</h3><div class="rf-tuyo">${tu(prop, 'Tu propósito', prop ? 'Mi propósito es ' + rfPropTxt(prop.r.frase) : '')}${tu(ik, 'Tu ikigai', ik ? rfTxt(ik.r.frase) : '')}${tu(va, va?.r.top?.length ? 'Tus 3 valores principales' : 'Tus valores', va ? (va.r.top?.length ? va.r.top.map((v, i) => `${i + 1}. ${v}`).join('  ') : va.r.lista.join(' · ')) : '')}${tu(rd, 'Tu rueda de la vida', rd ? `${rfLarga(rd.d)}${baja ? ` · más baja: ${baja.n} (${baja.v})` : ''}` : '')}</div>` : ''}
+    <h3>Elige una</h3>
+    <div class="rows">${RF_ORDEN.map(k => `<button class="row rf-tipo" data-rf-nuevo="${k}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc(RF_TIPOS[k].n)}</div><small>${esc(RF_TIPOS[k].d)}</small></span><span class="tag">›</span></button>`).join('')}
+      <button class="row rf-tipo" id="rf-mejor"><span class="dot" style="--c:var(--empty)"></span><span class="t"><div>Mi mejor yo posible</div><small>Está en Bienestar: 5 minutos escribiendo tu vida en un año si todo sale bien</small></span><span class="tag">›</span></button></div>
+    <h3>Tus reflexiones</h3>
+    ${L.length ? `<div class="rf-lst">${L.map(rfItHtml).join('')}</div><p class="more">${L.length} ${L.length === 1 ? 'reflexión' : 'reflexiones'}</p>` : '<p class="empty">Aún no hay reflexiones guardadas. Puedes empezar por la pregunta de hoy.</p>'}
+  </div>`;
+  const q = s => jrW.querySelector(s);
+  q('#rf-jr').onclick = () => { rfVista = null; rfDraft = null; renderJournal(); };
+  q('#rf-resp').onclick = () => rfEmpezar('intro');
+  q('#rf-otra-l').onclick = () => { rfOtraN++; q('#rf-preg').textContent = rfPregHoy(); };
+  q('#rf-mejor').onclick = () => { if (!window.practicaIniciar?.('mejor_yo')) irA('bienestar'); };
+  jrW.querySelectorAll('[data-rf-nuevo]').forEach(b => b.onclick = () => rfEmpezar(b.dataset.rfNuevo));
+  jrW.querySelectorAll('[data-rf-ver]').forEach(b => b.onclick = () => { rfVista = { p: 'ver', id: b.dataset.rfVer }; rfPintar(); try { window.scrollTo({ top: 0 }); } catch {} });
+  jrW.querySelectorAll('[data-rf-ed]').forEach(b => b.onclick = () => { const it = rfDe(b.dataset.rfEd); if (it) rfEmpezar(it.tipo, it.id); });
+  jrW.querySelectorAll('[data-rf-del]').forEach(b => b.onclick = () => rfBorrar(b.dataset.rfDel));
+  jrW.querySelectorAll('[data-rf-abrir]').forEach(b => b.onclick = () => rfAbrirCarta(b.dataset.rfAbrir));
+}
+// ---------- Ver una
+function rfRespHtml(it) {
+  const T = RF_TIPOS[it.tipo], r = it.r || {}, sin = '<span class="meta">Sin responder</span>';
+  const bloque = (q, a) => `<div class="rf-r"><p class="rf-r-q">${esc(q)}</p><p class="rf-r-a">${rfTxt(a) ? esc(rfTxt(a)) : sin}</p></div>`;
+  if (it.tipo === 'ikigai') return `${rfIkigaiSvg(r)}<div class="rf-ley">${RF_IK.map(([k, n], i) => `<div><span class="rf-dot rf-ik${i}"></span><b>${esc(n)}</b><span>${rfTxt(r[k]) ? esc(rfTxt(r[k])) : sin}</span></div>`).join('')}</div>${bloque('Tu ikigai en una frase', r.frase)}`;
+  if (it.tipo === 'rueda') { const prev = rfRuedaPrev(it), b = r.baja ? RF_AREAS.find(a => a[0] === r.baja) : null, t = it.tarea && (HT().tareas?.items || []).find(x => x.id === it.tarea);
+    return `${rfRuedaSvg(r.v, prev?.r.v)}${rfCompararHtml(r.v, prev)}${bloque(`Un paso para ${b ? b[1] : 'el área más baja'}`, r.paso)}${t ? `<p class="meta">Tarea creada: «${esc(t.titulo)}»${t.hecha ? ' · hecha' : ''}</p>` : rfTxt(r.paso) ? '<p><button class="outline rf-b" id="rf-tarea-v">Crear tarea con este paso</button></p>' : ''}`; }
+  if (it.tipo === 'valores') return `<div class="rf-r"><p class="rf-r-q">Tus valores</p><p class="rf-r-a">${(r.lista || []).length ? esc(r.lista.join(' · ')) : sin}</p></div>
+    <div class="rf-r"><p class="rf-r-q">Tus 3 principales</p>${(r.top || []).length ? `<ol class="rf-top">${r.top.map(v => `<li>${esc(v)}</li>`).join('')}</ol>` : `<p class="rf-r-a">${sin}</p>`}</div>${bloque(T.pasos[2].q(it), r.semana)}`;
+  if (it.tipo === 'intro') return bloque(r.q || 'Pregunta', r.txt);
+  if (it.tipo === 'carta') return `<div class="rf-r"><p class="rf-r-q">Escrita el ${esc(rfLarga(it.d))}${it.abrir ? ` para abrir el ${esc(rfLarga(it.abrir))}` : ''}</p><p class="rf-r-a">${rfTxt(r.txt) ? esc(rfTxt(r.txt)) : sin}</p></div>`;
+  return (it.tipo === 'premortem' ? bloque('La meta', r.metaT) : '') + T.pasos.filter(p => !p.tipo).map(p => bloque(typeof p.q === 'function' ? p.q(it) : p.q, r[p.k])).join('');
+}
+function rfVer(id) {
+  const it = rfDe(id), T = it && RF_TIPOS[it.tipo]; if (!T) { rfVista = { p: 'lista' }; return rfLista(); }
+  rfVista = { p: 'ver', id }; rfDraft = null;
+  const sell = rfSellada(it), pend = rfParaAbrir(it), meta = it.tipo === 'premortem' && it.r.meta ? rfMetas().find(m => m.id === it.r.meta) : null;
+  const cuerpo = sell ? `<p class="note rf-sellada">Sellada hasta el ${esc(rfLarga(it.abrir))}. Ese día la verás aquí, lista para abrir.</p>`
+    : pend ? `<p class="note">Hoy es el día. La escribiste el ${esc(rfLarga(it.d))}.</p><p><button class="primary rf-b" data-rf-abrir="${esc(it.id)}">Abrir la carta</button></p>` : rfRespHtml(it);
+  jrW.innerHTML = `<div class="rf" id="rf-ver">
+    <p class="meta" style="margin:0"><button class="link rf-l" id="rf-volver">‹ Reflexiones</button></p>
+    <p class="paso">${esc(T.n)} · ${esc(rfLarga(it.d))}${it.fin ? '' : ' · a medias'}</p>
+    <h2 class="rf-q">${esc(rfTitulo(it))}</h2>
+    ${cuerpo}
+    <div class="actions stack rf-ver-acc">
+      ${sell || pend ? '' : `<button class="primary rf-b" id="rf-ed">${it.fin ? 'Editar' : 'Seguir'}</button>`}
+      ${meta ? '<button class="outline rf-b" id="rf-meta">Abrir la meta</button>' : ''}
+      ${sell || pend ? '' : `<button class="outline rf-b" id="rf-nt">${ntDiarioOk() ? (it.jr ? 'Actualizar en Notion' : 'Enviar a Notion') : (it.jr && ES.diario.some(e => e.id === it.jr) ? 'Actualizar en Journaling' : 'Pasar a Journaling')}</button>`}
+      <button class="link rf-l" id="rf-del">Borrar</button></div>
+  </div>`;
+  const q = s => jrW.querySelector(s);
+  q('#rf-volver').onclick = () => { rfVista = { p: 'lista' }; rfPintar(); };
+  q('#rf-ed')?.addEventListener('click', () => rfEmpezar(it.tipo, it.id));
+  q('#rf-nt')?.addEventListener('click', e => rfAJournal(it.id, e.currentTarget));
+  q('#rf-meta')?.addEventListener('click', () => { irA('metas'); if (typeof mtFicha === 'function') setTimeout(() => mtFicha(meta.id), 120); });
+  q('#rf-del').onclick = () => rfBorrar(it.id);
+  q('[data-rf-abrir]')?.addEventListener('click', () => rfAbrirCarta(it.id));
+  q('#rf-tarea-v')?.addEventListener('click', async () => { const x = rfDe(id); if (!x) return; if (await rfCrearTarea(x)) { x.mod = Date.now(); guardar(); rfVer(id); } });
+}
+function rfAbrirCarta(id) {
+  const it = rfDe(id); if (!it) return;
+  if (!it.abierta) { it.abierta = Date.now(); it.mod = Date.now(); guardar(); }
+  rfVista = { p: 'ver', id }; rfPintar(); try { window.scrollTo({ top: 0 }); } catch {}
+}
+function rfBorrar(id) {
+  const it = rfDe(id); if (!it) return;
+  if (!confirm('¿Borrar esta reflexión? No se puede recuperar.')) return;
+  forget(id); ES.reflexiones = rfL().filter(x => x.id !== id);
+  // El XP del día (+10) se va con ella si fue la que lo dio; si hoy terminaste otra, pasa a esa.
+  if (it.xp === today()) { const otra = rfL().find(x => x.fin && x.finD === today()); if (otra) { if (otra.xp !== today()) { otra.xp = today(); otra.mod = Date.now(); } } else if (typeof xpQuitar === 'function') xpQuitar('rf:' + today()); }
+  guardar(); toast('Reflexión borrada.');
+  rfVista = { p: 'lista' }; rfPintar();
+}
+async function rfCrearTarea(obj) {
+  const paso = rfTxt(obj.r?.paso); if (!paso) { toast('Escribe el paso primero.'); return false; }
+  if (obj.tarea && (HT().tareas?.items || []).some(x => x.id === obj.tarea)) { toast('Ya está en tus tareas.'); return false; }
+  try {
+    const r = await iaEjecutar('crear_tarea', { titulo: paso.slice(0, 200), fecha: today() });
+    const x = [...(HT().tareas?.items || [])].reverse().find(t => t.titulo === paso.slice(0, 200));
+    if (x) obj.tarea = x.id;
+    toast(`Listo: «${paso.slice(0, 40)}» está en tus tareas de hoy (${r?.lista || 'Tareas'}).`);
+    return true;
+  } catch (e) { toast(e.message || 'No se pudo crear la tarea.'); return false; }
+}
+// Enviar a Notion: una entrada «Reflexión» del Journaling (la misma si ya se envió) y el envío de siempre.
+function rfComoTexto(it) {
+  const T = RF_TIPOS[it.tipo], r = it.r || {}, out = [], par = (q, a) => { if (rfTxt(a)) out.push(`${q}\n${rfTxt(a)}`); };
+  if (it.tipo === 'valores') { if ((r.lista || []).length) out.push(`Mis valores\n${r.lista.join(', ')}`); if ((r.top || []).length) out.push(`Mis 3 principales\n${r.top.map((v, i) => `${i + 1}. ${v}`).join('\n')}`); par(T.pasos[2].q(it), r.semana); }
+  else if (it.tipo === 'rueda') { out.push('Rueda de la vida\n' + RF_AREAS.map(([k, n]) => `- ${n}: ${+r.v?.[k] || 0}/10`).join('\n')); const b = RF_AREAS.find(a => a[0] === r.baja); par(`Un paso para ${b ? b[1] : 'el área más baja'}`, r.paso); }
+  else if (it.tipo === 'intro') par(r.q || 'Pregunta', r.txt);
+  else { if (it.tipo === 'premortem') par('La meta', r.metaT); for (const p of T.pasos) if (!p.tipo) par(typeof p.q === 'function' ? p.q(it) : p.q, r[p.k]); }
+  return out.join('\n\n');
+}
+async function rfAJournal(id, btn) {
+  const it = rfDe(id); if (!it) return;
+  const txt = rfComoTexto(it); if (!txt.trim()) return toast('Aún no hay respuestas para enviar.');
+  let x = it.jr && !rfBorrada(it.jr) ? ES.diario.find(e => e.id === it.jr) : null;
+  if (x) { x.txt = txt; x.cambiado = Date.now(); }
+  else { x = { id: crypto.randomUUID(), d: today(), creado: today(), h: hhmm(new Date()), preg: 'Reflexión guiada: ' + RF_TIPOS[it.tipo].n, txt, animo: 0, tipo: 'reflexion', cambiado: Date.now() }; ES.diario.push(x); it.jr = x.id; it.mod = Date.now(); }
+  guardar();
+  if (ntDiarioOk()) { if (btn) btn.disabled = true; await jrEnviar(x); if (btn) btn.disabled = false; }
+  else toast('Está en tu Journaling como «Reflexión». Desde allí la envías a Notion cuando conectes.');
+  if (rfVista?.p === 'ver' && rfVista.id === id && view === 'journal') rfVer(id);
+}
+// ---------- Un ejercicio, paso a paso
+// Salir del ejercicio («‹ Reflexiones» o Atrás en el primer paso): se guarda a medias solo si cambiaste algo (abrir y volver no crea nada).
+function rfSoltar() {
+  if (rfDraft && rfSucio) { const g = rfGuardarDraft(false); if (g) toast(g.x.fin ? 'Guardada.' : 'Guardada a medias. Sigue cuando quieras.'); }
+  rfDraft = null; rfVista = { p: 'lista' }; rfPintar(); try { window.scrollTo({ top: 0 }); } catch {}
+}
+// El Atrás del sistema dentro de Reflexiones: un paso atrás en el ejercicio, de Ver a la lista y de la lista a Journaling.
+window.rfAtras = () => {
+  if (!rfVista || view !== 'journal') return false;
+  if (rfVista.p === 'flujo' && rfDraft) { if (rfPaso > 0) { rfPaso--; rfPintarPaso(); try { window.scrollTo({ top: 0 }); } catch {} } else rfSoltar(); return true; }
+  if (rfVista.p === 'ver') { rfVista = { p: 'lista' }; rfPintar(); return true; }
+  rfVista = null; rfDraft = null; renderJournal(); return true;
+};
+// Al dejar la pestaña Journaling: lo que estabas escribiendo se guarda a medias (si cambiaste algo) y la pestaña vuelve a abrir Journaling.
+window.rfSalir = () => {
+  if (rfVista?.p === 'flujo' && rfDraft && rfSucio) { const g = rfGuardarDraft(false); if (g) toast(g.x.fin ? 'Reflexión guardada.' : 'Reflexión guardada a medias. Sigue cuando quieras.'); }
+  rfVista = null; rfDraft = null;
+};
+function rfEmpezar(tipo, id = '') {
+  const base = id ? rfDe(id) : null; if (!RF_TIPOS[tipo]) return;
+  rfDraft = base ? JSON.parse(JSON.stringify(base)) : { id: crypto.randomUUID(), tipo, d: today(), creado: Date.now(), mod: 0, fin: false, r: {} };
+  rfDraft.r ||= {}; rfEraFin = !!base?.fin;
+  if (tipo === 'intro' && !rfDraft.r.q) rfDraft.r.q = rfPregHoy();
+  if (tipo === 'rueda' && !(rfDraft.r.v && Object.keys(rfDraft.r.v).length)) { const pv = rfRuedaPrev(rfDraft)?.r.v || {}; rfDraft.r.v = Object.fromEntries(RF_AREAS.map(([k]) => [k, +pv[k] || 5])); }
+  rfPaso = 0; rfSucio = false; rfVista = { p: 'flujo' };
+  if (view !== 'journal') irA('journal'); else rfPintarPaso();
+  try { window.scrollTo({ top: 0 }); } catch {}
+}
+function rfGuardarDraft(fin) {
+  if (!rfDraft) return null;
+  if (rfBorrada(rfDraft.id)) { toast('Esta reflexión se borró en otro teléfono.'); rfDraft = null; rfVista = { p: 'lista' }; rfPintar(); return null; }
+  if (!rfTieneAlgo(rfDraft)) return null;
+  if (!Array.isArray(ES.reflexiones)) ES.reflexiones = [];
+  const L = ES.reflexiones, i = L.findIndex(y => y && y.id === rfDraft.id), x = JSON.parse(JSON.stringify(rfDraft));
+  const cur = i >= 0 ? L[i] : null; for (const k of ['abierta', 'jr', 'tarea']) if (cur?.[k] && !x[k]) x[k] = cur[k];   // lo que otro teléfono enlazó mientras editabas
+  x.mod = Date.now(); x.fin = !!(fin || x.fin || cur?.fin);
+  if (x.tipo === 'carta' && x.fin && !x.abrir) x.abrir = rfMas(3);
+  let gano = false;
+  if (x.fin && !rfEraFin && !(cur && cur.fin)) { x.finD = today(); if (xpGanar(10, 'Reflexión guiada', 'rf:' + today())) { x.xp = today(); gano = true; } }
+  if (i >= 0) L[i] = x; else L.push(x);
+  rfDraft = JSON.parse(JSON.stringify(x)); rfSucio = false; rfEraFin = x.fin;
+  guardar();
+  return { x, gano };
+}
+function rfPasoHtml(it, p) {
+  const r = it.r, val = typeof r[p.k] === 'string' ? r[p.k] : '';
+  const q = typeof p.q === 'function' ? p.q(it) : p.q;
+  const txt = (pre = '') => `<h2 class="rf-q" id="rf-q">${esc(q)}</h2>${p.ayuda ? `<p class="meta rf-ayuda">${esc(p.ayuda)}</p>` : ''}${pre}
+    ${p.pre ? `<label class="rf-pre" for="rf-in">${esc(p.pre)}</label>` : ''}<textarea id="rf-in" class="rf-ta${p.corto ? ' corto' : p.largo ? ' largo' : ''}" ${p.pre ? '' : 'aria-labelledby="rf-q"'} placeholder="${esc(p.ph || 'Escribe con tus palabras')}">${esc(val)}</textarea>`;
+  switch (p.tipo) {
+    case 'intro': return `<h2 class="rf-q" id="rf-q">${esc(r.q || rfPregHoy())}</h2><p class="meta rf-ayuda">Lo primero que te venga. Una línea basta.</p><p style="margin:0"><button class="link rf-l" id="rf-otra">Otra pregunta</button></p>
+      <textarea id="rf-in" class="rf-ta" aria-labelledby="rf-q" placeholder="Escribe con tus palabras">${esc(typeof r.txt === 'string' ? r.txt : '')}</textarea>`;
+    case 'elige': { const lista = r.lista || [], todos = [...RF_VALORES, ...lista.filter(v => !RF_VALORES.includes(v))];
+      return `<h2 class="rf-q" id="rf-q">Elige hasta 5 valores</h2><p class="meta rf-ayuda" id="rf-cuenta">Los que más te representan. Llevas ${lista.length} de 5.</p>
+        <div class="chips rf-chips" id="rf-vals" role="group" aria-labelledby="rf-q">${todos.map(v => `<button class="chip${lista.includes(v) ? ' on' : ''}" data-val="${esc(v)}" aria-pressed="${lista.includes(v)}">${esc(v)}</button>`).join('')}</div>
+        <div class="rf-propio"><input id="rf-val-in" maxlength="30" placeholder="Otro valor" aria-label="Otro valor"><button class="outline rf-b" id="rf-val-add">Añadir</button></div>`; }
+    case 'orden': { const lista = r.lista || [], top = r.top || [];
+      return `<h2 class="rf-q" id="rf-q">Ordena tus 3 principales</h2><p class="meta rf-ayuda">Toca primero el más importante. Tocar uno ya elegido lo quita.</p>
+        ${lista.length ? `<div class="chips rf-chips" id="rf-tops" role="group" aria-labelledby="rf-q">${lista.map(v => { const n = top.indexOf(v) + 1; return `<button class="chip${n ? ' on' : ''}" data-top="${esc(v)}" aria-pressed="${!!n}">${n ? n + '. ' : ''}${esc(v)}</button>`; }).join('')}</div>
+        <p style="margin:6px 0 0"><button class="link rf-l" id="rf-top-reset">Volver a ordenar</button></p>` : '<p class="note">Elige tus valores en el paso anterior (Atrás).</p>'}`; }
+    case 'rueda': return `<h2 class="rf-q" id="rf-q">¿Cómo está cada área hoy?</h2><p class="meta rf-ayuda">Del 1 al 10, como lo sientes ahora. No hay respuesta correcta.</p>
+      <div class="rf-rd">${RF_AREAS.map(([k, n]) => { const v = +r.v?.[k] || 5; return `<div class="rf-rd-f"><label for="rf-rd-${k}">${esc(n)}</label><output id="rf-rdo-${k}" for="rf-rd-${k}">${v}</output><input type="range" id="rf-rd-${k}" data-rd="${k}" min="1" max="10" step="1" value="${v}" aria-valuetext="${v} de 10"></div>`; }).join('')}</div>`;
+    case 'paso': { const prev = rfRuedaPrev(it), b = rfBaja(r.v); if (b) r.baja = b.k;
+      return `<h2 class="rf-q" id="rf-q">Tu rueda</h2>${rfRuedaSvg(r.v, prev?.r.v)}${rfCompararHtml(r.v, prev)}
+        <h3>Un paso para el área más baja</h3><p style="margin:0 0 4px"><b>${esc(b ? b.n : '')}</b> · ${b ? b.v : ''} de 10</p>
+        <label class="rf-pre" for="rf-in">¿Qué paso pequeño la subiría un punto?</label><textarea id="rf-in" class="rf-ta corto" placeholder="Por ejemplo: caminar 20 minutos el sábado">${esc(val)}</textarea>
+        <p style="margin:10px 0 0"><button class="outline rf-b" id="rf-tarea">${it.tarea ? 'Tarea creada ✓' : 'Crear tarea con este paso'}</button></p>`; }
+    case 'fecha': { const op = [['En 1 mes', 1], ['En 3 meses', 3], ['En 6 meses', 6], ['En 1 año', 12]];
+      return `<h2 class="rf-q" id="rf-q">¿Cuándo quieres abrirla?</h2><p class="meta rf-ayuda">Hasta ese día queda sellada. Ese día la verás aquí, lista para abrir.</p>
+        <div class="chips rf-chips" id="rf-meses" role="group" aria-labelledby="rf-q">${op.map(([t, m]) => `<button class="chip${it.abrir === rfMas(m) ? ' on' : ''}" data-mes="${m}" aria-pressed="${it.abrir === rfMas(m)}">${t}</button>`).join('')}</div>
+        <div class="field" style="margin-top:14px"><label for="rf-fecha">Otra fecha</label><input type="date" id="rf-fecha" min="${dayKey(addDays(new Date(), 1))}" value="${esc(it.abrir || '')}"></div>
+        <p class="note" id="rf-abre">${it.abrir ? 'Se abrirá el ' + esc(rfLarga(it.abrir)) + '.' : ''}</p>`; }
+    case 'meta': { const M = rfMetas();
+      return `<h2 class="rf-q" id="rf-q">¿Qué meta quieres revisar?</h2><p class="meta rf-ayuda">${M.length ? 'Elige una de tus Metas o escribe otra.' : 'Escribe la meta. También puedes crearla en Metas.'}</p>
+        ${M.length ? `<div class="chips rf-chips" id="rf-metas" role="group" aria-labelledby="rf-q">${M.slice(0, 12).map(m => `<button class="chip${r.meta === m.id ? ' on' : ''}" data-meta="${esc(m.id)}" aria-pressed="${r.meta === m.id}">${esc(m.t)}</button>`).join('')}</div>` : ''}
+        <div class="field" style="margin-top:14px"><label for="rf-in">${M.length ? 'U otra meta' : 'Tu meta'}</label><input id="rf-in" maxlength="100" value="${esc(r.meta ? '' : r.metaT || '')}"></div>`; }
+    default: return txt(p.vista === 'ikigai' ? rfIkigaiSvg(r) : '');
+  }
+}
+function rfPintarPaso() {
+  const it = rfDraft, T = RF_TIPOS[it.tipo], P = T.pasos; rfPaso = Math.max(0, Math.min(rfPaso, P.length - 1));
+  const i = rfPaso, p = P[i], last = i === P.length - 1;
+  if (p.tipo === 'fecha' && !it.abrir) it.abrir = rfMas(3);
+  jrW.innerHTML = `<div class="rf" id="rf-flujo" data-tipo="${esc(it.tipo)}" data-paso="${i}">
+    <p class="meta" style="margin:0"><button class="link rf-l" id="rf-volver">‹ Reflexiones</button></p>
+    <p class="paso" id="rf-paso">${esc(T.n)}${P.length > 1 ? ` · ${i + 1} de ${P.length}` : ''}</p>
+    ${rfPasoHtml(it, p)}
+    <div class="rf-nav">${i ? '<button class="outline rf-b" id="rf-atras">Atrás</button>' : ''}<button class="primary rf-b" id="rf-sig">${last ? 'Guardar' : 'Siguiente'}</button></div>
+    <div class="rf-pie">${last ? '' : '<button class="link rf-l" id="rf-saltar">Saltar</button>'}<button class="link rf-l" id="rf-medias">Guardar y seguir después</button></div>
+  </div>`;
+  const q = s => jrW.querySelector(s), r = it.r, ir = n => { rfPaso = n; rfPintarPaso(); try { window.scrollTo({ top: 0 }); } catch {} };
+  const ta = q('#rf-in');
+  if (ta && !['meta'].includes(p.tipo)) ta.addEventListener('input', () => { r[p.tipo === 'intro' ? 'txt' : p.k] = ta.value; rfSucio = true; });
+  switch (p.tipo) {
+    case 'intro': q('#rf-otra').onclick = () => { const j = RF_PREGUNTAS.indexOf(r.q); rfOtraN++; r.q = RF_PREGUNTAS[(j + 1) % RF_PREGUNTAS.length]; q('#rf-q').textContent = r.q; rfSucio = true; }; break;
+    case 'elige': {
+      const add = () => { const v = q('#rf-val-in').value.replace(/\s+/g, ' ').trim().slice(0, 30); if (!v) return; const L = r.lista ||= [];
+        if (!L.some(x => x.toLowerCase() === v.toLowerCase())) { if (L.length >= 5) return toast('Hasta 5. Quita uno para elegir otro.'); L.push(v); } rfSucio = true; rfPintarPaso(); };
+      q('#rf-vals').addEventListener('click', e => { const c = e.target.closest('[data-val]'); if (!c) return; const v = c.dataset.val, L = r.lista ||= [];
+        if (L.includes(v)) { r.lista = L.filter(x => x !== v); r.top = (r.top || []).filter(x => x !== v); } else if (L.length >= 5) return toast('Hasta 5. Quita uno para elegir otro.'); else L.push(v);
+        rfSucio = true; rfPintarPaso(); });
+      q('#rf-val-add').onclick = add; q('#rf-val-in').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }); break; }
+    case 'orden':
+      q('#rf-tops')?.addEventListener('click', e => { const c = e.target.closest('[data-top]'); if (!c) return; const v = c.dataset.top, T3 = r.top ||= [];
+        if (T3.includes(v)) r.top = T3.filter(x => x !== v); else if (T3.length < 3) T3.push(v); else return toast('Ya elegiste 3. Toca uno para quitarlo.');
+        rfSucio = true; rfPintarPaso(); });
+      q('#rf-top-reset')?.addEventListener('click', () => { r.top = []; rfSucio = true; rfPintarPaso(); }); break;
+    case 'rueda': jrW.querySelectorAll('[data-rd]').forEach(inp => inp.addEventListener('input', () => { const k = inp.dataset.rd, v = Math.max(1, Math.min(10, Math.round(+inp.value) || 5)); (r.v ||= {})[k] = v; q('#rf-rdo-' + k).textContent = v; inp.setAttribute('aria-valuetext', v + ' de 10'); rfSucio = true; })); break;
+    case 'paso': q('#rf-tarea').onclick = async () => { if (it.tarea) return toast('Ya está en tus tareas.'); r.paso = q('#rf-in').value; if (await rfCrearTarea(it)) { rfSucio = true; const b = q('#rf-tarea'); if (b) b.textContent = 'Tarea creada ✓'; } }; break;
+    case 'fecha': {
+      const pon = d => { it.abrir = d; rfSucio = true; q('#rf-abre').textContent = 'Se abrirá el ' + rfLarga(d) + '.'; q('#rf-fecha').value = d; q('#rf-meses').querySelectorAll('[data-mes]').forEach(b => { const on = rfMas(+b.dataset.mes) === d; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); };
+      q('#rf-meses').addEventListener('click', e => { const c = e.target.closest('[data-mes]'); if (c) pon(rfMas(+c.dataset.mes)); });
+      q('#rf-fecha').addEventListener('change', e => { const d = e.target.value; if (/^\d{4}-\d\d-\d\d$/.test(d) && d > today()) pon(d); else { e.target.value = it.abrir || ''; toast('Elige un día a partir de mañana.'); } }); break; }
+    case 'meta':
+      q('#rf-metas')?.addEventListener('click', e => { const c = e.target.closest('[data-meta]'); if (!c) return; const m = rfMetas().find(x => x.id === c.dataset.meta); if (!m) return;
+        if (r.meta === m.id) { delete r.meta; r.metaT = ''; } else { r.meta = m.id; r.metaT = m.t; } rfSucio = true; rfPintarPaso(); });
+      ta?.addEventListener('input', () => { delete r.meta; r.metaT = ta.value; rfSucio = true; q('#rf-metas')?.querySelectorAll('[data-meta]').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); }); break;
+  }
+  const medias = rfSoltar;
+  q('#rf-volver').onclick = medias;
+  q('#rf-medias').onclick = () => { if (!rfTieneAlgo(it)) { toast('Aún no hay nada escrito para guardar.'); return; } rfSucio = true; medias(); };
+  q('#rf-atras')?.addEventListener('click', () => ir(i - 1));
+  q('#rf-saltar')?.addEventListener('click', () => ir(i + 1));
+  q('#rf-sig').onclick = () => {
+    if (!last) return ir(i + 1);
+    if (it.tipo === 'carta' && !rfTxt(r.txt)) { toast('Escribe la carta primero.'); return ir(0); }
+    if (!rfTieneAlgo(it)) return toast('Responde al menos una pregunta para guardarla.');
+    const g = rfGuardarDraft(true); if (!g) return;
+    toast(g.x.tipo === 'carta' ? `Carta guardada. Se abrirá el ${rfLarga(g.x.abrir)}.` : 'Guardada en tus reflexiones.');
+    rfDraft = null; rfVista = { p: 'ver', id: g.x.id }; rfPintar(); try { window.scrollTo({ top: 0 }); } catch {}
+  };
+}
+const RF_CSS = `
+  .rf .rf-l { min-height: 44px; padding: 0 4px; display: inline-flex; align-items: center; }
+  .rf .rf-b { min-height: 44px; }
+  .rf .rf-chips .chip { min-height: 44px; padding: 8px 14px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+  .rf-q { margin: 6px 0 4px; overflow-wrap: anywhere; }
+  .rf-ayuda { margin: 0 0 8px; }
+  .rf .rf-ta { width: 100%; min-height: 160px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 1rem; line-height: 1.5; margin-top: 8px; }
+  .rf .rf-ta.corto { min-height: 104px; } .rf .rf-ta.largo { min-height: 260px; }
+  .rf-pre { display: block; font-weight: 500; margin: 12px 0 0; }
+  .rf-nav { display: flex; gap: 12px; margin-top: 18px; } .rf-nav .primary { flex: 1; } .rf-nav .outline { flex: none; }
+  .rf-pie { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 16px; margin-top: 4px; }
+  .rf-card { background: var(--soft); border-radius: 16px; padding: 12px 14px 8px; margin: 0 0 12px; }
+  .rf-card .k { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; }
+  .rf-card b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+  .rf-card-b { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; margin-top: 10px; }
+  .rf-tipo .t small { white-space: normal; }
+  .rf-it { border-top: 1px solid var(--line); padding: 6px 0 0; }
+  .rf-lst > .rf-it:last-child { border-bottom: 1px solid var(--line); }
+  .rf-it-t { display: block; width: 100%; text-align: left; min-height: 44px; padding: 4px 0; }
+  .rf-it-t b { display: block; font-weight: 500; overflow-wrap: anywhere; }
+  .rf-it-t small { display: block; color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+  .rf-acc { display: flex; flex-wrap: wrap; gap: 0 14px; }
+  .rf-tu { display: block; width: 100%; text-align: left; border-top: 1px solid var(--line); padding: 10px 0; min-height: 44px; }
+  .rf-tuyo > .rf-tu:last-child { border-bottom: 1px solid var(--line); }
+  .rf-tu small { display: block; color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+  .rf-tu span { display: block; overflow-wrap: anywhere; }
+  .rf-r { margin: 0 0 14px; } .rf-r-q { color: var(--muted); font-size: .85rem; margin: 0 0 2px; } .rf-r-a { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .rf-top { margin: 0; padding-left: 22px; }
+  .rf-svg { display: block; width: 100%; max-width: 360px; height: auto; margin: 8px auto 6px; overflow: visible; }
+  .rf-svg text { fill: var(--text); font-family: var(--font); font-size: 13px; }
+  .rf-svg .rf-k { fill: var(--text); fill-opacity: .7; font-size: 12px; }
+  .rf-svg .rf-c { font-size: 14px; font-weight: 600; }
+  .rf-svg .rf-n { font-weight: 600; }
+  .rf-ik { stroke-width: 1.5; fill-opacity: .2; stroke-opacity: .75; }
+  .rf-ik0 { fill: #e8912d; stroke: #e8912d; background: #e8912d; } .rf-ik1 { fill: #3f8fd8; stroke: #3f8fd8; background: #3f8fd8; }
+  .rf-ik2 { fill: #2fa866; stroke: #2fa866; background: #2fa866; } .rf-ik3 { fill: #b366c9; stroke: #b366c9; background: #b366c9; }
+  .rf-grid { fill: none; stroke: var(--muted); stroke-opacity: .35; stroke-width: 1; }
+  .rf-cur { fill: var(--text); fill-opacity: .12; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; }
+  .rf-prev { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .rf-pt { fill: var(--text); }
+  .rf-ley { margin: 0 0 14px; } .rf-ley > div { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
+  .rf-ley b { font-weight: 500; font-size: .85rem; color: var(--muted); } .rf-ley span:last-child { grid-column: 2; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .rf-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; opacity: .8; }
+  .rf-rd-f { display: grid; grid-template-columns: 1fr auto; align-items: center; margin: 4px 0 0; }
+  .rf-rd-f label { font-size: .95rem; }
+  .rf-rd-f output { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 2ch; text-align: right; }
+  .rf-rd-f input[type=range] { grid-column: 1 / -1; width: 100%; height: 44px; padding: 0; margin: 0; border: 0; accent-color: var(--text); background: transparent; }
+  .rf-propio { display: flex; gap: 10px; align-items: center; margin-top: 12px; } .rf-propio input { flex: 1; min-width: 0; min-height: 44px; }
+  .rf-cmp { margin: 0 0 12px; padding-left: 18px; color: var(--muted); font-size: .9rem; }
+  .rf-ver-acc .link { color: var(--muted); }`;
+jrStyle.textContent += RF_CSS;
+// Para las pruebas: lo que el asistente recibe (nada aquí cambia datos).
+window.rfOpc = { ia: async () => (await iaEjecutar('ver_estado', {})).reflexiones, desc: () => (IA_TOOLS.find(t => t.name === 'ver_estado') || {}).description || '', preguntas: () => RF_PREGUNTAS.length };
 // ---------- Notion: conexión y destinos (Journaling y pizarras), con detección de tu base «Journaling».
 function notionSheet(foco = '') {
   const c = ntCfg();
@@ -8977,6 +9558,7 @@ function renderBw() {
     <h3>Mente</h3>
     <p class="meta" style="margin:0 0 6px">Mindfulness y herramientas cognitivas con evidencia. Cortas, para usarlas cuando hacen falta.</p>
     <div class="rows">${PRACTICAS.filter(p => p.tipo === 'mente').map(fila).join('')}</div>
+    <p class="meta" style="margin:8px 0 0"><button class="link" id="bw-rf" style="min-height:44px;text-align:left">Reflexiones guiadas: propósito, ikigai, valores y más ›</button></p>
     <p class="meta" style="margin-top:16px">Si lo que sientes pesa mucho o dura semanas, habla con alguien de confianza o con un profesional. Estas prácticas acompañan; no sustituyen.</p>
     <p class="meta"><button class="link" id="bw-gusto">Prácticas por gusto: sin XP${(ES.practicasPorGusto || []).length ? ` (${ES.practicasPorGusto.length})` : ''}</button></p>
   </div>`;
@@ -8986,6 +9568,7 @@ function renderBw() {
   bwW.querySelectorAll('[data-esc]').forEach(b => b.onclick = () => escenarioSheet(b.dataset.esc));
   bwW.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => practicaSheet(prDe(b.dataset.pr)));
   bwW.querySelector('#bw-gusto')?.addEventListener('click', xmPorGustoSheet);
+  bwW.querySelector('#bw-rf')?.addEventListener('click', () => window.rfAbrir?.());   // 2.22.1 (R)
 }
 const bwHost = document.getElementById('view-bienestar');
 const bwR = bwHost.attachShadow({ mode: 'open' });
@@ -9771,7 +10354,7 @@ function objAvance(id, n = 1, nota = '', ref = '') {
   if (ref && o.avances.some(a => a.ref === ref)) return;
   o.actual = Math.max(0, +(o.actual + n).toFixed(2)); o.avances.push({ d: today(), n, nota: String(nota || '').slice(0, 80), ...(ref ? { ref } : {}) }); o.avances = o.avances.slice(-300);
   if (n > 0 && (o.ultimoXp !== today() || xpDeshecho('o:' + o.id))) { o.ultimoXp = today(); xpGanar(5, `Avance: ${o.t}`, 'o:' + o.id); }
-  if (o.actual >= o.meta) { o.hecho = true; o.hechoEn = today(); if (!o.premiado) { o.premiado = true; buzz([60, 80, 60]); setTimeout(() => xpGanar(100, `Objetivo cumplido: ${o.t}`, 'oc:' + o.id, { si: () => !!o.hecho, no: () => { o.premiado = false; } }), 900); } }
+  if (o.actual >= o.meta) { o.hecho = true; o.hechoEn = today(); if (!o.premiado) { o.premiado = true; buzz([60, 80, 60]); (window.fbLuego || setTimeout)(() => xpGanar(100, `Objetivo cumplido: ${o.t}`, 'oc:' + o.id, { si: () => !!o.hecho, no: () => { o.premiado = false; } }), 900); } }
   guardar();
 }
 // ---------- Marcar hecho o deshacer, en la fuente real de cada ítem (así cuenta igual que desde Hábitos, Tareas o las iniciativas).
@@ -9783,7 +10366,7 @@ function iniMarcar(i, hecho) {
   const ref = `ini:${x.k}:${today()}`;
   if (hecho) {
     iniPremios(I); window.xpSorpresa('i:' + x.k); if (x.obj) objAvance(x.obj, 1, x.t, ref);
-    if (smartTodo(smartDe({ ...x, tipo: 'ini', h: x.hora })) && !x.smartBonus) { x.smartBonus = true; setTimeout(() => xpGanar(10, 'Iniciativa SMART completa', 'b:smart:' + x.k, { si: () => !!x.hecho, no: () => { x.smartBonus = false; } }), 700); }
+    if (smartTodo(smartDe({ ...x, tipo: 'ini', h: x.hora })) && !x.smartBonus) { x.smartBonus = true; (window.fbLuego || setTimeout)(() => xpGanar(10, 'Iniciativa SMART completa', 'b:smart:' + x.k, { si: () => !!x.hecho, no: () => { x.smartBonus = false; } }), 700); }
   } else { if (x.obj) objAvance(x.obj, -1, '', ref); iniXpDeshacer(I, x); }   // 2.17 (XP) · su XP y los bonos que dejan de cumplirse
 }
 function prioMarcar(id, hecho) {
@@ -9792,7 +10375,7 @@ function prioMarcar(id, hecho) {
   if (!hecho) { if (x.obj) objAvance(x.obj, -1, '', 'prio:' + x.id); prioXpDeshacer(P, x); return; }   // 2.17 (XP) · su tramo vuelve a quedar libre
   buzz(30); if (!x.premiada) { x.premiada = true; xpGanar(...prioXp(P, idx), 'p:' + x.id); }
   const tres = P.items.slice(0, 3);
-  if (!P.bonus && (dayOf().corto ? P.items.length >= 2 && P.items.slice(0, 2).every(i => i.hecho) : tres.length === 3 && tres.every(i => i.hecho))) { P.bonus = true; setTimeout(() => xpGanar(50, dayOf().corto ? 'Tus dos primeras prioridades' : 'Tus tres primeras prioridades', 'b:prio:' + today(), { si: () => prioBonoOk(ES.prioridades), no: () => { P.bonus = false; } }), 1200); }   // día corto (F7): con dos basta
+  if (!P.bonus && (dayOf().corto ? P.items.length >= 2 && P.items.slice(0, 2).every(i => i.hecho) : tres.length === 3 && tres.every(i => i.hecho))) { P.bonus = true; (window.fbLuego || setTimeout)(() => xpGanar(50, dayOf().corto ? 'Tus dos primeras prioridades' : 'Tus tres primeras prioridades', 'b:prio:' + today(), { si: () => prioBonoOk(ES.prioridades), no: () => { P.bonus = false; } }), 1200); }   // día corto (F7): con dos basta
   const pr = ES.proyectos.find(p => p.id === x.pro); if (pr && pr.paso === x.t) pasoHecho(pr);
   if (x.obj) objAvance(x.obj, 1, x.t, 'prio:' + x.id);
 }
@@ -9819,7 +10402,7 @@ function agCompleta() {
   const A = agenda(), its = agItems().filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt').filter(it => it.tipo !== 'examen')
     .filter(it => !((it.tipo === 'ini' || (it.tipo === 'libre' && it.extraIni)) && !agHecho(it)));   // 2.21.9 (I) · las iniciativas son opcionales: una sin hacer no hace falta; una hecha cuenta como siempre
   const llena = its.length >= 3 && its.every(it => agHecho(it));
-  if (llena && !A.completa) { A.completa = true; guardar(); if (!(dayOf().agendas > 0)) { bump('agendas'); buzz([40, 60, 40]); setTimeout(() => xpGanar(25, 'Agenda del día completa', 'b:agenda:' + today(), { si: () => !!agenda().completa, no: () => { if ((dayOf().agendas || 0) > 0) bump('agendas', -1); } }), 800); } }
+  if (llena && !A.completa) { A.completa = true; guardar(); if (!(dayOf().agendas > 0)) { bump('agendas'); buzz([40, 60, 40]); (window.fbLuego || setTimeout)(() => xpGanar(25, 'Agenda del día completa', 'b:agenda:' + today(), { si: () => !!agenda().completa, no: () => { if ((dayOf().agendas || 0) > 0) bump('agendas', -1); } }), 800); } }
   else if (A.completa && its.some(it => !agHecho(it))) { A.completa = false; if (xpQuitar('b:agenda:' + today()) && (dayOf().agendas || 0) > 0) bump('agendas', -1); guardar(); }   // 2.17 (XP) · vuelve al completarla otra vez
 }
 // 2.21 (N) · «Quitar de la agenda»: sale de hoy y hoy no vuelve solo (agSync, recargar, Google Tasks, otro teléfono). A.quit = { 'tipo:ref': ms }:
@@ -10484,7 +11067,7 @@ const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marc
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho, en Estudio, la Agenda, el enfoque o el asistente (una vez por bloque)', 10], ['Tema de una ruta visto', 15], ['Tarea o entrega de una ruta', 'como una tarea'], ['Normas de Vida espiritual', 'cuentan en tu iniciativa espiritual del día'], ['Lo de dentro de un bloque de tiempo', 'lo suyo; el bloque no suma aparte'],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
   ['Escribir, llamar o proponer un plan', '20–25'], ['Paso de proyecto', 30], ['Misión social', 25], ['Práctica de Bienestar (una vez al día cada una)', '5–15'], ['Chequeo de ánimo', 5],
-  ['Objetivo SMART creado', 15], ['Avance en un objetivo (uno al día por objetivo)', 5], ['Objetivo cumplido', 100], ['Tres cosas buenas', 10], ['Journaling', 10], ['Noche sin teléfono en el cuarto (una por mañana)', 10], ['Un cambio en tu teléfono (una vez por paso)', 10], ['Día dentro de tu presupuesto (uno al día)', 10], ['Plan de rescate', 20]];
+  ['Objetivo SMART creado', 15], ['Avance en un objetivo (uno al día por objetivo)', 5], ['Objetivo cumplido', 100], ['Tres cosas buenas', 10], ['Journaling', 10], ['Reflexión guiada (una vez al día)', 10], ['Noche sin teléfono en el cuarto (una por mañana)', 10], ['Un cambio en tu teléfono (una vez por paso)', 10], ['Día dentro de tu presupuesto (uno al día)', 10], ['Plan de rescate', 20]];
 // 2.19.3 · «Cuando le dé clic a los niveles debo ver cuántos hay y debe ser algo competitivo… y gratificante hacer lo que debo y subir de
 // nivel.» Arriba, tu insignia, el XP y lo que falta; después la liga de la semana (Bronce → Diamante, se reinicia cada lunes), la carrera
 // contra tu semana pasada al mismo día, tus récords (mejor día y mejor semana) y la escalera de los 20 niveles con lo que pide cada uno.
@@ -11004,7 +11587,7 @@ function agMarcarAviso(it, hecho) {
   if (hecho && !antes) agSalePoner(it.id);   // 2.21.3 (B) · en la lista de la Agenda, sale de lo pendiente con su animación
   agFocoUlt = hecho ? it.id : ''; agMarcar(it, hecho);
   const x = agPorId(it.id) || it, ahora = agHecho(x);
-  if (ahora && !antes) agAviso(`Hecho: ${it.t}.`, () => { const y = agPorId(it.id) || it; if (agHecho(y)) { agFocoUlt = ''; agMarcar(y, false); } });
+  if (ahora && !antes) fbHecho({ deshacer: () => { const y = agPorId(it.id) || it; if (agHecho(y)) { agFocoUlt = ''; agMarcar(y, false); } } });   // 2.22.1 (P) · la píldora, sin el nombre
 }
 // ====================================================================
 // 2.21.3 (B) · «Al marcar algo tarda en desaparecer.» Lo marcado se ve hecho en el mismo toque y sale de lo pendiente en 160 ms.
@@ -11653,7 +12236,7 @@ function agRutHecho(r) {
     ids.forEach((id, j) => { const x = agPorId(id); if (x && !agHecho(x)) { agFocoUlt = id; agCeleSubPoner(x, j === ids.length - 1); agMarcar(x, true); } });
     renderAg(); try { if (view === 'inicio') iniRepintar(); } catch {}
     const n = ids.filter(id => { const x = agPorId(id); return x && agHecho(x); }).length; if (!n) return;
-    agAviso(n === 1 ? `Hecho: ${ms[0].t}.` : `Rutina hecha: ${n} hábitos.`, () => { for (const id of ids) { const y = agPorId(id); if (y && agHecho(y)) agMarcar(y, false); } agFocoUlt = ''; renderAg(); });
+    fbHecho({ deshacer: () => { for (const id of ids) { const y = agPorId(id); if (y && agHecho(y)) agMarcar(y, false); } agFocoUlt = ''; renderAg(); } });   // 2.22.1 (P) · la píldora, sin el nombre
   });
 }
 // Deslizar a la izquierda la rutina: «Hoy no» (los que faltan), «Mover» (la hora del primero: la cadena lo sigue) y «Quitar» (todos).
@@ -11938,7 +12521,7 @@ window.xpSorpresa = ref => {
   ref = typeof ref === 'string' && ref ? ref : '';
   if (ref) { if (xpEntrada('sor:' + ref)) return; const m = xpEntrada(ref); if (m) { if (m.r) return; m.r = 1; } }
   if ((dayOf().sorpresas || 0) >= 2 || Math.random() > 1 / 6) return;
-  const dia = today(); bump('sorpresas'); setTimeout(() => {
+  const dia = today(); bump('sorpresas'); (window.fbLuego || setTimeout)(() => {
     const p = ref ? xpEntrada(ref, dia) : null;   // 2.17f (XP) · si su padre ya se desmarcó, queda deshecha y vuelve con él (sin otra tirada)
     if (p && !(p.n > 0)) { ES.xpLog[dia]['sor:' + ref] = { n: 0, x: 10, p: ref, t: Date.now(), c: xpCatDe(ref), m: '¡Sorpresa!' }; guardar(); return; }
     xpGanar(10, '¡Sorpresa!', ref ? 'sor:' + ref : '', p ? { padre: ref, dia } : { dia });
@@ -12786,13 +13369,8 @@ function metaHoy(k = today()) { return dayOf(k).corto ? Math.round(ES.metaXp * 0
 window.metaHoy = metaHoy;
 function xmDatos() { return HT().celebracion === 'datos'; }
 // El aviso corto de los XP: el acto y, pequeño, el número; con «Solo datos», sin número.
-function xmPop(cant, motivo) {
-  const el = $('#xp-pop'); if (!el) return;
-  el.classList.remove('menos');   // 2.17 (XP) · el gris es solo para lo deshecho
-  el.innerHTML = cant && !xmDatos() ? `<b>+${cant} XP</b>` : esc(motivo);   // 2.21.4 X · solo el número
-  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); clearTimeout(xpPopT); xpPopT = setTimeout(() => el.classList.remove('go'), 1700);
-}
-window.xmAviso = t => xmPop(0, t);
+function xmPop(cant, motivo, ref) { fbXp(cant, motivo, ref); }   // 2.22.1 (P) · la píldora: «✓ Hecho · +10 XP», sin el nombre (antes #xp-pop)
+window.xmAviso = () => fbHecho({});   // 2.22.1 (P) · sin XP: «✓ Hecho», sin el nombre
 // ---------- Semanas con tu meta (F14)
 function xmLunes(k = today()) { return dayKey(addDays(new Date(k + 'T12:00'), -wd(k))); }
 function xmSemanaDias(lun = xmLunes()) {
@@ -12819,7 +13397,7 @@ function xmBono() {
     const n = xmSemanasN();
     buzz([40, 60, 40]);
     xpGanar(b, `Semana ${n} con tu meta`, 'b:sem:' + L);
-    setTimeout(() => toast(xmDatos() ? `Semana ${n} con tu meta.` : `Semana ${n} con tu meta. +${b} XP.`), 900 + 2200 * i++);
+    i++;   // 2.22.1 (P) · lo dice la píldora del XP: «Semana 3 con tu meta · +30 XP»
     dado = b;
   }
   return dado;
@@ -12830,7 +13408,7 @@ function xmMetaCumplida(subioNivel) {
   if (xmBono() || subioNivel) return;
   buzz([40, 60, 40]);
   const d = xmSemanaDias();
-  setTimeout(() => toast(`${xmDatos() ? 'Meta del día cumplida.' : `Meta del día cumplida: ${metaHoy()} XP.`} Esta semana: ${d} de 7 días.`), 900);
+  (window.fbLuego || setTimeout)(() => fbHecho({ bono: 'Meta del día cumplida' }), 900); void d;   // 2.22.1 (P) · en la píldora, sin otro aviso encima
 }
 // Si el quinto día llegó a la meta en otro teléfono, el bono llega al abrir o volver a la app (una vez por semana igual).
 setTimeout(() => xmBono(), 2500);
@@ -14426,7 +15004,7 @@ const IDN_PIE = '<p class="meta idn-pie"><b>Por qué funciona.</b> Contar lo que
 const IDN_ATAJOS = [['habitos', 'Hábitos'], ['objetivos', 'Objetivos'], ['proyectos', 'Proyectos'], ['iniciativas', 'Iniciativas'], ['bienestar', 'Bienestar'], ['anadir', 'Añadir…']];
 function renderIdentidad() {
   const L = idnActivas(), arch = idnTodas().filter(x => x.archivada), t = today();
-  const cab = '<h2 style="margin-top:0">Quién quieres ser</h2><p class="note">Cada cosa que haces es un voto por una de estas personas.</p>';
+  const cab = '<h2 style="margin-top:0">Quién quieres ser</h2><p class="note">Cada cosa que haces es un voto por una de estas personas.</p>' + (window.rfPropositoHtml?.() || '');   // 2.22.1 (R) · tu propósito, de Reflexiones
   if (!idnTodas().length) {
     const pl = idnPlantillasArranque(3);
     idW.innerHTML = `${cab}<div class="idn-card"><div class="top"><b>¿Quién quieres ser?</b></div><p class="meta">Tres para empezar, según tus hábitos. Después las cambias o añades otras.</p>
@@ -16125,7 +16703,7 @@ function euWireBloques(cont, pintar) {
   cont.querySelectorAll('.eu-b').forEach(r => r.addEventListener('click', e => { if (e.target.closest('button')) return; euBloqueSheet(r.dataset.b); }));
 }
 function euWirePend(cont, pintar) {
-  cont.querySelectorAll('[data-pend]').forEach(c => c.onchange = () => { const E = EU(); if (!E) return; E.pendienteMarcar(c.dataset.pend, c.checked); toast(c.checked ? 'Hecha.' : 'Vuelve a pendiente.'); pintar?.(); });
+  cont.querySelectorAll('[data-pend]').forEach(c => c.onchange = () => { const E = EU(); if (!E) return; E.pendienteMarcar(c.dataset.pend, c.checked); const pid = c.dataset.pend; if (c.checked) fbHecho({ deshacer: () => { const E2 = EU(); if (!E2) return; E2.pendienteMarcar(pid, false); pintar?.(); } }); else toast('Vuelve a pendiente.'); pintar?.(); });   // 2.22.1 (P)
   cont.querySelectorAll('[data-pdel]').forEach(b => b.onclick = e => { e.preventDefault(); if (!b.dataset.conf) { b.dataset.conf = '1'; b.textContent = '¿Quitar?'; return; } EU()?.pendienteBorrar(b.dataset.pdel); toast('Quitada.'); pintar?.(); });
 }
 // [Empezar]: sesión de enfoque con el texto y los minutos del bloque; ES.sesion.est deja dicho qué bloque es (lo lee finishFocus, área X).
@@ -16148,7 +16726,7 @@ function euHechoDesde(cont, id, pintar) {
 }
 function euMarcar(id, ej, pintar) {
   const E = EU(); if (!E) return; const tmin = typeof exTempMinDe === 'function' ? exTempMinDe(id) : 0; const b = E.marcar(id, true, { ...(ej !== undefined ? { ej } : {}), ...(tmin ? { min: tmin } : {}) }); if (!b) return;   // 2.21.7 (E)
-  toast(`Hecho: ${b.hechoInfo?.min || b.min} min${b.hechoInfo?.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}${b.materia ? ` de ${b.materia}` : ''}.`); buzz(20);
+  fbHecho({ deshacer: () => { try { E.marcar(id, false); } catch (e) { console.warn('Estudio', e); } try { renderAg(); } catch {} pintar?.(); } }); buzz(20);   // 2.22.1 (P) · la píldora, sin la materia
   pintar?.();
 }
 // 2.17.1 (E) · De las 20:00 en adelante el reparto empieza mañana; la víspera de noche (o el día del examen) ya no queda nada que repartir.
@@ -18146,7 +18724,7 @@ const INI_ESTADO = {
     return `${n ? `${n} ${n === 1 ? 'bloque' : 'bloques'} hoy` : 'Sin bloques hoy'}${ex}`;
   },
   bienestar: () => { const v = +(ES.estado || []).find(x => x && x.d === today())?.v; return v >= 1 ? `Ánimo de hoy: ${v}/5` : '¿Cómo estás hoy?'; },
-  journal: () => (ES.diario || []).some(x => x && x.d === today()) ? 'Entrada de hoy escrita' : 'Sin entrada hoy',
+  journal: () => ((+window.rfCartasHoy?.() || 0) ? 'Hoy se abre una carta · ' : '') + ((ES.diario || []).some(x => x && x.d === today()) ? 'Entrada de hoy escrita' : 'Sin entrada hoy'),   // 2.22.1 (R)
   pizarra: () => { const n = (ES.pizarras || []).length; return n ? `${n} ${n === 1 ? 'pizarra' : 'pizarras'}` : 'Sin pizarras'; },
   ia: () => 'Pregunta, pide o cuenta algo',
   cal: () => 'Calendario de hábitos',
@@ -18909,6 +19487,7 @@ function atrasPaso() {
   else if (x?.k === 'puerta') { closeGate(); renderE(); }
   else if (x?.k === 'cuanto') exCuantoQuitar();   // 2.21.7 (E)
   else if (mvFoco()) toast('La sesión sigue: la terminas desde su pantalla');
+  else if (view === 'journal' && window.rfAtras?.()) {}   // 2.22.1 (R) · dentro de Reflexiones: un paso atrás
   else if (view !== 'inicio') irA('inicio');
 }
 // 2.15.1 · El vigía. Chromium salta una entrada puesta sin un toque desde el último recorrido del historial (al abrir la app fuera de
@@ -19367,7 +19946,12 @@ function espSheet(id) {
     $('#esp-prop-ok').onclick = () => { espPropSucio = false; guardar(); toast(ta.value.trim() ? 'Propósito guardado: mañana lo verás arriba.' : 'Sin propósito para mañana.'); };
   }
   $('#esp-x').onclick = closeSheet;
-  $('#esp-ok').onclick = () => { if (espPropSucio) { espPropSucio = false; guardar(); } closeSheet(); espMarcar(id, !espHecha(id)); if (view === 'espiritu') renderEspiritu(); };
+  $('#esp-ok').onclick = () => { if (espPropSucio) { espPropSucio = false; guardar(); } closeSheet(); const ya = espHecha(id), iniYa = !!ini4Semana().items[4]?.hecho; espMarcar(id, !ya); if (view === 'espiritu') renderEspiritu(); if (!ya && espHecha(id)) fbHecho({ deshacer: () => espDeshacer(id, iniYa) }); };   // 2.22.1 (P)
+}
+// 2.22.1 (P) · «Deshacer» de una norma: la norma y, si esta la marcó, la iniciativa espiritual del día (con su XP).
+function espDeshacer(id, iniYa) {
+  espMarcar(id, false); if (!iniYa && ini4Semana().items[4]?.hecho) { iniMarcar(4, false); guardar(); }
+  if (view === 'espiritu') renderEspiritu(); try { iniCambio(); } catch {}
 }
 function espMisterios(f = today()) { const d = new Date(f + 'T12:00').getDay(), tipo = ESP_MIS_DIA[d]; return { tipo, dia: ESP_DIAS[d], lista: ESP_MIS[tipo].slice() }; }
 // Lo escrito en el propósito se guarda también si la hoja se cierra tocando fuera.
@@ -19375,7 +19959,7 @@ sheet.addEventListener('close', () => { if (espPropSucio) { espPropSucio = false
 // ---------- Eventos: la pestaña y la hoja (delegados; los ids y data-esp-* son propios).
 espW.addEventListener('click', e => {
   if (!espD().configurado) { espEdClick(e, espBorrIn, espW, () => espGuardarPlan(espBorrIn, false)); return; }
-  const chk = e.target.closest('[data-esp-chk]'); if (chk) { espMarcar(chk.dataset.espChk, !espHecha(chk.dataset.espChk)); renderEspiritu(); return; }
+  const chk = e.target.closest('[data-esp-chk]'); if (chk) { const nid = chk.dataset.espChk, ya = espHecha(nid), iniYa = !!ini4Semana().items[4]?.hecho; espMarcar(nid, !ya); renderEspiritu(); if (!ya && espHecha(nid)) fbHecho({ deshacer: () => espDeshacer(nid, iniYa) }); return; }   // 2.22.1 (P) · la píldora
   const ver = e.target.closest('[data-esp-ver]'); if (ver) { espSheet(ver.dataset.espVer); return; }
   const j = e.target.closest('[data-esp-jac]'); if (j) { if (ES.espiritu && ES.espiritu.jaculatoria !== j.dataset.espJac) { ES.espiritu.jaculatoria = j.dataset.espJac; guardar(); } renderEspiritu(); return; }
   if (e.target.closest('#esp-agenda')) { const n = espPonerEnAgenda(); toast(n ? (n === 1 ? 'Una norma más en tu agenda de hoy.' : `${n} normas en tu agenda de hoy.`) : 'Ya estaban en tu agenda de hoy.'); renderEspiritu(); return; }
@@ -20310,7 +20894,7 @@ btArranque();
 // Sin window.bt, nada de esto aparece. Sin XP nuevo; nada se guarda al pintar.
 // ====================================================================
 // El aviso va tras el del formulario («En la agenda.», «Ruta creada…», «Plan guardado.»): si ese sigue a la vista, se suma a él.
-btcAvisoFn = msg => { const el = $('#toast'), prev = el && el.classList.contains('on') ? el.textContent.trim() : ''; toast(prev && prev.length <= 90 && !prev.includes(msg) ? `${prev} ${msg}` : msg); };
+btcAvisoFn = msg => { const el = $('#toast'), prev = el && el.classList.contains('on') && !el.classList.contains('fb') ? el.textContent.trim() : '';   /* 2.22.1 (P) */ toast(prev && prev.length <= 90 && !prev.includes(msg) ? `${prev} ${msg}` : msg); };
 // Un solo oyente para todas las hojas (la hoja vive en #view-overlays): el atributo es propio, no choca con los de cada hoja.
 ov.addEventListener('click', e => {
   const b = e.target.closest?.('[data-btc-tipo]'); if (!b) return;
@@ -21855,7 +22439,7 @@ function xpLibroGanar(cant, motivo, ref, o) {
   let suma = cant;
   if (prev) for (const [k, e] of Object.entries(L)) if (e && e.p === key && !(e.n > 0) && k.startsWith('sor:') && e.x > 0) { e.n = e.x; delete e.x; e.t = Date.now(); suma += e.n; }
   ES.xp.total = Math.max(0, (+ES.xp.total || 0) + suma); bump('xp', suma, dia); guardar();
-  if (!o.sinPop) xmPop(suma, motivo);   // 2.21 (L) · el aviso ya lo dice
+  if (!o.sinPop) xmPop(suma, motivo, ref);   // 2.21 (L) · el aviso ya lo dice · 2.22.1 (P) · con la referencia (el nombre del bono)
   renderXp();
   const ahora = nivelDe(xpTotal()), visto = Math.max(+ES.xp.visto || 0, antes);
   let rango = -1;
@@ -21875,10 +22459,8 @@ function xpPopMenos(n, motivo) {
   if (!xpMenos) {
     xpMenos = { n: 0, m: motivo };
     setTimeout(() => {
-      const x = xpMenos; xpMenos = null; const el = $('#xp-pop'); if (!el || !x) return;
-      el.innerHTML = xmDatos() ? `${esc(x.m)} (deshecho)` : `<b>−${x.n} XP</b>`;   // 2.21.4 X
-      el.classList.add('menos'); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
-      clearTimeout(xpPopT); xpPopT = setTimeout(() => el.classList.remove('go'), 1700);
+      const x = xpMenos; xpMenos = null; if (!x) return;
+      fbMenos(x.n);   // 2.22.1 (P) · «Deshecho · −10 XP», sin el nombre
     }, 0);
   }
   xpMenos.n += n;
@@ -22081,7 +22663,7 @@ const xpTardeRef = it => `pa:${it.tipo}:${it.tipo === 'libre' ? it.id : it.ref}:
 function xpTardeRevisar() {
   if (!xpNuevo() || today() < XP_INICIO) return;
   if (!(nubeLista || !(auth || window.claude?.use))) return;
-  const nuevos = [];
+  let nuevos = [];
   for (const it of xpTardeItems()) {
     let hecho = false; try { hecho = agHecho(it); } catch {}
     if (hecho || ES.xpPen?.[today()]?.[xpTardeRef(it)]) continue;
@@ -22092,7 +22674,8 @@ function xpTardeRevisar() {
   if (!nuevos.length) return;
   const L0 = +ES.xp.visto || 1, L1 = nivelDe(xpTotal()); if (L1 < L0) ES.xp.visto = L1;
   guardar(); renderXp(); try { if (agEnVista()) renderAg(); } catch {}
-  const tot = nuevos.reduce((s, x) => s + x.n, 0);
+  nuevos = nuevos.filter(x => x.n > 0); const tot = nuevos.reduce((s, x) => s + x.n, 0);
+  if (!tot) return;   // 2.22.1 (P) · nada quitado (ya restado o deshecho): sin «−0 XP» ni el nombre
   buzz([80, 60, 80]);
   toast(nuevos.length === 1 ? `−${tot} XP · pasó una hora de «${nuevos[0].t}» (${fmtHora(nuevos[0].h)}) sin marcarlo. Si lo marcas ahora, ya no da XP.` : `−${tot} XP · ${nuevos.length} cosas de tu agenda pasaron una hora sin marcar.`);
 }
@@ -22390,8 +22973,8 @@ function mtCumplir(m, manual = false) {
   if (m.hecho) return;
   m.hecho = true; m.hechoEn = today(); m.manual = !!manual; m.premiada = true; m.cambiado = Date.now();
   buzz([60, 80, 60]);
-  setTimeout(() => xpGanar(150, `Meta cumplida: ${m.t}`, 'mc:' + m.id, { cat: m.cat, unica: true, si: () => !!mtGet(m.id)?.hecho }), 900);
-  setTimeout(() => toast(`Meta cumplida: ${m.t}. La construiste etapa por etapa.`), 300);
+  (window.fbLuego || setTimeout)(() => xpGanar(150, `Meta cumplida: ${m.t}`, 'mc:' + m.id, { cat: m.cat, unica: true, si: () => !!mtGet(m.id)?.hecho }), 900);
+  (window.fbLuego || setTimeout)(() => fbHecho({ bono: 'Meta cumplida' }), 300);   // 2.22.1 (P) · sin el nombre
 }
 function mtReabrir(m) { if (!m.hecho) return; m.hecho = false; m.hechoEn = ''; m.manual = false; m.premiada = false; m.cambiado = Date.now(); xpQuitar('mc:' + m.id, { cualquierDia: true }); }
 // Cumplida sola: con un número, al llegar a la meta; por etapas, con todas hechas. Si deja de cumplirse (un deshacer), vuelve a abrirse.
@@ -23757,9 +24340,10 @@ function cadSigue(T, por) {
     if (!viejo) cadFinAviso(T, N); else cadFinAviso(T, N, document.visibilityState === 'visible');   // 2.21.9 (T) · pasó sin mirar: al volver, un timbre (oculta: el aviso)
     if (!viejo && prev && cadPend(prev)) agAviso(`Se cumplió el tiempo de «${T.t}». Sigue: ${sig}.`, () => { const x = cadItem({ id: prev.id, tipo: prev.tipo, ref: prev.ref, esp: prev.esp }); if (x && !agHecho(x)) agMarcarAviso(x, true); }, '✓ Hecho');
     else if (!viejo) toast(`Sigue: ${sig}.`);
-  } else if (por === 'hecho') { const x = prev; agAviso(`Hecho: ${T.t}. Sigue: ${sig}.`, x ? () => { const y = cadItem({ id: x.id, tipo: x.tipo, ref: x.ref, esp: x.esp }); if (y && agHecho(y)) { agFocoUlt = ''; agMarcar(y, false); } } : null); }
+  } else if (por === 'hecho') { const x = prev; fbHecho({ deshacer: x ? () => { const y = cadItem({ id: x.id, tipo: x.tipo, ref: x.ref, esp: x.esp }); if (y && agHecho(y)) { agFocoUlt = ''; agMarcar(y, false); } } : null }); }   // 2.22.1 (P) · la píldora, sin el nombre (lo siguiente ya se ve arriba)
   else if (por === 'saltar') toast(`Saltado. Sigue: ${sig}.`);
-  else toast(prev && agHecho(prev) ? `Hecho: ${T.t}. Sigue: ${sig}.` : `«${T.t}» ya no está pendiente. Sigue: ${sig}.`);
+  else if (prev && agHecho(prev)) { if (!fbVivo()) toast(`Sigue: ${sig}.`); }   // 2.22.1 (P) · hecho en otro sitio: su píldora se queda
+  else toast(`«${T.t}» ya no está pendiente. Sigue: ${sig}.`);
   return true;
 }
 // Al pasar al siguiente por tiempo: vibración, sonido (a la vista) y, en segundo plano con permiso ya dado, aviso del sistema.
@@ -24555,7 +25139,7 @@ function csDeshacer(c, d, prev) {
   csPoner(c, d, prev && (prev.ok === true || prev.ok === false) ? prev.ok : null, prev ? prev.v : '');
   csPintarTodo();
 }
-function csAvisoAnotado(c, d, prev, txt) { toast(csXpTxt(csPoner.xp) + txt, { deshacer: () => csDeshacer(c, d, prev) }); }
+function csAvisoAnotado(c, d, prev, txt) { const deshacer = () => csDeshacer(c, d, prev); if (csReg(c, d)?.ok === true && typeof window.fbHecho === 'function') { window.fbHecho({ xp: Math.max(0, +csPoner.xp || 0), deshacer }); return; } toast(csXpTxt(csPoner.xp) + txt, { deshacer }); }   // 2.22.1 (P) · cumplida: la píldora, sin el nombre
 function csCuando(c, d) { return d === today() ? '' : csNoche(c) || nowMin() < 5 * 60 ? 'anoche' : 'ayer'; }
 function csAnotar(c, ok, v, d = csDiaDe(c)) {
   const prev = csPoner(c, d, ok, v, { sinPop: true });

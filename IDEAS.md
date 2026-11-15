@@ -612,6 +612,11 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.1: Reflexiones guiadas y píldora verde al completar
+
+- **Reflexiones guiadas** (Journaling y Bienestar · Mente): introspección con una pregunta del día, propósito, ikigai con sus cuatro círculos, valores, rueda de la vida (el área más baja se vuelve una tarea), carta a tu yo del futuro (se abre en la fecha que elijas, solo en la app), «Agradezco, aprendí, suelto» y pre-mortem de una meta. «Mi mejor yo posible» sigue en Bienestar. Da +10 XP una vez al día y se puede pasar a Journaling y a Notion. ✅
+- **Píldora verde al completar**: en toda la app sale una sola píldora, «✓ Hecho · +N XP» o «Volviste · +15 XP», sin el nombre de lo que marcaste y con «Deshacer» dentro. Al deshacer sale «Deshecho · −N XP». El XP no cambia. ✅
+
 ## 2.22.0: apartado Iniciativas, Organización del tiempo e Ideas y journaling
 
 - **Nuevo apartado «Iniciativas»** en Inicio, justo debajo de Agenda e igual que ella: «¿Te sientes aburrido? Haz iniciativas.» Dentro, las iniciativas de hoy con el mismo diseño de la Agenda (número, relevancia, «▶ Empezar», casilla con XP y deshacer, «Ahora») y «Elige una»: una tarjeta por categoría con 3 ideas que cambian cada día (un toque la añade), «Más ideas» y «+ Iniciativa propia». Lo que marcas aquí se ve en la Agenda y al revés. Siguen siendo opcionales.
