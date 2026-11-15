@@ -94,6 +94,8 @@ public class MainActivity extends Activity {
     private boolean cargada = false;
     private String accionPendiente = null;   // «✓ Hecho» / «+5 min» tocado antes de que la página termine de cargar
     private String googlePendiente = null;   // el reqId de la ventana de permiso de Google abierta (una a la vez)
+    private boolean googleRestaurado = false;   // la actividad se recreó con la ventana de Google abierta: la página ya no espera ese reqId
+    private String googleRespuesta = null;   // la respuesta de Google que llegó antes de que la página terminara de cargar
 
     // Se inyecta al terminar de cargar cada página de la app: guarda las descargas blob:/data: (la copia de seguridad .json)
     // con el puente OrgAndroid y avisa del color de fondo para pintar igual las barras del sistema.
@@ -112,6 +114,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        if (saved != null) {
+            googlePendiente = saved.getString("googlePendiente");
+            googleRestaurado = googlePendiente != null;
+        }
         boolean noche = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         fondo = noche ? Color.parseColor("#0E0E0E") : Color.WHITE;
 
@@ -292,6 +298,7 @@ public class MainActivity extends Activity {
             v.evaluateJavascript(JS_PUENTE, null);
             cargada = true;
             if (accionPendiente != null) { v.evaluateJavascript(accionPendiente, null); accionPendiente = null; }
+            if (googleRespuesta != null) { v.evaluateJavascript(googleRespuesta, null); googleRespuesta = null; }
         }
 
         @Override
@@ -351,8 +358,11 @@ public class MainActivity extends Activity {
         }
         if (req == REQ_GOOGLE) {
             String id = googlePendiente;
+            // Tras recrearse la actividad (modo oscuro, idioma, Android cerró el proceso) la página se volvió a cargar: la respuesta va
+            // como «restaurado» y la página la guarda igual si Google dio el permiso.
+            if (id == null || googleRestaurado) id = "restaurado";
             googlePendiente = null;
-            if (id == null) return;
+            googleRestaurado = false;
             if (res != RESULT_OK || data == null) { googleError(id, "cancelado", ""); return; }
             try { googleListo(id, Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)); }
             catch (Exception e) { googleFallo(id, e); }
@@ -567,7 +577,10 @@ public class MainActivity extends Activity {
 
     void googleResponder(String id, JSONObject o) {
         String js = "(function(){try{if(typeof window.opGToken==='function')window.opGToken(" + JSONObject.quote(id) + "," + JSONObject.quote(o.toString()) + ")}catch(e){}})()";
-        runOnUiThread(() -> { if (web != null && enLaApp) web.evaluateJavascript(js, null); });
+        runOnUiThread(() -> {
+            if (web == null) return;
+            if (cargada && enLaApp) web.evaluateJavascript(js, null); else googleRespuesta = js;   // se entrega en onPageFinished
+        });
     }
 
     static String corto(String t, int n) { if (t == null) return ""; return t.length() > n ? t.substring(0, n) : t; }
@@ -634,6 +647,7 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         web.saveState(out);
+        if (googlePendiente != null) out.putString("googlePendiente", googlePendiente);
     }
 
     @Override
