@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.3: «Ahora» siempre visible, inicio de las rutas y apartado Metas de consistencia
+
+- La tarjeta grande de Inicio no desaparece nunca: «Ahora» si toca algo, «Sigue · 6:00 PM» con lo próximo, o «Para ahora» con el bloque pendiente de tu ruta o una iniciativa (Empezar, ✓ Hecho, Otra). ✅
+- Rutas de estudio: «Empiezo el» para elegir el día de inicio (Hoy, Mañana, Lunes próximo o una fecha). Antes de esa fecha no hay bloques, Agenda ni avisos, y la meta de horas y la deuda cuentan desde el inicio. ✅
+- Apartado nuevo «Metas de consistencia» en Inicio; las metas siguen también en Hábitos. ✅
+
 ## 2.22.2: Google Tasks y Calendar en la app de Android
 
 - En la app de Android, Google ya no se conecta en una ventana de Chrome (Google la bloquea dentro de la app): el permiso lo da Android con los servicios de Google Play, sin ventanas, y se renueva solo cada hora. La app se firma siempre con la misma clave y está registrada en Google Cloud. ✅
