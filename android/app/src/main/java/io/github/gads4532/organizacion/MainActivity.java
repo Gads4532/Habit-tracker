@@ -7,6 +7,7 @@ import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -44,11 +45,24 @@ import androidx.browser.customtabs.CustomTabColorSchemeParams;
 import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.app.NotificationManagerCompat;
 
+import com.google.android.gms.auth.GoogleAuthUtil;
+import com.google.android.gms.auth.api.identity.AuthorizationRequest;
+import com.google.android.gms.auth.api.identity.AuthorizationResult;
+import com.google.android.gms.auth.api.identity.Identity;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.CommonStatusCodes;
+import com.google.android.gms.common.api.Scope;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -66,6 +80,9 @@ public class MainActivity extends Activity {
     static final String UA_SUFIJO = " OrgPersonalAndroid/1";
     static final int REQ_ARCHIVO = 41;
     static final int REQ_AVISOS = 42;
+    static final int REQ_GOOGLE = 43;
+    static final String G_TASKS = "https://www.googleapis.com/auth/tasks";
+    static final String G_CAL = "https://www.googleapis.com/auth/calendar.events";
 
     private WebView web;
     private FrameLayout root;
@@ -76,6 +93,9 @@ public class MainActivity extends Activity {
     private volatile boolean enLaApp = false;
     private boolean cargada = false;
     private String accionPendiente = null;   // «✓ Hecho» / «+5 min» tocado antes de que la página termine de cargar
+    private String googlePendiente = null;   // el reqId de la ventana de permiso de Google abierta (una a la vez)
+    private boolean googleRestaurado = false;   // la actividad se recreó con la ventana de Google abierta: la página ya no espera ese reqId
+    private String googleRespuesta = null;   // la respuesta de Google que llegó antes de que la página terminara de cargar
 
     // Se inyecta al terminar de cargar cada página de la app: guarda las descargas blob:/data: (la copia de seguridad .json)
     // con el puente OrgAndroid y avisa del color de fondo para pintar igual las barras del sistema.
@@ -94,6 +114,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        if (saved != null) {
+            googlePendiente = saved.getString("googlePendiente");
+            googleRestaurado = googlePendiente != null;
+        }
         boolean noche = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         fondo = noche ? Color.parseColor("#0E0E0E") : Color.WHITE;
 
@@ -274,6 +298,7 @@ public class MainActivity extends Activity {
             v.evaluateJavascript(JS_PUENTE, null);
             cargada = true;
             if (accionPendiente != null) { v.evaluateJavascript(accionPendiente, null); accionPendiente = null; }
+            if (googleRespuesta != null) { v.evaluateJavascript(googleRespuesta, null); googleRespuesta = null; }
         }
 
         @Override
@@ -329,6 +354,18 @@ public class MainActivity extends Activity {
         if (req == REQ_ARCHIVO) {
             if (archivoCb != null) archivoCb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res, data));
             archivoCb = null;
+            return;
+        }
+        if (req == REQ_GOOGLE) {
+            String id = googlePendiente;
+            // Tras recrearse la actividad (modo oscuro, idioma, Android cerró el proceso) la página se volvió a cargar: la respuesta va
+            // como «restaurado» y la página la guarda igual si Google dio el permiso.
+            if (id == null || googleRestaurado) id = "restaurado";
+            googlePendiente = null;
+            googleRestaurado = false;
+            if (res != RESULT_OK || data == null) { googleError(id, "cancelado", ""); return; }
+            try { googleListo(id, Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)); }
+            catch (Exception e) { googleFallo(id, e); }
             return;
         }
         super.onActivityResult(req, res, data);
@@ -446,6 +483,104 @@ public class MainActivity extends Activity {
             if (!enLaApp) return;
             runOnUiThread(MainActivity.this::abrirAjusteExacto);
         }
+
+        // Google Tasks y Calendar con el permiso de Google del teléfono (servicios de Google Play), sin iniciar sesión en el WebView.
+        // La respuesta llega a la página en window.opGToken(reqId, json).
+        @JavascriptInterface
+        public boolean googleDisponible() { return enLaApp; }
+
+        @JavascriptInterface
+        public void googleToken(String reqId, boolean interactivo, boolean cal) {
+            if (!enLaApp) return;
+            String id = corto(reqId, 100);
+            runOnUiThread(() -> pedirGoogle(id, interactivo, cal));
+        }
+
+        // Un token que Google rechazó (401) o que se desconectó: Google Play no lo vuelve a dar.
+        @JavascriptInterface
+        public void googleOlvidar(String token) {
+            if (!enLaApp || token == null || token.isEmpty()) return;
+            String t = corto(token, 4096);
+            new Thread(() -> { try { GoogleAuthUtil.clearToken(getApplicationContext(), t); } catch (Exception ignorado) { } }).start();
+        }
+    }
+
+    // ---------- Permiso de Google (AuthorizationClient). Errores para la página: no_registrada (la app no está en Google Cloud o la
+    // huella no coincide), cancelado, sin_play, necesita_permiso (sin ventana: hace falta un toque), ocupado, error.
+    void pedirGoogle(String id, boolean interactivo, boolean cal) {
+        try {
+            if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this) != ConnectionResult.SUCCESS) { googleError(id, "sin_play", ""); return; }
+            if (interactivo && googlePendiente != null) { googleError(id, "ocupado", ""); return; }
+            List<Scope> sc = new ArrayList<>();
+            sc.add(new Scope(G_TASKS));
+            if (cal) sc.add(new Scope(G_CAL));
+            AuthorizationRequest pedido = AuthorizationRequest.builder().setRequestedScopes(sc).build();
+            Identity.getAuthorizationClient(this).authorize(pedido)
+                    .addOnSuccessListener(this, r -> {
+                        if (!r.hasResolution()) { googleListo(id, r); return; }
+                        if (!interactivo || r.getPendingIntent() == null) { googleError(id, "necesita_permiso", ""); return; }
+                        if (googlePendiente != null) { googleError(id, "ocupado", ""); return; }
+                        try {
+                            googlePendiente = id;
+                            IntentSender is = r.getPendingIntent().getIntentSender();
+                            startIntentSenderForResult(is, REQ_GOOGLE, null, 0, 0, 0);
+                        } catch (IntentSender.SendIntentException e) {
+                            googlePendiente = null;
+                            googleError(id, "error", "No se abrió la ventana de Google.");
+                        }
+                    })
+                    .addOnFailureListener(this, e -> googleFallo(id, e));
+        } catch (Exception e) {
+            googleFallo(id, e);
+        }
+    }
+
+    void googleListo(String id, AuthorizationResult r) {
+        String tok = r == null ? null : r.getAccessToken();
+        if (tok == null || tok.isEmpty()) { googleError(id, "error", "Google no dio el permiso."); return; }
+        try {
+            JSONObject o = new JSONObject();
+            o.put("ok", true);
+            o.put("token", tok);
+            JSONArray a = new JSONArray();
+            List<String> g = r.getGrantedScopes();
+            if (g != null) for (String x : g) a.put(x);
+            o.put("scopes", a);
+            googleResponder(id, o);
+        } catch (Exception e) {
+            googleError(id, "error", "");
+        }
+    }
+
+    void googleFallo(String id, Exception e) {
+        if (e instanceof ApiException) {
+            int c = ((ApiException) e).getStatusCode();
+            if (c == CommonStatusCodes.DEVELOPER_ERROR) { googleError(id, "no_registrada", ""); return; }
+            if (c == CommonStatusCodes.CANCELED) { googleError(id, "cancelado", ""); return; }
+            if (c == CommonStatusCodes.API_NOT_CONNECTED || c == CommonStatusCodes.SERVICE_DISABLED || c == CommonStatusCodes.SERVICE_VERSION_UPDATE_REQUIRED) { googleError(id, "sin_play", ""); return; }
+            googleError(id, "error", "Código " + c);
+            return;
+        }
+        String m = e == null ? "" : e.getClass().getSimpleName();
+        googleError(id, "error", corto(m, 120));
+    }
+
+    void googleError(String id, String cod, String msg) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("ok", false);
+            o.put("error", cod);
+            o.put("msg", msg == null ? "" : msg);
+            googleResponder(id, o);
+        } catch (Exception ignorado) { }
+    }
+
+    void googleResponder(String id, JSONObject o) {
+        String js = "(function(){try{if(typeof window.opGToken==='function')window.opGToken(" + JSONObject.quote(id) + "," + JSONObject.quote(o.toString()) + ")}catch(e){}})()";
+        runOnUiThread(() -> {
+            if (web == null) return;
+            if (cargada && enLaApp) web.evaluateJavascript(js, null); else googleRespuesta = js;   // se entrega en onPageFinished
+        });
     }
 
     static String corto(String t, int n) { if (t == null) return ""; return t.length() > n ? t.substring(0, n) : t; }
@@ -512,6 +647,7 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         web.saveState(out);
+        if (googlePendiente != null) out.putString("googlePendiente", googlePendiente);
     }
 
     @Override

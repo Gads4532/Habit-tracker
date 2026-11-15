@@ -52,4 +52,6 @@ android {
 dependencies {
     implementation 'androidx.browser:browser:1.8.0'
     implementation 'androidx.core:core:1.13.1'   // NotificationCompat: el aviso del temporizador
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'   // el permiso de Google Tasks y Calendar, sin iniciar sesión en el WebView
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')   // alinea kotlin-stdlib-jdk7/jdk8 (clases duplicadas)
 }
