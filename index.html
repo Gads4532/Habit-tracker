@@ -448,6 +448,7 @@
   /* 2.21 (L) · «Hábitos y metas de consistencia»: el encabezado y el apartado de las metas de consistencia. */
   .hb-sec-t { font-size: 1.1rem; font-weight: 600; letter-spacing: -.01em; margin: -8px 0 14px; overflow-wrap: anywhere; }
   .cs { margin-top: 40px; }
+  #view-consistencia .cs { margin-top: 0; } #view-consistencia .cs-h { display: none; }   /* 2.22.3 (M) · en su sección, el título ya lo dice */
   .cs-h { font-size: 1.1rem; font-weight: 600; letter-spacing: -.01em; margin: 0 0 2px; }
   .cs-p { color: var(--muted); font-size: .88rem; margin: 0 0 10px; }
   .cs-card { border-top: 1px solid var(--line); padding: 16px 0; }
@@ -504,6 +505,7 @@
   <div id="view-bienestar" hidden></div>
   <div id="view-agenda" hidden></div>
   <div id="view-iniciativas" hidden></div>
+  <div id="view-consistencia" hidden></div>   <!-- 2.22.3 (M) -->
   <div id="view-bloques" hidden></div>
   <div id="view-estudio" hidden></div>
   <div id="view-journal" hidden></div>
@@ -566,6 +568,9 @@
   </button>
   <button class="tab on" data-view="hoy">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.5L16 9.5"/></svg>Hábitos y metas de consistencia
+  </button>
+  <button class="tab" data-view="consistencia">   <!-- 2.22.3 (M) -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11a7.5 7.5 0 0 1 13.2-4.6L19.5 8.5"/><path d="M19.5 3.5v5h-5"/><path d="M19.5 13a7.5 7.5 0 0 1-13.2 4.6L4.5 15.5"/><path d="M4.5 20.5v-5h5"/><path d="M9.3 12.2l1.9 1.8 3.6-3.7"/></svg>Metas de consistencia
   </button>
   <button class="tab" data-view="tareas">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h10M4 17h7"/><path d="M15.5 16.5l2 2L21.5 14"/></svg>Tareas
@@ -687,7 +692,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.2';
+const APP_VERSION = '2.22.3';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1130,7 +1135,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -3097,7 +3102,7 @@ function estNorm(x) {
       resultado: r.resultado && typeof r.resultado === 'object' && T(r.resultado.nota, 200) ? { nota: T(r.resultado.nota, 200), en: Z(r.resultado.en) } : null,
       creado: Z(r.creado), cambiado: Z(r.cambiado), replan: Z(r.replan), archivada: !!r.archivada,
       ...(r.meta && typeof r.meta === 'object' && !Array.isArray(r.meta) ? { meta: { min: Math.max(0, Math.min(18000, Math.round(+r.meta.min) || 0)), dias: [...new Set(A(r.meta.dias).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b), mod: Z(r.meta.mod), ...estMetaBaseN(r.meta), ...(() => { const q = {}; if (r.meta.pesos && typeof r.meta.pesos === 'object') for (let wd = 0; wd < 7; wd++) { const v = Math.round(+r.meta.pesos[wd]); if (v >= 15 && v <= 480) q[wd] = v; } return Object.keys(q).length ? { pesos: q } : {}; })() } } : {}),   // 2.21.8 (D) · meta de horas (pesos: los minutos por día de la semana de los días que se quitaron, para cuando vuelvan)
-      ...(() => { const f = estFechasN(r.fechas); return f ? { fechas: f } : {}; })(), ...(typeof r.fechasH === 'string' && r.fechasH ? { fechasH: r.fechasH.slice(0, 24) } : {}),   // 2.21.8 (K) · cambios por fecha y la huella del plan
+      ...(() => { const f = estFechasN(r.fechas); return f ? { fechas: f } : {}; })(), ...(r.inicio && typeof r.inicio === 'object' && F(r.inicio.d) ? { inicio: { d: F(r.inicio.d), mod: Z(r.inicio.mod) } } : {}),   // 2.22.3 (I) · el día en que empieza ...(typeof r.fechasH === 'string' && r.fechasH ? { fechasH: r.fechasH.slice(0, 24) } : {}),   // 2.21.8 (K) · cambios por fecha y la huella del plan
       ...(r.archivada && r.terminada && typeof r.terminada === 'object' && Z(r.terminada.en) ? { terminada: { en: Z(r.terminada.en) } } : {}) };   // 2.20.1 (T)
   }).slice(0, 40);
   { const jo = estJerNorm(x); if (jo) return { materias, rutas, cfg, ...jo }; }   // 2.17.1 (R) · la jerarquía de las rutas
@@ -3179,6 +3184,8 @@ function estFechasFus(g, p) {
   for (const [k, o] of Object.entries(a)) { const q = out[k]; if (!q || (+(o && o.mod) || 0) >= (+(q && q.mod) || 0)) out[k] = o; }
   return Object.keys(out).length ? { fechas: out } : {};
 }
+// 2.22.3 (I) · El inicio de la ruta (ruta.inicio = { d, mod }): el de mod más reciente; una copia sin inicio (2.22.2 no lo conoce) nunca lo borra.
+function estInicioFus(g, p) { const ok = v => !!v && typeof v === 'object' && typeof v.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.d), a = ok(g && g.inicio) ? g.inicio : null, b = ok(p && p.inicio) ? p.inicio : null; const w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b; return w ? { inicio: w } : {}; }
 function estMetaFus(g, p) { const ok = v => !!v && typeof v === 'object' && !Array.isArray(v), a = ok(g && g.meta) ? g.meta : null, b = ok(p && p.meta) ? p.meta : null; const w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b; return w ? { meta: w } : {}; }
 function estFusion(a, b, dead) {
   a = a && typeof a === 'object' ? a : {}; b = b && typeof b === 'object' ? b : {};
@@ -3212,7 +3219,7 @@ function estFusion(a, b, dead) {
     const gT = g.terminada || (p.terminada && g.archivada && p.archivada && n(g.cambiado) === n(p.cambiado) ? p.terminada : null);   // 2.20.1 (T)
     const temas = gT ? g.temas : Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true }
       : t && typeof t === 'object' && t.hecho && muertos.size && plan.some(b => b.tema === t.id && muertos.has(b.id)) && !visto(plan, t, hechos, rd) ? { ...t, hecho: false } : t) : g.temas;
-    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
+    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), ...estInicioFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
   }
   return { materias: byId(L(a.materias), L(b.materias)), rutas: [...rutas.values()].filter(r => !dead.has(r.id)).map(r => ({ ...r, pendientes: L(r.pendientes).filter(x => !dead.has(x.id)), ...(Array.isArray(r.sesiones) ? { sesiones: L(r.sesiones).filter(x => !dead.has(x.id)) } : {}) })), cfg: a.cfg && typeof a.cfg === 'object' ? a.cfg : b.cfg };
 }
@@ -4792,7 +4799,8 @@ document.querySelector('.tabs').addEventListener('click', e => {
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
   document.querySelector('.tabs .tab.on')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });   // 2.14 · la activa siempre a la vista
-  for (const v of ['inicio', 'identidad', 'metas', 'espiritu', 'enfoque', 'agenda', 'iniciativas', 'bloques', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  for (const v of ['inicio', 'identidad', 'metas', 'espiritu', 'enfoque', 'agenda', 'iniciativas', 'bloques', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'consistencia', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  try { window.csVista?.(view); } catch (e) { console.warn('Metas de consistencia', e); }   // 2.22.3 (M) · el apartado de Hábitos, en su sección
   try { window.agVistaIni?.(view); } catch (e) { console.warn('Iniciativas', e); }   // 2.22.0 (N) · la Agenda, dentro de Iniciativas
   renderTitle();
   renderAll();
@@ -7415,7 +7423,7 @@ function settings() {
     <p class="meta" id="s-apk-nota" style="margin:0 0 12px${opApkSi() ? '' : ';display:none'}">Al abrir el archivo, si Android lo pide, permite instalar apps de Chrome.</p>` : ''}
     <div class="set-row"><span>Notion<small>${ntCfg().token ? 'Conectado' : 'Journaling, estudio e ideas, directo a tu Notion'}</small></span><button class="link" id="s-nt">${ntCfg().token ? 'Ver' : 'Conectar'}</button></div>
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
-      <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas'].includes(localStorage.getItem('habit-inicio')) ? localStorage.getItem('habit-inicio') : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia'].includes(localStorage.getItem('habit-inicio')) ? localStorage.getItem('habit-inicio') : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
     <div class="actions"><button class="primary" id="s-ok">Listo</button></div>`);
   const body = $('#sheet-body');
@@ -7650,7 +7658,7 @@ const IA_TOOLS = [
   iaTool('estudio_ruta', 'Crea una ruta de estudio hasta un examen (materia, fecha, temas): reparte los temas en bloques por día con hora, minutos y ejercicios. Con dias y horas_total reparte esas horas en total en esos días de la semana, sin importar cuántos sean. Con ruta (sin temas) cambia los días o las horas en total de una ruta que ya existe, y también fechas sueltas: quitar_fecha, agregar_fecha, minutos_fecha (las horas que se quitan quedan como deuda y las que se agregan, como superávit: la meta no cambia) y repartir_deuda. Úsala solo si la persona lo pidió o aceptó.', {
     materia: S('Materia (se crea si no existe).'), examen: S('Nombre del examen: «Parcial 2».'), fecha: S('Fecha del examen, AAAA-MM-DD.'), hora: S('HH:MM en 24 h o vacío.'),
     temas: { type: 'array', items: { type: 'string' }, description: 'Temas que entran, uno por texto (máximo 30).' }, dias_antes: { type: 'integer', description: 'Días previos al examen para estudiar (1 a 60); 0 para el valor por defecto.' },
-    minutos_dia: { type: 'integer', description: 'Minutos de estudio por día (15 a 480); 0 para el valor por defecto.' }, ejercicios_dia: { type: 'integer', description: 'Ejercicios por día (0 a 200).' }, hora_preferida: S('HH:MM en 24 h o vacío.'),
+    minutos_dia: { type: 'integer', description: 'Minutos de estudio por día (15 a 480); 0 para el valor por defecto.' }, ejercicios_dia: { type: 'integer', description: 'Ejercicios por día (0 a 200).' }, hora_preferida: S('HH:MM en 24 h o vacío.'), inicio: S('Día en que empieza a estudiar, AAAA-MM-DD (vacío = hoy). Con ruta, cambia el inicio de una ruta que ya existe: antes de ese día no hay bloques.'),
     dias: S('Días de la semana para estudiar con sus letras L M X J V S D separadas por comas («L,X,V»), o vacío para todos.'), horas_total: { type: 'number', description: 'Horas en total hasta el examen, repartidas en esos días (0 para no fijar meta).' },
     ruta: S('Solo para cambiar una ruta que ya existe: su nombre, materia o id (con dias u horas_total, o con cambios por fecha). Vacío para crear una nueva.'),
     quitar_fecha: S('Solo con ruta: fechas AAAA-MM-DD que se quitan del plan, separadas por comas. Sus minutos no van a otro día: quedan como deuda.'),
@@ -9987,7 +9995,7 @@ function consAplica(c, d = today()) {
   if (!c || c.pausa || !/^\d{4}-\d\d-\d\d$/.test(d || '')) return false;
   if (c.desde && d < c.desde) return false;
   if (c.hasta && d > c.hasta) return false;
-  if (c.ruta) { const r = consRuta(c); if (!r || r.archivada || !r.fecha || d >= r.fecha) return false; }
+  if (c.ruta) { const r = consRuta(c); if (!r || r.archivada || !r.fecha || d >= r.fecha || (r.inicio && typeof r.inicio === 'object' && typeof r.inicio.d === 'string' && d < r.inicio.d)) return false; }   // 2.22.3 (I) · tampoco antes del inicio
   return !c.dias.length || c.dias.includes(wd(d));
 }
 function consHecho(c, d = today()) { return !!c && +(c.hechos || {})[d] > 0; }
@@ -11497,7 +11505,7 @@ function ivDespues(its) {
   if (!its.length) agW.querySelector('.ag-lista')?.insertAdjacentHTML('afterbegin', '<p class="note iv-vacio">Hoy aún no tienes ninguna en tu día. Elige una abajo, cuando quieras.</p>');
   agW.insertAdjacentHTML('beforeend', ivEligeHtml());
   const E = agW.querySelector('#iv-elige'); if (!E) return;
-  E.querySelectorAll('[data-iv-idea]').forEach(b => b.onclick = () => { const k = b.dataset.ivIdea, t = (INI_CAT[k] || [])[+b.dataset.j]; if (t) { const m = +(String(t).match(/(\d+)\s*min/i) || [])[1]; ivPonerAviso(k, { t, exito: EXITO_DEF[k], min: m >= 1 && m <= 240 ? m : AG_MIN.ini, h: '', por: '', paso: '', src: 'idea' }); } });   // 2.22.0 (J) · los minutos de la idea
+  E.querySelectorAll('[data-iv-idea]').forEach(b => b.onclick = () => { const k = b.dataset.ivIdea, t = (INI_CAT[k] || [])[+b.dataset.j]; if (t) { ivPonerAviso(k, { t, exito: EXITO_DEF[k], min: agParaMin(t), h: '', por: '', paso: '', src: 'idea' }); } });   // 2.22.3 (A) · agParaMin   // 2.22.0 (J) · los minutos de la idea
   E.querySelectorAll('[data-iv-poner]').forEach(b => b.onclick = () => { const k = b.dataset.ivPoner, x = ini4Semana().items[iniIdx(k)]; if (x?.t) ivPonerAviso(k, { t: x.t, exito: x.exito, min: x.min, h: x.hora || '', por: x.por, paso: x.paso, obj: x.obj, iden: x.iden }); });
   E.querySelectorAll('[data-iv-mas]').forEach(b => b.onclick = () => { const k = b.dataset.ivMas; iniElegir(k, r => { if (!r) { closeSheet(); return; } closeSheet(); ivPonerAviso(k, r); }); });
   E.querySelector('#iv-propia').onclick = () => ivPropia();
@@ -11613,7 +11621,7 @@ function agFocoAhora() {
   const sg = agFocoSigue(pend); if (sg) return { it: sg.it, sigue: sg };
   const conH = pend.filter(it => it.h && toMin(it.h) + 60 >= now).sort(agOrden);
   const ven = conH.find(it => toMin(it.h) <= now + 15 && now <= toMin(it.h) + (it.min || 30) + 30); if (ven) return { it: ven };
-  const prox = conH.find(it => toMin(it.h) > now && toMin(it.h) <= now + 180); if (prox) return { it: prox };
+  const prox = conH.find(it => toMin(it.h) > now && toMin(it.h) <= now + 180); if (prox) return { it: prox, prox: true };   // 2.22.3 (A) · «Sigue · hora» en el Inicio
   const sinH = agSinHoraOrden(pend.filter(it => !it.h)); if (sinH[0]) return { it: sinH[0] };
   const luego = conH.find(it => toMin(it.h) > now); if (luego) return { it: luego, luego: true };
   return { nada: true };
@@ -11628,18 +11636,169 @@ function agFocoSiguiente(a = agFocoAhora()) {
 }
 function agFocoTipo(it) { return it.tipo === 'habito' ? (hbRutDe(HT().habits.find(x => x && x.id === it.ref)) ? 'Hoy no (toda la rutina sigue)' : 'Hoy no') : it.tipo === 'cons' ? 'Hoy no' : 'Mañana'; }
 function agFocoHtml(o = 'ag') {
-  let a = null, d = null; try { a = agFocoAhora(); d = a?.it ? agFocoSiguiente(a) : null; } catch (e) { console.warn('Ahora', e); return ''; }
-  if (!a) return `<section class="ag-foco-c ag-foco-fin" id="${o}-foco" aria-label="Ahora"><p class="ag-foco-k">Ahora${agHorasOcultas() ? '' : ` · ${fmtHora(hhmm(new Date()))}`}</p><p class="ag-foco-t">${agVacia() ? 'Tu agenda de hoy está vacía.' : 'Todo lo de hoy está hecho.'}</p><div class="ag-foco-b"><button type="button" class="ag-fb-go" data-foco="add">+ Añadir</button></div></section>`;
-  if (a.nada) return `<section class="ag-foco-c" id="${o}-foco" aria-label="Ahora"><p class="ag-foco-k">Ahora${agHorasOcultas() ? '' : ` · ${fmtHora(hhmm(new Date()))}`}</p><p class="ag-foco-t">Nada más para esta hora.</p><p class="ag-foco-m">Lo que pasó su hora sigue en la lista, en ámbar.</p></section>`;
+  let a = null, d = null; try { a = agFocoAhora(); d = a?.it ? agFocoSiguiente(a) : null; } catch (e) { console.warn('Ahora', e); try { return agParaHtml(o, null); } catch { return ''; } }
+  if (!a || a.nada) return agParaHtml(o, a);   // 2.22.3 (A) · nunca vacía: una iniciativa para ahora
   const it = a.it, nom = it.foco ? agbFocoTitulo(it) : agTituloEst(it), cat = it.foco ? 'Bloque protegido' : (agEtqCat(it) || agEtiqueta(it));
   const oc = agHorasOcultas(), hAh = oc ? '' : ` · ${fmtHora(hhmm(new Date()))}`;   // 2.21 (E) · la hora, al lado de «Ahora»
-  const k = a.sigue ? `Ahora${hAh} · Sigue: ${esc(nom)} (después de ${esc(a.sigue.ant)})` : a.luego ? (oc ? 'Luego' : `Ahora${hAh} · A las ${fmtHora(it.h)}`) : `Ahora${hAh}`;
+  const luego = a.luego || a.prox;   // 2.22.3 (A) · más tarde hoy: «Sigue · 6:00 PM»
+  const k = a.sigue ? `Ahora${hAh} · Sigue: ${esc(nom)} (después de ${esc(a.sigue.ant)})` : luego ? (oc ? 'Sigue' : `Sigue · ${fmtHora(it.h)}`) : `Ahora${hAh}`;
   const dsp = agDespuesTxt(d, oc);
-  return `<section class="ag-foco-c" id="${o}-foco" data-foco-id="${esc(it.id)}" aria-label="Ahora"><p class="ag-foco-k">${k}</p>
-    <p class="ag-foco-t">${esc(nom)}</p><p class="ag-foco-m">${esc(cat)}${it.h && !a.luego && !oc ? ` · ${fmtHora(it.h)}` : ''}${it.min ? ` · ${fmtMin(it.min)}` : ''}</p>
+  return `<section class="ag-foco-c" id="${o}-foco" data-foco-id="${esc(it.id)}" aria-label="${luego ? 'Sigue' : 'Ahora'}"><p class="ag-foco-k">${k}</p>
+    <p class="ag-foco-t">${esc(nom)}</p><p class="ag-foco-m">${esc(cat)}${it.h && !luego && !oc ? ` · ${fmtHora(it.h)}` : ''}${it.min ? ` · ${fmtMin(it.min)}` : ''}</p>
     <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-foco="hecho">✓ Hecho</button>${agEmpBtn(it)}<button type="button" class="ag-fb-man" data-foco="manana">${it.tipo === 'habito' || it.tipo === 'cons' ? 'Hoy no' : 'Mañana'}</button></div>
     ${dsp ? `<p class="ag-foco-d">${dsp}</p>` : ''}</section>`;
 }
+// 2.22.3 (A) · «Para ahora»: sin nada pendiente hoy, primero el siguiente bloque sin hacer de tu ruta de estudio (de hoy o adelantado);
+// después, una idea del catálogo de Iniciativas (las de «Elige una»: ivIdeas), una categoría a la vez en el orden de la sección y solo de
+// las categorías que hoy aún no hiciste (si ya elegiste una para hoy, esa). Con un examen por delante, primero Estudio. «Otra» pasa a la
+// siguiente. Con las siete hechas, siguen saliendo ideas, pero ya sin XP de extra (la tarjeta no es una fuente de XP sin fin).
+var agParaN = 0, agParaEmp = null;
+function agParaBloque() {
+  const E = window.est; if (!E || typeof E.rutas !== 'function' || typeof E.bloque !== 'function') return null;
+  const hoy = today(); let A = null; try { A = agenda(); } catch {}
+  const oc = new Set(A && A.fecha === hoy && Array.isArray(A.ocultos) ? A.ocultos : []);
+  let mejor = null;
+  for (const r of E.rutas() || []) {
+    if (!r || r.archivada || !(String(r.fecha || '') >= hoy) || !Array.isArray(r.plan)) continue;
+    if (r.inicio && typeof r.inicio === 'object' && String(r.inicio.d || '') > hoy) continue;   // 2.22.3 X · la ruta aún no empieza
+    for (const p of r.plan) {
+      if (!p || typeof p.id !== 'string' || !(String(p.d || '') >= hoy) || (p.d === hoy && oc.has(p.id))) continue;
+      if (mejor && (p.d > mejor.d || (p.d === mejor.d && (p.h || '99') >= (mejor.h || '99')))) continue;
+      const b = E.bloque(p.id); if (b && !b.hecho) mejor = b;
+    }
+  }
+  return mejor;
+}
+// El ítem del bloque: el de tu agenda de hoy si está; si no, el mismo ítem suelto que usan las cadenas («v:estudio:…»).
+function agParaBloqueIt(b) {
+  let it = null; try { it = agItems().find(x => x && x.tipo === 'estudio' && x.ref === b.id) || null; } catch {}
+  return it || { id: 'v:estudio:' + b.id, tipo: 'estudio', ref: b.id, t: window.est.textoBloque(b), min: b.min, v: 1 };
+}
+function agParaIdeas() {
+  const I = ini4Semana(), cats = IV_ORDEN.filter(k => iniIdx(k) >= 0), libres = cats.filter(k => !(I.items[iniIdx(k)] || {}).hecho);
+  const sinXp = !libres.length, base = sinXp ? cats : libres;
+  let ruta = false; try { ruta = !!window.est?.proximoExamen?.(); } catch {}
+  const orden = ruta && base.includes('estudio') ? ['estudio', ...base.filter(k => k !== 'estudio')] : base;
+  const por = orden.map(k => {
+    const x = I.items[iniIdx(k)] || {};
+    if (!sinXp && x.t) return [{ k, t: x.t, elegida: true }];   // la que ya elegiste para hoy
+    try { return ivIdeas(k, 3).map(j => ({ k, t: INI_CAT[k][j], sinXp })); } catch { return []; }
+  }), out = [];
+  for (let i = 0; i < 3; i++) for (const L of por) if (L[i]) out.push(L[i]);
+  return out;
+}
+// Los minutos de la idea: «25 min», «15 minutos», «Diez minutos», «2 horas», «media hora»; si no dice, los de siempre (30).
+const AG_PARA_NUM = { un: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, doce: 12, quince: 15, veinte: 20, veinticinco: 25, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, noventa: 90 };
+const AG_PARA_RE = new RegExp(`(\\d+)\\s*(min|hora)|(?:^|\\s)(${Object.keys(AG_PARA_NUM).join('|')})\\s+(min|hora)`);
+function agParaMin(t) {
+  const s = String(t || '').toLowerCase(); let m = 0;
+  if (/media hora/.test(s)) m = 30;
+  else { const x = s.match(AG_PARA_RE); if (x) { const n = x[1] ? +x[1] : AG_PARA_NUM[x[3]] || 0; m = (x[2] || x[4]) === 'hora' ? n * 60 : n; } }
+  return m >= 1 && m <= 240 ? m : AG_MIN.ini;
+}
+function agParaLista() { const L = []; try { const b = agParaBloque(); if (b) L.push({ b }); } catch (e) { console.warn('Para ahora', e); } return L.concat(agParaIdeas()); }
+function agParaSel() {
+  const L = agParaLista(); if (!L.length) return null;
+  const x = L[((agParaN % L.length) + L.length) % L.length];
+  if (x.b) { const it = agParaBloqueIt(x.b); return { ...x, it, t: it.t || window.est.textoBloque(x.b), min: x.b.min || AG_MIN.ini }; }
+  return { ...x, min: x.elegida ? (+(ini4Semana().items[iniIdx(x.k)] || {}).min || agParaMin(x.t)) : agParaMin(x.t) };
+}
+const agParaMinTxt = m => esc(fmtMin(m)).replace(/ /g, '&nbsp;');   // «30 min» no se parte
+function agParaHtml(o, a) {
+  const hAh = agHorasOcultas() ? '' : ` · ${fmtHora(hhmm(new Date()))}`, x = agParaSel();
+  let org = true; try { org = +agenda().organizado > 0; } catch {}
+  // sin día organizado, la alerta roja va justo debajo: el pie no repite ni contradice («vacía», «todo hecho»)
+  const pie = a && a.nada ? 'Lo que pasó su hora sigue en la lista, en ámbar.' : !org ? '' : `${agVacia() ? 'Tu agenda de hoy está vacía.' : 'Todo lo de hoy está hecho.'} <button type="button" class="link ag-para-add" data-foco="add">+ Añadir</button>`;
+  const pieH = pie ? `<p class="ag-foco-d">${pie}</p>` : '';
+  const otra = '<button type="button" class="ag-fb-man" data-para="otra" aria-label="Otra iniciativa">Otra</button>';
+  if (!x) return `<section class="ag-foco-c ag-para" id="${o}-foco" aria-label="Para ahora"><p class="ag-foco-k">Para ahora${hAh}</p><p class="ag-foco-t">Elige una iniciativa</p><p class="ag-foco-m">Todas son opcionales: haz las que quieras.</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-go" data-para="ver">Ver iniciativas</button></div>${pieH}</section>`;
+  if (x.b) {   // el siguiente bloque de tu ruta
+    const E = window.est, T = tempDe(x.it.id), ruta = x.b.rutaNombre ? `Ruta «${esc(x.b.rutaNombre)}» · ` : '';
+    const emp = T ? `<button type="button" class="ag-fb-go ag-fb-temp" data-para="empezar" aria-label="Temporizador en marcha. Toca para verlo"><span data-temp-left data-temp-corto>${tempTxt(T, true)}</span></button>` : '<button type="button" class="ag-fb-go" data-para="empezar">Empezar</button>';
+    return `<section class="ag-foco-c ag-para" id="${o}-foco" data-para-b="${esc(x.b.id)}" aria-label="Para ahora"><p class="ag-foco-k">Para ahora${hAh}</p>
+    <p class="ag-foco-t">${esc(x.t)}</p><p class="ag-foco-m">${ruta}${esc(E.etiqueta(x.b)).replace(/(\d+) min/, '$1&nbsp;min')}</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-para="hecho">✓ Hecho</button>${emp}${otra}</div>
+    ${pieH}</section>`;
+  }
+  return `<section class="ag-foco-c ag-para" id="${o}-foco" data-para-k="${esc(x.k)}" data-para-t="${esc(x.t)}" aria-label="Para ahora"><p class="ag-foco-k">Para ahora${hAh}</p>
+    <p class="ag-foco-t">${esc(x.t)}</p><p class="ag-foco-m">${esc(iniNombre(x.k))} · ${agParaMinTxt(x.min)}</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-para="hecho">✓ Hecho</button><button type="button" class="ag-fb-go" data-para="empezar">Empezar</button>${otra}</div>
+    ${pieH}</section>`;
+}
+function agParaRepintar() { try { if (typeof iniRepintar === 'function') iniRepintar(); } catch {} }
+// La agenda llena (3 o más, todo hecho), con las mismas reglas que agCompleta.
+function agParaLlena() {
+  const its = agItems().filter(it => it.tipo !== 'evento' && it.tipo !== 'bt' && it.tipo !== 'examen').filter(it => !((it.tipo === 'ini' || (it.tipo === 'libre' && it.extraIni)) && !agHecho(it)));
+  return its.length >= 3 && its.every(it => agHecho(it));
+}
+// «Deshacer» de una idea que completó la agenda: si al quitarla ya no está llena, el bono «Agenda del día completa» se va con ella.
+function agParaBono(c0) {
+  const A = agenda(); if (c0 || !A.completa || agParaLlena()) return;
+  A.completa = false; if (xpQuitar('b:agenda:' + today()) && (dayOf().agendas || 0) > 0) bump('agendas', -1); guardar();
+}
+// Un temporizador de una idea que entró desde «Para ahora» y se deja sin terminar: la idea sale de tu día otra vez (como «Deshacer»).
+function agParaDejado(T) {
+  const P = agParaEmp; if (!P || !T || T.id !== P.id) return false; agParaEmp = null;
+  const y = agPorId(P.id); if (!y || agHecho(y)) return false;
+  if (P.R.creado) agQuitar(y);
+  if (P.R.antes) { const z = ini4Semana().items[iniIdx(P.R.k)]; if (z && !z.hecho) Object.assign(z, P.R.antes); }
+  iniCambio(); return !!P.R.creado;
+}
+// Para el lector de pantalla: lo nuevo de la tarjeta (se repinta entera, así que el aviso va en un nodo fijo).
+function agParaDecir(txt) {
+  let el = document.getElementById('ag-para-sr');
+  if (!el) { el = document.createElement('div'); el.id = 'ag-para-sr'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); el.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0'; document.body.append(el); }
+  el.textContent = ''; setTimeout(() => { el.textContent = txt; }, 60);
+}
+// ✓ Hecho y Empezar. Un bloque: por el camino de la Agenda (agMarcarAviso, con sus 10 XP, la píldora y «Deshacer»; con ejercicios, la
+// pregunta de siempre) o el temporizador de un toque. Una idea: entra a tu día como en Iniciativas (ivPoner) y sigue por el camino de
+// siempre: agMarcar (el mismo XP) con la píldora verde y «Deshacer» (la quita de tu día otra vez), o el temporizador (agFocoEmpezar).
+function agParaToque(q, k, t, bid) {
+  if (q === 'otra') { agParaN++; agParaRepintar(); return; }
+  if (q === 'ver') { irA('iniciativas'); return; }
+  if (bid) {
+    const b = window.est?.bloque?.(bid); if (!b || b.hecho) { agParaRepintar(); return; }
+    const it = agParaBloqueIt(b);
+    if (q === 'empezar') { agFocoEmpezar(it); agParaRepintar(); return; }
+    if (q !== 'hecho' || marcaBloq('ag', '\u0000para')) return;
+    marcaPon('ag', it.id);
+    if (!exPedirEj(it)) agMarcarAviso(it, true);
+    agParaRepintar(); return;
+  }
+  const I = ini4Semana(), x0 = I.items[iniIdx(k)], elegida = !!(x0 && x0.t && x0.t === t && !x0.hecho);
+  if (!(INI_CAT[k] || []).includes(t) && !elegida) return;
+  if (q === 'hecho' && marcaBloq('ag', '\u0000para')) return;   // otro ✓ hace un instante: el 2.º toque no marca esto
+  const sinXp = !IV_ORDEN.some(c => iniIdx(c) >= 0 && !(I.items[iniIdx(c)] || {}).hecho), c0 = !!agenda().completa;
+  const r = elegida ? { t, exito: x0.exito, min: x0.min, h: x0.hora || '', por: x0.por, paso: x0.paso, obj: x0.obj, iden: x0.iden }
+    : { t, exito: EXITO_DEF[k], min: agParaMin(t), h: '', por: '', paso: '', src: 'idea' };
+  const R = ivPoner(k, r); if (!R) return;
+  const it = R.it;
+  if (sinXp && it.tipo === 'libre') (agPorId(it.id) || it).premiado = true;   // las siete ya hechas: sin XP de extra
+  if (q === 'empezar') { agParaEmp = R.creado || R.antes ? { id: it.id, R } : null; agFocoEmpezar(it); agParaRepintar(); return; }
+  marcaPon('ag', it.id); agFocoUlt = it.id; agMarcar(it, true);
+  const y0 = agPorId(it.id) || it;
+  if (agHecho(y0)) fbHecho({ deshacer: () => {
+    const y = agPorId(it.id); if (!y) return;
+    if (agHecho(y)) { agFocoUlt = ''; agMarcar(y, false); }
+    if (R.creado) agQuitar(agPorId(it.id) || y);
+    if (R.antes) { const z = ini4Semana().items[iniIdx(R.k)]; if (z && !z.hecho) Object.assign(z, R.antes); }
+    iniCambio(); agParaBono(c0); agParaRepintar();
+  } });
+  agParaRepintar();
+}
+function agParaWire(root) {
+  root?.querySelectorAll('[data-para]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const c = b.closest('.ag-para'); if (!c) return;
+    const R0 = b.getRootNode(), foco = R0.activeElement === b || document.activeElement === b, q = b.dataset.para, cid = c.id;
+    agParaToque(q, c.dataset.paraK || '', c.dataset.paraT || '', c.dataset.paraB || '');
+    const n = R0.querySelector?.('#' + CSS.escape(cid)); if (!n || n === c) return;
+    if (foco) (n.querySelector(`[data-para="${q}"]`) || n.querySelector('[data-foco="hecho"]') || n.querySelector('button'))?.focus({ preventScroll: true });   // el foco no se va al principio
+    if (q === 'otra' || q === 'hecho') { const tt = n.querySelector('.ag-foco-t')?.textContent.trim(), kk = n.querySelector('.ag-foco-k')?.textContent.trim(); if (tt) agParaDecir(`${kk ? kk + ': ' : ''}${tt}`); }
+  });
+}
+window.agPara = { sel: () => agParaSel(), min: t => agParaMin(t), bloque: () => agParaBloque() };   // para las pruebas
 // 2.21 (E) · «Lo de ahora / después debe estar al lado de la hora.» En la Agenda, la línea de la hora de la lista lleva lo de ahora (con sus
 // tres botones, pequeños) y lo de después. Sin nada ahora, solo la hora y «Después: …». Mismo #ag-foco y data-foco que la tarjeta.
 function agVacia() { try { return !agItems().some(it => it.tipo !== 'evento' && it.tipo !== 'bt'); } catch { return false; } }   // nada que hacer en la agenda de hoy
@@ -11659,6 +11818,7 @@ function agAhoraLineaHtml(solo) {   // 2.22.0 (N) · solo: un filtro (Iniciativa
 }
 // Los botones de la tarjeta (en la Agenda o donde se pinte: el Inicio la usa con window.agFoco).
 function agFocoWire(root) {
+  try { agParaWire(root); } catch (e) { console.warn('Para ahora', e); }   // 2.22.3 (A)
   root?.querySelectorAll('[data-foco]').forEach(b => b.onclick = e => {
     e.stopPropagation();
     const c = b.closest('[data-foco-id]'), it = c ? agItems().find(x => x.id === c.dataset.focoId) : null, q = b.dataset.foco;
@@ -15807,6 +15967,10 @@ function estMetaInfo(x) {
 // ---------- 2.21.8 (K) · Cambios por fecha sobre el plan base de la meta. El día lleva (cambio ?? base) − lo ya hecho ese día; un día quitado
 // no pasa sus minutos a otro (deuda), uno agregado suma (superávit). deuda = meta − (lo real + lo planificado por delante).
 const estMetaDesde = () => new Date().getHours() >= 20 ? estDia(today(), 1) : today();
+// 2.22.3 (I) · El día en que empieza la ruta. Sin ruta.inicio (rutas de antes) empieza cuando se creó: el motor reparte desde hoy, como siempre.
+const estIni = r => estF(r && r.inicio && typeof r.inicio === 'object' ? r.inicio.d : '');
+const estDesdeR = r => { const a = estMetaDesde(), i = estIni(r); return i > a ? i : a; };
+const EST_INI_MAL = 'El inicio va antes del examen: elige otro día.';
 const estFechaOv = (r, f) => { const o = r && r.fechas && typeof r.fechas === 'object' ? r.fechas[f] : null; return o && typeof o === 'object' && +o.min >= 0 ? { min: Math.round(+o.min), mod: +o.mod || 0 } : null; };
 function estFechasAct(r) { return !!(r && r.fechas && typeof r.fechas === 'object' && Object.values(r.fechas).some(o => o && typeof o === 'object' && +o.min >= 0)); }
 // Lo hecho de verdad en un día: los bloques hechos de ese día (minutos anotados) y lo anotado aparte con esa fecha.
@@ -15840,7 +16004,7 @@ function estMetaRebase(r, antes) {
   estMetaAnclar(r, desde, F, false); r.meta.mod = Math.max(Date.now(), (+r.meta.mod || 0) + 1);
 }
 function estFechasHash(r) {
-  const m = (r && r.meta) || {}, f = (r && r.fechas) || {}, x = JSON.stringify([+m.min || 0, Array.isArray(m.dias) ? m.dias : [], +m.mod || 0, Object.keys(f).sort().filter(k => f[k] && +f[k].min >= 0).map(k => k + ':' + Math.round(+f[k].min))]);
+  const m = (r && r.meta) || {}, f = (r && r.fechas) || {}, x = JSON.stringify([+m.min || 0, Array.isArray(m.dias) ? m.dias : [], +m.mod || 0, Object.keys(f).sort().filter(k => f[k] && +f[k].min >= 0).map(k => k + ':' + Math.round(+f[k].min)), ...(estIni(r) ? [estIni(r)] : [])]);   // 2.22.3 (I) · el inicio, solo si lo hay
   let h = 5381; for (let i = 0; i < x.length; i++) h = ((h * 33) ^ x.charCodeAt(i)) >>> 0; return h.toString(36);
 }
 
@@ -15881,7 +16045,7 @@ function estPlanificar(r, desde = today(), opts = {}) {
   const fijoSet = new Set(fijos), claveB = b => `${b.d}|${b.tipo === 'practica' ? 'estudio' : b.tipo}|${b.tema || ''}`, viejos = new Map();
   for (const b of r.plan) if (!fijoSet.has(b)) { const k = claveB(b); if (!viejos.has(k)) viejos.set(k, []); viejos.get(k).push(b); }
   // 1. Ventana y minutos por día.
-  const meta = estMetaOn(r), diasAntes = Math.max(1, +c.diasAntes || 14), ini = meta ? desde : [desde, estDia(r.fecha, -diasAntes)].sort().pop();   // 2.21.8 (D) · con meta, de hoy a la víspera
+  const meta = estMetaOn(r), diasAntes = Math.max(1, +c.diasAntes || 14), ini = [meta ? desde : [desde, estDia(r.fecha, -diasAntes)].sort().pop(), estIni(r)].sort().pop();   /* 2.22.3 (I) · nunca antes del inicio */   // 2.21.8 (D) · con meta, de hoy a la víspera
   const metaB = estMetaBaseDe(r, meta, desde, opts), flexK = !!metaB && estFechasAct(r);   // 2.21.8 (K) · con meta: la base guardada y encima los cambios por fecha (flexK: con cambios, cualquier día de 15 min o más se parte en bloques)
   const minDe = f => { const v = c.porDia ? c.porDia[estWd(f)] : null; return v === null || v === undefined ? (+c.minDia || cfg.minDia) : +v; };
   const pend = r.temas.filter(t => !t.hecho);
@@ -16126,7 +16290,7 @@ function estPlanificar(r, desde = today(), opts = {}) {
   r.plan = plan; estOrdenarPlan(r);
   if (!sim && !(opts && opts.modoA)) { if (metaB) r.fechasH = estFechasHash(r); else delete r.fechasH; }   // 2.21.8 (K) · con qué meta y fechas se armó
   // El aviso: algún tema sin bloque, lo necesario no cabe o (al replanificar) no cupo lo que faltaba de cada tema.
-  const av = pend.length > 0 && fin >= desde && (run.sin.length > 0 || (nec ? run.deficit >= 15 : minimo > run.S0));
+  const av = pend.length > 0 && fin >= ini && (run.sin.length > 0 || (nec ? run.deficit >= 15 : minimo > run.S0));
   if (!av || meta) r.aviso = null;   // 2.21.8 (D) · con meta, lo que no cabe se dice con la meta (estMetaInfo().falta), no con minutos por día
   else if (sim) r.aviso = { faltan: 1 };
   else {
@@ -16180,6 +16344,8 @@ function estMateriaEditar(id, cambios = {}) {
 function estCrear(datos = {}) {
   const D = estD(), hoy = today();
   const fecha = estF(datos.fecha); if (!fecha || fecha < hoy) throw new Error('La fecha del examen va de hoy en adelante.');
+  const ini = datos.inicio === undefined || datos.inicio === null || datos.inicio === '' ? '' : estF(datos.inicio);   // 2.22.3 (I)
+  if (datos.inicio && !ini) throw new Error('La fecha de inicio no es válida.'); if (ini && ini < hoy) throw new Error('El inicio va de hoy en adelante.'); if (ini && ini > hoy && ini >= fecha) throw new Error(EST_INI_MAL);
   const temas = estTemasDe(datos.temas); if (!temas.length) throw new Error('Añade al menos un tema.');
   if (D.rutas.length >= 40) throw new Error('Ya hay 40 rutas guardadas, contando las archivadas: borra alguna antigua desde su ficha para crear otra.');   // 2.17.1 (D) · antes de crear la materia
   let m = estMateria(datos.materia);
@@ -16188,6 +16354,7 @@ function estCrear(datos = {}) {
   const r = estNormRuta({ id: crypto.randomUUID(), area: 'estudio', materia: m.id, nombre: estS(datos.nombre, 80) || 'Examen', tipo: 'examen', fecha, hora: datos.hora, lugar: datos.lugar, temas,
     config: { ...estD().cfg, ...(datos.config && typeof datos.config === 'object' ? datos.config : {}) }, plan: [], hechos: {}, pendientes: [], iden: datos.iden, obj: datos.obj, habito: datos.habito,
     notion: null, gcal: {}, aviso: null, resultado: null, creado: Date.now(), cambiado: Date.now(), replan: 0, archivada: false });
+  if (ini && ini > hoy) r.inicio = { d: ini, mod: Date.now() };   // 2.22.3 (I) · hoy (o nada) = como siempre
   if (datos.meta && typeof datos.meta === 'object' && +datos.meta.min > 0) { r.meta = estNormRuta({ ...r, meta: { min: datos.meta.min, dias: Array.isArray(datos.meta.dias) && datos.meta.dias.length ? datos.meta.dias : [0, 1, 2, 3, 4, 5, 6], mod: Date.now() } }).meta; r.config.porDia = estMetaPorDia(r.config.porDia, r.meta.dias, r.meta); }   // 2.21.8 (D)
   if (r.meta && datos.meta && datos.meta.base) { const nb = estMetaBaseN({ base: datos.meta.base }); if (nb.base) { r.meta.base = nb.base; r.meta.desde = estMetaDesde(); if (+datos.meta.red > 0 && +datos.meta.red < 15) r.meta.red = Math.round(+datos.meta.red); } }   // 2.21.8 (K)
   if (r.meta && datos.fechas) { const fx = estFechasN(datos.fechas), now = Date.now(); if (fx) r.fechas = Object.fromEntries(Object.entries(fx).filter(([, o]) => o.min >= 0).map(([k, o]) => [k, { min: o.min, mod: now }])); }
@@ -16196,10 +16363,14 @@ function estCrear(datos = {}) {
 }
 function estEditar(id, cambios = {}) {
   const r = estRuta(id); if (!r) return null;
-  const hoy = today(); let replan = false;
+  const hoy = today(); let replan = false, iniCambio = false;
+  { const nf = cambios.fecha !== undefined ? estF(cambios.fecha) : r.fecha, ni = cambios.inicio !== undefined ? estF(cambios.inicio) : estIni(r);   // 2.22.3 (I) · antes de tocar nada
+    if (cambios.inicio !== undefined && !ni) throw new Error('La fecha de inicio no es válida.');
+    if (ni && nf && ni > hoy && ni >= nf) throw new Error(cambios.inicio !== undefined ? EST_INI_MAL : 'El examen va después del día en que empiezas: cambia también el inicio.'); }
   const pdAntes = { ...((r.config && r.config.porDia) || {}) }, metaAntes = r.meta && typeof r.meta === 'object' ? JSON.parse(JSON.stringify(r.meta)) : null;   // 2.21.8 (K)   // 2.21.8 (D) · para guardar en meta.pesos los minutos de un día que se quita
   if (cambios.fecha !== undefined) { const f = estF(cambios.fecha); if (!f || f < hoy) throw new Error('La fecha del examen va de hoy en adelante.'); if (f !== r.fecha) { r.fecha = f; replan = true; } }
   if (cambios.hora !== undefined) r.hora = estH(cambios.hora);
+  if (cambios.inicio !== undefined) { const f = estF(cambios.inicio), efA = [estIni(r), hoy].sort().pop(), efN = [f, hoy].sort().pop(); if (f !== estIni(r)) { r.inicio = { d: f, mod: Math.max(Date.now(), (+(r.inicio && r.inicio.mod) || 0) + 1) }; if (efA !== efN) { replan = true; iniCambio = true; } } }   // 2.22.3 (I) · un inicio de hoy o pasado no cambia el plan
   if (cambios.nombre !== undefined) r.nombre = estS(cambios.nombre, 80) || r.nombre;
   if (cambios.lugar !== undefined) r.lugar = estS(cambios.lugar, 60);
   if (cambios.materia !== undefined && estMateria(cambios.materia)) r.materia = cambios.materia;
@@ -16210,7 +16381,7 @@ function estEditar(id, cambios = {}) {
   if (cambios.meta !== undefined) { const m = cambios.meta && typeof cambios.meta === 'object' ? cambios.meta : { min: 0 }; r.meta = estNormRuta({ ...r, meta: { min: m.min, dias: Array.isArray(m.dias) && m.dias.length ? m.dias : estMetaDias(r), mod: Math.max(Date.now(), (+(r.meta && r.meta.mod) || 0) + 1), pesos: r.meta && r.meta.pesos } }).meta; replan = true; }
   if ((cambios.meta !== undefined || cambios.config) && estMetaOn(r)) { const p0 = JSON.stringify(r.meta.pesos || null); r.config.porDia = estMetaPorDia(r.config.porDia, r.meta.dias, r.meta, pdAntes); if (JSON.stringify(r.meta.pesos || null) !== p0) r.meta.mod = Math.max(Date.now(), (+r.meta.mod || 0) + 1); }
   if (cambios.resultado !== undefined) { const nota = typeof cambios.resultado === 'string' ? cambios.resultado : cambios.resultado && typeof cambios.resultado === 'object' ? cambios.resultado.nota : ''; const n = String(nota ?? '').trim().slice(0, 200); r.resultado = n ? { nota: n, en: Date.now() } : null; }
-  if (replan && !r.terminada && estMetaOn(r) && (cambios.meta !== undefined || cambios.config || cambios.fecha !== undefined)) estMetaRebase(r, metaAntes);   // 2.21.8 (K) · los cambios por fecha se quedan
+  if (replan && !r.terminada && estMetaOn(r) && (cambios.meta !== undefined || cambios.config || cambios.fecha !== undefined || iniCambio)) estMetaRebase(r, metaAntes);   // 2.22.3 (I) · con el inicio, igual   // 2.21.8 (K) · los cambios por fecha se quedan
   if (replan && !r.terminada) { estPlanificar(r); r.replan = Date.now(); }   // 2.20.1 (T) · terminada: sin plan nuevo
   r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); return r;
 }
@@ -16301,6 +16472,8 @@ function estExamenes(desde = today(), hasta = '') {
   return out.sort((a, b) => estCmp(a.fecha, b.fecha) || estCmp(a.hora || '99:99', b.hora || '99:99'));
 }
 const estProximo = () => estExamenes()[0] || null;
+// 2.22.3 (I) · Cambiar el inicio de una ruta guardada: devuelve el de antes (sin inicio, hoy) para Deshacer.
+function estInicioCambiar(x, f) { const r = typeof x === 'string' ? estRuta(x) : x; if (!r) return null; if (r.terminada || r.archivada) throw new Error('La ruta está terminada: su calendario queda como registro.'); const prev = estIni(r) || today(); estEditar(r.id, { inicio: f }); return prev; }
 function estResumen(rutaId) {
   const r = estRuta(rutaId); if (!r) return null;
   const hoy = today(), desde = estReplanDesde(r);
@@ -16326,7 +16499,7 @@ function estCalendario(anio, mes0) {
 }
 function estResumenIA() {
   const activas = estRutas(); if (!activas.length) return null;
-  const rutas = activas.slice(0, 10).map(r => { const s = estResumen(r.id); return { id: r.id, rango: estJerRango(r.id) || null, nombre: r.nombre, materia: estMatNombre(r), examen: r.fecha, hora: r.hora, dias: s.diasRestantes, temas: `${s.temasHechos} de ${s.temasTotal}`, bloques: `${s.bloquesHechos} de ${s.bloquesTotal}`, sinHacer: s.sinHacer, estudiado: estRealTxt(estReal(r.id)) || 'nada aún', ...(() => { const x = estMetaInfo(r); return x.on ? { horas_total: fmtMin(x.min), dias_estudio: estMetaDiasT(x.dias), progreso: `${fmtMin(x.real)} de ${fmtMin(x.min)}`, ...(x.falta >= 15 ? { no_cabe: `Quedan ${fmtMin(x.falta)} fuera (máximo ${x.tope.min} min por día desde las ${x.tope.desde})` } : {}), ...estBalIA(r) } : { dias_estudio: estMetaDiasT(x.dias) }; })(), aviso: s.aviso ? `No cabe todo: harían falta ${s.aviso.faltan} min por día` : '' }; });
+  const rutas = activas.slice(0, 10).map(r => { const s = estResumen(r.id); return { id: r.id, rango: estJerRango(r.id) || null, nombre: r.nombre, materia: estMatNombre(r), examen: r.fecha, ...(estIni(r) > today() ? { empieza: estIni(r) } : {}), hora: r.hora, dias: s.diasRestantes, temas: `${s.temasHechos} de ${s.temasTotal}`, bloques: `${s.bloquesHechos} de ${s.bloquesTotal}`, sinHacer: s.sinHacer, estudiado: estRealTxt(estReal(r.id)) || 'nada aún', ...(() => { const x = estMetaInfo(r); return x.on ? { horas_total: fmtMin(x.min), dias_estudio: estMetaDiasT(x.dias), progreso: `${fmtMin(x.real)} de ${fmtMin(x.min)}`, ...(x.falta >= 15 ? { no_cabe: `Quedan ${fmtMin(x.falta)} fuera (máximo ${x.tope.min} min por día desde las ${x.tope.desde})` } : {}), ...estBalIA(r) } : { dias_estudio: estMetaDiasT(x.dias) }; })(), aviso: s.aviso ? `No cabe todo: harían falta ${s.aviso.faltan} min por día` : '' }; });
   const hoy = estBloquesDe().slice(0, 12).map(b => ({ id: b.id, texto: estTexto(b), hora: b.h, min: b.min, ej: b.ej, hecho: b.hecho, ...(b.hecho && b.hechoInfo ? { minReal: b.hechoInfo.min, ejReal: b.hechoInfo.ej } : {}) }));   // 2.21.7 (E)
   const pendientes = estPendientes().slice(0, 20).map(p => ({ id: p.id, texto: p.t, clase: p.clase, fecha: p.fecha, hora: p.hora, ruta: p.rutaNombre }));
   return { rutas, hoy, pendientes, sinHacer: rutas.reduce((n, r) => n + r.sinHacer, 0), aviso: rutas.filter(r => r.aviso).map(r => `${r.nombre}: ${r.aviso}`) };
@@ -16372,7 +16545,7 @@ Object.assign(estAPI, { meta: estMetaInfo, metaDias: r => estMetaDias(typeof r =
 function estFechasCambios(r) {
   let q = 0, a = 0, n = 0; if (!estMetaOn(r)) return { quitado: 0, agregado: 0, cambios: 0 };
   const B = (r.meta && r.meta.base) || {};
-  for (const [f, o] of Object.entries(r.fechas || {})) { if (!o || !(+o.min >= 0) || (estF(r.fecha) && f >= r.fecha)) continue; const d = Math.round(+o.min) - (+B[f] || 0); if (d < 0) q -= d; else if (d > 0) a += d; if (d) n++; }
+  for (const [f, o] of Object.entries(r.fechas || {})) { if (!o || !(+o.min >= 0) || (estF(r.fecha) && f >= r.fecha) || (estIni(r) && f < estIni(r))) continue;   /* 2.22.3 (I) · antes del inicio no cuenta */ const d = Math.round(+o.min) - (+B[f] || 0); if (d < 0) q -= d; else if (d > 0) a += d; if (d) n++; }
   return { quitado: q, agregado: a, cambios: n };
 }
 // Un día del calendario: base (plan base), obj (lo que lleva: cambio ?? base), plan (minutos de sus bloques), real (lo hecho), edit.
@@ -16380,7 +16553,7 @@ function estFechaDia(r, f) {
   const on = estMetaOn(r), B = on && r.meta.base && typeof r.meta.base === 'object' ? r.meta.base : null, b0 = B && B[f] !== undefined ? +B[f] : null, o = on ? estFechaOv(r, f) : null;
   let plan = 0; for (const b of r.plan || []) if (b.d === f) plan += +b.min || 0;
   const fin = estF(r.fecha) ? estDia(r.fecha, -1) : '', obj = o ? o.min : b0;
-  return { f, base: b0, ov: !!o, obj, plan, real: estHechoDia(r, f), edit: !!fin && f >= estMetaDesde() && f <= fin && !r.archivada && !r.terminada, quitado: !!o && o.min === 0, delta: o ? o.min - (b0 || 0) : 0 };
+  return { f, base: b0, ov: !!o, obj, plan, real: estHechoDia(r, f), edit: !!fin && f >= estDesdeR(r) && f <= fin && !r.archivada && !r.terminada, antes: !!estIni(r) && f < estIni(r) && f >= estMetaDesde() && !!fin && f <= fin && !r.archivada && !r.terminada,   /* 2.22.3 (I) */ quitado: !!o && o.min === 0, delta: o ? o.min - (b0 || 0) : 0 };
 }
 // Lo de siempre por día (para un día que se agrega): la mediana de la base de los días que quedan, o del plan; si no, los minutos por día.
 function estFechasUsual(r) {
@@ -16406,7 +16579,7 @@ function estFechasAplicar(r, patch) {
   if (!r || !patch || typeof patch !== 'object') return {};
   estFechasEncender(r);
   if (!(r.meta.base && Object.keys(r.meta.base).length)) estMetaAnclar(r, estMetaDesde(), null, false);
-  const tope = estMetaTope(r).min || 480, desde = estMetaDesde(), fin = estF(r.fecha) ? estDia(r.fecha, -1) : '', B = r.meta.base || {};
+  const tope = estMetaTope(r).min || 480, desde = estDesdeR(r), fin = estF(r.fecha) ? estDia(r.fecha, -1) : '', B = r.meta.base || {};   // 2.22.3 (I) · desde el inicio
   if (!r.fechas || typeof r.fechas !== 'object') r.fechas = {};
   let mod = Date.now(); for (const o of Object.values(r.fechas)) if (o && +o.mod >= mod) mod = +o.mod + 1;
   const undo = {};
@@ -16503,6 +16676,7 @@ function estFechasRepartir(x) {
 function estFechasSync() {
   let n = 0; const hoy = today();
   for (const r of estD().rutas) {
+    { const i = estIni(r), d0 = estMetaDesde(); if (!r.archivada && !r.terminada && estF(r.fecha) && r.fecha >= hoy && i > d0) { const mOn = !!estMetaOn(r), B = (mOn && r.meta && r.meta.base && typeof r.meta.base === 'object') ? r.meta.base : {}, bA = Object.keys(B).some(f => f >= d0 && f < i && +B[f] > 0), pA = (r.plan || []).some(b => !(r.hechos || {})[b.id] && b.d >= d0 && b.d < i); if (bA || pA) { try { if (mOn) estMetaRebase(r, JSON.parse(JSON.stringify(r.meta))); estPlanificar(r); n++; } catch (e) { console.warn('Estudio: no se pudo volver a planificar', e); } continue; } } }   // 2.22.3 (I) · una copia vieja con bloques (o base de la meta) antes del inicio: la base se reparte otra vez desde el inicio
     if (r.archivada || r.terminada || !estF(r.fecha) || r.fecha < hoy || !estMetaOn(r)) continue;
     if (!r.fechasH && !estFechasAct(r)) continue;
     if (r.fechasH === estFechasHash(r)) continue;
@@ -16520,6 +16694,7 @@ function estBalIA(r) {
   return { meta: fmtMin(x.min), plan: fmtMin(x.implicita), balance: estBalT(x), ...(x.deuda ? { deuda: fmtMin(x.deuda), deuda_nota: 'No se reparte sola: con repartir_deuda (estudio_ruta) o «Repartir la deuda» en el calendario de la ruta.' } : {}), ...(x.superavit ? { superavit: fmtMin(x.superavit) } : {}),
     ...(x.quitado ? { quitado: fmtMin(x.quitado) } : {}), ...(x.agregado ? { agregado: fmtMin(x.agregado) } : {}), ...(cf.length ? { cambios_fechas: cf } : {}) };
 }
+Object.assign(estAPI, { inicio: estInicioCambiar, ini: r => estIni(typeof r === 'string' ? estRuta(r) : r), desdeRuta: r => estDesdeR(typeof r === 'string' ? estRuta(r) : r) });   // 2.22.3 (I)
 Object.assign(estAPI, { fechas: estFechasCambiar, fechasMover: estFechasMover, fechasRepartir: estFechasRepartir, fechasSync: estFechasSync, metaDesde: estMetaDesde, balT: estBalT,
   fechaDia: (r, f) => estFechaDia(typeof r === 'string' ? estRuta(r) : r, f), fechasUsual: r => estFechasUsual(typeof r === 'string' ? estRuta(r) : r), balIA: r => estBalIA(typeof r === 'string' ? estRuta(r) : r) });
 // 2.21.7 (E) · Lo estudiado de verdad: lo anotado en cada bloque hecho (hechos[id].min y .ej; mod = cuándo se cambió después) y lo que se
@@ -16698,7 +16873,8 @@ const EU_CSS = `
   .rc-mini .actions { margin-top: 6px; }
   .rc-ayuda { margin: 10px 0 0; }
   /* a menos de 360 px el mes usa también el margen de la hoja: unos 42 a 44 px por columna, y «examen» se lee entero */
-  @media (max-width: 359px) { .rc-grid { margin: 0 -16px; gap: 2px; } .rc-d.ex i { font-size: .55rem; letter-spacing: -.02em; } }`;
+  @media (max-width: 359px) { .rc-grid { margin: 0 -16px; gap: 2px; } .rc-d.ex i { font-size: .55rem; letter-spacing: -.02em; } }
+  .eu-ini .chips { margin: 0 0 8px; } .eu-ini .chip, .eu-ini input[type=date] { min-height: 44px; } .rc-d.fuera.antes { opacity: .85; border-style: dashed; border-color: var(--accent); } .rc-d.antes .n { color: var(--accent); } .rc-mov .chip { min-height: 44px; } .rc-ini { margin: 0 0 8px; } .eu-ini-t { margin-top: 2px; }`;   /* 2.22.3 (I) */
 if (euR) { const st = document.createElement('style'); st.textContent = ENFOQUE_CSS + EU_CSS; euR.appendChild(st); }
 { const st = document.createElement('style'); st.id = 'eu-css'; st.textContent = EU_CSS; ov.appendChild(st); }
 const euW = document.createElement('div'); euW.className = 'enf'; if (euR) euR.appendChild(euW);
@@ -16719,6 +16895,27 @@ const euBlT = n => euPl(n, 'bloque', 'bloques');
 const euHorasT = m => `${String(Math.round(m / 6) / 10).replace('.', ',')} h`;
 const euDiasT = n => !Number.isFinite(n) ? 'sin fecha' : n < 0 ? 'ya pasó' : n === 0 ? 'es hoy' : n === 1 ? 'mañana' : `${n} días`;
 const euCuando = f => { const t = today(); return f === t ? 'Hoy' : f === euDia(t, 1) ? 'Mañana' : f === euDia(t, -1) ? 'Ayer' : euFL(f); };
+// 2.22.3 (I) · El día en que empiezas: «Empieza el lun 18 nov». En «Nueva ruta» y en Ajustes: Hoy, Mañana, Lunes próximo o una fecha.
+const EU_WDC = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'], EU_MESC = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const euFCorta = f => { if (!euF(f)) return ''; const d = new Date(f + 'T12:00'); return `${EU_WDC[d.getDay()]} ${d.getDate()} ${EU_MESC[d.getMonth()]}`; };
+const euIni = r => euF(r && r.inicio && typeof r.inicio === 'object' ? r.inicio.d : '');
+const euIniFut = r => { const i = euIni(r); return i && i > today() ? i : ''; };
+const euIniVal = r => euIni(r) || (r && +r.creado > 0 ? dayKey(new Date(+r.creado)) : today());
+const euEmpiezaT = f => `Empieza el ${euFCorta(f)}`;
+const euLunes = () => { const t = today(), w = new Date(t + 'T12:00').getDay(); return euDia(t, ((8 - w) % 7) || 7); };
+const EU_INI_MAL = 'El inicio va antes del examen: elige otro día.';
+function euIniHtml(p, val, minF, fechaEx) {
+  const hoy = today(), man = euDia(hoy, 1), lun = euLunes(), q = [[hoy, 'Hoy'], [man, 'Mañana'], ...(lun !== man ? [[lun, 'Lunes próximo']] : [])];
+  return `<div class="field eu-ini"><label for="${p}-ini">Empiezo el</label><div class="chips" id="${p}-ini-c" role="group" aria-label="Empiezo el">${q.map(([f, t]) => `<button type="button" class="chip${val === f ? ' on' : ''}" data-ini="${f}" aria-pressed="${val === f}">${t}</button>`).join('')}</div><input type="date" id="${p}-ini" min="${esc(minF || hoy)}"${euF(fechaEx) ? ` max="${esc(euDia(fechaEx, -1))}"` : ''} value="${esc(val)}"></div>`;
+}
+function euIniWire(body, p, onCambio) {
+  const inp = body.querySelector('#' + p + '-ini'), box = body.querySelector('#' + p + '-ini-c'); if (!inp || !box) return;
+  const ex = body.querySelector('#' + p + '-fecha'), tope = () => { const f = euF(ex && ex.value); if (f) inp.max = euDia(f, -1); else inp.removeAttribute('max'); };   // el inicio va antes del examen
+  if (ex) { ex.addEventListener('input', tope); ex.addEventListener('change', tope); }
+  const pintar = () => box.querySelectorAll('[data-ini]').forEach(b => { const on = b.dataset.ini === inp.value; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  box.addEventListener('click', e => { const b = e.target.closest('[data-ini]'); if (!b) return; inp.value = b.dataset.ini; pintar(); onCambio?.(); });
+  inp.addEventListener('input', () => { pintar(); onCambio?.(); }); inp.addEventListener('change', () => { pintar(); onCambio?.(); });
+}
 const EU_TIPO = { estudio: 'Estudio', practica: 'Ejercicios', repaso: 'Repaso', simulacro: 'Simulacro', ligero: 'Repaso ligero' };
 const EU_PESO = ['', 'ligero', 'normal', 'pesado'];
 const EU_WD = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];   // 0 = domingo … 6 = sábado (convención del motor)
@@ -16861,8 +17058,8 @@ function euCardHtml(r) {
   const avT = euAvSubirT(r, r.config.minDia, true), av = euAvisoVivo(r, s) ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips eu-av" style="margin-top:8px">${avT ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(avT)}</button>` : ''}<button class="chip" data-av="temas" data-id="${esc(r.id)}">Quitar temas</button><button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : '';
   return `<div class="eu-card" data-id="${esc(r.id)}">
     <div class="top"><b>${esc(r.nombre)}</b><span class="tag">${esc(m ? m.nombre : '')}</span></div>
-    <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` · ${esc(fmtHora(r.hora))}` : ''}${euF(r.fecha) ? ` · ${euDiasT(s.diasRestantes)}` : ''}</p>
-    <p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'} · ${semHecho} de ${semPlan} min esta semana</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}
+    <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` · ${esc(fmtHora(r.hora))}` : ''}${euF(r.fecha) ? ` · ${euDiasT(s.diasRestantes)}` : ''}</p>${euIniFut(r) && !r.archivada ? `<p class="meta eu-ini-t"><b>${esc(euEmpiezaT(euIniFut(r)))}</b></p>` : ''}
+    <p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'}${euIniFut(r) && !semPlan ? '' : ` · ${semHecho} de ${semPlan} min esta semana`}</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}
     <div class="meter-bar"><i style="width:${pct}%"></i></div>
     ${s.diasRestantes > 0 ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
     ${av}
@@ -16929,7 +17126,7 @@ function euNuevaRuta(pre = {}) {
   const pc = pre.config && typeof pre.config === 'object' ? pre.config : {};
   const materiaNombre = euS(pre.materiaNombre, 40), materia = E.materia(pre.materia) ? pre.materia : !materiaNombre && mats.length === 1 ? mats[0].id : '';
   euN = { paso: 1, materia, nueva: !materia, materiaNombre, materiaColor: '',
-    nombre: euS(pre.nombre, 80), fecha: euF(pre.fecha), hora: euH(pre.hora), lugar: euS(pre.lugar, 60), iden: euS(pre.iden, 60), habito: euS(pre.habito, 60), obj: euS(pre.obj, 60),
+    nombre: euS(pre.nombre, 80), fecha: euF(pre.fecha), hora: euH(pre.hora), lugar: euS(pre.lugar, 60), iden: euS(pre.iden, 60), habito: euS(pre.habito, 60), obj: euS(pre.obj, 60), inicio: euF(pre.inicio) > today() ? euF(pre.inicio) : '',
     temas: (Array.isArray(pre.temas) ? pre.temas : []).map(x => typeof x === 'string' ? { t: euS(x, 80), peso: 2 } : x && typeof x === 'object' ? { t: euS(x.t, 80), peso: [1, 2, 3].includes(+x.peso) ? +x.peso : 2 } : null).filter(x => x && x.t).slice(0, 30),
     config: { minDia: euNum(pc.minDia, c.minDia, 15, 480), horaPref: euH(pc.horaPref) || c.horaPref, bloqueMin: [25, 50, 90].includes(+pc.bloqueMin) ? +pc.bloqueMin : c.bloqueMin, ejDia: euNum(pc.ejDia, c.ejDia, 0, 200), vispera: ['ligero', 'normal', 'libre'].includes(pc.vispera) ? pc.vispera : c.vispera, repasos: typeof pc.repasos === 'boolean' ? pc.repasos : c.repasos, diasAntes: euNum(pc.diasAntes, 0, 1, 60), porDia } };
   euPaso(1);
@@ -16943,6 +17140,7 @@ function euPaso1() {
       <div class="field"><label>Color</label><div class="chips" id="eu-mat-c">${COLORS.map(c => `<button type="button" class="eu-sw${N.materiaColor === c ? ' on' : ''}" data-c="${c}" style="background:${c || 'var(--empty)'}" aria-label="${c ? 'Color ' + c : 'Sin color'}"></button>`).join('')}</div></div></div>
     <div class="field"><label>Examen</label><input id="eu-nombre" maxlength="80" value="${esc(N.nombre)}" placeholder="Parcial 2 · Final · Oral"></div>
     <div class="field"><label>Fecha del examen</label><input type="date" id="eu-fecha" min="${hoy}" value="${esc(N.fecha)}"></div>
+    ${euIniHtml('eu', euF(N.inicio) && N.inicio >= hoy ? N.inicio : hoy, '', N.fecha)}
     <div class="field"><label>Hora <span class="meta">(opcional)</span></label><input type="time" id="eu-hora" value="${esc(N.hora)}"></div>
     <div class="field"><label>Lugar <span class="meta">(opcional)</span></label><input id="eu-lugar" maxlength="60" value="${esc(N.lugar)}" placeholder="Aula 4 · En línea"></div>
     ${euIdnChips(N.iden)}
@@ -16953,12 +17151,13 @@ function euPaso1() {
   const body = euBody();
   body.querySelector('#eu-mats').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b) return; N.materia = b.dataset.m; N.nueva = !b.dataset.m; body.querySelectorAll('#eu-mats .chip').forEach(x => x.classList.toggle('on', x === b)); body.querySelector('#eu-mat-nueva').hidden = !N.nueva; if (N.nueva) body.querySelector('#eu-mat-n').focus(); });
   body.querySelector('#eu-mat-c').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; N.materiaColor = b.dataset.c; body.querySelectorAll('.eu-sw').forEach(x => x.classList.toggle('on', x === b)); });
-  const leer = () => { N.materiaNombre = euS(body.querySelector('#eu-mat-n').value, 40); N.nombre = euS(body.querySelector('#eu-nombre').value, 80); N.fecha = euF(body.querySelector('#eu-fecha').value); N.hora = euH(body.querySelector('#eu-hora').value); N.lugar = euS(body.querySelector('#eu-lugar').value, 60); N.iden = euIdnLeer(body); N.habito = body.querySelector('#eu-hab').value; N.bt = btcLeer(body, 'eu-bt'); };
+  const leer = () => { N.materiaNombre = euS(body.querySelector('#eu-mat-n').value, 40); N.nombre = euS(body.querySelector('#eu-nombre').value, 80); N.fecha = euF(body.querySelector('#eu-fecha').value); N.hora = euH(body.querySelector('#eu-hora').value); N.lugar = euS(body.querySelector('#eu-lugar').value, 60); N.iden = euIdnLeer(body); N.habito = body.querySelector('#eu-hab').value; N.bt = btcLeer(body, 'eu-bt'); { const i = euF(body.querySelector('#eu-ini')?.value); N.inicio = i && i > hoy ? i : ''; } };   // 2.22.3 (I) · hoy = sin inicio
+  euIniWire(body, 'eu');
   body.querySelector('#eu-cancel').onclick = () => { euN = null; closeSheet(); };
   euLeerPaso = leer;
   body.querySelector('#eu-desc-no').onclick = () => { body.querySelector('#eu-descartar').hidden = true; body.querySelector('#eu-p1-acc').hidden = false; };
   body.querySelector('#eu-desc-si').onclick = () => { euN = null; closeSheet(); };
-  body.querySelector('#eu-next').onclick = () => { leer(); if (N.nueva ? !N.materiaNombre : !N.materia) { toast('Elige o escribe una materia.'); return; } if (!N.fecha || N.fecha < hoy) { toast('La fecha del examen va de hoy en adelante.'); return; } euPaso(2); };
+  body.querySelector('#eu-next').onclick = () => { leer(); if (N.nueva ? !N.materiaNombre : !N.materia) { toast('Elige o escribe una materia.'); return; } if (!N.fecha || N.fecha < hoy) { toast('La fecha del examen va de hoy en adelante.'); return; } if (N.inicio && N.inicio >= N.fecha) { toast(EU_INI_MAL); return; } euPaso(2); };
 }
 const euPesosHtml = temas => temas.map((t, i) => `<div class="eu-tema"><span class="t">${esc(t.t)}</span>${euPickChips('eu-peso-' + i, [[1, 'ligero'], [2, 'normal'], [3, 'pesado']], t.peso)}</div>`).join('');
 function euPaso2() {
@@ -17006,8 +17205,8 @@ const EU_WD_N = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes'
 const euMetaR5 = m => Math.round((+m || 0) / 5) * 5;
 const euWdChips = (id, dias) => `<div class="eu-wd" id="${id}" role="group" aria-label="Días de estudio">${[1, 2, 3, 4, 5, 6, 0].map(wd => `<button type="button" class="chip${dias.has(wd) ? ' on' : ''}" data-wd="${wd}" aria-pressed="${dias.has(wd)}" aria-label="${EU_WD_N[wd]}">${EU_WD[wd]}</button>`).join('')}</div>`;
 // Días elegidos de hoy (de noche, mañana) a la víspera; la víspera ligera o libre no es día de estudio normal.
-function euMetaCuenta(fecha, dias, visp) {
-  const hoy = today(), fin = euDia(fecha, -1), L = []; let d = new Date().getHours() >= 20 ? euDia(hoy, 1) : hoy;
+function euMetaCuenta(fecha, dias, visp, ini) {
+  const hoy = today(), fin = euDia(fecha, -1), L = []; let d = new Date().getHours() >= 20 ? euDia(hoy, 1) : hoy; if (euF(ini) && ini > d) d = ini;   // 2.22.3 (I)
   for (let i = 0; d <= fin && i < 400; d = euDia(d, 1), i++) if (dias.has(new Date(d + 'T12:00').getDay())) L.push(d);
   const vis = L.length > 1 && L[L.length - 1] === fin && visp !== 'normal';
   return { n: L.length, est: L.length - (vis ? 1 : 0), lig: vis && visp === 'ligero' ? 30 : 0 };
@@ -17024,13 +17223,13 @@ const euTopeT = t => t && t.min ? `máximo ${t.min} min por día desde las ${fmt
 // La línea viva: sale de repartir de verdad (mt.sim) con lo que se ve en pantalla, así nunca promete días o minutos que el plan no usa.
 function euMetaLinea(mt, min) {
   if (!euF(mt.fecha)) return { t: '' };
-  if (mt.on && !euMetaCuenta(mt.fecha, mt.dias, mt.visp ? mt.visp() : 'ligero').n) return { t: 'Ningún día elegido antes del examen. Elige al menos uno.', mal: true };
+  if (mt.on && !euMetaCuenta(mt.fecha, mt.dias, mt.visp ? mt.visp() : 'ligero', mt.ini ? mt.ini() : '').n) return { t: 'Ningún día elegido antes del examen. Elige al menos uno.', mal: true };
   let x; try { x = mt.sim(mt.on); } catch { return { t: '' }; }
   const res = euMetaRes(x.plan, x.hechos), real = mt.real || 0, falta = Math.max(0, min - real), dT = euPl(res.n, 'día', 'días');
   const base = real > 0 ? `Llevas ${fmtMin(real)} de ${fmtMin(min)} · quedan ${fmtMin(falta)} en ${dT}` : `${fmtMin(min)} en ${dT}`;
   const fuera = mt.on ? Math.max(0, falta - res.tot) : 0;
   if (fuera >= 15) return { t: `${base}. No cabe: quedan ${fmtMin(fuera)} fuera (${euTopeT(x.tope)}). Suma días o baja las horas.`, mal: true };
-  const nota = mt.on && mt.lejos && mt.lejos() ? ' Reparte desde hoy hasta el examen.' : '';
+  const nota = mt.on && mt.lejos && mt.lejos() ? (mt.ini && euF(mt.ini()) > today() ? ' Reparte desde el día en que empiezas hasta el examen.' : ' Reparte desde hoy hasta el examen.') : '';
   return { t: `${res.per ? `${base} · unos ${res.per} min por día` : base}${nota ? '.' + nota : ''}` };
 }
 function euMetaHtml(p, mt) {
@@ -17079,20 +17278,20 @@ function euMetaSimWiz(mt, cfg) {
   E.planificar(r, today(), { sim: true }); return { plan: r.plan, hechos: {}, tope: E.metaTope(r) };
 }
 // Con meta apagada y el examen más lejos que los días previos, encenderla reparte desde hoy: la línea lo dice.
-const euMetaLejos = (fecha, cfg) => euF(fecha) && euDia(fecha, -Math.max(1, +cfg.diasAntes || 14)) > today();
+const euMetaLejos = (fecha, cfg, ini) => euF(fecha) && euDia(fecha, -Math.max(1, +cfg.diasAntes || 14)) > [today(), euF(ini)].sort().pop();   // 2.22.3 (I) · desde el inicio
 function euMetaWiz(N) {
   const E = EU(), on = !!(N.meta && +N.meta.min > 0), r = euCopia(); delete r.meta;
   const mt = { on, min: on ? +N.meta.min : 0, dias: new Set(on ? N.meta.dias : E.metaDias(r)), real: 0, fecha: N.fecha, imp: () => euMetaImpCfg(N.config), visp: () => N.config.vispera };
-  mt.sim = o => euMetaSimWiz({ ...mt, on: o }, N.config); mt.lejos = () => euMetaLejos(N.fecha, N.config);
+  mt.sim = o => euMetaSimWiz({ ...mt, on: o }, N.config); mt.lejos = () => euMetaLejos(N.fecha, N.config, N.inicio); mt.ini = () => N.inicio || '';
   return mt;
 }
 function euMetaFicha(r) {
   const E = EU(), x = E.meta(r), mt = { on: x.on, min: x.min, dias: new Set(x.dias), real: x.real, fecha: r.fecha, imp: () => x.implicita, visp: () => r.config.vispera };
-  mt.cfg = () => r.config; mt.lejos = () => false;
+  mt.cfg = () => r.config; mt.lejos = () => false; mt.ini = () => euIni(r);
   // En Ajustes: sin meta, el plan que hay; con meta, repartir una copia con lo que se ve (sin guardar).
   mt.sim = o => {
     if (!o) return { plan: r.plan, hechos: r.hechos || {}, tope: E.metaTope(r) };
-    const y = JSON.parse(JSON.stringify(r)); y.config = { ...y.config, ...mt.cfg(), porDia: { ...(mt.cfg().porDia || y.config.porDia) } };
+    const y = JSON.parse(JSON.stringify(r)); { const i = mt.ini ? mt.ini() : ''; if (euF(i)) y.inicio = { d: i, mod: 1 }; } y.config = { ...y.config, ...mt.cfg(), porDia: { ...(mt.cfg().porDia || y.config.porDia) } };
     y.meta = { min: mt.min, dias: [...mt.dias].sort((a, b) => a - b), mod: 1, ...(r.meta && r.meta.pesos ? { pesos: { ...r.meta.pesos } } : {}) };
     y.config.porDia = E.metaPorDia(y.config.porDia, y.meta.dias, y.meta, r.config.porDia);
     E.planificar(y, today(), { sim: true }); return { plan: y.plan, hechos: y.hechos || {}, tope: E.metaTope(y) };
@@ -17160,7 +17359,7 @@ function rcHtml(ctx) {
       else if (d.plan > 0) { cl += ' on'; b = String(d.plan); lab += `, ${fmtMin(d.plan)}`; }
       else lab += ', sin estudio';
       if (d.ov && d.delta) { i = rcDelta(d.delta); ic = d.delta < 0 ? 'neg' : 'pos'; lab += `, ${rcDelta(d.delta, true)}`; }
-      if (!d.edit) { cl += ' fuera'; lab += ', fuera de la ruta'; }
+      if (!d.edit) { cl += d.antes ? ' fuera antes' : ' fuera'; lab += d.antes ? ', antes de empezar' : ', fuera de la ruta'; }   // 2.22.3 (I) · antes del inicio: no es deuda
     }
     if (f === hoy) cl += ' hoy'; if (rcEst.mover === f) cl += ' sel';
     // Lectores de pantalla: los días que se pueden tocar dicen si están marcados (aria-pressed); los demás, que no se cambian.
@@ -17174,11 +17373,13 @@ function rcHtml(ctx) {
     mini = `<div class="rc-mini" id="rc-mini" role="group" aria-label="Cambiar el ${esc(rcDiaL(rcEst.mini))}">
       <p class="rc-mini-t"><b>${esc(rcDiaL(rcEst.mini))}</b>${bse !== null && bse !== undefined ? `<span class="meta"> · plan base ${esc(fmtMin(bse))}</span>` : ''}</p>
       <div class="eu-hrs"><button type="button" class="eu-step" data-rm="-15" aria-label="15 min menos">−15</button><b id="rc-mv" aria-live="polite">${esc(fmtMin(rcEst.v))}</b><button type="button" class="eu-step" data-rm="15" aria-label="15 min más"${rcEst.v + 15 > tope ? ' disabled' : ''}>+15</button></div>
-      <div class="chips rc-mini-c">${rcResto(d) >= 5 ? '<button type="button" class="chip" id="rc-mover">Mover a otro día</button>' : ''}${d.ov ? '<button type="button" class="chip" id="rc-base">Volver al plan</button>' : ''}</div>
+      <div class="chips rc-mini-c">${rcResto(d) >= 5 ? '<button type="button" class="chip" id="rc-mover">Mover a otro día</button>' : ''}${ctx.inicio && rcEst.mini > hoy && rcEst.mini > euIni(r) && (!euF(r.fecha) || rcEst.mini < r.fecha) ? '<button type="button" class="chip" id="rc-empieza">Empezar este día</button>' : ''}${d.ov ? '<button type="button" class="chip" id="rc-base">Volver al plan</button>' : ''}</div>
       <div class="actions"><button type="button" class="link" id="rc-mno">Cancelar</button><button type="button" class="primary" id="rc-mok">Guardar</button></div></div>`;
   }
   return `<div class="rc" data-sin-hecho>
     <p class="rc-sum" id="rc-sum" aria-live="polite">${x.on ? euBalHtml(x) : `Plan ${esc(fmtMin(x.implicita))}`}</p>
+    ${euIniFut(r) ? `<p class="meta rc-ini" id="rc-ini">${esc(euEmpiezaT(euIniFut(r)))}.${ctx.inicio ? ' Para empezar antes, toca ese día.' : ''}</p>` : ''}
+    ${rcEst.ini && ctx.inicio ? `<p class="rc-mov" id="rc-inip" aria-live="polite">¿Empiezas el ${esc(rcDiaT(rcEst.ini))}? <button type="button" class="chip" id="rc-ini-si">Empezar ese día</button> <button type="button" class="link" id="rc-ini-no">Cancelar</button></p>` : ''}
     ${ca ? `<p class="meta rc-camb" id="rc-camb">${esc(ca)}</p>` : ''}
     ${x.on && x.falta >= 15 ? `<p class="meta amber" id="rc-nocabe">No cabe: quedan ${esc(fmtMin(x.falta))} fuera (${esc(euTopeT(x.tope))}).</p>` : ''}
     ${x.on && x.repartir ? '<p class="rc-rep-p"><button type="button" class="outline" id="rc-rep">Repartir la deuda</button></p>' : ''}
@@ -17192,13 +17393,13 @@ function rcRender(box, ctx) { if (!box || !box.isConnected) return; box.__rc = c
 // Atrás (o Esc) con el panel del día o «Mover a otro día» abiertos: los cierra y el calendario sigue (true). Si no, false.
 function rcAtras() {
   try {
-    if (!sheet.open || !(rcEst.mini || rcEst.mover)) return false;
+    if (!sheet.open || !(rcEst.mini || rcEst.mover || rcEst.ini)) return false;
     const bd = euBody(), box = bd && (bd.querySelector('#rc-box') || bd.querySelector('#eu-p4-cal'));
     if (!box || !box.isConnected || !box.__rc) return false;
-    rcEst.mini = ''; rcEst.mover = ''; rcRender(box, box.__rc); return true;
+    rcEst.mini = ''; rcEst.mover = ''; rcEst.ini = ''; rcRender(box, box.__rc); return true;
   } catch { return false; }
 }
-const rcLimpiar = () => { rcEst.mini = ''; rcEst.mover = ''; };   // al abrir o cerrar el calendario, sin panel ni «Mover» a medias
+const rcLimpiar = () => { rcEst.mini = ''; rcEst.mover = ''; rcEst.ini = ''; };   // al abrir o cerrar el calendario, sin panel ni «Mover» a medias
 function rcWire(box, ctx) {
   const E = EU(), pint = () => { if (ctx.luego) ctx.luego(); else rcRender(box, ctx); };
   const estado = () => { const x = E.meta(ctx.r()); return x.on ? ` ${x.deuda ? `Deuda: ${fmtMin(x.deuda)}.` : x.superavit ? `Superávit: ${fmtMin(x.superavit)}.` : 'Al día.'}` : ''; };
@@ -17220,6 +17421,7 @@ function rcWire(box, ctx) {
       try { hecho(ctx.mover(a, f), `Pasaste ${fmtMin(m)} del ${rcDiaT(a)} al ${rcDiaT(f)}.`); } catch (e) { rcRender(box, ctx); toast(e?.message || 'No se pudo mover.'); }
       return;
     }
+    if (d.antes && ctx.inicio) { rcEst.ini = f; rcEst.mini = ''; rcRender(box, ctx); return; }   // 2.22.3 (I) · antes del inicio: ¿empezar ese día?
     if (!d.edit) { toast(f === r.fecha ? 'Ese día es el examen.' : f < today() ? (d.plan || d.real ? `El ${rcDiaT(f)} ya pasó: estudiaste ${fmtMin(d.real)}${d.plan ? ` de ${fmtMin(d.plan)}` : ''}.` : 'Ese día ya pasó.') : 'Ese día queda fuera de la ruta.'); return; }
     // Lo ya estudiado ese día (hoy) se queda: quitar deja el día en lo hecho y el aviso dice solo lo que se quita de verdad.
     const bse = x.on ? (d.base || 0) : d.plan, cur = rcCur(d), rest = rcResto(d), h5 = d.real > 0 ? Math.ceil(d.real / 5) * 5 : 0;
@@ -17244,6 +17446,9 @@ function rcWire(box, ctx) {
   box.querySelector('#rc-prev')?.addEventListener('click', () => mes(-1));
   box.querySelector('#rc-next')?.addEventListener('click', () => mes(1));
   box.querySelector('#rc-movno')?.addEventListener('click', () => { rcEst.mover = ''; rcRender(box, ctx); });
+  const empezar = f => { try { hecho(ctx.inicio(f), `Empiezas el ${rcDiaT(f)}.`); } catch (e) { rcRender(box, ctx); toast(e?.message || 'No se pudo cambiar.'); } };   // 2.22.3 (I)
+  box.querySelector('#rc-ini-si')?.addEventListener('click', () => { const f = rcEst.ini; rcEst.ini = ''; empezar(f); });
+  box.querySelector('#rc-ini-no')?.addEventListener('click', () => { rcEst.ini = ''; rcRender(box, ctx); });
   box.querySelector('#rc-rep')?.addEventListener('click', () => {
     let res; try { res = ctx.repartir(); } catch (e) { toast(e?.message || 'No se pudo repartir.'); return; }
     if (!res || !res.puesto) { toast(res && res.queda ? `No caben más minutos por día: la deuda sigue en ${fmtMin(res.queda)}.` : 'No hay deuda que repartir.'); return; }
@@ -17259,6 +17464,7 @@ function rcWire(box, ctx) {
     });
     mini.querySelector('#rc-mno').onclick = () => { rcEst.mini = ''; rcRender(box, ctx); };
     mini.querySelector('#rc-mover')?.addEventListener('click', () => { rcEst.mover = rcEst.mini; rcEst.mini = ''; rcRender(box, ctx); });
+    mini.querySelector('#rc-empieza')?.addEventListener('click', () => { const f = rcEst.mini; rcEst.mini = ''; empezar(f); });
     mini.querySelector('#rc-base')?.addEventListener('click', () => { const f = rcEst.mini; rcEst.mini = ''; try { hecho(ctx.aplicar({ [f]: null }), `El ${rcDiaT(f)} vuelve al plan.`); } catch (e) { toast(e?.message || 'No se pudo cambiar.'); } });
     mini.querySelector('#rc-mok').onclick = () => {
       const f = rcEst.mini, r = ctx.r(), x = E.meta(r), d = E.fechaDia(r, f), v = rcEst.v, cur = d.quitado ? 0 : d.plan || d.obj || 0, bse = x.on ? d.base : d.plan; rcEst.mini = '';
@@ -17277,6 +17483,7 @@ function euRutaCal(id) {
   const ctx = { k: id, r: () => E.ruta(id),
     aplicar: p => { const u = E.fechas(id, p); return () => E.fechas(id, u); },
     mover: (a, b) => { const u = E.fechasMover(id, a, b); return () => E.fechas(id, u); },
+    ...(typeof E.inicio === 'function' ? { inicio: f => { const u = E.inicio(id, f); return () => E.inicio(id, u); } } : {}),   // 2.22.3 (I)
     repartir: () => { const res = E.fechasRepartir(id); return { ...res, deshacer: () => E.fechas(id, res.undo) }; },
     luego: () => { rcRender(box, ctx); renderEstudio(); } };
   rcLimpiar(); rcRender(box, ctx);
@@ -17289,6 +17496,7 @@ function euP4Ctx(N, luego) {
   const snap = () => JSON.stringify({ f: N.fechas || null, m: N.meta || null }), volver = t => { const o = JSON.parse(t); if (o.f) N.fechas = o.f; else delete N.fechas; N.meta = o.m; };
   const escribir = r => { if (r.fechas) N.fechas = JSON.parse(JSON.stringify(r.fechas)); if (r.meta && +r.meta.min > 0) { N.meta = { min: r.meta.min, dias: r.meta.dias.slice(), ...(r.meta.base ? { base: { ...r.meta.base } } : {}), ...(r.meta.red ? { red: r.meta.red } : {}) }; N.config.porDia = { ...r.config.porDia }; } };
   return { k: 'vista-previa', r: cp, luego,
+    inicio: f => { const t = snap(), i0 = N.inicio; N.inicio = f > today() ? f : ''; if (N.meta) { delete N.meta.base; delete N.meta.red; } return () => { volver(t); N.inicio = i0; }; },   // 2.22.3 (I)
     aplicar: p => { const t = snap(), pc = JSON.stringify(N.config.porDia), r = cp(); E.fechas(r, p); escribir(r); return () => { volver(t); N.config.porDia = JSON.parse(pc); }; },
     mover: (a, b) => { const t = snap(), pc = JSON.stringify(N.config.porDia), r = cp(); E.fechasMover(r, a, b); escribir(r); return () => { volver(t); N.config.porDia = JSON.parse(pc); }; },
     repartir: () => { const t = snap(), pc = JSON.stringify(N.config.porDia), r = cp(), res = E.fechasRepartir(r); escribir(r); return { ...res, deshacer: () => { volver(t); N.config.porDia = JSON.parse(pc); } }; } };
@@ -17302,7 +17510,7 @@ function euPaso3() {
   const body = euBody(); euWire(body); activarFranjas(body); euTiempoWire(body, 'eu');
   const cfgF = () => ({ ...N.config, ...euTiempoLeer(body, 'eu', c) });
   mt.imp = () => euMetaImpCfg(cfgF()); mt.visp = () => euPickLeer(body, 'eu-visp', c.vispera); mt.desdeForm = () => euMetaDiasForm(body, 'eu', c);
-  mt.sim = o => euMetaSimWiz({ ...mt, on: o }, cfgF()); mt.lejos = () => euMetaLejos(N.fecha, cfgF());
+  mt.sim = o => euMetaSimWiz({ ...mt, on: o }, cfgF()); mt.lejos = () => euMetaLejos(N.fecha, cfgF(), N.inicio);
   euMetaWire(body, 'eu', mt);
   const leer = () => { Object.assign(N.config, euTiempoLeer(body, 'eu', c)); N.meta = mt.on ? { min: mt.min, dias: [...mt.dias].sort((a, b) => a - b) } : null; }; euLeerPaso = leer;
   body.querySelector('#eu-back').onclick = () => { leer(); euPaso(2); };
@@ -17312,7 +17520,7 @@ function euPaso3() {
 function euCopia() {
   const N = euN;
   return { id: 'vista-previa', area: 'estudio', materia: N.materia, nombre: N.nombre || 'Examen', tipo: 'examen', fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas.map((t, i) => ({ id: 'vp' + i, t: t.t, peso: t.peso, hecho: false })),
-    config: { ...N.config, porDia: N.meta && +N.meta.min > 0 && EU()?.metaPorDia ? EU().metaPorDia(N.config.porDia, N.meta.dias) : { ...N.config.porDia } }, plan: [], hechos: {}, pendientes: [], iden: '', obj: '', habito: '', notion: null, gcal: {}, aviso: null, resultado: null, creado: 0, cambiado: 0, replan: 0, archivada: false,
+    config: { ...N.config, porDia: N.meta && +N.meta.min > 0 && EU()?.metaPorDia ? EU().metaPorDia(N.config.porDia, N.meta.dias) : { ...N.config.porDia } }, plan: [], hechos: {}, pendientes: [], iden: '', obj: '', habito: '', notion: null, gcal: {}, aviso: null, resultado: null, creado: 0, cambiado: 0, replan: 0, archivada: false, ...(euF(N.inicio) && N.inicio > today() ? { inicio: { d: N.inicio, mod: 1 } } : {}),   /* 2.22.3 (I) */
     ...(N.meta && +N.meta.min > 0 ? { meta: { min: +N.meta.min, dias: N.meta.dias.slice(), mod: 1, ...(N.meta.base ? { base: { ...N.meta.base } } : {}), ...(N.meta.base && N.meta.red ? { red: N.meta.red } : {}) }, ...(N.fechas ? { fechas: JSON.parse(JSON.stringify(N.fechas)) } : {}) } : {}) };   // 2.21.8 (D) · (K) con la base y los cambios por fecha
 }
 const euPlanDiasHtml = (plan, abiertos, filas) => [...new Set(plan.map(b => b.d))].sort().slice(0, 90).map(d => { const bs = plan.filter(b => b.d === d);
@@ -17322,10 +17530,10 @@ function euPaso4() {
   const E = EU(), N = euN, r = euCopia(); E.planificar(r);
   const plan = r.plan, dias = new Set(plan.map(b => b.d)), min = plan.reduce((n, b) => n + b.min, 0), ej = plan.reduce((n, b) => n + b.ej, 0), hoy = today();
   const mi = E.meta(r), d4 = new Set(mi.dias), rs4 = euMetaRes(plan), p4 = rs4.per, falta4 = mi.on ? (euFxAct(r) ? mi.falta : Math.max(0, mi.min - min)) : 0, baja4 = Math.max(30, Math.floor(min / 30) * 30);   // 2.21.8 (D) · el mismo cálculo que el paso 3
-  const lejos4 = mi.on && euMetaLejos(N.fecha, N.config);   // con meta y menos de 15 min por debajo (el redondeo), se ve la meta: igual que el paso 3
+  const lejos4 = mi.on && euMetaLejos(N.fecha, N.config, N.inicio), ini4 = euF(N.inicio) > hoy;   // con meta y menos de 15 min por debajo (el redondeo), se ve la meta: igual que el paso 3
   showSheet(`${euPie(4, 'Plan')}<h2>Tu plan</h2>
     <div class="field" style="margin:0 0 8px"><label>¿Qué días estudias?</label>${euWdChips('eu-p4-wd', d4)}</div>
-    <p class="eu-meta4" id="eu-meta4" aria-live="polite"><b>${esc(fmtMin(mi.on && falta4 < 15 ? mi.min : min))} en ${euPl(rs4.n, 'día', 'días')}</b>${p4 ? ` · unos ${p4} min por día` : ''}${lejos4 ? '. Reparte desde hoy hasta el examen.' : ''}</p>
+    <p class="eu-meta4" id="eu-meta4" aria-live="polite"><b>${esc(fmtMin(mi.on && falta4 < 15 ? mi.min : min))} en ${euPl(rs4.n, 'día', 'días')}</b>${p4 ? ` · unos ${p4} min por día` : ''}${lejos4 ? (ini4 ? '. Reparte desde el día en que empiezas hasta el examen.' : '. Reparte desde hoy hasta el examen.') : ''}${ini4 ? `<br><span class="meta" id="eu-p4-ini">${esc(euEmpiezaT(N.inicio))}</span>` : ''}</p>
     ${falta4 >= 15 ? `<div id="eu-nocabe"><p class="meta amber" style="margin:0 0 8px">No cabe: quedan ${esc(fmtMin(falta4))} fuera (${esc(euTopeT(mi.tope))}). Suma días o baja las horas.</p>${baja4 < mi.min ? `<div class="chips" style="margin:0 0 12px"><button type="button" class="chip" id="eu-baja">Bajar a ${esc(fmtMin(baja4))}</button></div>` : ''}</div>` : ''}
     ${mi.on && euFxAct(r) && euP4Vista !== 'cal' ? `<p class="eu-bal" id="eu-p4-bal" aria-live="polite">${euBalHtml(mi)}</p>` : ''}
     <div class="chips eu-p4-v" id="eu-p4-vista" role="group" aria-label="Ver el plan"><button type="button" class="chip${euP4Vista !== 'cal' ? ' on' : ''}" data-v="lista" aria-pressed="${euP4Vista !== 'cal'}">Lista</button><button type="button" class="chip${euP4Vista === 'cal' ? ' on' : ''}" data-v="cal" aria-pressed="${euP4Vista === 'cal'}">Calendario</button></div>
@@ -17352,9 +17560,9 @@ function euPaso4() {
   body.querySelector('#eu-back').onclick = () => euPaso(3);
   body.querySelector('#eu-save').onclick = () => {
     try {
-      const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, iden: N.iden, habito: N.habito, obj: N.obj, ...(N.meta && +N.meta.min > 0 ? { meta: N.meta, ...(N.fechas ? { fechas: N.fechas } : {}) } : {}) });
+      const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, iden: N.iden, habito: N.habito, obj: N.obj, ...(euF(N.inicio) && N.inicio > today() ? { inicio: N.inicio } : {}), ...(N.meta && +N.meta.min > 0 ? { meta: N.meta, ...(N.fechas ? { fechas: N.fechas } : {}) } : {}) });
       if (ruta.aviso && body.querySelector('#eu-av')?.hidden) euAvCallar(ruta);   // «Empezar igual»: la tarjeta nueva no vuelve a preguntar
-      const n = ruta.plan.filter(b => b.d === hoy).length, m = ruta.plan.filter(b => b.d === euDia(hoy, 1)).length, noche = new Date().getHours() >= 20; euN = null; closeSheet(); toast(!ruta.plan.length && euNocheUltima(ruta.fecha) ? 'Ruta creada. Mañana es el examen: si quieres, haz un repaso ligero ahora.' : noche && !n ? `Ruta creada. Empieza mañana: ${euBlT(m)}.` : `Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio(); btcTras(N.bt, { tipo: 'ruta', ref: ruta.id });
+      const n = ruta.plan.filter(b => b.d === hoy).length, m = ruta.plan.filter(b => b.d === euDia(hoy, 1)).length, noche = new Date().getHours() >= 20; euN = null; closeSheet(); toast(euIniFut(ruta) ? `Ruta creada. ${euEmpiezaT(euIniFut(ruta))}.` : !ruta.plan.length && euNocheUltima(ruta.fecha) ? 'Ruta creada. Mañana es el examen: si quieres, haz un repaso ligero ahora.' : noche && !n ? `Ruta creada. Empieza mañana: ${euBlT(m)}.` : `Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio(); btcTras(N.bt, { tipo: 'ruta', ref: ruta.id });
     } catch (e) { toast(e?.message || 'No se pudo crear la ruta.'); }
   };
 }
@@ -17371,7 +17579,7 @@ function euRutaSheet(id, sec = '') {
   const extras = Array.isArray(E.extras) ? E.extras.filter(x => x && typeof x.html === 'function').slice(0, 6) : [];
   const extrasHtml = extras.map(x => { let h = ''; try { h = String(x.html(r) ?? ''); } catch { h = '<p class="meta">Esta conexión no se pudo pintar.</p>'; } return `<div class="eu-card" data-extra="${esc(String(x.id || ''))}">${h}</div>`; }).join('');
   showSheet(`<p class="paso">${esc(m ? m.nombre : 'Estudio')} · ${!euF(r.fecha) ? 'sin fecha' : pasado ? 'examen pasado' : euDiasT(s.diasRestantes)}${r.terminada ? ' · terminada' : r.archivada ? ' · archivada' : ''}</p><h2>${esc(r.nombre)}</h2>
-    <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` a las ${esc(fmtHora(r.hora))}` : ''}${r.lugar ? ` · ${esc(r.lugar)}` : ''}</p>
+    <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` a las ${esc(fmtHora(r.hora))}` : ''}${r.lugar ? ` · ${esc(r.lugar)}` : ''}</p>${euIniFut(r) && !r.archivada ? `<p class="meta eu-ini-t" id="eu-f-ini"><b>${esc(euEmpiezaT(euIniFut(r)))}</b></p>` : ''}
     <p class="meta" id="eu-f-res">Temas vistos ${s.temasHechos} de ${s.temasTotal} · ${s.bloquesTotal ? euProgBl(s) : 'sin bloques'} · ${s.minHechos} de ${s.minPlan} min${s.ejPlan || s.ejHechos ? ` · ${s.ejHechos} de ${s.ejPlan} ejercicios` : ''}</p>${euMetaProgHtml(r, true)}${euRealHtml(r, true, !!euMetaProgHtml(r, true))}${euBalCard(r)}
     ${s.diasRestantes > 0 && !r.archivada ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
     ${r.terminada ? `<p class="meta" id="eu-ter-info"><b>Terminada el ${esc(euTerFecha(r))}.</b> Lo que hiciste queda como registro.${r.resultado ? ` «${esc(r.resultado.nota)}»` : ''}</p>${(() => { const L = euTerMetas(r); return L.length ? `<p class="meta" id="eu-ter-meta">${euTerMetasTxt(L)} <button class="link" data-ter-meta="${esc(L[0].id)}" style="min-height:44px">Ver la meta</button></p>` : ''; })()}<p style="margin:8px 0 4px"><button class="link" id="eu-react" style="min-height:44px">Reactivar</button></p>`
@@ -17379,7 +17587,7 @@ function euRutaSheet(id, sec = '') {
     ${euAvisoVivo(r, s) && !r.archivada ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 12px">${euAvSubirT(r, c.minDia, true) ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(euAvSubirT(r, c.minDia, true))}</button>` : ''}<button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : ''}
     ${pasado ? `<h3 id="eu-despues">Después del examen</h3><p class="meta">¿Cómo te fue? Unas líneas para ti.</p><textarea id="eu-res" class="eu-res" rows="3" maxlength="200" placeholder="Lo que salió bien y lo que cambiarías la próxima vez">${esc(r.resultado?.nota || '')}</textarea>
       <div class="actions" style="margin-top:0"><button class="link" id="eu-res-ok">Guardar</button>${!r.archivada ? '<button class="primary" id="eu-res-arch" style="min-height:44px">Terminar la ruta</button>' : ''}</div>` : ''}
-    ${!pasado ? `<h3>Bloques de hoy</h3>${(window.cadena?.pasos?.('est:' + r.id) || []).length ? `<p style="margin:0 0 8px"><button class="primary" data-cad="est:${esc(r.id)}" style="min-height:44px;width:100%">▶ Empezar los bloques de hoy</button></p>` : ''}${s.hoy.length ? `<div class="rows" id="eu-f-hoy">${s.hoy.map(b => euBloqueRow(b)).join('')}</div>` : '<p class="empty">Hoy no hay bloques de esta ruta.</p>'}` : ''}
+    ${!pasado ? `<h3>Bloques de hoy</h3>${(window.cadena?.pasos?.('est:' + r.id) || []).length ? `<p style="margin:0 0 8px"><button class="primary" data-cad="est:${esc(r.id)}" style="min-height:44px;width:100%">▶ Empezar los bloques de hoy</button></p>` : ''}${s.hoy.length ? `<div class="rows" id="eu-f-hoy">${s.hoy.map(b => euBloqueRow(b)).join('')}</div>` : `<p class="empty">${euIniFut(r) ? `${esc(euEmpiezaT(euIniFut(r)))}: antes no hay bloques.` : 'Hoy no hay bloques de esta ruta.'}</p>`}` : ''}
     ${euSesHtml(r)}
     <h3>Plan</h3>${r.plan.length ? euPlanDiasHtml(r.plan, [hoy], b => euBloqueRow(enr(b), { botones: false })) : '<p class="empty">Sin bloques en el plan.</p>'}
     <h3 id="eu-temas-h">Temas</h3><div id="eu-f-temas">${r.temas.map((t, i) => `<div class="eu-tema"><input type="checkbox" data-tv="${i}" ${t.hecho ? 'checked' : ''} aria-label="Tema visto" style="width:18px;height:18px;margin:0"><span class="t">${esc(t.t)}${t.hecho ? ' <span class="green">· visto</span>' : ''}${euTemaReal(r, t.id)}</span>${euPickChips('eu-tp-' + i, [[1, 'ligero'], [2, 'normal'], [3, 'pesado']], t.peso)}<button type="button" class="link" data-tx="${i}" aria-label="Quitar tema">×</button></div>`).join('')}</div>
@@ -17396,6 +17604,7 @@ function euRutaSheet(id, sec = '') {
       <div class="field" style="margin-top:8px"><label>Examen</label><input id="eu-a-nombre" maxlength="80" value="${esc(r.nombre)}"></div>
       <div class="field"><label>Materia</label><select id="eu-a-mat">${E.materias(true).slice(0, 20).map(x => `<option value="${esc(x.id)}" ${x.id === r.materia ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>
       <div class="field"><label>Fecha del examen</label><input type="date" id="eu-a-fecha" min="${hoy}" value="${esc(r.fecha)}"></div>
+      ${!pasado && !r.terminada && !r.archivada ? euIniHtml('eu-a', euIniVal(r), [hoy, euIniVal(r)].sort()[0], r.fecha) : ''}
       <div class="field"><label>Hora</label><input type="time" id="eu-a-hora" value="${esc(r.hora)}"></div>
       <div class="field"><label>Lugar</label><input id="eu-a-lugar" maxlength="60" value="${esc(r.lugar)}"></div>
       ${euIdnChips(r.iden)}${euHabSelect('eu-a-hab', r.habito)}
@@ -17406,9 +17615,10 @@ function euRutaSheet(id, sec = '') {
     <div class="actions" id="eu-acciones">${btcRuta(r)}${r.terminada ? '' : `<button class="link" id="eu-arch">${r.archivada ? 'Reactivar' : 'Archivar'}</button>`}<button class="link" id="eu-del">Borrar</button><button class="primary" id="eu-cerrar">Cerrar</button></div>
     <div class="actions" id="eu-del-conf" hidden><span class="meta" style="margin:0">¿Borrar la ruta con su plan y su registro?</span><button class="link" id="eu-del-no">Cancelar</button><button class="primary" id="eu-del-si">Sí, borrar</button></div>`);
   const body = euBody(); euWire(body); activarFranjas(body); euTiempoWire(body, 'eu-a');
-  mtA.visp = () => euPickLeer(body, 'eu-a-visp', c.vispera); mtA.desdeForm = () => euMetaDiasForm(body, 'eu-a', c); mtA.cfg = () => ({ ...c, ...euTiempoLeer(body, 'eu-a', c) });
+  mtA.visp = () => euPickLeer(body, 'eu-a-visp', c.vispera); mtA.desdeForm = () => euMetaDiasForm(body, 'eu-a', c); mtA.cfg = () => ({ ...c, ...euTiempoLeer(body, 'eu-a', c) }); mtA.ini = () => euF(body.querySelector('#eu-a-ini')?.value) || euIni(r);
   { const o0 = mtA.on; mtA.lejos = () => !o0 && euMetaLejos(r.fecha, mtA.cfg()); }
   euMetaWire(body, 'eu-a', mtA);   // 2.21.8 (D)
+  euIniWire(body, 'eu-a', () => mtA.pintar?.());   // 2.22.3 (I)
   if (r.terminada) euTerSoloLeer(body);   // 2.20.1 (T)
   const pintar = () => { if (!E.ruta(id)) { closeSheet(); renderEstudio(); return; } euRutaSheet(id, sec); renderEstudio(); };
   euWireBloques(body, pintar); euWirePend(body, pintar);
@@ -17437,6 +17647,7 @@ function euRutaSheet(id, sec = '') {
     const nombre = euS(v('#eu-a-nombre'), 80); if (nombre && nombre !== r.nombre) cambios.nombre = nombre;
     if (v('#eu-a-mat') !== r.materia) cambios.materia = v('#eu-a-mat');
     const f = euF(v('#eu-a-fecha')); if (f && f !== r.fecha) cambios.fecha = f;
+    { const iv = body.querySelector('#eu-a-ini'); if (iv) { const ni = euF(iv.value); if (iv.value && !ni) { toast('La fecha de inicio no es válida.'); return; } if (ni && ni > today() && ni >= (f || r.fecha)) { toast(EU_INI_MAL); return; } if (ni && ni !== euIniVal(r) && (ni > today() || euIniFut(r))) cambios.inicio = ni; } }   /* un inicio de hoy o pasado en una ruta que ya empezó no cambia nada */   // 2.22.3 (I)
     if (euH(v('#eu-a-hora')) !== r.hora) cambios.hora = euH(v('#eu-a-hora'));
     if (euS(v('#eu-a-lugar'), 60) !== r.lugar) cambios.lugar = euS(v('#eu-a-lugar'), 60);
     const iden = euIdnLeer(body); if (iden !== (r.iden || '')) cambios.iden = iden;
@@ -17446,7 +17657,7 @@ function euRutaSheet(id, sec = '') {
     { const was = !!(r.meta && +r.meta.min > 0), dd = [...mtA.dias].sort((a, b) => a - b), od = (r.meta && Array.isArray(r.meta.dias) ? r.meta.dias : []).slice().sort((a, b) => a - b);   // 2.21.8 (D)
       if (mtA.on ? !was || mtA.min !== +r.meta.min || dd.join() !== od.join() : was) cambios.meta = { min: mtA.on ? mtA.min : 0, dias: dd }; }
     if (!Object.keys(cambios).length) { toast('Nada que cambiar.'); return; }
-    try { E.editar(id, cambios); toast(cambios.config || cambios.fecha || cambios.meta ? 'Guardado: el plan se volvió a repartir.' : 'Guardado.'); sec = 'ajustes'; pintar(); } catch (e) { toast(e?.message || 'No se pudo guardar.'); }
+    try { E.editar(id, cambios); toast(cambios.config || cambios.fecha || cambios.meta || cambios.inicio ? 'Guardado: el plan se volvió a repartir.' : 'Guardado.'); sec = 'ajustes'; pintar(); } catch (e) { toast(e?.message || 'No se pudo guardar.'); }
   };
   // Después del examen.
   body.querySelector('#eu-res-ok')?.addEventListener('click', () => { E.editar(id, { resultado: body.querySelector('#eu-res').value }); toast('Guardado.'); pintar(); });
@@ -18613,7 +18824,7 @@ function esFechasIA(a) {
 }
 function esToolFechas(E, r, a, fx) {
   if (typeof E.fechas !== 'function') throw new Error('Esta versión no cambia fechas sueltas.');
-  const p = { ...fx.patch }, desde = E.metaDesde(), malas = Object.keys(p).filter(f => f < desde || !r.fecha || f >= r.fecha);
+  const p = { ...fx.patch }, desde = typeof E.desdeRuta === 'function' ? E.desdeRuta(r) : E.metaDesde(), malas = Object.keys(p).filter(f => f < desde || !r.fecha || f >= r.fecha);
   for (const f of malas) delete p[f];
   for (const k of Object.keys(p)) if (p[k] === 'usual') p[k] = E.fechasUsual(r.id);
   if (fx.n && !Object.keys(p).length) throw new Error(`Las fechas van de ${desde} al día antes del examen (${r.fecha}).`);
@@ -18630,6 +18841,7 @@ function esToolRutaMeta(E, a) {
   const r = rutas.find(x => x.id === a.ruta) || rutas.find(x => x.nombre.toLowerCase() === q) || rutas.find(x => esMat(x).toLowerCase() === q) || rutas.find(x => x.nombre.toLowerCase().includes(q) || esMat(x).toLowerCase().includes(q));
   if (!r) throw new Error(`No encontré esa ruta. Rutas: ${rutas.map(x => `${x.nombre} (${esMat(x)})`).join(', ')}.`);
   const dias = esDiasIA(a.dias), h = esHorasIA(a.horas_total), fx = esFechasIA(a);   // 2.21.8 (K)
+  { const iniIA = esF(a.inicio); if (iniIA) { E.editar(r.id, { inicio: iniIA }); if (!dias.length && !h && !fx.n && !a.repartir_deuda) { if (view === 'estudio') window.renderEstudio?.(); const n = E.ruta(r.id); return { cambiada: n.nombre, materia: esMat(n), empieza: iniIA, hoy: n.plan.filter(b => b.d === today()).length, ...esMetaIA(E, n), nota: 'El plan se volvió a repartir desde ese día: antes no hay bloques.' }; } } }   // 2.22.3 (I)
   if (!dias.length && !h && !fx.n && !a.repartir_deuda) throw new Error('Para cambiar una ruta pásame dias, horas_total, quitar_fecha, agregar_fecha, minutos_fecha o repartir_deuda.');
   if (!dias.length && !h) return esToolFechas(E, r, a, fx);
   const x = E.meta(r), meta = { min: h || (x.on ? x.min : Math.max(30, Math.round(x.implicita / 5) * 5)), dias: dias.length ? dias : x.dias };
@@ -18652,10 +18864,10 @@ function esToolRuta(a) {
   if (esH(a.hora_preferida)) config.horaPref = a.hora_preferida;
   const diasIA = esDiasIA(a.dias), horasIA = esHorasIA(a.horas_total);   // 2.21.8 (D) · solo días: los demás quedan libres; con horas: la meta
   if (diasIA.length && !horasIA) config.porDia = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map(wd => [wd, diasIA.includes(wd) ? null : 0]));
-  const r = E.crear({ materiaNombre: materia, nombre: esS(a.examen, 80) || 'Examen', fecha, hora: esH(a.hora), temas, config, ...(horasIA ? { meta: { min: horasIA, dias: diasIA.length ? diasIA : [0, 1, 2, 3, 4, 5, 6] } } : {}) });
+  const r = E.crear({ materiaNombre: materia, nombre: esS(a.examen, 80) || 'Examen', fecha, hora: esH(a.hora), temas, config, ...(esF(a.inicio) && esF(a.inicio) > today() ? { inicio: esF(a.inicio) } : {}), ...(horasIA ? { meta: { min: horasIA, dias: diasIA.length ? diasIA : [0, 1, 2, 3, 4, 5, 6] } } : {}) });
   const s = E.resumen(r.id) || {}, hoy = r.plan.filter(b => b.d === today()).length;
   if (view === 'estudio') window.renderEstudio?.();
-  return { creada: r.nombre, materia: esMat(r), examen: r.fecha, hora: r.hora || '', dias: s.diasRestantes, bloques: s.bloquesTotal, minutos: s.minPlan, ejercicios: s.ejPlan, hoy,
+  return { creada: r.nombre, materia: esMat(r), examen: r.fecha, ...(r.inicio && r.inicio.d > today() ? { empieza: r.inicio.d } : {}), hora: r.hora || '', dias: s.diasRestantes, bloques: s.bloquesTotal, minutos: s.minPlan, ejercicios: s.ejPlan, hoy,
     ...esMetaIA(E, r), aviso: r.aviso ? `No cabe todo: harían falta ${r.aviso.faltan} min por día. La persona puede subir minutos, quitar temas o dejarlo así.` : '', nota: 'La ruta está en la pestaña Estudio; los bloques de hoy entran en la Agenda.' };
 }
 function esToolBloque(a) {
@@ -18769,11 +18981,14 @@ const INI_CSS = `
   .ini-man .ini-man-p { color: var(--muted); font-size: .92rem; margin-bottom: 12px; }
   .ini-man .ini-man-b { width: 100%; min-height: 48px; border-radius: 999px; background: var(--text); color: var(--bg); font-weight: 700; font-size: 1rem; border: 0; }
   .ini-cuenta-fin { margin-top: 26px; } .ini-cuenta-fin .ini-cta { margin: 0; }
+  .ag-foco-d .ag-para-add { display: inline-flex; align-items: center; min-height: 44px; vertical-align: middle; font-size: .9rem; color: var(--text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }   /* 2.22.3 (A) */
+  .ag-para .ag-foco-t { min-height: 2.5em; }   /* 2.22.3 (A) · «Otra» no mueve lo de abajo: 2 líneas (3 en pantallas chicas) */
+  @media (max-width: 389px) { .ag-para .ag-foco-t { min-height: 3.75em; } }
   @media (max-width: 359px) { .ag-foco-b button { font-size: .84rem; } }`;
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS + AG_YA_BTN_CSS; iniR.append(iniStyle, iniW); }   // 2.21.3 (B) · AG_YA_BTN_CSS
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
-const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'iniciativas', 'bloques', 'hoy', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
+const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'iniciativas', 'bloques', 'hoy', 'consistencia', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
 // Líneas de estado: se calculan solo al pintar, una llamada a cada helper, sin guardar nada.
 const INI_ESTADO = {
   identidad: () => {
@@ -18837,7 +19052,7 @@ function renderInicio() {
   const fila = x => { const l = iniLinea(x.v);
     return `<button class="row" data-ir="${esc(x.v)}"><span class="ico" aria-hidden="true">${x.svg}</span><span class="t"><div>${esc(x.t)}</div>${l ? `<small>${esc(l)}</small>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>`; };
   const grupo = (nombre, L) => L.length ? `<h3>${esc(nombre)}</h3><div class="rows">${L.map(fila).join('')}</div>` : '';
-  // 2.21 (B) · Arriba, «Ahora» (o, sin día organizado, la alerta roja de 2.19.8: nunca las dos); de noche, «Mañana»; la cuenta, arriba sin
+  // 2.21 (B) · Arriba, «Ahora» (2.22.3 A: la tarjeta siempre; sin día organizado, la alerta roja de 2.19.8 debajo); de noche, «Mañana»; la cuenta, arriba sin
   // cuenta (es la del respaldo) y al final con ella.
   const cuentaH = iniCuentaHtml(), conCuenta = !!auth;
   let html = iniFocoHtml() + (window.csIniHtml?.() || '') + iniMananaHtml() + (conCuenta ? '' : cuentaH);   // 2.21 (L) · la pregunta de la mañana
@@ -18908,8 +19123,8 @@ window.renderInicio = renderInicio;
 // ---------- B1 · «Ahora» y «Mañana» en el Inicio.
 function iniFocoHtml() {
   let org = false; try { org = +agenda().organizado > 0; } catch {}
-  if (!org) return window.agAlertaHtml?.('ini-agendar') || '';
-  try { return window.agFoco?.html?.('ini') || ''; } catch (e) { console.warn('Ahora', e); return ''; }
+  let c = ''; try { c = window.agFoco?.html?.('ini') || ''; } catch (e) { console.warn('Ahora', e); }   // 2.22.3 (A) · siempre, arriba
+  return c + (org ? '' : (window.agAlertaHtml?.('ini-agendar') || ''));
 }
 function iniFocoWire() {
   const fc = iniW.querySelector('#ini-foco'); if (!fc) return;
@@ -23856,7 +24071,7 @@ function tempMas(n = 5) {
 }
 function tempDejar() {
   const T0 = tempAct(); if (!T0) return;
-  ES.temp = null; guardar(); tempParo(); closeSheet(); tempRepintar(); toast(tempItem(T0) ? (T0.tipo === 'habito' ? 'Temporizador quitado. Sigue en Hábitos.' : 'Temporizador quitado. Sigue en tu agenda.') : 'Temporizador quitado.');   // 2.21.8 (H)
+  ES.temp = null; guardar(); tempParo(); closeSheet(); let pf = false; try { pf = agParaDejado(T0); } catch {} tempRepintar(); toast(pf ? 'Temporizador quitado. La idea sale de tu día.' : tempItem(T0) ? (T0.tipo === 'habito' ? 'Temporizador quitado. Sigue en Hábitos.' : 'Temporizador quitado. Sigue en tu agenda.') : 'Temporizador quitado.');   // 2.22.3 (A)   // 2.21.8 (H)
 }
 function tempHecho() {
   const T = tempAct(); if (!T) return;
@@ -25476,17 +25691,24 @@ iniW.addEventListener('click', e => {
   csPintarTodo(); renderInicio();
   csAvisoAnotado(P.c, P.ay, prev, k === 'si' ? `Anotado: ${P.c.t} (${csNoche(P.c) ? 'anoche' : 'ayer'}).` : 'Anotado. Hoy, otra oportunidad.');
 });
-{ const f0 = INI_ESTADO.hoy; INI_ESTADO.hoy = () => { const a = f0 ? f0() : '', L = csActivas().filter(c => csToca(c, csDiaDe(c))); if (!L.length) return a; const n = L.filter(c => csReg(c, csDiaDe(c))?.ok).length; return `${a ? a + ' · ' : ''}consistencia: ${n} de ${L.length}`; }; }
+// 2.22.3 (M) · La línea de la fila «Metas de consistencia» en el Inicio: cuántas cumplidas de las que tocan hoy. Solo cuenta.
+INI_ESTADO.consistencia = () => {
+  const A = csActivas(); if (!A.length) return 'Crea tu primera meta';
+  const L = A.filter(c => csToca(c, csDiaDe(c))); if (!L.length) return 'Nada para hoy';
+  const n = L.filter(c => csReg(c, csDiaDe(c))?.ok).length;
+  return n === L.length ? (n === 1 ? 'Cumplida hoy' : 'Todas cumplidas hoy') : `${n} de ${L.length} hoy`;
+};
+{ const f0 = INI_ESTADO.hoy; INI_ESTADO.hoy = () => { const a = f0 ? f0() : '', L = csActivas().filter(c => csToca(c, csDiaDe(c))); if (!L.length) return a; const n = L.filter(c => csReg(c, csDiaDe(c))?.ok).length; if (!iniOcultas().includes('consistencia')) return a;   /* 2.22.3 (M) · ya lo dice su propia fila */ return `${a ? a + ' · ' : ''}consistencia: ${n} de ${L.length}`; }; }
 
 // ---------- Agenda (solo en «Más»), revisión semanal y asistente
 window.csAgendaHtml = () => {
   try {
     const t = today(), L = csActivas().filter(c => csToca(c, t)); if (!L.length) return '';
     return `<section style="margin-top:20px" id="ag-cs"><h3>Metas de consistencia de hoy</h3><div class="rows">${L.map(c => { const st = csEstado(c, csDiaDe(c)); return `<div class="row"><span class="dot" style="--c:${st.cls === 'ok' ? 'var(--green)' : 'var(--line)'}"></span><span class="t"><div>${esc(c.t)}</div><small>${esc(st.txt)}</small></span></div>`; }).join('')}</div>
-      <p class="more"><button class="link" id="ag-cs-ver">Anotarlas en Hábitos y metas de consistencia</button></p></section>`;
+      <p class="more"><button class="link" id="ag-cs-ver">Anotarlas en Metas de consistencia</button></p></section>`;
   } catch { return ''; }
 };
-agR.addEventListener('click', e => { if (e.target.closest?.('#ag-cs-ver')) irA('hoy'); });
+agR.addEventListener('click', e => { if (e.target.closest?.('#ag-cs-ver')) irA('consistencia'); });   // 2.22.3 (M)
 window.csRevHtml = () => {
   try {
     const L = csActivas(); if (!L.length) return '';
@@ -25525,6 +25747,16 @@ IA_TOOLS.push(
 );
 window.cs = { lista: () => csActivas().map(c => JSON.parse(JSON.stringify(c))), de: csGet, regla: csRegla, diasOk: csDiasOk, editar: csEditar, nueva: csNueva, render: csRender, anotar: (id, ok, v, d) => { const c = csGet(id); if (c) csAnotar(c, ok, v ?? '', d || csDiaDe(c)); }, n7: id => { const c = csGet(id); return c ? csN7(c) : 0; }, racha: id => { const c = csGet(id); return c ? csMejorRacha(c) : 0; }, pregunta: () => { const P = csPregunta(); return P ? { id: P.c.id, ay: P.ay, txt: csPreguntaTxt(P.c) } : null; }, herramienta: (n, a) => n === 'consistencia_ver' ? csToolVer() : n === 'consistencia_marcar' ? csToolMarcar(a) : null };
 window.csRender = csRender;
+// 2.22.3 (M) · «Metas de consistencia» en su propio apartado: el mismo #cons (manejadores, csRender, csPintarTodo) se pasa a
+// #view-consistencia mientras estás ahí y vuelve a su sitio en Hábitos al salir. Lo que marcas es lo mismo en los dos lados.
+{ const el = document.getElementById('cons'), casa = document.createComment('cons');
+  if (el) el.before(casa);
+  window.csVista = v => {
+    const box = document.getElementById('view-consistencia'); if (!box || !el) return;
+    if (v === 'consistencia') { if (el.parentNode !== box) box.append(el); }
+    else if (el.parentNode === box) casa.after(el);
+  };
+}
 let lastDay = today();
 setInterval(() => { if (today() !== lastDay) { lastDay = today(); renderE(); } }, 60000);
 // 2.21.7 (A) · El Atrás del sistema en la app Android: lo mismo que el Atrás de la app; sin nada que cerrar y en Inicio, devuelve false y la app se cierra.
@@ -25544,7 +25776,7 @@ window.ivOpc = { cats: () => INI4.map(([k, n]) => [k, n]), linea: () => iniLinea
 
 render();
 // 2.13 · La app abre en Identidad (la base), salvo que en este teléfono se elija Enfoque o Hábitos.
-{ const ini = localStorage.getItem('habit-inicio'); document.querySelector(`.tabs .tab[data-view="${['hoy', 'enfoque', 'identidad', 'iniciativas'].includes(ini) ? ini : 'inicio'}"]`).click(); }   // 2.22.0 (N)
+{ const ini = localStorage.getItem('habit-inicio'); document.querySelector(`.tabs .tab[data-view="${['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia'].includes(ini) ? ini : 'inicio'}"]`).click(); }   // 2.22.3 (M)   // 2.22.0 (N)
 window.enfoqueArranque();
 // Al tocar una notificación se abre la pestaña que indica (?v=...).
 const abrirVista = url => { const v = new URL(url, location.href).searchParams.get('v'); if (v) document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click(); };

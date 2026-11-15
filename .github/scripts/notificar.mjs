@@ -532,7 +532,7 @@ function candidatos(C, fecha) {
         if (!c || typeof c.id !== 'string' || typeof c.t !== 'string' || !c.t.trim() || c.pausa) continue;
         if (fechaOk(c.desde) && fecha < c.desde) continue;
         if (fechaOk(c.hasta) && fecha > c.hasta) continue;
-        if (typeof c.ruta === 'string' && c.ruta) { const r = rutas.find(x => x && x.id === c.ruta); if (!r || r.archivada || !fechaOk(r.fecha) || fecha >= r.fecha) continue; }
+        if (typeof c.ruta === 'string' && c.ruta) { const r = rutas.find(x => x && x.id === c.ruta); if (!r || r.archivada || !fechaOk(r.fecha) || fecha >= r.fecha || (r.inicio && fechaOk(r.inicio.d) && fecha < r.inicio.d)) continue; }   // 2.22.3 (I) · tampoco antes del inicio
         const D = Array.isArray(c.dias) ? c.dias.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : [];
         if (D.length && D.length < 7 && !D.includes(w)) continue;
         const k = 'cons:' + c.id, it = FIL.find(x => x.ref === c.id), hm = it && hmOk(it.h) ? it.h : hmOk(c.h) ? c.h : '';
