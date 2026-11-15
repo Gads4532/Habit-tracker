@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.4: una tarjeta grande por apartado en Inicio
+
+- Debajo de la tarjeta de arriba («Tu día», «Ahora» o «Sigue») salen siempre, en el mismo estilo grande: **Estudio** (próximo bloque de tu ruta), **¿Te sientes aburrido?** (una iniciativa), **Hábito** (el próximo pendiente), **Meta de consistencia** (la próxima sin anotar) y **Pregunta de hoy** (reflexión). Cada una con ✓ Hecho, Empezar y su tercera opción, que hacen lo mismo y dan el mismo XP que en su apartado. ✅
+- Sin datos, cada tarjeta invita a crear lo primero («Crea tu primera ruta», «Crea tu primer hábito», «Crea tu primera meta»). Si ocultas un apartado, su tarjeta no sale. La lista «Organizar y hacer» sigue igual. ✅
+- La pregunta de la mañana sobre la meta de anoche y «Mañana · 2 min» siguen justo debajo de la tarjeta de arriba. El botón «+» se aparta para no tapar los botones de las tarjetas. ✅
+
 ## 2.22.3: «Ahora» siempre visible, inicio de las rutas y apartado Metas de consistencia
 
 - La tarjeta grande de Inicio no desaparece nunca: «Ahora» si toca algo, «Sigue · 6:00 PM» con lo próximo, o «Para ahora» con el bloque pendiente de tu ruta o una iniciativa (Empezar, ✓ Hecho, Otra). ✅
