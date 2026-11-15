@@ -692,7 +692,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.3';
+const APP_VERSION = '2.22.4';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -11636,8 +11636,8 @@ function agFocoSiguiente(a = agFocoAhora()) {
 }
 function agFocoTipo(it) { return it.tipo === 'habito' ? (hbRutDe(HT().habits.find(x => x && x.id === it.ref)) ? 'Hoy no (toda la rutina sigue)' : 'Hoy no') : it.tipo === 'cons' ? 'Hoy no' : 'Mañana'; }
 function agFocoHtml(o = 'ag') {
-  let a = null, d = null; try { a = agFocoAhora(); d = a?.it ? agFocoSiguiente(a) : null; } catch (e) { console.warn('Ahora', e); try { return agParaHtml(o, null); } catch { return ''; } }
-  if (!a || a.nada) return agParaHtml(o, a);   // 2.22.3 (A) · nunca vacía: una iniciativa para ahora
+  let a = null, d = null; try { a = agFocoAhora(); d = a?.it ? agFocoSiguiente(a) : null; } catch (e) { console.warn('Ahora', e); try { return o === 'ini' ? icDiaHtml(o, null) : agParaHtml(o, null); } catch { return ''; } }
+  if (!a || a.nada) return o === 'ini' ? icDiaHtml(o, a) : agParaHtml(o, a);   // 2.22.3 (A) · nunca vacía · 2.22.4 (T) · en el Inicio, «Tu día»
   const it = a.it, nom = it.foco ? agbFocoTitulo(it) : agTituloEst(it), cat = it.foco ? 'Bloque protegido' : (agEtqCat(it) || agEtiqueta(it));
   const oc = agHorasOcultas(), hAh = oc ? '' : ` · ${fmtHora(hhmm(new Date()))}`;   // 2.21 (E) · la hora, al lado de «Ahora»
   const luego = a.luego || a.prox;   // 2.22.3 (A) · más tarde hoy: «Sigue · 6:00 PM»
@@ -18984,6 +18984,12 @@ const INI_CSS = `
   .ag-foco-d .ag-para-add { display: inline-flex; align-items: center; min-height: 44px; vertical-align: middle; font-size: .9rem; color: var(--text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }   /* 2.22.3 (A) */
   .ag-para .ag-foco-t { min-height: 2.5em; }   /* 2.22.3 (A) · «Otra» no mueve lo de abajo: 2 líneas (3 en pantallas chicas) */
   @media (max-width: 389px) { .ag-para .ag-foco-t { min-height: 3.75em; } }
+  .ic-c .ag-foco-t { min-height: 2.5em; } .ic-c .ag-foco-m { min-height: 1.3em; }   /* 2.22.4 (T) · tarjetas del Inicio: «Otra» y ✓ no mueven lo de abajo */
+  @media (max-width: 389px) { .ic-c .ag-foco-t { min-height: 3.75em; } }
+  .ic-c .ag-foco-b .ic-stp { flex: 0 0 48px; font-size: 1.3rem; font-weight: 700; } .ic-c .ag-foco-b:has(.ic-stp) { gap: 6px; }
+  .ic-c .ag-foco-b .ic-stp:disabled { opacity: .4; }
+  .ic-c .ic-num { flex: 0 0 auto; min-width: 34px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ic-c .ag-foco-d { margin-top: 6px; } .ic-c .ag-foco-d .link { min-width: 44px; justify-content: center; }
   @media (max-width: 359px) { .ag-foco-b button { font-size: .84rem; } }`;
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS + AG_YA_BTN_CSS; iniR.append(iniStyle, iniW); }   // 2.21.3 (B) · AG_YA_BTN_CSS
@@ -19055,7 +19061,8 @@ function renderInicio() {
   // 2.21 (B) · Arriba, «Ahora» (2.22.3 A: la tarjeta siempre; sin día organizado, la alerta roja de 2.19.8 debajo); de noche, «Mañana»; la cuenta, arriba sin
   // cuenta (es la del respaldo) y al final con ella.
   const cuentaH = iniCuentaHtml(), conCuenta = !!auth;
-  let html = iniFocoHtml() + (window.csIniHtml?.() || '') + iniMananaHtml() + (conCuenta ? '' : cuentaH);   // 2.21 (L) · la pregunta de la mañana
+  let icT = ''; try { icT = icTarjetasHtml(); } catch (e) { console.warn('Tarjetas del Inicio', e); }   // 2.22.4 (T) · una por apartado
+  let html = iniFocoHtml() + (window.csIniHtml?.() || '') + iniMananaHtml() + icT + (conCuenta ? '' : cuentaH);   // 2.21 (L) · la pregunta de la mañana
   const oc = new Set(iniOcultas()), escondidas = B.filter(x => oc.has(x.v));
   for (const [nombre, vs] of INI_GRUPOS) { const L = vs.map(v => por.get(v)).filter(Boolean); for (const x of L) usados.add(x.v); html += grupo(nombre, L.filter(x => !oc.has(x.v))); }
   html += grupo('Más', B.filter(x => !usados.has(x.v) && !oc.has(x.v)));
@@ -19127,6 +19134,8 @@ function iniFocoHtml() {
   return c + (org ? '' : (window.agAlertaHtml?.('ini-agendar') || ''));
 }
 function iniFocoWire() {
+  try { agParaWire(iniW.querySelector('#ini-c-ini')); } catch (e) { console.warn('Iniciativa', e); }   // 2.22.4 (T) · ✓ Hecho, Empezar, Otra
+  try { window.icFabCede?.(); } catch {}   // 2.22.4 (T) · el «+» no tapa un botón
   const fc = iniW.querySelector('#ini-foco'); if (!fc) return;
   try { window.agFoco?.wire?.(fc); } catch (e) { console.warn('Ahora', e); }
   const add = fc.querySelector('[data-foco="add"]'); if (add) add.onclick = e => { e.stopPropagation(); qaSheet(); };
@@ -19158,6 +19167,251 @@ function iniFocoWire() {
   });
 }
 function iniRepintar() { try { if (view === 'inicio' && !document.getElementById('view-inicio')?.hidden) renderInicio(); } catch (e) { console.warn('Inicio', e); } }
+
+// ====================================================================
+// 2.22.4 (T) · «Te pedí todos los apartados previamente hablados con este estilo en el inicio.» Una tarjeta grande por apartado, con las
+// clases de la de arriba (ag-foco-c, ag-foco-k, ag-foco-t, ag-foco-m, ag-foco-b), siempre a la vista. Cada botón llama a lo mismo que su
+// sección (nada se duplica): el estado, el XP y la píldora salen iguales. Se pinta con renderInicio (los mismos repintados de siempre:
+// cada minuto, al sincronizar y tras cualquier cambio) y no guarda nada al pintar.
+// ====================================================================
+var icCsFijo = null;   // la meta de número que estás contando desde el Inicio: se queda en su tarjeta hasta «Listo»
+const IC_SEC = { est: 'estudio', ini: 'iniciativas', hb: 'hoy', cs: 'consistencia', rf: 'journal' };   // la fila del Inicio de cada tarjeta
+function icHora() { return agHorasOcultas() ? '' : ` · ${fmtHora(hhmm(new Date()))}`; }
+function icCard(id, aria, k, t, m, btns, pie = '', attrs = '') {
+  return `<section class="ag-foco-c ic-c" id="ini-c-${id}" aria-label="${esc(aria)}"${attrs}><p class="ag-foco-k">${k}</p><p class="ag-foco-t">${t}</p><p class="ag-foco-m">${m}</p><div class="ag-foco-b">${btns}</div>${pie ? `<p class="ag-foco-d">${pie}</p>` : ''}</section>`;
+}
+const icB = (cls, ic, txt, attr = '') => `<button type="button" class="${cls}" data-ic="${ic}"${attr}>${txt}</button>`;
+const icL = (ic, txt) => `<button type="button" class="link ag-para-add" data-ic="${ic}">${txt}</button>`;
+const icMin = m => esc(fmtMin(m)).replace(/ /g, '&nbsp;');
+// ---------- T1 · Arriba: «Tu día», sin repetir lo de las tarjetas de abajo
+function icDiaHtml(o, a) {
+  let org = true; try { org = +agenda().organizado > 0; } catch {}
+  const [t, m] = a && a.nada ? ['Nada más para esta hora.', 'Lo que ya pasó de hora sigue en la lista, en ámbar.']
+    : !org ? ['Aún no hay nada para esta hora.', 'Lo que añadas aparece aquí.']   // sin repetir la alerta roja de abajo
+    : agVacia() ? ['Tu agenda de hoy está vacía.', 'Añade algo o elige abajo qué hacer.'] : ['Todo lo de hoy está hecho.', 'Si quieres más, abajo hay ideas.'];
+  return `<section class="ag-foco-c ic-c ic-dia" id="${o}-foco" aria-label="Tu día"><p class="ag-foco-k">Tu día${icHora()}</p><p class="ag-foco-t">${esc(t)}</p><p class="ag-foco-m">${esc(m)}</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-go" data-foco="add">+ Añadir</button>${org ? icB('ag-fb-man', 'agenda', 'Ver agenda') : ''}</div></section>`;
+}
+// ---------- T2 · Estudio: el siguiente bloque sin hacer de la primera ruta activa que ya empezó
+// skip: el bloque que ya muestra la tarjeta de arriba («Ahora» o «Sigue · hora»): aquí sale el siguiente de esa ruta.
+function icEstudio(skip = '') {
+  const E = window.est; if (!E || typeof E.rutas !== 'function' || typeof E.bloque !== 'function') return null;
+  const hoy = today(); let A = null; try { A = agenda(); } catch {}
+  const oc = new Set(A && A.fecha === hoy && Array.isArray(A.ocultos) ? A.ocultos : []);
+  const R = (E.rutas() || []).filter(r => r && !r.archivada && String(r.fecha || '') >= hoy);
+  if (!R.length) return { vacio: true };
+  let fut = null;
+  for (const r of R) {
+    const ini = r.inicio && typeof r.inicio === 'object' && /^\d{4}-\d\d-\d\d$/.test(r.inicio.d || '') ? r.inicio.d : '';
+    if (ini && ini > hoy) { if (!fut) fut = { r, ini }; continue; }
+    const L = (Array.isArray(r.plan) ? r.plan : []).filter(p => p && typeof p.id === 'string' && String(p.d || '') >= hoy && !(p.d === hoy && oc.has(p.id)) && !(r.hechos && r.hechos[p.id]))
+      .sort((x, y) => x.d < y.d ? -1 : x.d > y.d ? 1 : (x.h || '99') < (y.h || '99') ? -1 : (x.h || '99') > (y.h || '99') ? 1 : 0);
+    let arriba = false;
+    for (const p of L) {
+      if (skip && p.id === skip) { arriba = true; continue; }
+      const b = E.bloque(p.id); if (b && !b.hecho) return { r, b };
+    }
+    if (arriba) return { r, arriba: true };
+  }
+  return fut ? { r: fut.r, ini: fut.ini } : { r: R[0], aldia: true };
+}
+function icExamenTxt(f) { const n = euDiff(today(), f); return n <= 0 ? 'Examen hoy' : n === 1 ? 'Examen mañana' : `Examen en ${n} días`; }
+function icArribaEst() { try { const a = agFocoAhora(), it = a && a.it; return it && it.tipo === 'estudio' && typeof it.ref === 'string' ? it.ref : ''; } catch { return ''; } }
+function icEstHtml() {
+  const x = icEstudio(icArribaEst()); if (!x) return '';
+  const ver = icB('ag-fb-go', 'est-ver', 'Ver ruta');
+  if (x.vacio) return icCard('est', 'Estudio', 'Estudio', 'Crea tu primera ruta', 'Un plan de estudio, bloque a bloque, hasta tu examen.', icB('ag-fb-go', 'est-nueva', 'Nueva ruta'));
+  const ruta = `Ruta «${esc(x.r.nombre || 'Ruta')}»`;
+  if (x.ini) return icCard('est', 'Estudio', 'Estudio', esc(euEmpiezaT(x.ini)), `${ruta} · ${icExamenTxt(x.r.fecha)}`, ver, '', ` data-ic-ruta="${esc(x.r.id)}"`);
+  if (x.arriba) return icCard('est', 'Estudio', 'Estudio', 'Tu bloque de hoy está arriba', `${ruta} · ${icExamenTxt(x.r.fecha)}`, ver, '', ` data-ic-ruta="${esc(x.r.id)}"`);
+  if (x.aldia) return icCard('est', 'Estudio', 'Estudio', 'Tu ruta está al día', `${ruta} · ${icExamenTxt(x.r.fecha)}`, ver, '', ` data-ic-ruta="${esc(x.r.id)}"`);
+  const b = x.b, hoy = today(), it = agParaBloqueIt(b), T = tempDe(it.id);
+  const cuando = b.d === hoy ? 'Hoy' : b.d === euDia(hoy, 1) ? 'Mañana' : euFCorta(b.d), h = b.h && !agHorasOcultas() ? ' ' + fmtHora(b.h) : '';
+  const ej = Math.max(0, Math.round(+b.ej || 0));
+  const emp = T ? `<button type="button" class="ag-fb-go ag-fb-temp" data-ic="est-emp" aria-label="Temporizador en marcha. Toca para verlo"><span data-temp-left data-temp-corto>${tempTxt(T, true)}</span></button>` : icB('ag-fb-go', 'est-emp', 'Empezar');
+  return icCard('est', 'Estudio', `Estudio · ${esc(cuando)}${h}`, esc(it.t || E_txt(b)), `${ruta} · ${icMin(b.min || AG_MIN.ini)}${ej ? ` · ${ej}&nbsp;${ej === 1 ? 'ejercicio' : 'ejercicios'}` : ''} · ${icExamenTxt(x.r.fecha)}`,
+    icB('ag-fb-ok', 'est-ok', '✓ Hecho') + emp, icL('est-ver', 'Ver ruta'), ` data-ic-b="${esc(b.id)}" data-ic-ruta="${esc(x.r.id)}"`);
+}
+const E_txt = b => { try { return window.est.textoBloque(b); } catch { return 'Estudio'; } };
+// ---------- T3 · Iniciativa: una idea del catálogo (agParaIdeas de 2.22.3 A), con «Otra»
+function icIniHtml() {
+  const L = agParaIdeas(), otra = '<button type="button" class="ag-fb-man" data-para="otra" aria-label="Otra iniciativa">Otra</button>';
+  if (!L.length) return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p><p class="ag-foco-t">Elige una iniciativa</p><p class="ag-foco-m">Todas son opcionales: haz las que quieras.</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-go" data-para="ver">Ver iniciativas</button></div></section>`;
+  const x = L[((agParaN % L.length) + L.length) % L.length];
+  const min = x.elegida ? (+(ini4Semana().items[iniIdx(x.k)] || {}).min || agParaMin(x.t)) : agParaMin(x.t);
+  return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" data-para-k="${esc(x.k)}" data-para-t="${esc(x.t)}" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p>
+    <p class="ag-foco-t">${esc(x.t)}</p><p class="ag-foco-m">${esc(iniNombre(x.k))} · ${icMin(min)}${x.sinXp ? ' · sin XP extra' : ''}</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-para="hecho">✓ Hecho</button><button type="button" class="ag-fb-go" data-para="empezar">Empezar</button>${otra}</div></section>`;
+}
+// ---------- T4 · Hábitos: el siguiente pendiente de hoy (pendientes(): por hora y tu orden)
+function icHabito() {
+  const S = HT(), t = today(), w = wd(t), act = (S.habits || []).filter(h => h && !h.rutina);
+  if (!act.length) return { vacio: true };
+  const hoy = act.filter(h => (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !window.hbProtegido?.(h, t));
+  const hechos = hoy.filter(h => { const v = S.log?.[h.id]?.[t]; return v === 'full' || v === 'min'; }).length;
+  return { h: (pendientes().habits || [])[0] || null, tot: hoy.length, hechos };
+}
+function icHbHtml() {
+  const x = icHabito(), ver = icB('ag-fb-go', 'hb-ver', 'Ver hábitos');
+  if (x.vacio) return icCard('hb', 'Hábitos', 'Hábitos', 'Crea tu primer hábito', 'Algo pequeño que quieras hacer cada día.', icB('ag-fb-go', 'hb-nuevo', 'Nuevo hábito'));
+  const cuenta = `${x.hechos} de ${x.tot} hoy`;
+  if (!x.h) return icCard('hb', 'Hábitos', 'Hábitos', x.tot === 0 ? 'Hoy no toca ningún hábito' : x.hechos >= x.tot ? 'Todos tus hábitos de hoy, hechos' : 'Nada pendiente en tus hábitos hoy', x.tot ? cuenta : 'Mañana sigue tu lista.', ver);
+  const h = x.h; let hora = ''; try { hora = hbHoraHoy(h) || ''; } catch {}
+  if (!/^\d\d:\d\d$/.test(hora)) hora = '';
+  let rc = 0; try { rc = +stats(h).streak || 0; } catch {}
+  let T = null; try { const T0 = tempDe(cadHabItem(h).id); T = T0 && T0.d === today() ? T0 : null; } catch {}
+  const emp = T ? `<button type="button" class="ag-fb-go ag-fb-temp" data-ic="hb-emp" aria-label="Temporizador en marcha. Toca para verlo"><span data-temp-left data-temp-corto>${tempTxt(T, true)}</span></button>` : icB('ag-fb-go', 'hb-emp', 'Empezar');
+  return icCard('hb', 'Hábitos', `Hábito${hora && !agHorasOcultas() ? ' · ' + fmtHora(hora) : ''}`, esc(h.nombre), `${rc ? `Racha de ${rc} ${rc === 1 ? 'día' : 'días'} · ` : ''}${cuenta}`,
+    icB('ag-fb-ok', 'hb-ok', '✓ Hecho') + emp + icB('ag-fb-man', 'hb-no', 'Hoy no'), '', ` data-ic-h="${esc(h.id)}"`);
+}
+// ---------- T5 · Metas de consistencia: la siguiente sin anotar hoy, con sus controles de siempre
+function icCons() {
+  const A = csActivas(); if (!A.length) return { vacio: true };
+  const L = A.filter(c => csToca(c, csDiaDe(c))); if (!L.length) return { nada: true };
+  const n = L.filter(c => csReg(c, csDiaDe(c))?.ok).length;
+  const pend = c => { const d = csDiaDe(c), r = csReg(c, d); return r ? c.tipo === 'min' && !r.ok : !csTemprano(c, d); };
+  const fijo = icCsFijo && icCsFijo.d === today() ? L.find(c => c.id === icCsFijo.id) || null : null;
+  let P = null; try { P = csPregunta(); } catch {}
+  const M = P ? L.filter(c => !(c.id === P.c.id && csDiaDe(c) === P.ay)) : L;   // la que ya pregunta arriba la tarjeta de la mañana no se repite
+  const c = fijo || M.find(pend) || M.find(c => { const d = csDiaDe(c); return !csReg(c, d) && csTemprano(c, d); }) || null;
+  return { c, n, tot: L.length, fijo: !!fijo, arriba: !c && M.length < L.length, hoy: L.every(c => csDiaDe(c) === today()) };
+}
+function icCsHtml() {
+  const x = icCons(), ver = icB('ag-fb-go', 'cs-ver', 'Ver metas');
+  if (x.vacio) return icCard('cs', 'Metas de consistencia', 'Metas de consistencia', 'Crea tu primera meta', 'Algo que quieres cumplir cada día y no es un hábito.', icB('ag-fb-go', 'cs-nueva', 'Nueva meta'));
+  if (x.nada) return icCard('cs', 'Metas de consistencia', 'Metas de consistencia', 'Hoy no toca ninguna meta', 'Mañana siguen tus metas.', ver);
+  const cuenta = `${x.n} de ${x.tot}${x.hoy ? ' hoy' : ''}`;
+  if (!x.c && x.arriba) return icCard('cs', 'Metas de consistencia', 'Metas de consistencia', 'Anota arriba lo de anoche', cuenta, ver);
+  if (!x.c) return icCard('cs', 'Metas de consistencia', 'Metas de consistencia', x.n >= x.tot ? 'Todas tus metas de hoy, cumplidas' : 'Todo anotado hoy', cuenta, ver);
+  const c = x.c, d = csDiaDe(c), r = csReg(c, d), st0 = csEstado(c, d), id = esc(c.id), t = today();
+  const cuando = d === t ? 'Hoy' : csCuando(c, d) === 'anoche' ? 'Anoche' : 'Ayer';   // de mañana, la de anoche: como en la sección
+  const st = { ...st0, txt: d !== t && st0.txt.startsWith('Hoy') ? st0.txt.replace(/^Hoy/, cuando).replace('Mañana, otra', 'Hoy, otra') : st0.txt };
+  const k = `Meta de consistencia${c.tipo === 'antes' || c.tipo === 'despues' ? ' · ' + esc(csHora12(c.hora)) : ''}`;
+  let btns, m;
+  if (!r && csTemprano(c, d)) { btns = ver; m = esc(st.txt); }
+  else if (c.tipo === 'max' || c.tipo === 'min') {
+    const v = r ? +r.v || 0 : 0;
+    btns = `${icB('ag-fb-go ic-stp', 'cs-menos', '−', ` aria-label="Uno menos"${v <= 0 ? ' disabled' : ''}`)}<span class="ic-num" aria-live="polite">${v}</span>${icB('ag-fb-go ic-stp', 'cs-mas', '+', ' aria-label="Uno más"')}`
+      + (c.tipo === 'max' && !r ? icB('ag-fb-man', 'cs-cero', `${cuando}, ninguno`) : x.fijo ? icB('ag-fb-man', 'cs-listo', 'Listo') : '');
+    m = d !== t ? esc(st.txt) : esc(r ? st.txt : csRegla(c)) + ` · ${cuenta}`;
+  } else {
+    btns = icB('ag-fb-ok', 'cs-si', '✓ Lo cumplí') + icB('ag-fb-go', 'cs-no', `${cuando} no`);
+    m = d !== t ? `${csSub(c) ? esc(csSub(c)) + ' · ' : ''}${esc(st.txt)}` : `${csSub(c) ? esc(csSub(c)) + ' · ' : ''}${cuenta}`;
+  }
+  return icCard('cs', 'Metas de consistencia', k, esc(c.t), m, btns, '', ` data-ic-cs="${id}"`);
+}
+// ---------- T6 · Reflexión: la pregunta de hoy de Reflexiones guiadas
+// Respondida hoy: la introspección terminada hoy más reciente, sea cual sea su pregunta (no depende de «Otra pregunta», que vive en
+// memoria: al recargar o en otro teléfono sigue respondida). «Otra pregunta» sobre una respondida abre una nueva hasta que la respondas.
+var icRfMas = null;
+function icRfHecha() { const t = today(); return rfL().filter(x => x && x.tipo === 'intro' && x.fin && (x.finD === t || x.d === t)).sort((a, b) => (b.mod || 0) - (a.mod || 0))[0] || null; }
+function icRfHtml() {
+  const q = rfPregHoy(), y0 = icRfHecha(), pie = `${icL('rf-lista', 'Reflexiones')} · ${icL('rf-ideas', 'Ideas')}`;
+  const y = y0 && !(icRfMas && icRfMas.d === today() && (y0.mod || 0) < icRfMas.t) ? y0 : null;
+  if (y) return icCard('rf', 'Pregunta de hoy', 'Pregunta de hoy', esc(rfTxt(y.r?.q) || q), 'Respondida hoy', icB('ag-fb-go', 'rf-ver', 'Ver') + icB('ag-fb-man', 'rf-otra', 'Otra pregunta'), pie, ` data-ic-rf="${esc(y.id)}"`);
+  return icCard('rf', 'Pregunta de hoy', 'Pregunta de hoy', esc(q), 'Introspección · una respuesta corta', icB('ag-fb-go', 'rf-resp', 'Responder') + icB('ag-fb-man', 'rf-otra', 'Otra pregunta'), pie);
+}
+// ---------- Las tarjetas, en orden; la de un apartado que escondiste en el Inicio no sale
+function icTarjetasHtml() {
+  const oc = new Set(iniOcultas()), out = [];
+  for (const [k, f] of [['est', icEstHtml], ['ini', icIniHtml], ['hb', icHbHtml], ['cs', icCsHtml], ['rf', icRfHtml]]) {
+    if (oc.has(IC_SEC[k])) continue;
+    try { out.push(f() || ''); } catch (e) { console.warn('Tarjeta del Inicio', k, e); }
+  }
+  return out.join('');
+}
+// ---------- Los toques (uno solo, en el Inicio): lo mismo que en cada sección
+function icToque(q, c) {
+  const ds = c ? c.dataset : {};
+  if (q === 'agenda') { irA('agenda'); return; }
+  if (q === 'est-nueva') { window.est?.nuevaRuta?.(); return; }
+  if (q === 'est-ver') { window.est?.abrir?.(ds.icRuta || ''); return; }
+  if (q === 'est-ok' || q === 'est-emp') {
+    const b = window.est?.bloque?.(ds.icB || ''); if (!b || b.hecho) return;
+    const it = agParaBloqueIt(b);
+    if (q === 'est-emp') { agFocoEmpezar(it); return; }
+    if (marcaBloq('ag', '\u0000ic-est')) return;
+    marcaPon('ag', it.id);
+    if (!exPedirEj(it)) agMarcarAviso(it, true);
+    return;
+  }
+  if (q === 'hb-nuevo') { openForm(); return; }
+  if (q === 'hb-ver') { irA('hoy'); return; }
+  if (q === 'hb-ok' || q === 'hb-emp' || q === 'hb-no') {
+    const h = HT().habits.find(x => x && x.id === ds.icH); if (!h) return;
+    if (q === 'hb-emp') { window.cadena?.empHb?.(h); return; }
+    if (q === 'hb-no') {
+      const L = document.querySelector('#list'); if (!L) return;
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.act = 'skip'; b.dataset.id = h.id; b.hidden = true; L.append(b); b.click(); b.remove();   // la confirmación de Hábitos
+      const md = document.querySelector('#msg-dialog'); if (md) md.addEventListener('close', () => setTimeout(iniRepintar, 60), { once: true });
+      return;
+    }
+    if (marcaBloq('hb', h.id)) return;   // como la casilla de Hábitos
+    marcaPon('hb', h.id);
+    if (!mark(h, today())) complete(h, 'full'); else render();
+    return;
+  }
+  if (q === 'cs-nueva') { csNueva(); return; }
+  if (q === 'cs-ver') { irA('consistencia'); return; }
+  if (q === 'cs-listo') { icCsFijo = null; return; }
+  if (q.startsWith('cs-')) {
+    const cc = csGet(ds.icCs || ''); if (!cc) return;
+    if (q === 'cs-si') csCumpli(cc);
+    else if (q === 'cs-no') csAnotar(cc, false, '');
+    else if (q === 'cs-mas' || q === 'cs-menos') { icCsFijo = { id: cc.id, d: today() }; csPaso(cc, q === 'cs-mas' ? 1 : -1); }
+    else if (q === 'cs-cero') { icCsFijo = null; csCero(cc); }
+    return;
+  }
+  if (q === 'rf-resp') { rfEmpezar('intro'); return; }
+  if (q === 'rf-otra') { if (ds.icRf) { icRfMas = { d: today(), t: Date.now() }; const y = rfDe(ds.icRf); if (y && rfTxt(y.r?.q) !== rfPregHoy()) return; } rfOtraN++; return; }
+  if (q === 'rf-ver') { const id = ds.icRf || ''; if (!rfDe(id)) return; rfVista = { p: 'ver', id }; if (view !== 'journal') irA('journal'); else rfPintar(); try { window.scrollTo({ top: 0 }); } catch {} return; }
+  if (q === 'rf-lista') { rfAbrir(); return; }
+  if (q === 'rf-ideas') { irA('pizarra'); return; }
+}
+const IC_DECIR = { 'rf-otra': 1, 'est-ok': 1, 'hb-ok': 1, 'cs-si': 1, 'cs-no': 1, 'cs-mas': 1, 'cs-menos': 1, 'cs-cero': 1 };
+iniW.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-ic]'); if (!b || !iniW.contains(b) || b.disabled) return;
+  e.stopPropagation();
+  const c = b.closest('section'), cid = c?.id || '', q = b.dataset.ic, foco = iniR?.activeElement === b || document.activeElement === b;
+  try { icToque(q, c); } catch (err) { console.warn('Tarjeta del Inicio', err); }
+  iniRepintar();
+  const n = cid ? iniW.querySelector('#' + CSS.escape(cid)) : null; if (!n || n === c) return;
+  if (foco) (n.querySelector(`[data-ic="${q}"]:not([disabled])`) || n.querySelector('button:not([disabled])'))?.focus({ preventScroll: true });   // el foco no se va al principio
+  if (IC_DECIR[q]) { const tt = n.querySelector('.ag-foco-t')?.textContent.trim(), kk = n.querySelector('.ag-foco-k')?.textContent.trim(); if (tt) agParaDecir(`${kk ? kk + ': ' : ''}${tt}`); }
+});
+// El «+» flotante no tapa un botón de las tarjetas: si queda encima de uno (en reposo o al terminar de desplazar), sube lo justo para
+// quedar sobre esa fila de botones (sobre texto, no sobre un botón). Sigue a la vista y a un toque. Solo si no hay hueco en la mitad de
+// abajo de la pantalla se aparta hasta que desplaces. Solo en el Inicio; mira solo los botones de las tarjetas (poco trabajo).
+let icFabRaf = 0, icFabT = 0;
+function icFabCede() {
+  icFabRaf = 0;
+  let dy = 0, tapa = false;
+  try {
+    if (view === 'inicio' && !qaFab.hidden) {
+      const f0 = qaFab.getBoundingClientRect(), cur = parseFloat(String(qaFab.style.translate || '').split(' ')[1]) || 0, m = 6;
+      const f = { top: f0.top - cur, bottom: f0.bottom - cur, left: f0.left, right: f0.right };
+      const B = f0.width ? [...iniW.querySelectorAll('.ag-foco-c button, .ini-man button, .ag-alerta button')].map(b => b.getBoundingClientRect()).filter(r => r.width && r.height && r.right > f.left - m && r.left < f.right + m) : [];
+      for (let k = 0; k < 12; k++) {
+        const r = B.find(r => r.bottom > f.top - dy - m && r.top < f.bottom - dy + m); if (!r) break;
+        dy = f.bottom - (r.top - m - 2);
+      }
+      if (dy > innerHeight * 0.45) { dy = 0; tapa = true; }
+    }
+  } catch {}
+  const tr = dy > 0 ? `0 ${-Math.round(dy)}px` : '';
+  if (qaFab.style.translate !== tr) qaFab.style.translate = tr;
+  if (qaFab.classList.contains('qa-fab-cede') === tapa) return;
+  qaFab.classList.toggle('qa-fab-cede', tapa);
+  if (tapa) qaFab.setAttribute('aria-hidden', 'true'); else qaFab.removeAttribute('aria-hidden');
+  qaFab.tabIndex = tapa ? -1 : 0;
+}
+const icFabPide = () => { if (!icFabRaf) icFabRaf = requestAnimationFrame(icFabCede); };
+const icFabQuieto = () => { clearTimeout(icFabT); icFabT = setTimeout(icFabPide, 140); };   // al terminar de desplazar, no a cada cuadro
+addEventListener('scroll', icFabQuieto, { passive: true });
+addEventListener('resize', icFabQuieto, { passive: true });
+window.icFabCede = icFabPide;
+window.icInicio = { estudio: () => icEstudio(icArribaEst()), habito: () => icHabito(), cons: () => icCons(), rf: () => icRfHecha(), preg: () => rfPregHoy(), rfDraft: () => rfDraft, rfVista: () => rfVista, rfGuardar: txt => { if (!rfDraft) return null; rfDraft.r.txt = txt; const g = rfGuardarDraft(true); rfVista = null; rfDraft = null; return g; } };   // para las pruebas
 function iniMananaHtml() {
   if (nowMin() < 20 * 60) return '';
   let P = null; try { P = planManana(); } catch { P = null; }
@@ -19493,6 +19747,7 @@ document.body.appendChild(qaFab);
   .qa-fab { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 8; width: 56px; height: 56px; border-radius: 50%; border: 0;
     background: var(--text); color: var(--bg); font-size: 2rem; font-weight: 400; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0,0,0,.22); cursor: pointer; padding: 0 0 3px; }
   .qa-fab[hidden] { display: none; }
+  .qa-fab { transition: opacity .15s, translate .2s ease-out; } .qa-fab.qa-fab-cede { opacity: 0; pointer-events: none; }   /* 2.22.4 (T) · sobre un botón del Inicio, sube (o, sin hueco, se aparta) */
   .qa-fab:active { transform: scale(.94); }
   body.qa-fab-on main { padding-bottom: 84px; }
   @media (max-width: 359px) { .qa-fab { width: 48px; height: 48px; font-size: 1.75rem; } }
@@ -19532,6 +19787,7 @@ function qaFabSync() {
   let zona = QA_VISTAS.has(view);
   try { if (zona && (document.getElementById(`view-${view}`)?.hidden || (view === 'hoy' && document.querySelector('#list .hb-ord, #cons .hb-ord')))) zona = false; } catch {}
   document.body.classList.toggle('qa-fab-on', zona);   // 2.21 (F) · abrir una hoja ya no encoge la página ni mueve el desplazamiento
+  try { setTimeout(() => window.icFabCede?.(), 0); } catch {}   // 2.22.4 (T)
   if (qaFab.hidden === !ver) return;
   qaFab.hidden = !ver; ovHost.classList.toggle('qa-fab-on', ver);
 }
