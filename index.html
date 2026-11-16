@@ -751,7 +751,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.5';
+const APP_VERSION = '2.22.6';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3596,7 +3596,7 @@ function estNorm(x) {
     for (let k = 0; k < 7; k++) { const v = pd[k]; porDia[k] = v === null || v === undefined || v === '' || !Number.isFinite(+v) ? null : Math.max(0, Math.min(480, Math.round(+v))); }
     const temas = A(r.temas).filter(t => t && typeof t === 'object').map(t => ({ id: ID(t.id), t: S(t.t, 80), peso: [1, 2, 3].includes(+t.peso) ? +t.peso : 2, hecho: !!t.hecho })).filter(t => t.t).slice(0, 30);
     const temaIds = new Set(temas.map(t => t.id));
-    const plan0 = A(r.plan).filter(b => b && typeof b === 'object').map(b => ({ id: ID(b.id, 80), d: F(b.d), h: H(b.h), min: N(b.min, 25, 5, 240), tema: typeof b.tema === 'string' && temaIds.has(b.tema) ? b.tema : '', tipo: TIPOS.includes(b.tipo) ? b.tipo : 'estudio', ej: Z(b.ej, 10000), t: S(b.t, 100), ...(b.hFija === true && H(b.h) ? { hFija: true } : {}) })).filter(b => b.d);
+    const plan0 = A(r.plan).filter(b => b && typeof b === 'object').map(b => ({ id: ID(b.id, 80), d: F(b.d), h: H(b.h), min: N(b.min, 25, 5, 240), tema: typeof b.tema === 'string' && temaIds.has(b.tema) ? b.tema : '', tipo: TIPOS.includes(b.tipo) ? b.tipo : 'estudio', ej: Z(b.ej, 10000), t: S(b.t, 100), ...(b.hFija === true && H(b.h) ? { hFija: true } : {}), ...(Z(b.sn, 2000) > 0 ? { sn: Z(b.sn, 2000) } : {}) })).filter(b => b.d);   // 2.22.5 (R) · sn: el número de la sesión
     // hechos: también con claves que ya no están en el plan (registro), acotados a 400 por ruta (se quedan los más recientes).
     const hIn = O(r.hechos), hk = Object.keys(hIn).filter(k => hIn[k] && typeof hIn[k] === 'object').map(k => [k.slice(0, 80), hIn[k]]).sort((a, b) => Z(b[1].en) - Z(a[1].en)).slice(0, 1600);   // 2.17.1 (D) · 1600, como el plan
     const hechos = {}; for (const [k, v] of hk) hechos[k] = { en: Z(v.en), min: Z(v.min, 1440), ej: Z(v.ej, 10000), nota: T(v.nota, 200), ...(Z(v.mod) ? { mod: Z(v.mod) } : {}) };   // 2.21.7 (E) · mod: cuándo se cambió lo anotado
@@ -3627,6 +3627,8 @@ function estNorm(x) {
       creado: Z(r.creado), cambiado: Z(r.cambiado), replan: Z(r.replan), archivada: !!r.archivada,
       ...(r.meta && typeof r.meta === 'object' && !Array.isArray(r.meta) ? { meta: { min: Math.max(0, Math.min(18000, Math.round(+r.meta.min) || 0)), dias: [...new Set(A(r.meta.dias).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b), mod: Z(r.meta.mod), ...estMetaBaseN(r.meta), ...(() => { const q = {}; if (r.meta.pesos && typeof r.meta.pesos === 'object') for (let wd = 0; wd < 7; wd++) { const v = Math.round(+r.meta.pesos[wd]); if (v >= 15 && v <= 480) q[wd] = v; } return Object.keys(q).length ? { pesos: q } : {}; })() } } : {}),   // 2.21.8 (D) · meta de horas (pesos: los minutos por día de la semana de los días que se quitaron, para cuando vuelvan)
       ...(() => { const f = estFechasN(r.fechas); return f ? { fechas: f } : {}; })(), ...(r.inicio && typeof r.inicio === 'object' && F(r.inicio.d) ? { inicio: { d: F(r.inicio.d), mod: Z(r.inicio.mod) } } : {}),   // 2.22.3 (I) · el día en que empieza ...(typeof r.fechasH === 'string' && r.fechasH ? { fechasH: r.fechasH.slice(0, 24) } : {}),   // 2.21.8 (K) · cambios por fecha y la huella del plan
+      ...(r.ses && typeof r.ses === 'object' && Z(r.ses.n, 2000) > 0 && BLQ.includes(+r.ses.L) ? { ses: { n: Z(r.ses.n, 2000), L: +r.ses.L, ...(Z(r.ses.h, 18000) ? { h: Z(r.ses.h, 18000) } : {}), mod: Z(r.ses.mod), ...(r.ses.sucio === true ? { sucio: true } : {}) } } : {}),   // 2.22.5 (R) · sesiones
+      ...(() => { const o = O(r.sesFuera), q = {}; for (const [k, v] of Object.entries(o).slice(0, 60)) { const f = F(k); if (f && Array.isArray(v)) { const ids = v.filter(x => typeof x === 'string' && x).map(x => x.slice(0, 80)).slice(0, 30); if (ids.length) q[f] = [...new Set(ids)]; } } return Object.keys(q).length ? { sesFuera: q } : {}; })(),   // 2.22.5 (R) · lo dejado fuera de su día
       ...(r.archivada && r.terminada && typeof r.terminada === 'object' && Z(r.terminada.en) ? { terminada: { en: Z(r.terminada.en) } } : {}) };   // 2.20.1 (T)
   }).slice(0, 40);
   { const jo = estJerNorm(x); if (jo) return { materias, rutas, cfg, ...jo }; }   // 2.17.1 (R) · la jerarquía de las rutas
@@ -3710,6 +3712,13 @@ function estFechasFus(g, p) {
 }
 // 2.22.3 (I) · El inicio de la ruta (ruta.inicio = { d, mod }): el de mod más reciente; una copia sin inicio (2.22.2 no lo conoce) nunca lo borra.
 function estInicioFus(g, p) { const ok = v => !!v && typeof v === 'object' && typeof v.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.d), a = ok(g && g.inicio) ? g.inicio : null, b = ok(p && p.inicio) ? p.inicio : null; const w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b; return w ? { inicio: w } : {}; }
+// 2.22.5 (R) · ses: el de mod más reciente (una copia sin ses, como 2.22.4, nunca lo borra); sesFuera: unión por día.
+function estSesFus(g, p) {
+  const ok = v => !!v && typeof v === 'object' && +v.n > 0, a = ok(g && g.ses) ? g.ses : null, b = ok(p && p.ses) ? p.ses : null, w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b;
+  const O = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {}, fu = {};
+  for (const [k, v] of [...Object.entries(O(p && p.sesFuera)), ...Object.entries(O(g && g.sesFuera))]) if (Array.isArray(v)) fu[k] = [...new Set([...(fu[k] || []), ...v])].slice(0, 30);
+  return { ...(w ? { ses: w } : {}), ...(Object.keys(fu).length ? { sesFuera: fu } : {}) };
+}
 function estMetaFus(g, p) { const ok = v => !!v && typeof v === 'object' && !Array.isArray(v), a = ok(g && g.meta) ? g.meta : null, b = ok(p && p.meta) ? p.meta : null; const w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b; return w ? { meta: w } : {}; }
 function estFusion(a, b, dead) {
   a = a && typeof a === 'object' ? a : {}; b = b && typeof b === 'object' ? b : {};
@@ -3743,7 +3752,7 @@ function estFusion(a, b, dead) {
     const gT = g.terminada || (p.terminada && g.archivada && p.archivada && n(g.cambiado) === n(p.cambiado) ? p.terminada : null);   // 2.20.1 (T)
     const temas = gT ? g.temas : Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true }
       : t && typeof t === 'object' && t.hecho && muertos.size && plan.some(b => b.tema === t.id && muertos.has(b.id)) && !visto(plan, t, hechos, rd) ? { ...t, hecho: false } : t) : g.temas;
-    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), ...estInicioFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
+    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), ...estInicioFus(g, p), ...estSesFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
   }
   return { materias: byId(L(a.materias), L(b.materias)), rutas: [...rutas.values()].filter(r => !dead.has(r.id)).map(r => ({ ...r, pendientes: L(r.pendientes).filter(x => !dead.has(x.id)), ...(Array.isArray(r.sesiones) ? { sesiones: L(r.sesiones).filter(x => !dead.has(x.id)) } : {}) })), cfg: a.cfg && typeof a.cfg === 'object' ? a.cfg : b.cfg };
 }
@@ -11939,7 +11948,7 @@ function renderAg() {
     const edad = Kt.c && Kt.c.dias > 0 ? `<span class="ag-edad">${tareaHace(Kt.c.dias)}</span>` : '';   // (v2) con «calor», el motivo va en la línea pequeña (la fila roja se explica sola)
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecha" aria-pressed="${ok}"></button>
-      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}</div><small>${fo ? 'Bloque protegido' : esc(agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
+      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}${(() => { if (fo || it.tipo !== 'estudio' || typeof it.ref !== 'string') return ''; let q = ''; try { q = window.est.sesTexto(it.ref) || ''; } catch {} return q ? ` <span class="ag-ses-n">· ${esc(q)}</span>` : ''; })()}</div><small>${fo ? 'Bloque protegido' : esc(agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
       ${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a"><button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
@@ -11955,7 +11964,7 @@ function renderAg() {
     : tarde ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Deja mañana organizado · 2 min</div><small>Al despertar ya sabrás qué hacer y a qué hora: decidirlo la víspera, en frío, ayuda a cumplirlo.</small></span><span class="tag">›</span></button>` : '';
   const agcOn = !iniV && agcVista() === 'cal';   // 2.21 (K) · 2.22.0 (N) · Iniciativas, siempre en lista
   agW.innerHTML = `<div class="ag-top"><p class="paso">${esc(cap(fechaLarga(today())))}${A.anoche ? ' · organizada anoche' : ''}</p>${agcSegHtml()}
-    ${org0 || iniV ? '' : agAlertaHtml('ag-org', hayAyer)}
+    ${org0 || iniV ? '' : agAlertaHtml('ag-org', hayAyer)}${iniV ? '' : estSesAgHtml()}
     ${its.length ? `<div class="ag-av"><div class="ag-av-m"><div class="meter"><span>${iniV ? 'Iniciativas de hoy' : org0 ? 'Día organizado' : 'Agenda de hoy'}</span><b class="${U0.n && hechas === U0.n ? 'green' : ''}">${hechas} de ${U0.n} hechas · ${xpHoy()} XP hoy</b></div><div class="meter-bar"><i style="width:${U0.n ? hechas / U0.n * 100 : 0}%"></i></div></div>
       ${agMenuHtml(org0, its, hayAyer)}</div>${cadDiaHtml(pest)}`
     : `${org0 ? '<p class="note ag-libre">Tu agenda de hoy está libre. Tus hábitos siguen en Hábitos.</p><div class="actions ag-libre-a" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-libre-org">Organizar mi día</button><button class="link" data-goview="hoy">Ver mis hábitos</button><button class="link" id="ag-add">Añadir una cosa</button></div>' : '<div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-add">Añadir una cosa</button></div>'}${agMenuHtml(org0, its, hayAyer, true)}`}</div>
@@ -11963,7 +11972,7 @@ function renderAg() {
     ${filas.length ? `<div class="rows ag-rows-h">${filas.join('')}</div>` : ''}
     ${sinH.filter(visE).some(pendE) ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows ag-rows-s">${sinH.filter(visE).filter(pendE).map(filaE).join('')}</div>${!agHorasOcultas() && agNotaHora() ? '<p class="meta">Toca «Poner hora»: con hora se cumple más.</p>' : ''}` : ''}
     ${agHechasHtml(ordV.filter(visE).filter(it => !pendE(it)), filaE, true)}
-    ${(filas.length || sinH.length) && !agLs('ag-desliza') ? '<p class="meta ag-desliza" id="ag-desliza">Toca una fila para ver más. Desliza una fila: a la derecha, hecho; a la izquierda, mañana o mover. Arrástrala desde ⠿ para cambiar su hora. Los puntos de la derecha: su relevancia. <button class="link" id="ag-desliza-ok">Entendido</button></p>' : ''}
+    ${(filas.length || sinH.length) && !agLs('ag-desliza') ? '<p class="meta ag-desliza" id="ag-desliza">Toca una fila para ver más. Desliza una fila: a la derecha, hecho; a la izquierda, mañana o mover. Arrástrala desde ⠿ para cambiar su hora. El número de la derecha (como 4/5): su relevancia. <button class="link" id="ag-desliza-ok">Entendido</button></p>' : ''}
     ${pestHtml && pest !== 'todo' && vis.length && vis.every(it => agHecho(it)) && pest !== 'evento' ? `<p class="meta green ag-pest-fin">Todo hecho en ${esc((AG_PEST.find(([k]) => k === pest) || [])[1] || '').toLowerCase()}.${its.some(it => it.tipo !== 'evento' && !agHecho(it)) ? ' Lo que queda está en las otras pestañas.' : ''}</p>` : ''}</div>`}
     ${mananaCard ? `<div style="margin-top:18px">${mananaCard}</div>` : ''}
     <details class="ag-mas"${agMasAbierto() ? ' open' : ''}><summary>Más: otros días, objetivos y metas</summary>
@@ -13181,7 +13190,8 @@ function orgFuera(k) {
   else if (tp === 'tar') { const o = org.tar.get(id); if (o) o.on = false; }
   else if (tp === 'ini') { if (org.ini[id]) { org.ini[id].on = false; org.ini[id].tocada = true; } }
   else if (tp === 'lib') org.libres = org.libres.filter(x => x.id !== id);
-  else if (tp === 'cons') { const o = org.cons?.get(id); if (o) o.on = false; }   // 2.21.6 (C) · solo ese día
+  else if (tp === 'cons') { const o = org.cons?.get(id); if (o) o.on = false; }
+  else if (tp === 'est') { const o = org.est?.get(id); if (o) o.on = false; }   // 2.22.5 (R) · la sesión queda fuera de ese día (la ruta pedirá reacomodar)   // 2.21.6 (C) · solo ese día
   org.orden = (org.orden || []).filter(x => x !== k);
 }
 function orgPropuestaSheet(dest = today(), sigue = false) {
@@ -16582,6 +16592,8 @@ function estFechasHash(r) {
 // · El aviso sale de lo que de verdad no cupo; faltan = los minutos por día con los que ya cabe todo (probados), y más de 480 si ni así.
 function estPlanificar(r, desde = today(), opts = {}) {
   if (!r || typeof r !== 'object') return [];
+  if (!(opts && (opts.sim || opts.modoA))) { try { estSesFueraAnotar(r); } catch {} }   // 2.22.5 (R) · lo dejado fuera de su día, antes de rehacer el plan
+  let sesKeep = null; if (!(opts && (opts.sim || opts.modoA || opts.sinSes)) && r.ses && typeof r.ses === 'object' && !r.ses.sucio) { try { sesKeep = estSesKeep(r); } catch {} }   // 2.22.5 (R) · cuántas sesiones había por delante (y sus minutos): un replan no repone las perdidas
   if (!Array.isArray(r.plan)) r.plan = []; if (!r.hechos || typeof r.hechos !== 'object') r.hechos = {}; if (!Array.isArray(r.temas)) r.temas = [];
   const hoy = today(), c = r.config || {}, cfg = estD().cfg, hechos = r.hechos, desde0 = desde, planAntes = r.plan, sim = !!(opts && opts.sim);
   desde = estF(desde) || hoy; if (desde < hoy) desde = hoy;
@@ -16849,6 +16861,13 @@ function estPlanificar(r, desde = today(), opts = {}) {
     else faltan = Math.min(1440, Math.max(485, Math.ceil((minimo + run.reservas) / Math.max(1, nDias) / 5) * 5));
     r.aviso = { faltan };
   }
+  // 2.22.5 (R) · Las sesiones: un cambio que no toca N (hora preferida, temas, «Replanificar») las vuelve a armar al momento, las mismas que
+  // había por delante y con sus minutos (las perdidas o la deuda solo vuelven con «Reacomodar»); con sinSes (lo que cambia N, el calendario
+  // de la ruta) el plan queda como lo dejó el motor y ses.sucio pide «Reacomodar».
+  if (!sim && !(opts && opts.modoA) && r.ses && typeof r.ses === 'object' && !r.terminada) {
+    if (!(opts && opts.sinSes) && !r.ses.sucio && +r.ses.L === estSesLen(r)) { try { estSesionar(r, sesKeep ? { keep: sesKeep } : {}); } catch (e) { console.warn('Estudio: sesiones', e); } }
+    else if (!r.ses.sucio) r.ses = { ...r.ses, sucio: true, mod: Math.max(Date.now(), (+r.ses.mod || 0) + 1) };
+  }
   return r.plan;
 }
 // Replanificar: lo hecho y lo pasado se conservan; lo que faltaba de cada tema (bloques no hechos, pasados o futuros) vuelve al reparto desde hoy.
@@ -16907,11 +16926,12 @@ function estCrear(datos = {}) {
   if (datos.meta && typeof datos.meta === 'object' && +datos.meta.min > 0) { r.meta = estNormRuta({ ...r, meta: { min: datos.meta.min, dias: Array.isArray(datos.meta.dias) && datos.meta.dias.length ? datos.meta.dias : [0, 1, 2, 3, 4, 5, 6], mod: Date.now() } }).meta; r.config.porDia = estMetaPorDia(r.config.porDia, r.meta.dias, r.meta); }   // 2.21.8 (D)
   if (r.meta && datos.meta && datos.meta.base) { const nb = estMetaBaseN({ base: datos.meta.base }); if (nb.base) { r.meta.base = nb.base; r.meta.desde = estMetaDesde(); if (+datos.meta.red > 0 && +datos.meta.red < 15) r.meta.red = Math.round(+datos.meta.red); } }   // 2.21.8 (K)
   if (r.meta && datos.fechas) { const fx = estFechasN(datos.fechas), now = Date.now(); if (fx) r.fechas = Object.fromEntries(Object.entries(fx).filter(([, o]) => o.min >= 0).map(([k, o]) => [k, { min: o.min, mod: now }])); }
-  estPlanificar(r);
+  estPlanificar(r); try { if (estFechasAct(r)) { const on = !!estMetaOn(r), H = on ? 0 : estSesHorasPlan(r); r.ses = { n: Math.max(1, estSesN(r, 0) || 1), L: estSesLen(r), ...(H > 0 ? { h: H } : {}), mod: Date.now(), sucio: true }; } else estSesionar(r); } catch (e) { console.warn('Estudio: sesiones', e); }   // 2.22.5 (R) · la ruta nace en sesiones (con días quitados en el borrador, el plan de siempre con su deuda y «Reacomodar»)
   D.rutas.push(r); guardar(); estAvisar('ruta', r); return r;
 }
 function estEditar(id, cambios = {}) {
   const r = estRuta(id); if (!r) return null;
+  const sesK0 = estSesClave(r);   // 2.22.5 (R) · lo que define N, antes del cambio
   const hoy = today(); let replan = false, iniCambio = false;
   { const nf = cambios.fecha !== undefined ? estF(cambios.fecha) : r.fecha, ni = cambios.inicio !== undefined ? estF(cambios.inicio) : estIni(r);   // 2.22.3 (I) · antes de tocar nada
     if (cambios.inicio !== undefined && !ni) throw new Error('La fecha de inicio no es válida.');
@@ -16931,8 +16951,12 @@ function estEditar(id, cambios = {}) {
   if ((cambios.meta !== undefined || cambios.config) && estMetaOn(r)) { const p0 = JSON.stringify(r.meta.pesos || null); r.config.porDia = estMetaPorDia(r.config.porDia, r.meta.dias, r.meta, pdAntes); if (JSON.stringify(r.meta.pesos || null) !== p0) r.meta.mod = Math.max(Date.now(), (+r.meta.mod || 0) + 1); }
   if (cambios.resultado !== undefined) { const nota = typeof cambios.resultado === 'string' ? cambios.resultado : cambios.resultado && typeof cambios.resultado === 'object' ? cambios.resultado.nota : ''; const n = String(nota ?? '').trim().slice(0, 200); r.resultado = n ? { nota: n, en: Date.now() } : null; }
   if (replan && !r.terminada && estMetaOn(r) && (cambios.meta !== undefined || cambios.config || cambios.fecha !== undefined || iniCambio)) estMetaRebase(r, metaAntes);   // 2.22.3 (I) · con el inicio, igual   // 2.21.8 (K) · los cambios por fecha se quedan
-  if (replan && !r.terminada) { estPlanificar(r); r.replan = Date.now(); }   // 2.20.1 (T) · terminada: sin plan nuevo
-  r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); return r;
+  const sesCrudo = replan && !r.terminada && !!r.ses && (iniCambio || estSesClave(r) !== sesK0);   // 2.22.5 (R) · cambió lo que define N: hay que reacomodar
+  if (replan && !r.terminada) { estPlanificar(r, today(), sesCrudo ? { sinSes: true } : {}); r.replan = Date.now(); }   // 2.20.1 (T) · terminada: sin plan nuevo
+  if (sesCrudo && r.ses) { const on = !!estMetaOn(r), q = { ...r.ses, sucio: true, mod: Math.max(Date.now(), (+r.ses.mod || 0) + 1) }; if (on) delete q.h; else q.h = Math.max(1, estSesHorasPlan(r)); r.ses = q; }   // 2.22.5 (R) · sin meta: las horas nuevas salen de los ajustes nuevos
+  r.cambiado = Date.now(); guardar(); estAvisar('ruta', r);
+  if (sesCrudo) { try { if (estSesInfo(r).mal && estSesGuarda) estSesPedirLuego(r.id); } catch {} }   // 2.22.5 (R) · al guardar los ajustes con un cambio que descuadra, «Reacomodar» al momento (en lo demás, el aviso)
+  return r;
 }
 function estArchivar(id, archivada = true) { const r = estRuta(id); if (!r) return null; r.archivada = !!archivada; if (!archivada) r.terminada = null; r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); return r; }   // 2.20.1 (T) · reactivar deshace «terminada»
 // 2.20.1 (T) · Terminar la ruta: queda en «Anteriores» con lo hecho. Salen del plan los bloques no hechos de hoy en adelante (los de hoy
@@ -16983,7 +17007,7 @@ function estMover(id, fecha, hora) {
   const b = r.plan.find(x => x.id === id), hoy = today(); fecha = estF(fecha);
   if (fecha && fecha >= hoy && r.fecha && fecha < r.fecha) b.d = fecha;
   if (hora !== undefined) { b.h = estH(hora); if (b.h) b.hFija = true; else delete b.hFija; }   // 2.17.1 (E)
-  estOrdenarPlan(r); r.cambiado = Date.now(); guardar();
+  estOrdenarPlan(r); try { estSesRenum(r); } catch {} r.cambiado = Date.now(); guardar();   // 2.22.5 (R) · los números siguen el orden del plan
   const eb = estEnriquecer(r, b); estAvisar('bloque', eb, null); return eb;
 }
 
@@ -17054,6 +17078,295 @@ function estResumenIA() {
   return { rutas, hoy, pendientes, sinHacer: rutas.reduce((n, r) => n + r.sinHacer, 0), aviso: rutas.filter(r => r.aviso).map(r => `${r.nombre}: ${r.aviso}`) };
 }
 
+// ====================================================================
+// 2.22.5 (R) · Sesiones de la ruta. N = hechas + ⌈(H − lo estudiado)/L⌉ (al empezar, ⌈H/L⌉): H = horas designadas, L = el bloque de la ruta.
+// Cada sesión del plan guarda su número (sn) en orden cronológico. Cuentan las hechas y las de hoy en adelante (antes del examen) que siguen
+// en la agenda de su día. El repaso de un tema y la víspera ligera no son sesiones. Si no cuadran con N, o el plan no está en sesiones
+// (ses ausente o sucio), la ruta pide «Reacomodar» (el motor de siempre y después estSesionar).
+// ====================================================================
+const estSesLen = r => { const v = +(r && r.config && r.config.bloqueMin), d = +estD().cfg.bloqueMin; return [25, 50, 90].includes(v) ? v : [25, 50, 90].includes(d) ? d : 50; };
+const estSesTipo = b => !!b && typeof b === 'object' && b.tipo !== 'repaso' && b.tipo !== 'ligero';
+// Sin meta: lo estudiado más las sesiones que quedan por delante en el plan (sin repasos ni víspera ligera).
+function estSesHorasPlan(r) { if (!r) return 0; const hoy = today(), h = r.hechos || {}; let m = estMetaReal(r); for (const b of r.plan || []) if (estSesTipo(b) && !h[b.id] && b.d >= hoy && (!r.fecha || b.d < r.fecha)) m += +b.min || 0; return Math.round(m); }
+function estSesHoras(r) { const on = estMetaOn(r); if (on) return Math.round(on.min); if (r && r.ses && +r.ses.h > 0) return Math.round(+r.ses.h); return estSesHorasPlan(r); }
+function estSesN(r, hechas) { const H = estSesHoras(r), L = estSesLen(r); if (!(H > 0)) return 0; return (hechas || 0) + Math.ceil(Math.max(0, H - estMetaReal(r)) / L); }   // al empezar, ⌈H/L⌉
+// Lo que define N (para saber si un cambio de ajustes obliga a reacomodar).
+function estSesClave(r) { if (!r) return ''; const on = estMetaOn(r), c = r.config || {}; return JSON.stringify([on ? Math.round(on.min) : 0, estSesLen(r), r.fecha || '', on ? 0 : [+c.minDia || 0, c.porDia || null, +c.diasAntes || 0]]); }
+// Los bloques que quitaste de la agenda de ese día (× en «Organizar mi día», «Quitar» en la Agenda): hoy, la agenda; otro día, su plan.
+function estSesOcultos(d) {
+  const s = new Set();
+  try { const A = ES.agendaHoy; if (A && A.fecha === d && Array.isArray(A.ocultos)) for (const x of A.ocultos) s.add(x); } catch {}
+  try { if (d > today()) { const P = planDia(d); if (P && Array.isArray(P.ocultos)) for (const x of P.ocultos) s.add(x); } } catch {}
+  return s;
+}
+function estSesFueraSet(r) { const s = new Set(), F = r && r.sesFuera; if (F && typeof F === 'object') for (const v of Object.values(F)) if (Array.isArray(v)) for (const x of v) s.add(x); return s; }
+// Anota en la ruta lo que quedó fuera de la agenda de su día (para que el plan nuevo no lo vuelva a poner ese día). Olvida los días pasados.
+function estSesFueraAnotar(r) {
+  if (!r || !Array.isArray(r.plan)) return;
+  const hoy = today(), h = r.hechos || {}, F0 = r.sesFuera && typeof r.sesFuera === 'object' ? r.sesFuera : {}, F = {};
+  for (const [k, v] of Object.entries(F0)) if (k >= hoy && Array.isArray(v) && v.length) F[k] = v.slice(0, 30);
+  const oc = new Map();
+  for (const b of r.plan) { if (!b || h[b.id] || !(b.d >= hoy) || (r.fecha && b.d >= r.fecha)) continue; let o = oc.get(b.d); if (!o) { o = estSesOcultos(b.d); oc.set(b.d, o); } if (o.has(b.id)) { const a = F[b.d] || (F[b.d] = []); if (!a.includes(b.id)) a.push(b.id); } }
+  if (Object.keys(F).length) r.sesFuera = F; else if (r.sesFuera) delete r.sesFuera;
+}
+const estSesVivo = r => !!r && !r.archivada && !r.terminada && !!estF(r.fecha) && r.fecha > today() && estMetaDesde() <= estDia(r.fecha, -1);
+const estSesCron = (a, b) => estCmp(a.d, b.d) || estOrdenH(a, b) || (+a.sn || 0) - (+b.sn || 0) || estCmp(a.id, b.id);
+let estSesC = null;
+function estSesFirma(r) {
+  let oc = ''; try { const A = ES.agendaHoy, Pl = ES.agendaPlanes && typeof ES.agendaPlanes === 'object' ? ES.agendaPlanes : {}; oc = [A && A.fecha, A && Array.isArray(A.ocultos) ? A.ocultos.join(',') : '', JSON.stringify((ES.agendaPlan && ES.agendaPlan.ocultos) || 0), Object.values(Pl).map(p => p && Array.isArray(p.ocultos) ? p.ocultos.length : 0).join(',')].join('/'); } catch {}
+  return [today(), new Date().getHours() >= 20, r.plan.length, r.plan.map(b => b && b.id + b.d + (b.h || '') + (b.sn || '')).join(','), +r.cambiado || 0, +r.replan || 0, JSON.stringify(r.hechos || 0).length, Object.keys(r.hechos || {}).length, JSON.stringify(r.ses || 0), JSON.stringify(r.sesFuera || 0), (r.meta && r.meta.min) || 0, r.config && r.config.bloqueMin, r.fecha, r.archivada, !!r.terminada, Array.isArray(r.sesiones) ? r.sesiones.length : 0, oc].join('|');
+}
+function estSesInfo(r) {
+  if (!r || !Array.isArray(r.plan)) return { N: 0, S: 0, L: 50, H: 0, hechas: 0, pend: 0, num: new Map(), ocultas: 0, vivo: false, sucio: false, sinSes: true, mal: false };
+  if (!estSesC) { estSesC = new WeakMap(); Promise.resolve().then(() => { estSesC = null; }); }
+  const f = estSesFirma(r), c = estSesC.get(r); if (c && c.f === f) return c.v;
+  const hoy = today(), h = r.hechos || {}, fuera = estSesFueraSet(r), ocD = new Map(), cuenta = []; let ocultas = 0;
+  for (const b of r.plan) {
+    if (!estSesTipo(b)) continue;
+    if (h[b.id]) { cuenta.push(b); continue; }
+    if (!(b.d >= hoy) || (r.fecha && b.d >= r.fecha) || fuera.has(b.id)) continue;
+    let oc = ocD.get(b.d); if (!oc) { oc = estSesOcultos(b.d); ocD.set(b.d, oc); }
+    if (oc.has(b.id)) { ocultas++; continue; }
+    cuenta.push(b);
+  }
+  cuenta.sort(estSesCron);
+  const L = estSesLen(r), H = estSesHoras(r), S = cuenta.length, hechas = cuenta.filter(b => h[b.id]).length, N = estSesN(r, hechas);
+  const sinSes = !r.ses || typeof r.ses !== 'object', sucio = !sinSes && (!!r.ses.sucio || +r.ses.L !== L), vivo = estSesVivo(r);
+  // Los números: los que guardó cada sesión (nunca más que N); un plan sin sesiones no lleva números.
+  const num = new Map();
+  if (!sinSes && !sucio && N > 0) {
+    const con = r.plan.filter(b => estSesTipo(b) && +b.sn > 0);
+    if (con.length) { for (const b of con) if (+b.sn <= N && !num.has(b.id)) num.set(b.id, +b.sn); }
+    else if (S === N) cuenta.forEach((b, i) => num.set(b.id, i + 1));   // una copia de 2.22.4 sin sn: en orden, si cuadran
+  }
+  // Una sesión de más que solo es el resto corto de un día lleno (cuando no cabe todo) no descuadra: lo que manda son los minutos.
+  const pendMin = cuenta.filter(b => !h[b.id]).reduce((n, b) => n + (+b.min || 0), 0), xmI = estMetaOn(r) ? r.plan.filter(b => !estSesTipo(b) && !h[b.id] && b.d >= hoy && (!r.fecha || b.d < r.fecha)).reduce((n, b) => n + (+b.min || 0), 0) : 0;
+  const sobraOk = S > N && pendMin <= Math.max(0, H - estMetaReal(r) - xmI) + 14;
+  const v = { N, S, L, H, hechas, pend: S - hechas, num, ocultas, vivo, sucio, sinSes, mal: vivo && N > 0 && ((S !== N && !sobraOk) || sucio || sinSes) };
+  estSesC.set(r, { f, v }); return v;
+}
+// «Sesión 3/12» de un bloque (objeto o id); '' si no lleva número.
+function estSesTexto(x) {
+  try {
+    const id = typeof x === 'string' ? x : x && x.id; if (!id) return '';
+    const r = (x && typeof x === 'object' && typeof x.ruta === 'string' ? estRuta(x.ruta) : null) || estRutaDeBloque(id, true); if (!r) return '';
+    const i = estSesInfo(r), k = i.num.get(id); return k && i.N && k <= i.N ? `Sesión ${k}/${i.N}` : '';
+  } catch { return ''; }
+}
+// «Estadística · Sesión 3/12 · Tema» (para el asistente y las listas que no tienen línea pequeña)
+function estTextoSes(b) {
+  const t = estTexto(b), q = estSesTexto(b); if (!q) return t;
+  const r = b && typeof b.ruta === 'string' ? estRuta(b.ruta) : estRutaDeBloque(b && b.id, true), mat = b && typeof b.materia === 'string' && b.materia ? b.materia : r ? estMatNombre(r) : '';
+  return mat && t.startsWith(mat + ' · ') ? `${mat} · ${q} · ${t.slice(mat.length + 3)}` : `${q} · ${t}`;
+}
+function estSesAviso(r, nombre = false) {
+  const i = estSesInfo(r); if (!i.mal) return '';
+  const tu = nombre ? `Tu ruta «${r.nombre}»` : 'Tu ruta', la = nombre ? `la ruta «${r.nombre}»` : 'la ruta';
+  if (i.sinSes) return `${tu} todavía no tiene sesiones. Reacomoda para armar las ${i.N}.`;
+  if (i.sucio) return `Cambiaste ${la}: reacomoda para que las ${i.N} sesiones cuadren.`;
+  return `${tu} tiene ${i.S} de ${i.N} sesiones agendadas. Reacomoda para que cuadren.`;
+}
+const estSesMalR = r => { try { return estSesInfo(r).mal; } catch { return false; } };
+// Los números en el orden del plan (después de mover una sesión): los mismos números, ordenados por día y hora.
+function estSesRenum(r) {
+  if (!r || !Array.isArray(r.plan) || !r.ses || r.ses.sucio) return;
+  const con = r.plan.filter(b => estSesTipo(b) && +b.sn > 0); if (con.length < 2) return;
+  const ns = con.map(b => +b.sn).sort((a, b) => a - b), ord = con.slice().sort((a, b) => estCmp(a.d, b.d) || estOrdenH(a, b) || estCmp(a.id, b.id));
+  ord.forEach((b, i) => { b.sn = ns[i]; });
+}
+// Arma lo que queda en sesiones: los días y las horas los eligió el motor (r.plan recién hecho); aquí se reparten R = N − (hechas y las que ya
+// no se tocan) sesiones del largo del bloque en proporción a lo que el motor puso cada día para estudiar (sin pasar de las 23:00 ni de 480 min),
+// varias por día si toca. El repaso de un tema y la víspera ligera se quedan como los puso el motor. Un día con sesiones dejadas fuera lleva
+// esas de menos. Lo hecho y lo anterior se queda igual. Numera en orden (sn) y deja r.ses = { n, L, h?, mod }.
+// Las sesiones que se vuelven a colocar en un replan: las que cuentan, sin hacer, de estMetaDesde() en adelante (R) y sus minutos (B).
+function estSesKeep(r) {
+  const i = estSesInfo(r), h = r.hechos || {}, d0 = estMetaDesde(); let R = 0, B = 0;
+  for (const b of r.plan || []) if (estSesTipo(b) && !h[b.id] && b.d >= d0 && (!r.fecha || b.d < r.fecha) && (i.num.has(b.id) || i.sinSes)) { R++; B += +b.min || 0; }
+  if (!i.num.size) return null;   // sin números (copia de 2.22.4): como al reacomodar
+  return { R, B };
+}
+function estSesionar(r, o = {}) {
+  if (!r || !Array.isArray(r.plan) || !estF(r.fecha)) return null;
+  const hoy = today(); if (r.fecha <= hoy) return null;
+  if (!r.hechos || typeof r.hechos !== 'object') r.hechos = {};
+  estSesFueraAnotar(r);
+  const h = r.hechos, L = estSesLen(r), H = estSesHoras(r), desde = estMetaDesde(), fin = estDia(r.fecha, -1), FIN = 23 * 60;
+  const F = r.sesFuera || {}, fuera = estSesFueraSet(r);
+  const fijos = r.plan.filter(b => h[b.id] || (b.d < desde && !fuera.has(b.id)));
+  const vivos = fijos.filter(b => estSesTipo(b) && (h[b.id] || (b.d >= hoy && b.d < r.fecha)));
+  const N = estSesN(r, vivos.filter(b => h[b.id]).length);
+  const raw = r.plan.filter(b => !h[b.id] && b.d >= desde && b.d <= fin).sort((a, b) => estCmp(a.d, b.d) || estOrdenH(a, b));
+  const extras = raw.filter(b => !estSesTipo(b)), rawS = raw.filter(estSesTipo);
+  const keep = o && o.keep && Number.isFinite(+o.keep.R) ? o.keep : null;
+  const R = keep ? Math.max(0, Math.min(Math.round(+keep.R), N - vivos.length)) : Math.max(0, N - vivos.length), used = new Set([...fijos.map(b => b.id), ...extras.map(b => b.id), ...Object.keys(h), ...fuera]);
+  const c = r.config || {}, horaPref = estH(c.horaPref) || estD().cfg.horaPref || '17:00', ahora = new Date(), ahoraMin = Math.ceil((ahora.getHours() * 60 + ahora.getMinutes()) / 5) * 5;
+  const D = [...new Set(rawS.map(b => b.d))].sort().map(d => {
+    const bs = rawS.filter(b => b.d === d), w = bs.reduce((n, b) => n + (+b.min || 0), 0), hs = bs.filter(b => estH(b.h)).map(b => estMinutos(b.h));
+    let s0 = hs.length ? Math.min(...hs) : estMinutos(horaPref); if (d === hoy && s0 < ahoraMin) s0 = ahoraMin;
+    const occ = [...fijos, ...extras].filter(b => b.d === d && estH(b.h)).map(b => [estMinutos(b.h), estMinutos(b.h) + (+b.min || 0)]);
+    let s = s0, cap = 0; for (let i = 0; i < 60; i++) { for (let g = 0; g < 50; g++) { const o = occ.find(([a, z]) => s < z + 10 && a < s + L + 10); if (!o) break; s = o[1] + 10; } if (s + L > FIN) break; cap++; s += L + 10; }
+    cap = Math.min(cap, Math.max(1, Math.floor(480 / L)));
+    const nf = Array.isArray(F[d]) ? F[d].length : 0;
+    return { d, bs, w, s0, occ, cap, nf, capF: nf ? Math.max(0, Math.round(w / L) - nf) : Infinity, k: 0, q: 0 };
+  });
+  const W = D.reduce((n, x) => n + x.w, 0);
+  if (R > 0 && W > 0) {
+    for (const x of D) { x.q = R * x.w / W; x.k = Math.min(Math.floor(x.q), x.cap, x.capF); }
+    let resto = R - D.reduce((n, x) => n + x.k, 0);
+    for (let it = 0; it < 4000 && resto > 0; it++) {
+      let best = null;
+      for (const x of D) if (x.k < Math.min(x.cap, x.capF) && (!best || x.q - x.k > best.q - best.k)) best = x;
+      if (!best) for (const x of D) if (x.k < x.cap && !x.nf && (!best || x.q - x.k > best.q - best.k)) best = x;
+      if (!best) break;
+      best.k++; resto--;
+    }
+  }
+  const temaT = id => { const t = (r.temas || []).find(x => x && x.id === id); return t ? t.t : ''; }, ses = [];
+  for (const x of D) {
+    if (!x.k) continue;
+    const B0 = x.bs.filter(b => !fuera.has(b.id)), B = B0.length ? B0 : x.bs, Wd = B.reduce((n, b) => n + (+b.min || 0), 0) || 1, vistos = new Set();
+    for (let i = 0; i < x.k; i++) {
+      const pos = (i + 0.5) * Wd / x.k; let acc = 0, b = B[B.length - 1];
+      for (const y of B) { acc += +y.min || 0; if (pos < acc) { b = y; break; } }
+      const prim = !vistos.has(b.id); vistos.add(b.id);
+      const tipo = prim ? b.tipo : b.tipo === 'practica' ? 'estudio' : b.tipo, t = prim ? b.t : b.tipo === 'practica' ? (temaT(b.tema) || String(b.t || '').replace(/^Ejercicios: /, '')) : b.t;
+      let id = prim && !used.has(b.id) ? b.id : '';
+      if (!id) { const base = `${r.id}:${x.d}:s`; let j = 1; while (used.has(base + j)) j++; id = base + j; }
+      used.add(id);
+      ses.push({ id, d: x.d, h: '', min: L, tema: b.tema || '', tipo, ej: prim ? Math.max(0, +b.ej || 0) : 0, t: estS(t, 100), x });
+    }
+  }
+  for (const x of D) { let s = x.s0; for (const b of ses) { if (b.x !== x) continue; for (let g = 0; g < 50; g++) { const o = x.occ.find(([a, z]) => s < z + 10 && a < s + b.min + 10); if (!o) break; s = o[1] + 10; } if (s + b.min <= FIN) { b.h = estHHMM(s); s += b.min + 10; } } x.fin = s; }
+  // Si no caben todas (pocos días o tarde), lo que queda antes de las 23:00 en un día (15 min o más) es una sesión más corta, como el motor,
+  // mientras falten minutos (no se pasa de las horas: si sobra, lo recortan las últimas).
+  const fx0 = vivos.filter(b => !h[b.id]).reduce((n, b) => n + (+b.min || 0), 0), xm0 = estMetaOn(r) ? extras.reduce((n, b) => n + (+b.min || 0), 0) : 0, Bud = keep ? W : H - estMetaReal(r) - fx0 - xm0;
+  for (const x of D) {
+    if (x.nf || x.k < x.cap) continue;   // solo en un día lleno de sesiones
+    if (ses.reduce((n, b) => n + b.min, 0) >= Bud - 14) break;
+    let sm = x.fin === undefined ? x.s0 : x.fin; for (let g = 0; g < 50; g++) { const o = x.occ.find(([a, z]) => sm < z + 10 && a < sm + 15 + 10); if (!o) break; sm = o[1] + 10; }
+    const usado = ses.filter(b => b.x === x).reduce((n, b) => n + b.min, 0), libre = Math.min(L, FIN - sm, 480 - usado), m = Math.floor(libre / 5) * 5;
+    if (m >= 15 && !x.occ.some(([a, z]) => sm < z + 10 && a < sm + m + 10)) { const B = x.bs[x.bs.length - 1], base = `${r.id}:${x.d}:s`; let j = 1; while (used.has(base + j)) j++; used.add(base + j); ses.push({ id: base + j, d: x.d, h: estHHMM(sm), min: m, tema: B.tema || '', tipo: B.tipo === 'practica' ? 'estudio' : B.tipo, ej: 0, t: estS(B.tipo === 'practica' ? (temaT(B.tema) || String(B.t || '').replace(/^Ejercicios: /, '')) : B.t, 100), x }); }
+  }
+  // Las últimas, lo que sobra: las horas que faltan (menos lo hecho, lo que sigue fijo y, con meta, el repaso y la víspera ligera, que también
+  // son horas de estudio) no llenan R bloques: se acortan las últimas sesiones por igual (nunca menos de 15 min). Así el plan suma la meta.
+  if (ses.length && N > 0) {
+    const n = ses.length, over = ses.reduce((k, b) => k + b.min, 0) - Bud;
+    if (over >= 5) {
+      let m = 0, cabe = 0; while (m < n && cabe < over) { cabe += Math.max(0, ses[n - 1 - m].min - 15); m++; }
+      const tail = ses.slice(-m), T = Math.max(15 * m, Math.round((tail.reduce((k, b) => k + b.min, 0) - over) / 5) * 5), q = Math.max(15, Math.floor(T / m / 5) * 5); let ext = T - q * m;
+      for (const b of tail) { b.min = q + (ext >= 5 ? 5 : 0); if (ext >= 5) ext -= 5; }
+    }
+  }
+  for (const b of ses) delete b.x;
+  const fs = new Set(fijos); r.plan = [...r.plan.filter(b => fs.has(b)), ...extras, ...ses]; estOrdenarPlan(r);
+  // Los números: hechas y vivas primero por fecha, después las nuevas; lo que no cuenta, sin número.
+  const cnt = new Set([...vivos, ...ses]); [...cnt].sort((a, b) => estCmp(a.d, b.d) || estOrdenH(a, b) || estCmp(a.id, b.id)).forEach((b, i) => { b.sn = i + 1; });
+  for (const b of r.plan) if (!cnt.has(b) && b.sn !== undefined) delete b.sn;
+  // Con meta, la base del calendario de la ruta (K) pasa a ser lo que llevan las sesiones cada día: quitar un día después deja de deuda
+  // justo lo de ese día y los demás no cambian. Los cambios por fecha que sumaban minutos ya están dentro; los días quitados siguen quitados.
+  if (estMetaOn(r) && r.meta && r.meta.base && typeof r.meta.base === 'object') {
+    const B = {}, ds = new Set(); for (const [f, v] of Object.entries(r.meta.base)) if (f < desde) B[f] = v;
+    for (const b of r.plan) if (b.d >= desde && b.d <= fin) { ds.add(b.d); if (!h[b.id]) B[b.d] = (B[b.d] || 0) + (+b.min || 0); }
+    for (const f of ds) B[f] = Math.min(1440, (B[f] || 0) + estHechoDia(r, f));
+    r.meta.base = B; delete r.meta.red;
+    if (r.fechas && typeof r.fechas === 'object') for (const [f, o] of Object.entries(r.fechas)) if (f >= desde && o && typeof o === 'object' && +o.min > 0) r.fechas[f] = { min: -1, mod: Math.max(Date.now(), (+o.mod || 0) + 1) };
+    if (r.fechasH) r.fechasH = estFechasHash(r);   // ya está armado con estos cambios: estFechasSync no lo vuelve a planificar
+  }
+  r.ses = { n: N, L, ...(estMetaOn(r) ? {} : { h: H }), mod: Math.max(Date.now(), (+(r.ses && r.ses.mod) || 0) + 1) };
+  return { N, R, puestas: ses.length, faltan: Math.max(0, R - ses.length) };
+}
+// Reacomodar: el motor de siempre (desde hoy) y después las sesiones. Las horas sin meta se conservan (ses.h); sin ses, salen del plan de ahora.
+function estSesAplicar(r) {
+  estSesFueraAnotar(r);
+  if (!r.ses || typeof r.ses !== 'object') { const H = estMetaOn(r) ? 0 : estSesHorasPlan(r); r.ses = { n: Math.max(1, estSesN(r, 0) || 1), L: estSesLen(r), ...(H > 0 ? { h: H } : {}), mod: Date.now(), sucio: true }; }
+  estPlanificar(r, today(), { sinSes: true });
+  return estSesionar(r);
+}
+function estSesReacomodar(x, o = {}) {
+  const r0 = typeof x === 'string' ? estRuta(x) : x; if (!r0) return null;
+  if (r0.terminada || r0.archivada) throw new Error('La ruta está terminada: su calendario queda como registro.');
+  const antes = estSesInfo(r0);
+  if (o && o.sim) { const y = JSON.parse(JSON.stringify(r0)); const res = estSesAplicar(y); return { r: y, antes, despues: estSesInfo(y), res }; }
+  const res = estSesAplicar(r0); r0.replan = Date.now(); r0.cambiado = Date.now(); guardar(); estAvisar('ruta', r0);
+  return { r: r0, antes, despues: estSesInfo(r0), res };
+}
+// Aplica la propuesta que se vio (la copia y, encima, los días y horas que cambiaste en la hoja).
+function estSesAplicarCopia(id, y, aj = {}) {
+  const r0 = estRuta(id); if (!r0 || !y) return null;
+  if (r0.terminada || r0.archivada) throw new Error('La ruta está terminada: su calendario queda como registro.');
+  const fin = estDia(y.fecha, -1), hoy = today();
+  for (const [bid, v] of Object.entries(aj || {})) { const b = (y.plan || []).find(q => q.id === bid); if (!b || !v) continue; const d = estF(v.d); if (d && d >= hoy && d <= fin) b.d = d; const hh = estH(v.h); if (hh) { b.h = hh; b.hFija = true; } }
+  estOrdenarPlan(y); estSesRenum(y);
+  for (const k of Object.keys(r0)) if (!(k in y)) delete r0[k];
+  Object.assign(r0, y); r0.replan = Date.now(); r0.cambiado = Date.now(); guardar(); estAvisar('ruta', r0);
+  return { r: r0, despues: estSesInfo(r0) };
+}
+// «Guardar ajustes» de la ruta: el cambio que descuadra abre «Reacomodar» al momento (desde el calendario o el asistente, solo el aviso).
+let estSesGuarda = 0;
+document.addEventListener('click', e => { try { if (e.composedPath().some(x => x && x.id === 'eu-a-ok')) { estSesGuarda = 1; setTimeout(() => { estSesGuarda = 0; }, 0); } } catch {} }, true);   // solo durante ese toque
+function estSesPedirLuego(id) { setTimeout(() => { try { if (document.visibilityState !== 'hidden') estSesSheet(id, true); } catch (e) { console.warn('Reacomodar', e); } }, 450); }
+function estSesRepintar() { for (const f of [() => renderEstudio(), () => renderAg(), () => renderE(), () => renderInicio()]) { try { f(); } catch {} } }
+// La hoja «Reacomodar»: qué sesiones son nuevas o cambian de día u hora (las que solo cambian de número no salen), cada una con «Cambiar»
+// (día y hora), las que salen, y [Ver la ruta] [Ahora no] [Reacomodar].
+function estSesSheet(id, tras = false) {
+  const r = estRuta(id); if (!r) return;
+  const i = estSesInfo(r); let p = null; try { p = estSesReacomodar(id, { sim: true }); } catch (e) { toast(e.message || 'No se pudo reacomodar.'); return; }
+  // Lo que cambia se mira por lugar (día, hora y largo), no por id: una sesión que sigue en su sitio no sale aunque cambie su número.
+  const d = p.despues, hoy0 = today(), slot = b => `${b.d}|${b.h || ''}|${b.min}`, viejoOk = b => !r.hechos[b.id] && b.d >= hoy0 && estSesTipo(b) && (i.sinSes || i.sucio || i.num.has(b.id));
+  const viejo = new Map(r.plan.filter(viejoOk).map(b => [b.id, b])), slotsV = new Set([...viejo.values()].map(slot));
+  const nuevos = p.r.plan.filter(b => d.num.has(b.id) && !p.r.hechos[b.id]), slotsN = new Set(nuevos.map(slot)), nuevoIds = new Set(nuevos.map(b => b.id));
+  const cambia = nuevos.filter(b => !slotsV.has(slot(b))).sort((a, b) => d.num.get(a.id) - d.num.get(b.id));
+  const salen = [...viejo.values()].filter(b => !slotsN.has(slot(b)) && !nuevoIds.has(b.id));
+  const temaT = b => { const t = (r.temas || []).find(x => x && x.id === b.tema); return b.tipo === 'simulacro' ? 'Simulacro' : t ? t.t : String(b.t || ''); };
+  const cuando = b => `${cap(euFCorta(b.d))}${b.h ? ' ' + fmtHora(b.h) : ''}`;
+  const dias = []; for (let f = [today(), estMetaDesde()].sort().pop(), k = 0; f < p.r.fecha && k < 90; f = estDia(f, 1), k++) dias.push(f);
+  const fila = b => { const v = viejo.get(b.id), tag = v ? `Antes: ${cuando(v)}` : 'Nueva';
+    return `<div class="row ses-prop-f" data-ses-b="${esc(b.id)}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Sesión ${d.num.get(b.id)}/${d.N} · <span class="ses-tag">${esc(tag)}</span></div><small>${esc(cuando(b))} · ${esc(fmtMin(b.min))} · ${esc(temaT(b))}</small>
+      <div class="ses-aj" hidden><select data-ses-d aria-label="Día de la sesión ${d.num.get(b.id)}">${dias.map(f => `<option value="${f}"${f === b.d ? ' selected' : ''}>${esc(cap(euFCorta(f)))}</option>`).join('')}</select><input type="time" data-ses-h value="${esc(b.h || '')}" aria-label="Hora de la sesión ${d.num.get(b.id)}"></div></span>
+      <button type="button" class="link ses-cambiar" data-ses-cambiar>Cambiar</button></div>`; };
+  const motivo = i.sinSes ? `Tu ruta todavía no tiene sesiones: serán ${d.N} de ${d.L} min.` : i.sucio ? `Cambiaste la ruta: ahora son ${d.N} sesiones de ${d.L} min.` : i.S !== i.N ? `Tu ruta tiene ${i.S} de ${i.N} sesiones agendadas.` : `Tu ruta tiene ${i.N} de ${i.N} sesiones agendadas.`;
+  const MAX = 8;
+  showSheet(`<div id="ses-wrap"><p class="paso">Estudio · ${esc(r.nombre)}</p><h2>Reacomodar</h2>
+    <p class="note" id="ses-motivo">${esc(motivo)}</p>
+    <p class="meta" id="ses-prop-t">Así quedan: ${d.N} ${d.N === 1 ? 'sesión' : 'sesiones'} de ${d.L} min hasta el examen${d.hechas ? ` (${d.hechas} ${d.hechas === 1 ? 'hecha' : 'hechas'})` : ''}.${!i.sinSes && !i.sucio && d.S > i.S ? (d.S - i.S === 1 ? ' Se suma 1 sesión.' : ` Se suman ${d.S - i.S} sesiones.`) : ''}${cambia.length ? ' Toca «Cambiar» para elegir otro día u hora.' : ''}</p>
+    ${cambia.length ? `<div class="rows" id="ses-prop">${cambia.slice(0, MAX).map(fila).join('')}</div>${cambia.length > MAX ? `<p class="meta">Y ${cambia.length - MAX} ${cambia.length - MAX === 1 ? 'sesión más' : 'sesiones más'} en el plan.</p>` : ''}` : '<p class="meta" id="ses-prop">Las sesiones se quedan donde están.</p>'}
+    ${salen.length ? `<p class="meta" id="ses-salen">${salen.length === 1 ? 'Sale' : 'Salen'}: ${salen.slice(0, 4).map(b => esc(cuando(b))).join(', ')}${salen.length > 4 ? ` y ${salen.length - 4} más` : ''}.</p>` : ''}
+    ${d.S !== d.N ? `<p class="meta amber" id="ses-nocabe">Caben ${d.S} de ${d.N} sesiones antes del examen. Suma días o baja las horas en «Ajustes».</p>` : ''}
+    <div class="actions"><button type="button" class="link" id="ses-ver" style="min-height:44px">Ver la ruta</button><button type="button" class="link" id="ses-no" style="min-height:44px">Ahora no</button><button type="button" class="primary" id="ses-ok" style="min-height:44px" data-guarda>Reacomodar</button></div></div>`);
+  const b = $('#sheet-body');
+  b.querySelectorAll('[data-ses-cambiar]').forEach(x => { x.onclick = () => { const a = x.closest('.ses-prop-f').querySelector('.ses-aj'); a.hidden = !a.hidden; x.textContent = a.hidden ? 'Cambiar' : 'Listo'; if (!a.hidden) a.querySelector('select')?.focus(); }; });
+  b.querySelector('#ses-no').onclick = () => { closeSheet(); estSesRepintar(); };
+  b.querySelector('#ses-ver').onclick = () => { try { euRutaSheet(id); } catch { closeSheet(); } };
+  b.querySelector('#ses-ok').onclick = () => {
+    const aj = {}; b.querySelectorAll('.ses-prop-f').forEach(f => { const bid = f.dataset.sesB, bb = p.r.plan.find(q => q.id === bid); if (!bb) return; const nd = f.querySelector('[data-ses-d]')?.value || bb.d, nh = f.querySelector('[data-ses-h]')?.value || ''; if (nd !== bb.d || (nh && nh !== bb.h)) aj[bid] = { d: nd, h: nh && nh !== bb.h ? nh : '' }; });
+    let x = null; try { x = estSesAplicarCopia(id, p.r, aj); } catch (e) { toast(e.message || 'No se pudo reacomodar.'); return; }
+    closeSheet(); estSesRepintar();
+    toast(x.despues.mal ? estSesAviso(x.r) : `Listo: ${x.despues.S} de ${x.despues.N} sesiones agendadas.`);
+  };
+}
+// Un toque en cualquier «Reacomodar» (ruta, tarjeta, Inicio, Agenda) abre la hoja.
+document.addEventListener('click', e => { const n = e.composedPath().find(x => x && x.dataset && x.dataset.estReac); if (!n) return; e.preventDefault(); e.stopPropagation(); estSesSheet(n.dataset.estReac); }, true);
+// El aviso: el texto y, en su propia línea, el botón «Reacomodar».
+function estSesAvHtml(r, { nombre = false, id = '', extra = '' } = {}) {
+  const t = estSesAviso(r, nombre); if (!t) return '';
+  return `<div class="est-ses-av"${id ? ` id="${id}"` : ''}${extra}><p class="meta"><b class="amber">${esc(t)}</b></p> <button type="button" class="est-reac-b" data-est-reac="${esc(r.id)}">Reacomodar</button></div>`;
+}
+// La línea de la ruta («12 sesiones de 50 min hasta el examen · 3 hechas · 9 por hacer», y si faltan, «· 1 por agendar») y el aviso.
+function euSesLinea(r, ficha = false) {
+  if (!r || r.archivada || r.terminada || !estF(r.fecha) || r.fecha < today()) return '';
+  const i = estSesInfo(r); if (!i.N) return '';
+  const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+  const cuadra = !i.sinSes && !i.sucio, falta = cuadra && i.vivo ? i.N - i.S : 0;
+  const linea = `${pl(i.N, 'sesión', 'sesiones')} de ${i.L} min hasta el examen · ${pl(i.hechas, 'hecha', 'hechas')} · ${Math.max(0, i.N - i.hechas)} por hacer${falta > 0 ? ` · ${falta} por agendar` : falta < 0 ? ` · ${-falta} de más` : ''}`;
+  return `<p class="meta eu-ses"${ficha ? ' id="eu-f-ses"' : ''}>${esc(linea)}</p>${i.mal ? estSesAvHtml(r, { id: ficha ? 'eu-f-ses-av' : '' }) : ''}`;
+}
+// Agenda: un aviso por ruta que no cuadra.
+function estSesAgHtml() {
+  try {
+    const L = estRutas().filter(r => estSesInfo(r).mal).slice(0, 3);
+    return L.map(r => estSesAvHtml(r, { nombre: true, extra: ` data-ses-ruta="${esc(r.id)}"` }).replace('class="est-ses-av"', 'class="est-ses-av ag-ses-av"')).join('');
+  } catch { return ''; }
+}
 const estAPI = {
   rutas: estRutas, ruta: estRuta, materias: estMaterias, materia: estMateria,
   crear: estCrear, editar: estEditar, archivar: estArchivar, terminar: estTerminar, borrar: estBorrar, materiaCrear: d => estMateriaCrear(d, true), materiaEditar: estMateriaEditar,
@@ -17061,7 +17374,7 @@ const estAPI = {
   bloquesDe: estBloquesDe, bloque: estBloque, marcar: estMarcar, moverBloque: estMover,
   pendientes: estPendientes, pendienteCrear: estPendienteCrear, pendienteMarcar: estPendienteMarcar, pendienteBorrar: estPendienteBorrar,
   examenes: estExamenes, proximoExamen: estProximo, resumen: estResumen, repartido: estRepartido, hoy: estHoy, calendario: estCalendario,
-  textoBloque: estTexto, etiqueta: estEtiqueta, resumenIA: estResumenIA, escuchar: estEscuchar, avisar: estAvisar,
+  textoBloque: estTexto, etiqueta: estEtiqueta, sesInfo: estSesInfo, sesTexto: estSesTexto, textoSes: estTextoSes, sesAviso: estSesAviso, sesAvHtml: (r, o) => estSesAvHtml(typeof r === 'string' ? estRuta(r) : r, o), reacomodar: id => estSesReacomodar(id), reacomodarSim: id => estSesReacomodar(id, { sim: true }), sesSheet: id => estSesSheet(id),   /* 2.22.5 (R) */ resumenIA: estResumenIA, escuchar: estEscuchar, avisar: estAvisar,
   cfg: () => ({ ...estD().cfg, descanso: [...estD().cfg.descanso] }),
   ui: {}, extras: [],
   abrir: (rutaId = '') => estAPI.ui.abrir?.(rutaId) ?? irA('estudio'),
@@ -17146,7 +17459,7 @@ function estFechasCambiar(x, patch) {
   const vivo = typeof x === 'string', r = vivo ? estRuta(x) : x; if (!r) return null;
   if (r.terminada || r.archivada) throw new Error('La ruta está terminada: su calendario queda como registro.');
   const undo = estFechasAplicar(r, patch);
-  estPlanificar(r);
+  estPlanificar(r, today(), { sinSes: true });   // 2.22.5 (R) · el calendario de la ruta: el plan como en 2.22.4 (con su deuda) y, si iba en sesiones, «Reacomodar»
   if (vivo) { r.cambiado = Date.now(); guardar(); estAvisar('ruta', r); }
   return undo;
 }
@@ -17528,7 +17841,7 @@ function euBloqueRow(b, { botones = true } = {}) {
   const E = EU(), hoy = today(), pasado = b.d < hoy && !b.hecho;
   const est = b.hecho ? '<span class="green">hecho</span>' : pasado ? '<span class="amber">quedó sin hacer</span>' : '';
   return `<div class="row eu-b" data-b="${esc(b.id)}" style="cursor:pointer"><span class="dot" style="--c:${esc(b.color || 'var(--text)')}"></span>
-    <span class="t"><div>${b.h ? `${esc(fmtHora(b.h))} · ` : ''}${esc(E ? E.textoBloque(b) : b.t)}</div><small>${b.hecho && b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}` : `${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''}`} · ${EU_TIPO[b.tipo] || 'Estudio'}${est ? ' · ' + est : ''}</small>
+    <span class="t"><div>${b.h ? `${esc(fmtHora(b.h))} · ` : ''}${(() => { const q = E && typeof E.sesTexto === 'function' ? E.sesTexto(b) : ''; return q ? `<span class="eu-ses-n">${esc(q)}</span> · ` : ''; })()}${esc(E ? E.textoBloque(b) : b.t)}</div><small>${b.hecho && b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}` : `${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''}`} · ${EU_TIPO[b.tipo] || 'Estudio'}${est ? ' · ' + est : ''}</small>
     ${botones && !b.hecho && b.d === hoy ? `<span class="eu-acc"><button class="eu-btn" data-go="${esc(b.id)}">Empezar</button><button class="eu-btn" data-ok="${esc(b.id)}">Hecho</button></span>` : ''}</span></div>`;
 }
 function euPendRow(p, conRuta = true, quitar = false) {
@@ -17608,9 +17921,9 @@ function euCardHtml(r) {
   return `<div class="eu-card" data-id="${esc(r.id)}">
     <div class="top"><b>${esc(r.nombre)}</b><span class="tag">${esc(m ? m.nombre : '')}</span></div>
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` · ${esc(fmtHora(r.hora))}` : ''}${euF(r.fecha) ? ` · ${euDiasT(s.diasRestantes)}` : ''}</p>${euIniFut(r) && !r.archivada ? `<p class="meta eu-ini-t"><b>${esc(euEmpiezaT(euIniFut(r)))}</b></p>` : ''}
-    <p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'}${euIniFut(r) && !semPlan ? '' : ` · ${semHecho} de ${semPlan} min esta semana`}</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}
+    ${euSesLinea(r)}<p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'}${euIniFut(r) && !semPlan ? '' : ` · ${semHecho} de ${semPlan} min esta semana`}</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}
     <div class="meter-bar"><i style="width:${pct}%"></i></div>
-    ${s.diasRestantes > 0 ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
+    ${s.diasRestantes > 0 ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) || estSesMalR(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
     ${av}
     <div class="row-b"><button class="primary" data-ver="${esc(r.id)}">Ver ruta</button><button class="eu-term" data-anotar="${esc(r.id)}">Anotar estudio</button><button class="eu-term" data-term="${esc(r.id)}" aria-label="Terminar la ruta ${esc(r.nombre)}">Terminar</button></div></div>`;
 }
@@ -17880,7 +18193,7 @@ function euBalCard(r) {
   const x = E.meta(r);
   if (!x || !x.on) return `<p class="meta eu-bal"><button class="link" data-rcal="${esc(r.id)}">Calendario de la ruta</button></p>`;
   const ca = euCambiosT(x), rp = x.repartir ? `<span class="eu-repartir"><button class="link" data-repdeuda="${esc(r.id)}">Repartir la deuda</button></span>` : '';
-  return `<p class="meta eu-bal">${euBalHtml(x)} · <button class="link" data-rcal="${esc(r.id)}">Calendario</button></p>${ca || rp ? `<p class="meta eu-camb">${ca ? `<span class="eu-camb-t">${esc(ca)}</span>` : ''}${ca && rp ? ' · ' : ''}${rp}</p>` : ''}`;
+  return `<p class="meta eu-bal">${estSesMalR(r) ? euBalHtml(x).replace('<b class="green">Al día</b>', '<b class="amber">Reacomoda</b>') : euBalHtml(x)} · <button class="link" data-rcal="${esc(r.id)}">Calendario</button></p>${ca || rp ? `<p class="meta eu-camb">${ca ? `<span class="eu-camb-t">${esc(ca)}</span>` : ''}${ca && rp ? ' · ' : ''}${rp}</p>` : ''}`;
 }
 // Con el balance a la vista, el «Al día» de los bloques (todos hechos) sobra: el balance dice si hay deuda.
 const euBalOn = r => { try { const E = EU(); return !!(E && typeof E.fechaDia === 'function' && !r.archivada && !r.terminada && euF(r.fecha) && r.fecha > today() && E.meta(r).on); } catch { return false; } };
@@ -18129,8 +18442,8 @@ function euRutaSheet(id, sec = '') {
   const extrasHtml = extras.map(x => { let h = ''; try { h = String(x.html(r) ?? ''); } catch { h = '<p class="meta">Esta conexión no se pudo pintar.</p>'; } return `<div class="eu-card" data-extra="${esc(String(x.id || ''))}">${h}</div>`; }).join('');
   showSheet(`<p class="paso">${esc(m ? m.nombre : 'Estudio')} · ${!euF(r.fecha) ? 'sin fecha' : pasado ? 'examen pasado' : euDiasT(s.diasRestantes)}${r.terminada ? ' · terminada' : r.archivada ? ' · archivada' : ''}</p><h2>${esc(r.nombre)}</h2>
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` a las ${esc(fmtHora(r.hora))}` : ''}${r.lugar ? ` · ${esc(r.lugar)}` : ''}</p>${euIniFut(r) && !r.archivada ? `<p class="meta eu-ini-t" id="eu-f-ini"><b>${esc(euEmpiezaT(euIniFut(r)))}</b></p>` : ''}
-    <p class="meta" id="eu-f-res">Temas vistos ${s.temasHechos} de ${s.temasTotal} · ${s.bloquesTotal ? euProgBl(s) : 'sin bloques'} · ${s.minHechos} de ${s.minPlan} min${s.ejPlan || s.ejHechos ? ` · ${s.ejHechos} de ${s.ejPlan} ejercicios` : ''}</p>${euMetaProgHtml(r, true)}${euRealHtml(r, true, !!euMetaProgHtml(r, true))}${euBalCard(r)}
-    ${s.diasRestantes > 0 && !r.archivada ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
+    ${euSesLinea(r, true)}<p class="meta" id="eu-f-res">Temas vistos ${s.temasHechos} de ${s.temasTotal} · ${s.bloquesTotal ? euProgBl(s) : 'sin bloques'} · ${s.minHechos} de ${s.minPlan} min${s.ejPlan || s.ejHechos ? ` · ${s.ejHechos} de ${s.ejPlan} ejercicios` : ''}</p>${euMetaProgHtml(r, true)}${euRealHtml(r, true, !!euMetaProgHtml(r, true))}${euBalCard(r)}
+    ${s.diasRestantes > 0 && !r.archivada ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) || estSesMalR(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
     ${r.terminada ? `<p class="meta" id="eu-ter-info"><b>Terminada el ${esc(euTerFecha(r))}.</b> Lo que hiciste queda como registro.${r.resultado ? ` «${esc(r.resultado.nota)}»` : ''}</p>${(() => { const L = euTerMetas(r); return L.length ? `<p class="meta" id="eu-ter-meta">${euTerMetasTxt(L)} <button class="link" data-ter-meta="${esc(L[0].id)}" style="min-height:44px">Ver la meta</button></p>` : ''; })()}<p style="margin:8px 0 4px"><button class="link" id="eu-react" style="min-height:44px">Reactivar</button></p>`
       : !r.archivada && !pasado ? `<p style="margin:12px 0 6px"><button class="primary" id="eu-term" style="min-height:44px;width:100%">Terminar la ruta</button></p>` : ''}
     ${euAvisoVivo(r, s) && !r.archivada ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 12px">${euAvSubirT(r, c.minDia, true) ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(euAvSubirT(r, c.minDia, true))}</button>` : ''}<button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : ''}
@@ -18446,7 +18759,7 @@ const exTexto = b => { try { return String(window.est.textoBloque(b) || ''); } c
 const exEtiqueta = b => { try { return String(window.est.etiqueta(b) || 'Estudio'); } catch { return 'Estudio'; } };
 // Para la Agenda (que ya añade «· {min}» a cada fila): la etiqueta sin los minutos, «Estudio{ · n ejercicios}».
 const exEtiquetaCorta = b => exEtiqueta(b).replace(/ · \d+ min(?= · |$)/, '');
-const exEtiquetaIt = it => exEtiquetaCorta(agFuente(it) || it);
+const exEtiquetaIt = it => { const e = exEtiquetaCorta(agFuente(it) || it); let q = ''; try { q = it && it.tipo === 'estudio' && typeof it.ref === 'string' ? (window.est.sesTexto(it.ref) || '') : ''; } catch {} return q ? e.replace(/^Estudio/, 'Estudio · ' + q) : e; };   // 2.22.5 (R)
 const exDias = f => /^\d{4}-\d{2}-\d{2}$/.test(f || '') ? Math.round((new Date(f + 'T12:00') - new Date(today() + 'T12:00')) / 864e5) : NaN;
 const exFechaLarga = f => /^\d{4}-\d{2}-\d{2}$/.test(f || '') ? new Date(f + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' }) : '';
 // «Examen de Álgebra el 18 de noviembre» (hoy / mañana cuando toca).
@@ -19773,7 +20086,17 @@ function icEstudio(skip = '') {
 }
 function icExamenTxt(f) { const n = euDiff(today(), f); return n <= 0 ? 'Examen hoy' : n === 1 ? 'Examen mañana' : `Examen en ${n} días`; }
 function icArribaEst() { try { const a = agFocoAhora(), it = a && a.it; return it && it.tipo === 'estudio' && typeof it.ref === 'string' ? it.ref : ''; } catch { return ''; } }
+// 2.22.5 (R) · La tarjeta de Estudio con el aviso de la ruta que no cuadra (la de la tarjeta, o la primera) y «Reacomodar» debajo.
 function icEstHtml() {
+  let h = icEstHtml0(); if (!h) return h;
+  try {
+    const E = window.est, rs = (E && typeof E.sesInfo === 'function' ? E.rutas() : []).filter(r => E.sesInfo(r).mal);
+    if (rs.length) { const r = rs.find(x => h.includes(`data-ic-ruta="${esc(x.id)}"`)) || rs[0];
+      h = h.replace('Tu ruta está al día', 'Tu ruta no cuadra').replace('<div class="ag-foco-b">', `${E.sesAvHtml(r, { nombre: true }).replace('class="est-ses-av"', 'class="est-ses-av ic-ses-av"')}<div class="ag-foco-b">`); }
+  } catch (e) { console.warn('Sesiones', e); }
+  return h;
+}
+function icEstHtml0() {
   const x = icEstudio(icArribaEst()); if (!x) return '';
   const ver = icB('ag-fb-go', 'est-ver', 'Ver ruta');
   if (x.vacio) return icCard('est', 'Estudio', 'Estudio', 'Crea tu primera ruta', 'Un plan de estudio, bloque a bloque, hasta tu examen.', icB('ag-fb-go', 'est-nueva', 'Nueva ruta'));
@@ -19785,7 +20108,7 @@ function icEstHtml() {
   const cuando = b.d === hoy ? 'Hoy' : b.d === euDia(hoy, 1) ? 'Mañana' : euFCorta(b.d), h = b.h && !agHorasOcultas() ? ' ' + fmtHora(b.h) : '';
   const ej = Math.max(0, Math.round(+b.ej || 0));
   const emp = T ? `<button type="button" class="ag-fb-go ag-fb-temp" data-ic="est-emp" aria-label="Temporizador en marcha. Toca para verlo"><span data-temp-left data-temp-corto>${tempTxt(T, true)}</span></button>` : icB('ag-fb-go', 'est-emp', 'Empezar');
-  return icCard('est', 'Estudio', `Estudio · ${esc(cuando)}${h}`, esc(it.t || E_txt(b)), `${ruta} · ${icMin(b.min || AG_MIN.ini)}${ej ? ` · ${ej}&nbsp;${ej === 1 ? 'ejercicio' : 'ejercicios'}` : ''} · ${icExamenTxt(x.r.fecha)}`,
+  return icCard('est', 'Estudio', `Estudio · ${esc(cuando)}${h}`, esc(it.t || E_txt(b)), `${ruta}${(() => { const q = window.est?.sesTexto?.(b) || ''; return q ? ' · ' + esc(q).replace(/ /g, '&nbsp;') : ''; })()} · ${icMin(b.min || AG_MIN.ini)}${ej ? ` · ${ej}&nbsp;${ej === 1 ? 'ejercicio' : 'ejercicios'}` : ''} · ${icExamenTxt(x.r.fecha)}`,
     icB('ag-fb-ok', 'est-ok', '✓ Hecho') + emp, icL('est-ver', 'Ver ruta'), ` data-ic-b="${esc(b.id)}" data-ic-ruta="${esc(x.r.id)}"`);
 }
 const E_txt = b => { try { return window.est.textoBloque(b); } catch { return 'Estudio'; } };
@@ -23140,9 +23463,9 @@ function orgOrdenHora(L) {
 // «Ordenar por importancia», la hora va en la línea pequeña y a la derecha ↑ ↓.
 function orgFilaAgHtml(e, i, n, rk, vRk, de) {
   const k = esc(e.key), mov = vRk || (!e.fijo && !e.hecho && !(e.foco && e.h && !org?.manana && toMin(e.h) <= nowMin()));   // por importancia, todo se ordena (como antes)
-  const quita = !e.hecho && /^(tar|ini|lib|hab):/.test(String(e.key || ''));
+  const quita = !e.hecho && /^(tar|ini|lib|hab|est):/.test(String(e.key || ''));
   const hTxt = e.fijo ? (e.h ? fmtHora(e.h) : 'Todo el día') : e.foco ? (agbRango(e.h, e.min) || 'Sin hora') : (/^\d\d:\d\d$/.test(e.h || '') ? fmtHora(e.h) : 'Sin hora');
-  const etq = (vRk ? `${esc(hTxt)} · ` : '') + esc(orgEtq(e));   // por importancia, la hora delante (no se corta)   // la misma línea pequeña que la Agenda («Tarea · Trabajo»)
+  const etq = (vRk ? `${esc(hTxt)} · ` : '') + (String(e.key || '').startsWith('est:') ? (() => { try { const q = window.est.sesTexto(String(e.key).slice(4)); return q ? esc(q) + ' · ' : ''; } catch { return ''; } })() : '') + esc(orgEtq(e));   // 2.22.5 (R) · «Sesión 3/12 · Estudio …» (delante, para que no se corte)   // por importancia, la hora delante (no se corta)   // la misma línea pequeña que la Agenda («Tarea · Trabajo»)
   const hora = vRk ? '' : (e.fijo || e.foco) ? `<span class="tag og-ht">${esc(hTxt)}</span>`
     : `<span class="og-hw"><span class="tag og-ht" aria-hidden="true">${esc(hTxt)}</span>${horaInput('ol-' + esc(e.key).replace(/[^\w-]/g, '_'), e.h, `data-tl="${k}" aria-label="Hora de ${esc(e.t)}"`)}</span>`;
   return `<div class="row og-r og-ag${e.hecho ? ' ok' : ''}${de ? ' og-sub' : ''}" data-ok="${k}"${de ? ` data-og-de="${esc(de)}"${org?.rutAb?.has(de) ? '' : ' hidden'}` : ''}>`
@@ -23463,12 +23786,12 @@ function orgRelKey(e) {
   return '';
 }
 function RELHUECO(c) { return `<button type="button" class="link" tabindex="-1" aria-hidden="true" disabled style="visibility:hidden">${c}</button>`; }   // el hueco de ↑ o ↓
-function relPuntos(v) { return `<span class="rel-d" aria-hidden="true">${[1, 2, 3, 4, 5].map(n => `<i${n <= v ? ' class="on"' : ''}></i>`).join('')}</span>`; }
-const relAria = r => r.set ? `Relevancia ${r.v} de 5` : `Relevancia sin elegir (${r.v} de 5)`;   // sin elegir, el lector lo dice
+function relPuntos(v, set = true) { return `<span class="rel-d rel-n" aria-hidden="true">${set ? Math.max(1, Math.min(5, Math.round(+v) || 3)) : '–'}/5</span>`; }   // 2.22.5 (R) · «4/5» (sin elegir, «–/5»)
+const relAria = r => r.set ? `Relevancia ${r.v} de 5` : 'Relevancia sin elegir';   // 2.22.5 (R) · sin elegir: «–/5»   // sin elegir, el lector lo dice
 function relMarkHtml(k) {
   if (!k) return '';
   const r = relVal(k), a = relAria(r);
-  return `<button type="button" class="rel-m${r.set ? '' : ' rel-def'}" data-rel="${esc(k)}" aria-label="${a}" title="${a}">${relPuntos(r.v)}</button>`;
+  return `<button type="button" class="rel-m${r.set ? '' : ' rel-def'}" data-rel="${esc(k)}" aria-label="${a}" title="${a}">${relPuntos(r.v, r.set)}</button>`;
 }
 function relSet(k, v) {
   v = Math.round(+v); if (!k || !(v >= 1 && v <= 5)) return;
@@ -23481,7 +23804,7 @@ function relPintar(k) {
   const r = relVal(k), roots = [document, root, ov, agR];
   for (const R of roots) {
     try {
-      R.querySelectorAll('.rel-m[data-rel]').forEach(b => { const q = relVal(b.dataset.rel), a = relAria(q); b.classList.toggle('rel-def', !q.set); b.setAttribute('aria-label', a); b.title = a; b.innerHTML = relPuntos(q.v); });
+      R.querySelectorAll('.rel-m[data-rel]').forEach(b => { const q = relVal(b.dataset.rel), a = relAria(q); b.classList.toggle('rel-def', !q.set); b.setAttribute('aria-label', a); b.title = a; b.innerHTML = relPuntos(q.v, q.set); });
       R.querySelectorAll('.rel-ch[data-relk]').forEach(c => { if (c.dataset.relk !== k) return; c.querySelectorAll('[data-relc]').forEach(x => { const on = r.set && +x.dataset.relc === r.v; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); }); });
     } catch {}
   }
@@ -23540,6 +23863,9 @@ function relCss() {
   .rel-d i { display: block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .16; }
   .rel-d i.on { opacity: .8; }
   .rel-m.rel-def .rel-d i.on { opacity: .34; }
+  .rel-d.rel-n { gap: 0; font: 650 .82rem/1 system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; opacity: .9; }   /* 2.22.5 (R) */
+  .rel-m.rel-def .rel-d.rel-n { opacity: .66; padding: 3px; border: 1px dashed currentColor; border-radius: 999px; }
+  .t.rel-t > .rel-m .rel-d.rel-n { font-size: .78rem; }
   .rel-m:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 10px; }
   .task > .rel-m { margin: 0 -4px 0 -8px; }
   .t.rel-t { position: relative; }
@@ -23550,9 +23876,24 @@ function relCss() {
   .rel-ch { gap: 6px; } .rel-ch .chip { min-width: 44px; min-height: 44px; justify-content: center; }
   .rel-chip { min-width: 44px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--soft); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
   .rel-chip.on { background: var(--text); color: var(--bg); }
-  @media (max-width: 359px) { .rel-m { margin: -6px -10px; } .rel-d { gap: 1px; } .rel-d i, .t.rel-t > .rel-m .rel-d i { width: 4px; height: 4px; } .t.rel-t > small { padding-right: 25px; } .t.rel-t > .rel-m { right: -10px; } }`;
+  @media (max-width: 359px) { .rel-m { margin: -6px -10px; } .rel-d { gap: 1px; } .rel-d i, .t.rel-t > .rel-m .rel-d i { width: 4px; height: 4px; } .t.rel-t > small { padding-right: 26px; } .t.rel-t > .rel-m { right: -10px; } }`;
 }
 for (const R of [document.head, root, ov, agR]) { try { const st = document.createElement('style'); st.textContent = relCss(); R.appendChild(st); } catch {} }
+// 2.22.5 (R) · el aviso de las sesiones: el texto y, debajo, «Reacomodar» (44 px, se lee como botón)
+for (const id of ['view-estudio', 'view-inicio', 'view-agenda', 'view-overlays']) { try { const R = document.getElementById(id)?.shadowRoot; if (!R) continue; const st = document.createElement('style'); st.textContent = `
+  .est-ses-av { margin: 4px 0 14px; }
+  .est-ses-av > p { margin: 0 0 8px; font-size: .9rem; line-height: 1.4; }
+  .est-ses-av > p b { font-weight: 600; }
+  .ic-c .est-ses-av { margin: 2px 0 10px; }
+  .est-reac-b { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; max-width: 100%; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--amber, var(--warn, #b7791f)); background: color-mix(in srgb, var(--amber, var(--warn, #b7791f)) 12%, transparent); color: var(--text); font: inherit; font-size: .92rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .est-reac-b:active { transform: scale(.97); }
+  .est-reac-b:focus-visible { outline: 2px solid var(--accent, var(--text)); outline-offset: 2px; }
+  .ses-prop-f .t { min-width: 0; flex: 1; }
+  .ses-prop-f .t > div, .ses-prop-f .t > small { white-space: normal; overflow-wrap: anywhere; }
+  .ses-prop-f .ses-tag { font-weight: 600; color: var(--amber, var(--warn, #b7791f)); }
+  .ses-aj { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .ses-aj select, .ses-aj input { min-height: 44px; font: inherit; font-size: .95rem; color: var(--text); background: var(--soft, transparent); border: 1px solid color-mix(in srgb, var(--text) 25%, transparent); border-radius: 10px; padding: 0 10px; max-width: 100%; }
+  .ses-cambiar { flex: none; min-height: 44px; min-width: 44px; padding: 0 4px; text-decoration: underline; }`; R.appendChild(st); } catch {} }
 // 2.21.7 (N) · el puesto se ve grande y en negrita, sin adornos
 const numCss = () => `
   .ag-lista .ag-it > .og-rk.ag-rk.ag-rk { width: 28px; height: 28px; font-size: 1.4rem; font-weight: 800; letter-spacing: -.04em; color: var(--text); background: none; box-shadow: none; margin-right: -2px; }

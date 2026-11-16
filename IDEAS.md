@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.6: relevancia «n/5» y sesiones en las rutas de estudio
+
+- La relevancia de cada actividad se ve como número («4/5») en «Organizar mi día», la Agenda y prioridades, en lugar de los puntos. Sin elegir sale «–/5». Al tocarla se elige igual, del 1 al 5. ✅
+- Rutas de estudio con sesiones numeradas: el total sale de las horas designadas antes del examen entre la duración del bloque (12 h con bloques de 50 min son 15 sesiones). Cada bloque dice «Sesión 3/15» en «Organizar mi día», la Agenda, la ruta y la tarjeta de Estudio del Inicio. La ruta muestra «15 sesiones de 50 min hasta el examen · 2 hechas · 13 por hacer». ✅
+- Si algo cambia (quitas una sesión, cambias horas, bloque, examen o días), sale «Tu ruta tiene 11 de 12 sesiones agendadas. Reacomoda para que cuadren.» con «Reacomodar», que propone dónde va cada sesión (puedes cambiar día y hora) y no dice «Al día» hasta que los números cuadran. Las rutas que ya tenías piden «Reacomodar» una vez para armar sus sesiones. ✅
+
 ## 2.22.5: iniciativas a elegir, metas combinadas, gratitud y oración, días anteriores y hábitos semanales
 
 - Tarjeta «¿Te sientes aburrido?»: dice la categoría («Categoría: Estudio · 30 min»), «Siguiente» recorre todas las propuestas y «Elegir iniciativa» (abajo a la derecha) abre todas las de todas las categorías, con «+ Crear una iniciativa». ✅
