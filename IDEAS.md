@@ -612,6 +612,15 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.5: iniciativas a elegir, metas combinadas, gratitud y oración, días anteriores y hábitos semanales
+
+- Tarjeta «¿Te sientes aburrido?»: dice la categoría («Categoría: Estudio · 30 min»), «Siguiente» recorre todas las propuestas y «Elegir iniciativa» (abajo a la derecha) abre todas las de todas las categorías, con «+ Crear una iniciativa». ✅
+- Metas de consistencia: tipo «Combinado», una cantidad y una hora en la misma meta (por ejemplo «como máximo 2 cafés antes de las 12:00 PM»); se cumple solo con las dos. ✅
+- Inicio: tarjetas «Gratitud de hoy» (escribes ahí mismo y se guarda en tu práctica de gratitud) y «Oración» (la norma que toca de tu plan de vida, con ✓ Hecho), cada una con enlace a su apartado. Los nombres de la lista de Inicio son más grandes. ✅
+- Hábitos: «‹ Hoy ›» para ver días anteriores y llenarlos; quedan con «Agregado X días después» y cuentan igual para la racha y el XP. ✅
+- Hábitos de «N días por semana» (la semana empieza el lunes), también en rutinas: al cumplirlos, el resto de la semana sale «Ya cumplido esta semana» y la racha se cuenta en semanas. ✅
+- Los hábitos pueden ser también metas de consistencia (antes de una hora, no antes, sí o no, como máximo, como mínimo o combinado). Se arregló la barra horizontal de «Editar hábito». ✅
+
 ## 2.22.4: una tarjeta grande por apartado en Inicio
 
 - Debajo de la tarjeta de arriba («Tu día», «Ahora» o «Sigue») salen siempre, en el mismo estilo grande: **Estudio** (próximo bloque de tu ruta), **¿Te sientes aburrido?** (una iniciativa), **Hábito** (el próximo pendiente), **Meta de consistencia** (la próxima sin anotar) y **Pregunta de hoy** (reflexión). Cada una con ✓ Hecho, Empezar y su tercera opción, que hacen lo mismo y dan el mismo XP que en su apartado. ✅
