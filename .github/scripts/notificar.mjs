@@ -86,17 +86,34 @@ const aMin = hm => +hm.slice(0, 2) * 60 + +hm.slice(3);
 const deMin = m => { m = ((m % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 const ts = x => typeof x === 'number' ? (x < 1e11 ? x * 1000 : x) : (Date.parse(x || '') || 0);
 const programado = (h, fecha) => (h.dias?.length ? h.dias : [0, 1, 2, 3, 4, 5, 6]).includes(wd(fecha));
-const protegido = (h, fecha) => Array.isArray(h.protegidos) && h.protegidos.includes(fecha);
+// 2.22.5 (W) · «N días por semana» (h.semana): con la semana (lunes a domingo) cumplida, el resto de la semana cuenta como protegido.
+const HST = new WeakMap();
+const semCumplida = (st, h, fecha) => {
+  const n = Math.round(+h.semana); if (!st || !(n >= 1 && n <= 6)) return false;
+  const L = st.log?.[h.id] || {}; if (L[fecha] === 'full' || L[fecha] === 'min') return false;
+  const lun = masDias(fecha, -wd(fecha)); let c = 0, dd = 0;
+  for (let i = 0; i < 7; i++) { const d = masDias(lun, i); if (h.creado && d < h.creado) continue; dd++; const m = L[d]; if (m === 'full' || m === 'min' || m === 'just' || (Array.isArray(h.protegidos) && h.protegidos.includes(d))) c++; }
+  return dd > 0 && c >= Math.min(n, dd);
+};
+// Un hábito con tipo de meta (h.tipoMeta) que ese día ya no se puede cumplir (dijiste No, o pasaste del máximo): sin aviso.
+const mtCerrada = (st, h, fecha) => {
+  const m = h.tipoMeta; if (!st || !m || typeof m !== 'object' || !['antes', 'despues', 'si', 'max', 'min'].includes(m.tipo)) return false;
+  const L = st.log?.[h.id]?.[fecha]; if (L === 'full' || L === 'min') return false;
+  const r = st.logMeta?.[h.id]?.[fecha]; if (!r || typeof r !== 'object') return false;
+  return r.h === false || (m.tipo === 'max' && typeof r.v === 'number' && r.v > (+m.n || 0));
+};
+const protegidoSem = (h, fecha) => (Array.isArray(h.protegidos) && h.protegidos.includes(fecha)) || semCumplida(HST.get(h), h, fecha);
+const protegido = (h, fecha) => protegidoSem(h, fecha) || mtCerrada(HST.get(h), h, fecha);
 const HORAS = new WeakMap(), MAX_HORAS = 24, MAX_HAB = 150;
 const horasDe = h => { let v = HORAS.get(h); if (!v) { v = [...new Set((Array.isArray(h.horas) ? h.horas : []).filter(hmOk))].sort().slice(0, MAX_HORAS); HORAS.set(h, v); } return v; };
-const habitosDe = st => (Array.isArray(st.habits) ? st.habits : []).filter(h => h && typeof h === 'object' && typeof h.id === 'string').slice(0, MAX_HAB);
+const habitosDe = st => (Array.isArray(st.habits) ? st.habits : []).filter(h => h && typeof h === 'object' && typeof h.id === 'string').slice(0, MAX_HAB).map(h => (HST.set(h, st), h));   // 2.22.5 (W)
 const acota = (x, n) => Array.isArray(x) ? x.filter(y => y && typeof y === 'object').slice(0, n) : [];
 // Aviso que se retira (F21): a diario las semanas 1–3, en días alternos (de los que tocan) las semanas 4–6 y, después,
 // solo si el hábito baja del 70 % en sus últimos 14 días. Con h.avisoDiario (la persona lo pidió) vuelve a diario.
 function tasaBaja(st, h, fecha) {
   let n = 0, hechos = 0;
   for (let i = 0, k = masDias(fecha, -1); i < 120 && n < 14 && (!h.creado || k >= h.creado); i++, k = masDias(k, -1)) {
-    if (!programado(h, k) || protegido(h, k)) continue;
+    if (!programado(h, k) || protegidoSem(h, k)) continue;   // 2.22.5 (W) · un «No» de días anteriores sí cuenta
     const m = st.log?.[h.id]?.[k]; if (m === 'just') continue;
     n++; if (m === 'full' || m === 'min') hechos++;
   }
@@ -557,18 +574,21 @@ function candidatos(C, fecha) {
   // 2.21 (L) · Metas de consistencia «antes de una hora» con aviso: 15 minutos antes de la hora, si ese día toca y aún no está anotada
   // (lo anotado antes de esa hora la apaga). Va con el tipo «Noche» (lo apaga «Apagar este tipo»), entra en el tope y respeta silencios.
   if (hayTipo('noche')) for (const c of acota(E.consistencias, 40)) {
-    if (c.archivada || c.tipo !== 'antes' || !c.aviso || !hmOk(c.hora) || typeof c.id !== 'string' || !c.id) continue;
+    // 2.22.5 (K) · Combinada (tipo max o min con comb «antes»): el mismo aviso, 15 minutos antes de la hora de su parte de hora.
+    const cb = (c.tipo === 'max' || c.tipo === 'min') && !!c.comb && typeof c.comb === 'object' && c.comb.tipo === 'antes' && hmOk(c.comb.hora), hc = cb ? c.comb.hora : c.hora;
+    if (c.archivada || !(c.tipo === 'antes' || cb) || !c.aviso || !hmOk(hc) || typeof c.id !== 'string' || !c.id) continue;
     // El día de la meta termina a las 5:00 AM, como en la app: una hora de madrugada (12:30 AM) es la de la noche de ayer, y con una
     // hora antes de las 12:15 AM el aviso sale la noche de antes (11:45 PM en adelante), con lo anotado de esa noche.
-    const hmin = +c.hora.slice(0, 2) * 60 + +c.hora.slice(3), HM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const hmin = +hc.slice(0, 2) * 60 + +hc.slice(3), HM = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     let clave = fecha, tAv, hasta;
-    if (hmin < 15) { tAv = en(HM(hmin + 1440 - 15)); hasta = aMs(masDias(fecha, 1), c.hora, tz); }
-    else { if (hmin < 300) clave = masDias(fecha, -1); tAv = en(menos(c.hora, 15)); hasta = en(c.hora); }
+    if (hmin < 15) { tAv = en(HM(hmin + 1440 - 15)); hasta = aMs(masDias(fecha, 1), hc, tz); }
+    else { if (hmin < 300) clave = masDias(fecha, -1); tAv = en(menos(hc, 15)); hasta = en(hc); }
     if (c.creado && c.creado > clave) continue;
     if (Array.isArray(c.dias) && c.dias.length && !c.dias.includes(wd(clave))) continue;
-    const r = E.consLog && typeof E.consLog === 'object' ? E.consLog[clave]?.[c.id] : null, anot = r && (r.ok === true || r.ok === false) ? (+r.en || 1) : 0;
+    const r = E.consLog && typeof E.consLog === 'object' ? E.consLog[clave]?.[c.id] : null, anot = r && (cb ? r.h === true || r.h === false || r.okc === true || r.okc === false || (c.tipo === 'max' && typeof r.v === 'number' && r.v > (+c.n || 0)) : r.ok === true || r.ok === false) ? (+r.en || 1) : 0;   // 2.22.5 (K) · combinada: ok es solo la cuenta; cuenta la hora (h) o el veredicto (okc)
+    const nU = Math.max(0, Math.round(+c.n || 0)), uU = String(c.unidad || 'veces').slice(0, 20);
     out.push({ t: tAv, clase: 1, tag: 'cs-' + c.id.slice(0, 60), franja: 'cs-' + c.id.slice(0, 60), title: sinPunto(String(c.t || 'Tu meta de consistencia').slice(0, 80)),
-      body: `Faltan 15 minutos para las ${hora12(c.hora)}. ¿Empiezas ya a prepararte?`, url: './?v=hoy', apagar: APAGAR, limite: 60, hasta,
+      body: cb ? `Faltan 15 minutos para las ${hora12(hc)}. ${c.tipo === 'max' ? 'Como máximo' : 'Al menos'} ${nU} ${uU}, antes de esa hora.` : `Faltan 15 minutos para las ${hora12(c.hora)}. ¿Empiezas ya a prepararte?`, url: cb ? './?v=consistencia' : './?v=hoy', apagar: APAGAR, limite: 60, hasta,
       vivo: at => tipoOn('noche', at) && (!anot || (pasado(at) && anot > at)) });
   }
   // Lunes: si la revisión ya se hizo (el domingo, o hoy antes de esta hora), no sale.

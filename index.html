@@ -141,6 +141,51 @@
   .habit.off { opacity: .45; }
   .habit.off .check { border-style: dotted; }
   .hb-ord-bar { display: flex; justify-content: flex-end; margin: -6px 0 4px; }
+  /* 2.22.5 (H) · ver y llenar días anteriores */
+  .hb-dia { display: flex; align-items: center; justify-content: center; gap: 2px; margin: -14px 0 4px; }
+  .hb-dia-b { min-width: 44px; min-height: 44px; font-size: 1.5rem; line-height: 1; color: var(--text); border-radius: 50%; }
+  .hb-dia-b:disabled { color: var(--empty); cursor: default; }
+  .hb-dia-t { min-width: 104px; text-align: center; font-weight: 600; font-size: .95rem; }
+  .hb-dia-av { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 6px; margin: 0 0 12px; padding: 0 12px;
+    border: 1.5px solid var(--line); border-radius: 12px; color: var(--muted); font-size: .88rem; text-align: center; }
+  .hb-dia-av .link { min-height: 44px; color: var(--text); font-weight: 500; font-size: .88rem; }
+  .hb-dia-av .hb-av-v { white-space: nowrap; }
+  .hb-dia-av .hb-av-c { display: none; }
+  @media (max-width: 360px) { .hb-dia-av .hb-av-l { display: none; } .hb-dia-av .hb-av-c { display: inline; } }
+  .hb-pas .check:not(.prog)::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+  #view-cal .day .hb-cal-t { position: absolute; bottom: 4px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; opacity: .85; }
+  .hb-pas-n { color: var(--muted); font-size: .85rem; margin: 0 0 6px; }
+  .hb-pas .title { cursor: default; }
+  .hb-pas .hb-tarde { font-style: italic; }
+  .hb-pas-l { display: flex; flex-wrap: wrap; gap: 0 18px; margin: 0 0 -10px 54px; }
+  .hb-pas-l .link { min-height: 44px; min-width: 44px; }
+  .hb-pas-rut > .row .check { cursor: default; }
+  /* 2.22.5 (W) · días por semana y tipos de meta en hábitos */
+  .habit.hb-semok > .row .check { opacity: .6; border-style: dashed; }
+  .habit.hb-semok > .row .name { color: var(--muted); }
+  .identity.hb-sem { color: var(--muted); white-space: normal; overflow: visible; }
+  .identity.hb-sem.ok { color: var(--muted); }
+  .identity.hb-sem .nw { white-space: nowrap; }
+  .streak small { font-size: .72em; font-weight: 500; }
+  .hb-mt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px 54px; }
+  .hb-mt .hb-mt-st { flex: 1 1 100%; margin: 0; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+  .hb-mt .hb-mt-st.ok { color: var(--green); }
+  .hb-mt .cs-cbh { margin-top: 0; }
+  .hb-mt .cs-no { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); color: var(--muted); }
+  .hb-ch { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .hb-ch label { position: relative; display: inline-flex; align-items: center; min-height: 44px; margin: 0; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); font-size: .88rem; color: var(--muted); cursor: pointer; }
+  .hb-ch input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; padding: 0; opacity: 0; pointer-events: none; }
+  .hb-ch label:has(input:checked) { background: var(--text); border-color: var(--text); color: var(--bg); }
+  .hb-ch label:has(input:focus-visible) { outline: 2px solid var(--muted); outline-offset: 2px; }
+  .hb-mt-l { margin: 12px 0 0; }
+  #hb-mt-cbn, #hb-mt-cbh { margin-bottom: 4px; }
+  .hb-mt-nu { display: flex; gap: 12px; }
+  .hb-mt-nu input[type="number"] { flex: 0 0 72px; width: 72px; }
+  .hb-mt-nu input:not([type="number"]) { flex: 1 1 auto; min-width: 0; }
+  .hb-sem-n { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
+  .hb-sem-n input { flex: 0 0 64px; width: 64px; }
+  .hb-sem-n span { color: var(--muted); font-size: .88rem; min-width: 0; }
+  #form .seg label { display: flex; align-items: center; justify-content: center; min-height: 44px; }
   .hb-ord-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
   .hb-ord-r { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: auto; }
   .hb-ord-r.arr { background: var(--soft); box-shadow: 0 8px 24px rgba(0,0,0,.18); border-radius: 12px; position: relative; z-index: 3; }
@@ -235,8 +280,8 @@
   .dialog-actions .danger { color: var(--red); margin-right: auto; }
   .primary { background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 500; }
   .picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  .picker label { display: block; margin: 0; }
-  .picker input { position: absolute; opacity: 0; pointer-events: none; }
+  .picker label { position: relative; display: block; margin: 0; }
+  .picker input { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; opacity: 0; pointer-events: none; }   /* 2.22.5 (W) · medía el 100 %: la hoja se desbordaba */
   .icon-pick { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
     color: var(--muted); border: 1.5px solid transparent; cursor: pointer; }
   input:checked + .icon-pick { color: var(--c); border-color: var(--c); }
@@ -473,6 +518,11 @@
   .cs-dot.ok { background: var(--green); border-color: var(--green); }
   .cs-dot.no { background: color-mix(in srgb, var(--muted) 45%, transparent); border-color: transparent; }
   .cs-dot.off { opacity: .35; border-style: dotted; }
+  .cs-cbh { flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }   /* 2.22.5 (K) · combinada: la fila de la hora */
+  .cs-cbh span { flex: 1 1 140px; min-width: 0; font-size: .92rem; font-weight: 600; overflow-wrap: anywhere; }
+  .cs-cbb { flex: 0 0 auto; min-width: 64px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); font-weight: 600; color: var(--text); }
+  .cs-cbb.on { background: var(--green); border-color: var(--green); color: #fff; }
+  .cs-cbb.on.no { background: var(--muted); border-color: var(--muted); color: var(--bg); }
   .cs-dot.hoy { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--muted); }
   .cs-adds { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 18px; align-items: center; }
   .cs-adds .add { min-height: 44px; }
@@ -621,11 +671,20 @@
       <label><input type="radio" name="modo" value="veces">Veces</label>
       <label><input type="radio" name="modo" value="tiempo">Cronómetro</label>
     </div>
+    <p class="meta hb-mt-l">O como meta de consistencia</p>
+    <div class="hb-ch" id="hb-mt-tipos" role="radiogroup" aria-label="Como meta de consistencia"><label><input type="radio" name="modo" value="mt-antes">Antes de una hora</label><label><input type="radio" name="modo" value="mt-despues">No antes de una hora</label><label><input type="radio" name="modo" value="mt-si">Sí o no</label><label><input type="radio" name="modo" value="mt-max">Como máximo</label><label><input type="radio" name="modo" value="mt-min">Como mínimo</label><label><input type="radio" name="modo" value="mt-comb">Combinado</label></div>
+    <div id="hb-mt-f" hidden>
+      <div id="hb-mt-num"><label for="hb-mt-n" id="hb-mt-n-l">Como máximo, por día</label><div class="hb-ch" id="hb-mt-cbn" role="radiogroup" aria-label="Número"><label><input type="radio" name="mtcbn" value="max" checked>Como máximo</label><label><input type="radio" name="mtcbn" value="min">Como mínimo</label></div><div class="hb-mt-nu"><input id="hb-mt-n" name="mtn" type="number" inputmode="numeric" min="0" max="999" value="2"><input id="hb-mt-u" name="mtu" placeholder="cafés" maxlength="20" aria-label="Unidad"></div></div>
+      <div id="hb-mt-hora"><label for="hb-mt-h">Hora</label><div class="hb-ch" id="hb-mt-cbh" role="radiogroup" aria-label="Hora"><label><input type="radio" name="mtcbh" value="antes" checked>Antes de</label><label><input type="radio" name="mtcbh" value="despues">No antes de</label></div><input type="time" id="hb-mt-h" name="mth" value="12:00"></div>
+      <p class="meta hb-pista" id="hb-mt-p">Cuenta como hecho el día que lo cumples.</p>
+    </div>
     <div id="meta-row" hidden>
       <label id="meta-label">Veces al día</label>
       <input name="meta" type="number" inputmode="numeric" min="1" max="999" value="1">
     </div>
-    <label>Días</label>
+    <label>Frecuencia</label>
+    <div class="hb-ch" id="hb-frec" role="radiogroup" aria-label="Frecuencia"><label><input type="radio" name="frec" value="todos" checked>Todos los días</label><label><input type="radio" name="frec" value="algunos">Algunos días</label><label><input type="radio" name="frec" value="semana">Días por semana</label></div>
+    <div id="hb-frec-sem" hidden><div class="hb-sem-n"><input id="hb-sem-n" name="semana" type="number" inputmode="numeric" min="1" max="6" value="6" aria-label="Días por semana"><span>días por semana, de lunes a domingo</span></div><p class="meta hb-pista">Al cumplirlos, el resto de la semana sale como ya cumplido.</p></div>
     <div class="days" id="days">
       <label><input type="checkbox" name="dias" value="0" checked>L</label><label><input type="checkbox" name="dias" value="1" checked>M</label><label><input type="checkbox" name="dias" value="2" checked>X</label><label><input type="checkbox" name="dias" value="3" checked>J</label><label><input type="checkbox" name="dias" value="4" checked>V</label><label><input type="checkbox" name="dias" value="5" checked>S</label><label><input type="checkbox" name="dias" value="6" checked>D</label>
     </div>
@@ -692,7 +751,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.4';
+const APP_VERSION = '2.22.5';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -743,8 +802,8 @@ function globalStats() {
   const hs = state.habits.filter(h => !h.rutina);
   // Racha general: días seguidos en los que hiciste al menos un hábito.
   const any = day => hs.some(h => isDone(h, day));
-  const excused = day => hs.some(h => isJust(h, day));
-  const anySched = day => hs.some(h => h.creado <= day && isSched(h, day));
+  const excused = day => hs.some(h => isJust(h, day) && !hbSemLibre(h, day));   // 2.22.5 (W)
+  const anySched = day => hs.some(h => h.creado <= day && isSched(h, day) && !hbSemLibre(h, day));
   let streak = 0, d = new Date();
   if (!any(dayKey(d))) d = addDays(d, -1);
   for (let i = 0; i < 3660 && hs.length; i++) {
@@ -779,6 +838,8 @@ function normalize(s) {
   s ||= {};
   s.habits ||= []; s.log ||= {}; s.razones ||= {}; s.motivos ||= {}; delete s.notion;
   s.progreso ||= {}; s.timers ||= {};
+  if ('logTarde' in s && (!s.logTarde || typeof s.logTarde !== 'object' || Array.isArray(s.logTarde))) delete s.logTarde;   // 2.22.5 (H)
+  if ('logMeta' in s && (!s.logMeta || typeof s.logMeta !== 'object' || Array.isArray(s.logMeta))) delete s.logMeta;   // 2.22.5 (W) · lo anotado de los hábitos con meta
   s.nombre = String(s.nombre || '').trim();
   s.cambiado = +s.cambiado || 0;
   if (!Array.isArray(s.borrados)) s.borrados = [];
@@ -801,7 +862,10 @@ function normalize(s) {
     if (h.cat !== undefined) h.cat = catNormK(h.cat);   // 2.17 (K)
     if (h.despues !== undefined) h.despues = typeof h.despues === 'string' ? h.despues.slice(0, 80) : '';   // 2.20.2 · después de qué hábito
     if (h.min !== undefined) { const v = Math.round(+h.min); if (v >= 1 && v <= 720) h.min = v; else delete h.min; }   // 2.21.8 (H) · su tiempo para «Empezar»
-    if (h.iden !== undefined && (typeof h.iden !== 'string' || h.iden.length > 40)) h.iden = typeof h.iden === 'string' ? h.iden.slice(0, 40) : '';   // 2.13 · la identidad por la que vota
+    if (h.iden !== undefined && (typeof h.iden !== 'string' || h.iden.length > 40)) h.iden = typeof h.iden === 'string' ? h.iden.slice(0, 40) : '';
+    if (h.semana !== undefined) { const n = Math.round(+h.semana); if (n >= 1 && n <= 6) h.semana = n; else delete h.semana; }   // 2.22.5 (W) · días por semana
+    if (h.semanaHist !== undefined) { const x = hbSemHistNorm(h.semanaHist); if (x) h.semanaHist = x; else delete h.semanaHist; }   // 2.22.5 (W) · el N de antes
+    if (h.tipoMeta !== undefined) { const m = hbMtNorm(h.tipoMeta); if (m) h.tipoMeta = m; else delete h.tipoMeta; }   // 2.22.5 (W) · tipo de meta   // 2.13 · la identidad por la que vota
   }
   return s;
 }
@@ -825,10 +889,12 @@ function consNorm(x) {
     const id = S(c.id, 60); if (!id || vistos.has(id)) return null; vistos.add(id);
     const tipo = TIPOS.includes(c.tipo) ? c.tipo : 'si', conHora = tipo === 'antes' || tipo === 'despues', conNum = tipo === 'max' || tipo === 'min';
     const dias = Array.isArray(c.dias) ? [...new Set(c.dias.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b) : [];
-    return { id, t: S(c.t, 80) || 'Meta de consistencia', tipo, hora: conHora ? HM(c.hora) || (tipo === 'antes' ? '22:30' : '08:00') : '',
+    // 2.22.5 (K) · Combinada: la parte de hora va aparte (comb); el tipo sigue siendo max o min (una app vieja la ve como una de número).
+    const cb = conNum && c.comb && typeof c.comb === 'object' && !Array.isArray(c.comb) && (c.comb.tipo === 'antes' || c.comb.tipo === 'despues') && HM(c.comb.hora) ? { tipo: c.comb.tipo, hora: HM(c.comb.hora) } : null;
+    return { ...(cb ? { comb: cb } : 'comb' in c ? { comb: false } : {}), id, t: S(c.t, 80) || 'Meta de consistencia', tipo, hora: conHora ? HM(c.hora) || (tipo === 'antes' ? '22:30' : '08:00') : '',
       n: conNum ? Math.round(N(c.n, tipo === 'max' ? 2 : 8, 0, 999)) : 0, unidad: conNum ? S(c.unidad, 20) : '', dias: dias.length ? dias : [0, 1, 2, 3, 4, 5, 6],
       cat: CATS.includes(c.cat) ? c.cat : '', iden: typeof c.iden === 'string' ? c.iden.slice(0, 40) : '', mid: typeof c.mid === 'string' ? c.mid.slice(0, 60) : '',
-      aviso: tipo === 'antes' && !!c.aviso, creado: F(c.creado) || hoy, archivada: !!c.archivada, orden: N(c.orden, i, -1e6, 1e6), cambiado: N(c.cambiado, 0, 0, 9e15) };
+      aviso: (tipo === 'antes' || (!!cb && cb.tipo === 'antes')) && !!c.aviso, creado: F(c.creado) || hoy, archivada: !!c.archivada, orden: N(c.orden, i, -1e6, 1e6), cambiado: N(c.cambiado, 0, 0, 9e15) };
   }).filter(Boolean).slice(0, 40);
 }
 function consLogNorm(L) {
@@ -839,7 +905,7 @@ function consLogNorm(L) {
     for (const [id, r] of Object.entries(D)) {
       if (!id || id.length > 60 || !r || typeof r !== 'object' || Array.isArray(r)) continue;
       const v = typeof r.v === 'number' && Number.isFinite(r.v) ? Math.max(0, Math.min(999, Math.round(r.v))) : typeof r.v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.v) ? r.v : '';
-      m[id] = { ok: r.ok === true ? true : r.ok === false ? false : null, v, en: Math.max(0, Math.min(9e15, +r.en || 0)) };
+      m[id] = { ok: r.ok === true ? true : r.ok === false ? false : null, v, en: Math.max(0, Math.min(9e15, +r.en || 0)), ...('h' in r ? { h: r.h === true ? true : r.h === false ? false : null } : {}), ...('okc' in r ? { okc: r.okc === true ? true : r.okc === false ? false : null } : {}) };   // 2.22.5 (K) · h: la parte de hora de una combinada; okc: las dos
     }
     if (Object.keys(m).length) out[k] = m;
   }
@@ -849,7 +915,9 @@ function consFusion(a, b, dead) {
   dead = dead instanceof Set ? dead : new Set(Array.isArray(dead) ? dead : []);
   const L = v => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && x.id != null) : [], m = new Map();
   for (const x of L(b)) m.set(String(x.id), x);
-  for (const x of L(a)) { const k = String(x.id), o = m.get(k); m.set(k, !o || (+x.cambiado || 0) >= (+o.cambiado || 0) ? x : o); }
+  // 2.22.5 (K) · Una copia de una app vieja llega sin comb (no lo conoce): se queda el de la otra copia. Esta versión guarda comb: false al quitarlo.
+  const H = (g, o) => g && o && !('comb' in g) && o.comb && typeof o.comb === 'object' && (g.tipo === 'max' || g.tipo === 'min') ? { ...g, comb: o.comb, aviso: !!o.aviso } : g;
+  for (const x of L(a)) { const k = String(x.id), o = m.get(k); m.set(k, !o ? x : (+x.cambiado || 0) >= (+o.cambiado || 0) ? H(x, o) : H(o, x)); }
   return [...m.values()].filter(x => !dead.has(String(x.id)));
 }
 function consLogFusion(a, b, dead) {
@@ -857,8 +925,10 @@ function consLogFusion(a, b, dead) {
   const O = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {}, out = {};
   for (const src of [O(b), O(a)]) for (const [k, D] of Object.entries(src)) for (const [id, r] of Object.entries(O(D))) {
     if (dead.has(id) || !r || typeof r !== 'object') continue;
-    const prev = out[k]?.[id];
-    if (!prev || (+r.en || 0) >= (+prev.en || 0)) (out[k] ||= {})[id] = r;
+    // 2.22.5 (K) · Lo anotado por una app vieja (la cuenta, sin h ni okc) no borra la respuesta de la hora. Sin okc, 2.22.5 vuelve a
+    // calcular el veredicto con v y h (así un «No» de la hora nunca queda como cumplido). Si la app vieja lo quitó (sin cuenta), no se copia.
+    const prev = out[k]?.[id], H = (g, o) => g && o && !('h' in g) && typeof g.v === 'number' && (o.h === true || o.h === false) ? { ...g, h: o.h } : g;
+    (out[k] ||= {})[id] = !prev ? r : (+r.en || 0) >= (+prev.en || 0) ? H(r, prev) : H(prev, r);
   }
   return out;
 }
@@ -1305,6 +1375,13 @@ function mergeStates(a, b) {
   out.log = perId(newer.log, older.log); out.razones = perId(newer.razones, older.razones);
   out.motivos = perId(newer.motivos, older.motivos); out.progreso = perId(newer.progreso, older.progreso);
   out.timers = newer.timers;
+  { const o = x => x && typeof x === 'object' && !Array.isArray(x) ? x : {}, lt = perId(o(newer.logTarde), o(older.logTarde));   // 2.22.5 (H) · cuándo se agregó un día anterior
+    if (Object.keys(lt).length) out.logTarde = lt; else delete out.logTarde; }
+  { const o = x => x && typeof x === 'object' && !Array.isArray(x) ? x : {}, A = o(newer.logMeta), B = o(older.logMeta), lm = {};   // 2.22.5 (W) · por hábito y día: gana lo anotado más reciente (en); { en } solo = quitado
+    for (const id of new Set([...Object.keys(B), ...Object.keys(A)])) { if (dead.has(id)) continue; const a = o(A[id]), b = o(B[id]), r = {};
+      for (const d of new Set([...Object.keys(b), ...Object.keys(a)])) { const x = o(a[d]), y = o(b[d]); r[d] = !Object.keys(y).length ? x : !Object.keys(x).length ? y : (+y.en || 0) > (+x.en || 0) ? y : x; }
+      if (Object.keys(r).length) lm[id] = r; }
+    if (Object.keys(lm).length) out.logMeta = lm; else delete out.logMeta; }
   // 2.20 · Cada tarea lleva `mod` (cuándo cambió): gana la tarea más reciente, no la del teléfono que guardó último; y una misma tarea de
   // Google (gid) importada en dos teléfonos con ids distintos queda una sola (la más reciente), sin perder la referencia de la agenda.
   const porMod = (x, y) => { const m = new Map(y.map(i => [i.id, i])); for (const i of x) { const o = m.get(i.id); m.set(i.id, !o || (+i.mod || 0) >= (+o.mod || 0) ? i : o); } return [...m.values()].filter(i => !dead.has(i.id) && !(i.gid && dead.has('g:' + i.gid))); };
@@ -1584,7 +1661,7 @@ const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00') - new Date(a + 
 const mark = (h, day) => state.log[h.id]?.[day];
 const isDone = (h, day) => ['full', 'min'].includes(mark(h, day));
 // Un día justificado no cuenta ni a favor ni en contra: no rompe la racha.
-const isJust = (h, day) => mark(h, day) === 'just' || (!isDone(h, day) && h2Prot(h, day));   // 2.12 · protegido = justificado, sin gastar
+const isJust = (h, day) => mark(h, day) === 'just' || (!isDone(h, day) && (h2Prot(h, day) || hbSemLibre(h, day)));   // 2.22.5 (W) · semana cumplida o aún en curso   // 2.12 · protegido = justificado, sin gastar
 const JUST_PER_MONTH = 2;
 const justUsed = (h, month) => Object.keys(state.log[h.id] || {}).filter(d => d.startsWith(month) && mark(h, d) === 'just').length;
 
@@ -1613,6 +1690,7 @@ function stats(h) {
   while (dayKey(yd) >= h.creado && !isSched(h, dayKey(yd))) yd = addDays(yd, -1);
   const yesterday = dayKey(yd);
   const missedYesterday = h.creado <= yesterday && isSched(h, yesterday) && !isDone(h, yesterday) && !isJust(h, yesterday);
+  if (hbSemN(h)) return { age, done, streak: hbSemRacha(h), missedYesterday: false, yesterday, semanas: true };   // 2.22.5 (W) · racha en semanas
   return { age, done, streak, missedYesterday, yesterday };
 }
 
@@ -1715,23 +1793,461 @@ function render() {
   const puedeOrd = hbPuedeOrdenar(top);   // 2.21 (M) · también con una sola rutina que tenga dos hábitos
   const ordBtn = puedeOrd ? `<p class="hb-ord-bar"><button class="link" id="hb-ordenar">${hbOrdenando ? 'Listo' : 'Ordenar'}</button></p>` : '';
   if (hbOrdenando && puedeOrd) { $('#list').innerHTML = ordBtn + hbOrdenHTML(top); hbOrdenWire(); return; }
+  const hbD = hbDiaVer();   // 2.22.5 (H) · un día anterior: su lista, para verla y llenarla
+  if (hbD) { $('#list').innerHTML = hbPasHtml(hbD); return; }
   const cons = top.filter(h => !h.rutina && h.graduado), act = top.filter(h => h.rutina || !h.graduado);
   const hoy = act.filter(h => h.rutina || isSched(h, t)), otros = act.filter(h => !h.rutina && !isSched(h, t));
   // 2.21 (C) · Lo pendiente arriba y lo hecho abajo, plegado («Hechos hoy · n»).
   const hbRecien = h => !!hbBajaId && (h.id === hbBajaId || (h.rutina && hbHijosOrd(h.id).some(x => x.id === hbBajaId)));   // 2.21 (F) · primero el pop, después baja
-  const hoyP = hoy.filter(h => !hbHechoHoy(h) || hbRecien(h)), hoyH = hoy.filter(h => hbHechoHoy(h) && !hbRecien(h)), fila = h => h.rutina ? routineHTML(h) : habitHTML(h);
+  const hbListo = h => hbHechoHoy(h) || hbSemListoHoy(h);   // 2.22.5 (W) · «Ya cumplido esta semana» va abajo, con lo hecho
+  const hoyP = hoy.filter(h => !hbListo(h) || hbRecien(h)), hoyH = hoy.filter(h => hbListo(h) && !hbRecien(h)), fila = h => h.rutina ? routineHTML(h) : habitHTML(h);
   const hechosHTML = hoyH.length ? `<details class="hb-hechos"${hbHechosAbierto || hoyH.some(h => open.has(h.id)) ? ' open' : ''}><summary class="group-title" style="cursor:pointer">Hechos hoy · ${hoyH.length}</summary>${hoyH.map(fila).join('')}</details>` : '';
-  $('#list').innerHTML = ordBtn + (hoy.length ? (hoyP.length ? hoyP.map(fila).join('') : '<p class="empty">Todo lo de hoy está hecho.</p>') + hechosHTML : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
+  $('#list').innerHTML = hbDiaBarHtml('') + ordBtn + (hoy.length ? (hoyP.length ? hoyP.map(fila).join('') : '<p class="empty">Todo lo de hoy está hecho.</p>') + hechosHTML : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
     + (otros.length ? `<details class="hb-otros"${hbOtrosAbierto || otros.some(h => open.has(h.id)) ? ' open' : ''}><summary class="group-title" style="cursor:pointer">Otros días · ${otros.length}</summary>${otros.map(h => habitHTML(h)).join('')}</details>` : '') + h2ConsHTML(cons);   // 2.20 · plegado: hoy, lo de hoy
   try { hbSaleAnim(); } catch (e) { console.warn('Hechos hoy', e); }   // 2.21.3 (B)
   tickTimers();
 }
 
+// ====================================================================
+// 2.22.5 (H) · «En hábitos debo poder ver los días anteriores y llenarlos (saldrá como agregado x días después, pero se puede y vale igual).»
+// hbDia: '' = hoy; si no, el día anterior que se ve. var (no let): render() puede correr antes de llegar aquí.
+// ====================================================================
+var hbDia = '';
+var HB_DIAS_ATRAS = 30;
+var HB_DSEM = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+var HB_MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function hbDiaOk(k) { return typeof k === 'string' && /^\d{4}-\d\d-\d\d$/.test(k); }
+function hbDiaMas(k, n) { return dayKey(addDays(new Date(k + 'T12:00'), n)); }
+// El día más antiguo que se puede abrir: 30 días atrás, y nunca antes de tu primer hábito.
+function hbDiaMin() {
+  const tope = dayKey(addDays(new Date(), -HB_DIAS_ATRAS));
+  let min = today();
+  for (const h of state.habits || []) if (h && !h.rutina && hbDiaOk(h.creado) && h.creado < min) min = h.creado;
+  return min > tope ? min : tope;
+}
+function hbDiaPuede(k) { return hbDiaOk(k) && k < today() && k >= hbDiaMin(); }
+function hbDiaVer() { if (hbDia && !hbDiaPuede(hbDia)) hbDia = ''; return hbDia; }   // a medianoche, o sin hábitos de ese día: vuelve a hoy
+function hbDiaCorto(k) { const d = new Date(k + 'T12:00'); return `${HB_DSEM[d.getDay()]} ${d.getDate()} ${HB_MES[d.getMonth()]}`; }
+function hbDiaNombre(k) { if (!k || k === today()) return 'Hoy'; if (k === hbDiaMas(today(), -1)) return 'Ayer'; const c = hbDiaCorto(k); return c[0].toUpperCase() + c.slice(1); }
+function hbDiaBarHtml(d) {
+  const cur = d || today(), atras = hbDiaMas(cur, -1) >= hbDiaMin();
+  if (!d && !atras) return '';
+  return `<div class="hb-dia" role="group" aria-label="Día que ves"><button class="hb-dia-b" data-hbdia="-1" aria-label="Día anterior"${atras ? '' : ' disabled'}>‹</button><span class="hb-dia-t">${esc(hbDiaNombre(cur))}</span><button class="hb-dia-b" data-hbdia="1" aria-label="Día siguiente"${d ? '' : ' disabled'}>›</button></div>`;
+}
+// Un hábito cuenta ese día si ya existía y le tocaba (sus días de la semana).
+function hbAplica(h, d) { return !!h && !h.rutina && !h.archivado && (!hbDiaOk(h.creado) || h.creado <= d) && isSched(h, d); }
+// «Agregado 2 días después»: solo si ese día está hecho y se marcó después.
+function hbTardeNota(h, d) {
+  const ts = +state.logTarde?.[h?.id]?.[d];
+  if (!(ts > 0) || !isDone(h, d)) return '';
+  const n = daysBetween(d, dayKey(new Date(ts)));
+  return n >= 1 ? `Agregado ${n} ${n === 1 ? 'día' : 'días'} después` : '';
+}
+function hbPasFila(h, d) {
+  const m = mark(h, d), hecho = m === 'full' || m === 'min', s = stats(h), id = esc(h.id);
+  let cls = m === 'full' ? 'done' : m === 'min' ? 'half' : m === 'skip' || m === 'just' ? 'skip' : '', act = hecho ? 'hbp-undo' : 'hbp-full', inner = icon(h.icono), st = '';
+  const p = progressOf(h, d);
+  if (!hecho && h.modo === 'veces') { act = 'hbp-plus'; cls += ' prog'; st = ` style="--p:${Math.min(100, p / h.meta * 100)}%"`; if (p) inner = `<span class="pv">${p}/${h.meta}</span>`; }
+  const nota = hbTardeNota(h, d), est = hecho ? '' : m === 'skip' ? 'Ese día: «Hoy no»' : m === 'just' ? 'Justificado' : '';
+  const sub = nota ? `<div class="identity hb-tarde">${esc(nota)}</div>` : `<div class="identity">${esc(est || h.identidad || '')}</div>`;
+  const L = hecho ? `<button class="link" data-act="hbp-undo" data-id="${id}" data-day="${d}">Deshacer</button>`
+    : h.modo === 'veces' && p > 0 ? `<button class="link" data-act="hbp-minus" data-id="${id}" data-day="${d}">−1</button>` : '';
+  return `<section class="habit hb-pas" data-id="${id}" data-day="${d}" style="${colorVar(h)}">
+    <div class="row">
+      <button class="check ${cls}" data-act="${act}" data-id="${id}" data-day="${d}"${st} aria-label="${hecho ? `Deshacer ${esc(h.nombre)} de ese día` : `Marcar ${esc(h.nombre)} hecho ese día`}">${inner}</button>
+      <div class="title"><div class="name">${esc(h.nombre)}${catChipFila(h.cat)}</div>${sub}</div>
+      <span class="streak${s.streak ? ' on' : ''}" title="${s.semanas ? 'Racha en semanas' : 'Racha'}">${flame(!s.streak)}${s.streak}${s.semanas ? '<small> sem</small>' : ''}</span>
+    </div>${L ? `<div class="hb-pas-l">${L}</div>` : ''}
+  </section>`;
+}
+function hbPasHtml(d) {
+  let filas = '', n = 0, hechos = 0;
+  for (const h of hbTopOrdenados()) {
+    if (h.rutina) {
+      const kids = hbHijosOrd(h.id).filter(x => hbAplica(x, d)); if (!kids.length) continue;
+      const k = kids.filter(x => isDone(x, d)).length; n += kids.length; hechos += k;
+      filas += `<section class="habit hb-pas-rut" style="${colorVar(h)}"><div class="row"><span class="check ${k === kids.length ? 'done' : k ? 'half' : ''}" aria-hidden="true">${icon(h.icono)}</span>
+        <div class="title"><div class="name">${esc(h.nombre)}</div><div class="identity">rutina</div></div><span class="streak">${k}/${kids.length}</span></div>
+        <div class="children">${kids.map(x => hbPasFila(x, d)).join('')}</div></section>`;
+    } else if (hbAplica(h, d)) { n++; if (isDone(h, d)) hechos++; filas += hbPasFila(h, d); }
+  }
+  const quien = d === hbDiaMas(today(), -1) ? 'ayer' : 'el ' + hbDiaCorto(d);
+  return hbDiaBarHtml(d) + `<p class="hb-dia-av" id="hb-dia-av"><span><span class="hb-av-l">Estás viendo</span><span class="hb-av-c">Viendo</span> ${esc(quien)}</span><span class="hb-av-v"><span aria-hidden="true">·</span> <button class="link" data-hbdia="hoy">Volver a hoy</button></span></p>`
+    + (n ? `<p class="hb-pas-n">${hechos} de ${n} hechos ese día</p>${filas}` : '<p class="empty">Ese día no tocaba ningún hábito.</p>');
+}
+function hbDiaIr(v) {
+  if (v === 'hoy') hbDia = '';
+  else { const cur = hbDia || today(), k = hbDiaMas(cur, +v || 0); if (k >= today()) hbDia = ''; else if (hbDiaPuede(k)) hbDia = k; }
+  render();
+}
+// Abrir Hábitos en un día (desde el calendario).
+function hbVerDia(k) {
+  if (!hbDiaPuede(k)) return;
+  if (view !== 'hoy') document.querySelector('.tabs .tab[data-view="hoy"]')?.click();
+  hbDia = k; render(); scrollTo(0, 0);
+}
+window.hbVerDia = hbVerDia;
+// ---------- XP de un día anterior (la regla, arriba en la cabecera del parche: H4)
+// xpGanar en otro día: el freno de «una hora tarde» (2.19.8) es de lo de hoy, no de un premio de otro día.
+function hbXpDiaGanar(n, m, ref, o) { const tb = window.xpTardeBloquea; window.xpTardeBloquea = null; try { return xpGanar(n, m, ref, o); } finally { window.xpTardeBloquea = tb; } }
+function hbXpE(ref, k) { return state.enfoque?.xpLog?.[k]?.[ref] || null; }
+// El día que tocaba antes (dir −1, desde que existe) o después (dir +1, hasta hoy) de k; '' si no hay.
+function hbDiaSched(h, k, dir) {
+  let d = hbDiaMas(k, dir);
+  for (let i = 0; i < 400; i++, d = hbDiaMas(d, dir)) {
+    if (dir < 0 ? (hbDiaOk(h.creado) && d < h.creado) : d > today()) return '';
+    if (isSched(h, d)) return d;
+  }
+  return '';
+}
+// «Volviste» del día k: depende de que faltara el día anterior que tocaba. Solo se retira o se devuelve el que ya se dio ese día.
+function hbVolvRevisar(h, k) {
+  if (!k || !hbDiaOk(k) || k > today() || h.sinXp) return;
+  const hp = 'h+:' + h.id, e = hbXpE(hp, k); if (!e) return;
+  const p = hbDiaSched(h, k, -1), falta = !!p && !isDone(h, p) && !isJust(h, p) && !window.hbProtegido?.(h, p);
+  if (!falta && e.n > 0) { if (k === today()) window.xpQuitar?.(hp, { sinPop: true }); else window.xpQuitarDia?.(hp, k, { sinPop: true }); }
+  else if (falta && !(e.n > 0) && e.x > 0 && isDone(h, k) && (hbXpE('h:' + h.id, k)?.n || 0) > 0) hbXpDiaGanar(15, 'Volviste', hp, { padre: 'h:' + h.id, dia: k, sinPop: true });
+}
+// El bono de la rutina de un día anterior: vuelve solo si ya se había ganado ese día (x > 0) y todos los de ese día vuelven a estar hechos.
+function hbPasRutinaVolver(h, d) {
+  const r = h.padre ? state.habits.find(x => x && x.id === h.padre && x.rutina) : null; if (!r) return;
+  const rr = 'r:' + r.id, e = hbXpE(rr, d); if (!e || e.n > 0 || !(e.x > 0)) return;
+  const kids = hbHijosOrd(r.id).filter(x => hbAplica(x, d));
+  if (kids.length && kids.every(x => isDone(x, d))) hbXpDiaGanar(15, 'Rutina completa', rr, { dia: d, sinPop: true });
+}
+// La píldora dice de qué día es el XP: «✓ Hecho · +10 XP de ayer», «… del vie 13».
+function hbPasPillDia(d) {
+  try {
+    const t = document.querySelector('#view-overlays')?.shadowRoot?.querySelector('#toast') || document.getElementById('toast'), a = t?.querySelector('.fb-t'), sr = t?.querySelector('.fb-sr');
+    if (!a || !/XP$/.test(a.textContent)) return;
+    const q = d === hbDiaMas(today(), -1) ? 'de ayer' : 'del ' + hbDiaCorto(d).replace(/ \S+$/, '');
+    a.textContent += ' ' + q; if (sr) sr.textContent += ', ' + q;
+  } catch {}
+}
+function hbPasXpDar(h, d, value) {
+  try { window.fbHecho?.({ deshacer: () => hbPasMarcar(h, d, null) }); } catch {}
+  if (h.sinXp) return 0;
+  const L = state.enfoque?.xpLog?.[d], base = state.enfoque?.xp?.baseHasta;
+  if (!(hbDiaOk(base) && d >= base)) return 0;   // antes de tu vuelta a cero del XP: cuenta para la racha, sin XP (H4)
+  if (state.enfoque?.xpPen?.[d]?.[`pa:habito:${h.id}:${d}`] || (L && xpCompactado(L))) return 0;
+  let xp = 10; try { xp = xcXp(h, value).xp; } catch {}
+  const dio = hbXpDiaGanar(xp, `Hábito: ${h.nombre}`, 'h:' + h.id, { dia: d });
+  if (dio) hbPasPillDia(d);
+  return dio ? xp : 0;
+}
+function hbPasXpQuitar(h, d) {
+  const L = state.enfoque?.xpLog?.[d]; if (!L || typeof window.xpQuitarDia !== 'function') return 0;
+  let tot = window.xpQuitarDia('h:' + h.id, d);
+  tot += window.xpQuitarDia('h+:' + h.id, d);   // su «Volviste» (en un día ya cerrado el libro no guarda de quién depende: se quita aparte)
+  const r = h.padre ? state.habits.find(x => x && x.id === h.padre && x.rutina) : null;
+  if (r) tot += window.xpQuitarDia('r:' + r.id, d);   // el bono de la rutina de ese día, si lo hubo
+  return tot;
+}
+// Marcar o desmarcar un hábito en un día anterior. value: 'full' | 'min' | null.
+function hbPasMarcar(h, d, value) {
+  if (!h || h.rutina || !hbDiaPuede(d) || !hbAplica(h, d)) return;
+  const eraHecho = isDone(h, d), hecho = value === 'full' || value === 'min';
+  if (eraHecho === hecho) { render(); return; }
+  state.log[h.id] ??= {};
+  state.log[h.id][d] = value || '';   // '' y no borrar: al combinar teléfonos, lo desmarcado no vuelve
+  if (value !== 'just') delete state.razones[h.id]?.[d];
+  if (!value) delete state.progreso[h.id]?.[d];
+  if (hecho && !eraHecho) (state.logTarde ||= {})[h.id] = { ...(state.logTarde[h.id] || {}), [d]: Date.now() };
+  else if (!hecho && state.logTarde?.[h.id]) { delete state.logTarde[h.id][d]; if (!Object.keys(state.logTarde[h.id]).length) delete state.logTarde[h.id]; }
+  save();
+  try {
+    if (hecho && !eraHecho) hbPasXpDar(h, d, value);
+    else if (!hecho && eraHecho && !h.sinXp) hbPasXpQuitar(h, d);
+    // El «Volviste» del día siguiente que tocaba (hoy o uno anterior) depende de que este faltara: lleno, se retira; vacío otra vez, regresa.
+    if (!h.sinXp) {
+      hbVolvRevisar(h, hbDiaSched(h, d, 1));
+      if (hecho) { hbVolvRevisar(h, d); hbPasRutinaVolver(h, d); }   // volver a marcar: lo que ese día ya había ganado y sigue valiendo
+    }
+  } catch (e) { console.warn('XP de un día anterior', e); }
+  if (hecho) justDone = h.id;
+  render(); justDone = null;
+  if (hecho) { try { sparks(h); } catch {} navigator.vibrate?.(18); }
+}
+function hbPasMas(h, d, delta) {
+  if (!h || !hbDiaPuede(d) || !hbAplica(h, d) || isDone(h, d)) return;
+  state.progreso[h.id] ??= {};
+  const p = Math.max(0, progressOf(h, d) + delta);
+  state.progreso[h.id][d] = p;
+  if (p >= h.meta) { hbPasMarcar(h, d, 'full'); return; }
+  navigator.vibrate?.(10);
+  save(); render();
+}
+document.getElementById('list')?.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-hbdia]');
+  if (b) { e.stopPropagation(); if (b.disabled) return; const v = b.dataset.hbdia; hbDiaIr(v);
+    setTimeout(() => { const x = document.querySelector(`#list [data-hbdia="${v}"]`); (x && !x.disabled ? x : document.querySelector('#list [data-hbdia]:not([disabled])'))?.focus(); }, 0); return; }
+  const a = e.target.closest?.('button[data-act^="hbp-"]'); if (!a) return;
+  e.stopPropagation();
+  const h = state.habits.find(x => x && x.id === a.dataset.id), d = a.dataset.day;
+  if (!h || d !== hbDia) { render(); return; }
+  if (a.dataset.act === 'hbp-full') hbPasMarcar(h, d, 'full');
+  else if (a.dataset.act === 'hbp-undo') hbPasMarcar(h, d, null);
+  else if (a.dataset.act === 'hbp-plus') hbPasMas(h, d, 1);
+  else if (a.dataset.act === 'hbp-minus') hbPasMas(h, d, -1);
+}, true);
+// Al salir a otra sección, Hábitos vuelve a abrir en hoy.
+document.querySelector('.tabs')?.addEventListener('click', e => { const t = e.target.closest?.('.tab'); if (t && t.dataset.view !== 'hoy') hbDia = ''; }, true);
+document.getElementById('msg-dialog')?.addEventListener('click', e => { const b = e.target.closest?.('[data-hb-ver-dia]'); if (!b) return; document.getElementById('msg-dialog').close(); hbVerDia(b.dataset.hbVerDia); });
+
+// ====================================================================
+// 2.22.5 (W) · Hábitos «N días por semana» y tipos de meta de consistencia en hábitos (ver la cabecera de patch_2225_W.py).
+// Funciones de nivel superior (isJust, normalize y render las llaman); var y no let: render() puede correr antes de llegar aquí.
+// ====================================================================
+// ---------- W1 · Días por semana (h.semana = N, de 1 a 6; la semana va de lunes a domingo)
+function hbSemN(h) { const n = h && !h.rutina ? Math.round(+h.semana) : 0; return n >= 1 && n <= 6 ? n : 0; }
+// El N de la semana de k: al cambiar la frecuencia se guarda el N que valía antes (h.semanaHist = [{ hasta: lunes, n }], n = 0 es diario),
+// así las semanas anteriores se miden con el N que tenían y el cambio vale desde la semana en que lo hiciste.
+function hbSemNd(h, k) {
+  if (!h || h.rutina) return 0;
+  const H = Array.isArray(h.semanaHist) ? h.semanaHist : null;
+  if (H && k) { const l = hbSemLunes(k); for (const x of H) if (x && typeof x.hasta === 'string' && l < x.hasta) { const n = Math.round(+x.n); return n >= 1 && n <= 6 ? n : 0; } }
+  return hbSemN(h);
+}
+function hbSemHistNorm(H) {
+  if (!Array.isArray(H)) return null;
+  const o = H.filter(x => x && typeof x === 'object' && typeof x.hasta === 'string' && /^\d{4}-\d\d-\d\d$/.test(x.hasta)).map(x => { const n = Math.round(+x.n); return { hasta: x.hasta, n: n >= 1 && n <= 6 ? n : 0 }; })
+    .sort((a, b) => a.hasta < b.hasta ? -1 : a.hasta > b.hasta ? 1 : 0).filter((x, i, a) => !i || a[i - 1].hasta !== x.hasta).slice(-20);
+  return o.length ? o : null;
+}
+function hbSemLunes(k) { return dayKey(addDays(new Date(k + 'T12:00'), -wd(k))); }
+function hbSemDias(k) { const l = new Date(hbSemLunes(k) + 'T12:00'); return [0, 1, 2, 3, 4, 5, 6].map(i => dayKey(addDays(l, i))); }
+// Cuenta para la semana: hecho (también la versión de 2 min), justificado o protegido por ti.
+function hbSemVale(h, d) { const m = mark(h, d); return m === 'full' || m === 'min' || m === 'just' || h2Protegidos(h).includes(d); }
+function hbSemCuenta(h, k) { return hbSemDias(k).filter(d => hbSemVale(h, d)).length; }
+// Lo que pide esa semana: N; la semana en que lo creaste, como mucho los días que quedaban.
+function hbSemMeta(h, k) { const N = hbSemNd(h, k); if (!N) return 0; const D = hbSemDias(k).filter(d => !h.creado || d >= h.creado); return Math.min(N, D.length); }
+function hbSemOk(h, k) { const N = hbSemMeta(h, k); return N > 0 && hbSemCuenta(h, k) >= N; }
+// Un día sin hacer que no cuenta en contra: la semana ya está cumplida, o la semana sigue en curso (aún no es fallo). En una semana
+// que terminó por debajo, solo cuentan en contra los últimos días que faltaron.
+function hbSemLibre(h, k) {
+  if (!h || !k || !hbSemNd(h, k) || isDone(h, k)) return false;
+  if (hbSemOk(h, k)) return true;
+  const t = today(); if (k >= t) return false;
+  const D = hbSemDias(k); if (D[6] >= t) return true;
+  const falta = hbSemMeta(h, k) - hbSemCuenta(h, k);
+  if (falta <= 0) return true;
+  const sin = D.filter(d => (!h.creado || d >= h.creado) && isSched(h, d) && !hbSemVale(h, d));
+  return !sin.slice(-falta).includes(k);
+}
+// Hoy no cuenta como pendiente: la semana ya está cumplida (o libre) o la meta ya no se puede cumplir hoy.
+function hbFuera(h, t = today()) { return hbSemLibre(h, t) || hbMtCerrado(h, t); }
+function hbSemListoHoy(h) { return !!h && !h.rutina && hbSemN(h) > 0 && !isDone(h, today()) && hbSemOk(h, today()); }
+// Racha en semanas: cuenta la semana en curso si ya llegó; si no, empieza en la anterior (la semana en curso no la corta).
+function hbSemRacha(h) {
+  const t = today(); let r = hbSemOk(h, t) ? 1 : 0, l = new Date(hbSemLunes(t) + 'T12:00');
+  for (let i = 0; i < 520; i++) { l = addDays(l, -7); if (h.creado && dayKey(addDays(l, 6)) < h.creado) break; if (hbSemOk(h, dayKey(l))) r++; else break; }
+  return r;
+}
+function hbSemMejor(h) {
+  const t = today(), fin = hbSemLunes(t); let best = 0, cur = 0, l = new Date(hbSemLunes(h.creado && /^\d{4}-\d\d-\d\d$/.test(h.creado) ? h.creado : t) + 'T12:00');
+  for (let i = 0; i < 520 && dayKey(l) <= fin; i++, l = addDays(l, 7)) { const k = dayKey(l); if (hbSemOk(h, k)) best = Math.max(best, ++cur); else if (k !== fin) cur = 0; }
+  return best;
+}
+function hbSemTxt(h, d = today()) {
+  const c = hbSemCuenta(h, d), N = hbSemMeta(h, d);
+  return c >= N ? `Ya cumplido esta semana (${N} de ${N}${c > N ? ` · +${c - N}` : ''})` : `${c} de ${N} esta semana`;
+}
+function hbSemCalTxt(h, d) {
+  const c = hbSemCuenta(h, d), N = hbSemMeta(h, d);
+  if (c >= N) return `Ya cumpliste esa semana (${N} de ${N}).`;
+  if (hbSemDias(d)[6] >= today()) return `Semana en curso: ${c} de ${N}.`;
+  return `Esa semana: ${c} de ${N}. Este día no cuenta en contra.`;
+}
+// La línea de la fila: el paréntesis «(6 de 6)» no se parte.
+function hbSemLinea(h) { if (!hbSemN(h)) return ''; const ok = hbSemOk(h, today()), x = esc(hbSemTxt(h)).replace(/\(([^)]*)\)$/, '<span class="nw">($1)</span>'); return `<div class="identity hb-sem${ok ? ' ok' : ''}">${x}</div>`; }
+
+// ---------- W2 · Tipo de meta (h.tipoMeta) y lo anotado de cada día (state.logMeta[id][día] = { v, h, en })
+var hbMtSigue = false;   // true mientras la meta deja de cumplirse: lo anotado se queda (Deshacer, en cambio, lo quita)
+function hbMtNorm(m) {
+  if (!m || typeof m !== 'object' || Array.isArray(m) || !['antes', 'despues', 'si', 'max', 'min'].includes(m.tipo)) return null;
+  const HM = v => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : '', o = { tipo: m.tipo };
+  if (m.tipo === 'antes' || m.tipo === 'despues') o.hora = HM(m.hora) || (m.tipo === 'antes' ? '22:30' : '08:00');
+  if (m.tipo === 'max' || m.tipo === 'min') {
+    const n = Math.round(+m.n); o.n = Number.isFinite(n) ? Math.max(0, Math.min(999, n)) : (m.tipo === 'max' ? 2 : 8);
+    o.unidad = typeof m.unidad === 'string' ? m.unidad.replace(/\s+/g, ' ').trim().slice(0, 20) : '';
+    if (m.comb && typeof m.comb === 'object' && (m.comb.tipo === 'antes' || m.comb.tipo === 'despues') && HM(m.comb.hora)) o.comb = { tipo: m.comb.tipo, hora: HM(m.comb.hora) };
+  }
+  return o;
+}
+function hbMt(h) { const m = h && !h.rutina ? h.tipoMeta : null; return m && typeof m === 'object' && ['antes', 'despues', 'si', 'max', 'min'].includes(m.tipo) ? m : null; }
+function hbMtCb(m) { return !!m && (m.tipo === 'max' || m.tipo === 'min') && !!m.comb && (m.comb.tipo === 'antes' || m.comb.tipo === 'despues') && /^\d\d:\d\d$/.test(m.comb.hora || ''); }
+function hbMtClave(m) { return hbMtCb(m) ? 'comb' : m.tipo; }
+function hbMtReg0(h, d) { const r = state.logMeta?.[h.id]?.[d]; return r && typeof r === 'object' && !Array.isArray(r) ? r : null; }
+// Lo anotado que vale: una meta «cumplida» en un día sin hacer (lo desmarcó una app vieja, o llegó así de otro teléfono) no cuenta.
+function hbMtReg(h, d) { const r = hbMtReg0(h, d), m = hbMt(h); return r && m && !isDone(h, d) && hbMtOk(m, r) === true ? null : r; }
+function hbMtPriTxt(m) { return m.tipo === 'min' ? 'Uno más' : m.tipo === 'max' ? (hbMtCb(m) ? 'Lo cumplí hoy' : 'Hoy, dentro del límite') : 'Sí, lo cumplí'; }
+function hbMtH(r) { return r && (r.h === true || r.h === false) ? r.h : null; }
+function hbMtV(r) { return r && typeof r.v === 'number' && Number.isFinite(r.v) ? r.v : null; }
+// true: cumplida; false: ya no se cumple hoy (dijiste no, o pasaste del máximo); null: falta algo.
+function hbMtOk(m, r) {
+  const v = hbMtV(r), hh = hbMtH(r), n = +m.n || 0;
+  if (hbMtCb(m)) {
+    if (v === null && hh === null) return null;
+    try { if (typeof window.csApi?.cbOk === 'function') return window.csApi.cbOk({ tipo: m.tipo, n, comb: m.comb }, v || 0, hh); } catch {}
+    if (hh === false || (m.tipo === 'max' && (v || 0) > n)) return false;
+    return hh === true ? (m.tipo === 'min' ? (v || 0) >= n : true) : null;
+  }
+  if (m.tipo === 'max') return v === null ? null : v <= n;
+  if (m.tipo === 'min') return v === null || v < n ? null : true;
+  return hh;
+}
+function hbMtCerrado(h, d) { const m = hbMt(h); return !!m && !isDone(h, d) && hbMtOk(m, hbMtReg(h, d)) === false; }
+window.hbMtCerrado = hbMtCerrado;
+function hbMtSing(u) { const [p, ...r] = String(u).split(' '); const x = /ces$/i.test(p) ? p.slice(0, -3) + 'z' : /[aeiouáéíóú]s$/i.test(p) ? p.slice(0, -1) : p; return [x, ...r].join(' '); }
+function hbMtU(m, v = m.n) { const u = m.unidad || 'veces'; return +v === 1 ? hbMtSing(u) : u; }
+function hbMtHora(m) { return m.comb ? m.comb : { tipo: m.tipo, hora: m.hora }; }
+// La pregunta de la fila Sí / No, en positivo (como en las metas): «Antes de las 12:00 PM» o «Desde las 9:00 AM».
+function hbMtQ(m) { const x = hbMtHora(m); return `${x.tipo === 'antes' ? 'Antes de las' : 'Desde las'} ${fmtHora(x.hora)}`; }
+function hbMtRegla(m) {
+  const k = hbMtClave(m), x = hbMtHora(m);
+  if (k === 'comb') return `${m.tipo === 'max' ? 'Como máximo' : 'Al menos'} ${m.n} ${hbMtU(m)} al día, ${x.tipo === 'antes' ? 'antes' : 'no antes'} de las ${fmtHora(x.hora)}`;
+  if (k === 'antes') return `Antes de las ${fmtHora(m.hora)}`;
+  if (k === 'despues') return `No antes de las ${fmtHora(m.hora)}`;
+  if (k === 'max') return `Como máximo ${m.n} ${hbMtU(m)} al día`;
+  if (k === 'min') return `Al menos ${m.n} ${hbMtU(m)} al día`;
+  return 'Sí o no, cada día';
+}
+function hbMtEstado(h, d) {
+  const m = hbMt(h), r = hbMtReg(h, d), ok = hbMtOk(m, r), v = hbMtV(r), hh = hbMtH(r), k = hbMtClave(m), Q = d === today() ? 'Hoy' : 'Ese día';
+  if (isDone(h, d) && ok !== true) return { txt: `${Q}: hecho ✓`, cls: 'ok' };
+  if (!r || (v === null && hh === null)) return { txt: hbMtRegla(m), cls: '' };
+  const num = v !== null && (k === 'max' || k === 'min' || k === 'comb'), otra = d === today() ? ' Mañana, otra oportunidad.' : '';
+  if (ok === true) return { txt: `${Q}: ${num ? `${v} de ${m.n}${m.tipo === 'max' ? ' como máximo' : ''}` : 'cumplido'} ✓`, cls: 'ok' };
+  if (ok === false) return { txt: hh === false ? `${Q}: no salió.${otra}` : `${Q}: ${v}, más que ${m.n}.${otra}`, cls: '' };
+  const P = [`${Q}: ${v || 0} de ${m.n}${m.tipo === 'max' ? ' como máximo' : ''}`];
+  if (m.tipo === 'min' && (v || 0) < m.n) P.push(m.n - (v || 0) === 1 ? 'falta 1' : `faltan ${m.n - (v || 0)}`);
+  if (k === 'comb' && hh === null) P.push('falta la hora');
+  return { txt: P.join(' · '), cls: '' };
+}
+// Los controles de la meta en la fila (hoy o un día anterior): las mismas piezas que en Metas de consistencia.
+function hbMtCtl(h, d) {
+  const m = hbMt(h); if (!m) return '';
+  const r = hbMtReg(h, d), st = hbMtEstado(h, d), k = hbMtClave(m), id = esc(h.id), D = esc(d), v = hbMtV(r) || 0, hh = hbMtH(r), hoy = d === today();
+  const B = (q, txt, x = '') => `<button type="button" data-hbmt="${q}" data-id="${id}" data-day="${D}"${x}>${txt}</button>`;
+  const fila = q => `<div class="cs-cbh" role="group" aria-label="${esc(q)}"><span>${esc(q)}</span>${B('hsi', 'Sí', ` class="cs-cbb${hh === true ? ' on' : ''}" aria-pressed="${hh === true}"`)}${B('hno', 'No', ` class="cs-cbb${hh === false ? ' on no' : ''}" aria-pressed="${hh === false}"`)}</div>`;
+  let acc = '';
+  if (k === 'si') acc = fila(hoy ? '¿Hoy sí?' : '¿Ese día sí?');
+  else if (k === 'antes' || k === 'despues') acc = fila(hbMtQ(m));
+  else {
+    acc = `<div class="cs-stp">${B('menos', '−', ` aria-label="Uno menos"${v <= 0 ? ' disabled' : ''}`)}<b aria-live="polite">${v}</b>${B('mas', '+', ' aria-label="Uno más"')}<small>de ${m.n} ${esc(hbMtU(m))}${m.tipo === 'max' ? ' como máximo' : ''}</small></div>`;
+    if (m.tipo === 'max' && hbMtV(r) === null) acc += B('cero', `${hoy ? 'Hoy' : 'Ese día'}, ninguno`, ' class="cs-no"');
+    if (k === 'comb' && !(m.tipo === 'max' && v > m.n)) acc += fila(hbMtQ(m));
+  }
+  return `<div class="hb-mt"><p class="hb-mt-st${st.cls ? ' ' + st.cls : ''}">${esc(st.txt)}</p>${acc}</div>`;
+}
+// Anotar: q = csi (sí) · cno (no) · hsi / hno (otro toque en la misma respuesta la quita) · mas · menos · cero · pri (el círculo, o
+// «Hecho» desde otra parte de la app: sí; uno más en «Como mínimo»; en «Como máximo», dentro del límite: ninguno si no anotaste nada).
+// Cumplida: el hábito queda hecho como cualquier otro (complete o, en un día anterior, hbPasMarcar). Deja de cumplirse: se desmarca.
+function hbMtAccion(h, q, d = today()) {
+  const m = hbMt(h), t = today(); if (!m) return false;
+  if (d !== t && !(hbDiaPuede(d) && hbAplica(h, d))) return false;
+  if (d === t && h.creado && h.creado > t) return false;
+  const r0 = hbMtReg(h, d); let v = hbMtV(r0), hh = hbMtH(r0);
+  if (q === 'hsi' || q === 'hno') { const si = q === 'hsi'; hh = hh === si ? null : si; }
+  else if (q === 'csi') hh = true;
+  else if (q === 'cno') hh = false;
+  else if (q === 'mas' || q === 'menos') v = Math.max(0, Math.min(999, (v || 0) + (q === 'mas' ? 1 : -1)));
+  else if (q === 'cero') v = 0;
+  else if (q === 'pri') { if (m.tipo === 'min') v = Math.min(999, (v || 0) + 1); else if (m.tipo === 'max') { if (v === null) v = 0; if (hbMtCb(m) && hh === null) hh = true; } else hh = true; }
+  else return false;
+  state.logMeta ||= {};
+  const L = state.logMeta[h.id] = { ...(state.logMeta[h.id] || {}) };
+  L[d] = { ...(v !== null ? { v } : {}), ...(hh !== null ? { h: hh } : {}), en: Date.now() };   // sin v ni h = quitado (así no vuelve al unir con la nube)
+  const ok = hbMtOk(m, hbMtReg0(h, d)), era = isDone(h, d);
+  if (ok === true && !era) { if (d === t) { hbMtDentro = true; try { complete(h, 'full'); } finally { hbMtDentro = false; } } else hbPasMarcar(h, d, 'full'); }
+  else if (ok !== true && era && mark(h, d) === 'full') { hbMtSigue = true; try { if (d === t) setMark(h, ''); else hbPasMarcar(h, d, null); } finally { hbMtSigue = false; } }
+  else { save(); render(); }
+  if (q === 'mas' && d === t) navigator.vibrate?.(10);
+  return true;
+}
+// «Hecho» desde otra parte (Agenda, bloques, Estudio, cadena, temporizador): pasa por la meta. Si con eso no se cumple, se dice cómo va.
+var hbMtDentro = false;
+{ const c0 = complete; complete = function (h, value) {
+  if (!hbMtDentro && value === 'full' && hbMt(h) && !isDone(h, today())) { hbMtAccion(h, 'pri'); if (!isDone(h, today())) { try { toast(hbMtEstado(h, today()).txt); } catch {} } return; }
+  return c0(h, value);
+}; }
+// «Deshacer» (hoy o un día anterior) quita también lo anotado de ese día; así marcar y deshacer deja todo como estaba.
+function hbMtBorrarDia(h, d) { if (hbMtSigue || !hbMt(h) || !state.logMeta?.[h.id]?.[d]) return; state.logMeta[h.id] = { ...state.logMeta[h.id], [d]: { en: Date.now() } }; }   // quitado, con fecha (no vuelve al unir)
+{ const sm0 = setMark; setMark = function (h, value) { if (!value) hbMtBorrarDia(h, today()); return sm0(h, value); }; }
+{ const pm0 = hbPasMarcar; hbPasMarcar = function (h, d, value) { if (!value && h && isDone(h, d)) hbMtBorrarDia(h, d); return pm0(h, d, value); }; }
+// Un día anterior (H): los mismos controles en su fila.
+{ const pf0 = hbPasFila; hbPasFila = function (h, d) {
+  let x = pf0(h, d); const m = hbMt(h); if (!m) return x;
+  const k = hbMtClave(m);
+  if (!isDone(h, d)) x = x.replace(/data-act="hbp-(?:full|plus)"/, 'data-hbmt="pri"');
+  return x.replace(/\n  <\/section>$/, `${hbMtCtl(h, d)}\n  </section>`);
+}; }
+document.getElementById('list')?.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-hbmt]'); if (!b) return;
+  e.stopPropagation(); if (b.disabled) return;
+  const h = state.habits.find(x => x && x.id === b.dataset.id), d = b.dataset.day || today();
+  if (!h || (d !== today() && d !== hbDia)) { render(); return; }
+  hbMtAccion(h, b.dataset.hbmt, d);
+}, true);
+
+// ---------- La hoja del hábito: frecuencia y tipo de meta
+function hbFormW(h) {
+  const f = $('#form'); if (!f?.elements.frec) return;
+  const sem = h ? hbSemN(h) : 0, dias = h ? (h.dias || ALL_DAYS) : ALL_DAYS;
+  f.elements.frec.value = sem ? 'semana' : dias.length >= 7 ? 'todos' : 'algunos';
+  f.elements.semana.value = sem || 6;
+  const m = h ? hbMt(h) : null;
+  if (m) {
+    f.elements.modo.value = 'mt-' + hbMtClave(m);
+    if (m.tipo === 'max' || m.tipo === 'min') { f.elements.mtcbn.value = m.tipo; f.elements.mtn.value = m.n; f.elements.mtu.value = m.unidad || ''; }
+    const x = hbMtHora(m); if (x.hora) f.elements.mth.value = x.hora;
+    if (m.comb) f.elements.mtcbh.value = m.comb.tipo;
+    try { metaUI(); } catch {}
+  }
+  hbFormWUI();
+}
+function hbFormWUI() {
+  const f = $('#form'); if (!f?.elements.frec) return;
+  const fr = f.elements.frec.value || 'todos';
+  $('#days').hidden = fr !== 'algunos'; $('#hb-frec-sem').hidden = fr !== 'semana';
+  const mo = String(f.elements.modo.value || ''), k = mo.startsWith('mt-') ? mo.slice(3) : '', tn = k === 'comb' ? f.elements.mtcbn.value : k;
+  $('#hb-mt-f').hidden = !k;
+  $('#hb-mt-cbn').hidden = $('#hb-mt-cbh').hidden = k !== 'comb';
+  $('#hb-mt-num').hidden = !(tn === 'max' || tn === 'min');
+  $('#hb-mt-hora').hidden = !(k === 'antes' || k === 'despues' || k === 'comb');
+  $('#hb-mt-n-l').textContent = k === 'comb' ? 'Número por día' : tn === 'max' ? 'Como máximo, por día' : 'Al menos, por día';
+  $('#hb-mt-p').textContent = k === 'comb' ? 'Cuenta como hecho el día que cumples las dos.' : tn === 'max' ? 'Cuenta como hecho mientras no pases del máximo.' : 'Cuenta como hecho el día que lo cumples.';
+  try { h2FormPistas(); } catch {}
+}
+// Al guardar: false si falta la hora. semana / tipoMeta = null se quitan después (hbFormWFin).
+function hbFormWLeer(f, data) {
+  const fr = f.elements.frec?.value || 'algunos';
+  if (fr !== 'algunos') data.dias = [...ALL_DAYS];
+  data.semana = fr === 'semana' ? Math.max(1, Math.min(6, Math.round(+f.elements.semana.value) || 6)) : null;
+  if (editing && !editing.rutina && hbSemN(editing) !== (data.semana || 0)) {   // el N de antes vale para las semanas anteriores
+    const L = hbSemLunes(today()), H = hbSemHistNorm(editing.semanaHist) || [];
+    if (!H.some(x => x.hasta === L) && (!editing.creado || editing.creado < L)) data.semanaHist = hbSemHistNorm([...H, { hasta: L, n: hbSemN(editing) }]);
+  }
+  const mo = String(data.modo || ''), k = mo.startsWith('mt-') ? mo.slice(3) : '';
+  if (!k) { data.tipoMeta = null; return true; }
+  data.modo = 'check'; data.meta = 1;
+  const tn = k === 'comb' ? (f.elements.mtcbn.value === 'min' ? 'min' : 'max') : k, hora = f.elements.mth.value;
+  if ((k === 'antes' || k === 'despues' || k === 'comb') && !/^\d\d:\d\d$/.test(hora)) return false;
+  const m = { tipo: tn };
+  if (k === 'antes' || k === 'despues') m.hora = hora;
+  if (tn === 'max' || tn === 'min') { m.n = Math.max(0, Math.min(999, Math.round(+f.elements.mtn.value) || 0)); m.unidad = String(f.elements.mtu.value || ''); }
+  if (k === 'comb') m.comb = { tipo: f.elements.mtcbh.value === 'despues' ? 'despues' : 'antes', hora };
+  data.tipoMeta = hbMtNorm(m);
+  return true;
+}
+function hbFormWFin(h) { if (!h) return; if (h.semana == null || h.rutina) delete h.semana; if (h.rutina) delete h.semanaHist; if (h.tipoMeta == null || h.rutina) delete h.tipoMeta; }
+
 // Una rutina agrupa hábitos: se abre con un toque y muestra los suyos dentro.
 function routineHTML(r) {
   const kids = hbHijosOrd(r.id).filter(h => isSched(h, today()));   // 2.21 (M) · en el orden de la rutina
-  const done = kids.filter(h => isDone(h, today())).length;
-  const checkClass = kids.length && done === kids.length ? 'done' : done ? 'half' : '';
+  const cuentan = kids.filter(h => isDone(h, today()) || !hbFuera(h, today()));   // 2.22.5 (W) · lo ya cumplido de la semana (o una meta que hoy ya no se cumple) no cuenta
+  const done = cuentan.filter(h => isDone(h, today())).length;
+  const checkClass = (kids.length && !cuentan.length) || (cuentan.length && done === cuentan.length) ? 'done' : done ? 'half' : '';
   const inside = open.has(r.id) ? `<div class="children">
       ${kids.map(habitHTML).join('')}
       <div class="actions">
@@ -1747,7 +2263,7 @@ function routineHTML(r) {
         <div class="name">${esc(r.nombre)}</div>
         <div class="identity">${kids.length === 1 ? '1 hábito' : kids.length + ' hábitos'}</div>
       </button>
-      <span class="streak">${done}/${kids.length}</span>
+      <span class="streak">${done}/${cuentan.length}</span>
     </div>
     ${window.cadena?.hb?.(r) || ''}
     ${inside}
@@ -1770,6 +2286,13 @@ function habitHTML(h) {
     if (e > 0 || run) inner = `<span class="pv">${fmtSec(Math.max(0, h.meta * 60 - e))}</span>`;
   }
   if (!sched) act = 'toggle';
+  // 2.22.5 (W) · Con tipo de meta: el círculo dice «Sí» (o suma uno en los de número); el día queda hecho solo si se cumple.
+  const mt = hbMt(h); let mtAttr = '';
+  if (mt && sched && !m) {
+    const k = hbMtClave(mt);
+    mtAttr = ' data-hbmt="pri"';   // el círculo: «Sí» · en «Como mínimo», uno más (con su anillo) · en «Como máximo», «Hoy, dentro del límite» (sin anillo: no es una meta a la que acercarse)
+    if (mt.tipo === 'min') { const v = hbMtV(hbMtReg(h, t)) || 0; checkClass += ' prog'; style = `--p:${mt.n ? Math.min(100, v / mt.n * 100) : 0}%`; if (v) inner = `<span class="pv">${v}/${mt.n}</span>`; }
+  }
 
   let detail = '';
   if (open.has(h.id)) {
@@ -1787,7 +2310,7 @@ function habitHTML(h) {
     const modeLine = h.modo === 'veces' ? `${h.meta} ${h.meta === 1 ? 'vez' : 'veces'} al día` : h.modo === 'tiempo' ? `${h.meta} min al día` : '';
 
     let tip = '';
-    if (s.streak >= 14 && h.modo === 'check') tip = '14 días seguidos. ¿Subes un poco la dificultad?';
+    if (s.streak >= 14 && h.modo === 'check' && !s.semanas) tip = '14 días seguidos. ¿Subes un poco la dificultad?';
     else if (s.age >= 10 && s.age <= 40) tip = 'Los resultados llegan tarde. Cada día es un voto.';
     tip = h2Tip(h, s, tip);
 
@@ -1818,17 +2341,18 @@ function habitHTML(h) {
     </div>`;
   }
 
-  return `<section class="habit${justDone === h.id ? ' pop' : ''}${sched ? '' : ' off'}" data-id="${h.id}" style="${colorVar(h)}">
+  return `<section class="habit${justDone === h.id ? ' pop' : ''}${sched ? '' : ' off'}${hbSemListoHoy(h) ? ' hb-semok' : ''}" data-id="${h.id}" style="${colorVar(h)}">
     <div class="row">
-      <button class="check ${checkClass}" data-act="${act}" data-id="${h.id}" style="${style}"
-        aria-label="${m ? 'Deshacer' : 'Marcar hecho'}">${inner}</button>
+      <button class="check ${checkClass}" data-act="${act}" data-id="${h.id}"${mtAttr} style="${style}"
+        aria-label="${m ? 'Deshacer' : mtAttr ? hbMtPriTxt(mt) : 'Marcar hecho'}">${inner}</button>
       <button class="title" data-act="toggle" data-id="${h.id}">
         <div class="name">${esc(h.nombre)}${h.clave ? ' ·' : ''}${catChipFila(h.cat)}</div>
-        ${hbCadLinea(h)}<div class="identity">${esc(h.identidad)}</div>
+        ${hbCadLinea(h)}<div class="identity">${esc(h.identidad)}</div>${hbSemLinea(h)}
       </button>
-      <span class="streak${s.streak ? ' on' : ''}" title="Racha">${flame(!s.streak)}${s.streak}</span>
+      <span class="streak${s.streak ? ' on' : ''}" title="${s.semanas ? 'Racha en semanas' : 'Racha'}">${flame(!s.streak)}${s.streak}${s.semanas ? '<small> sem</small>' : ''}</span>
     </div>
     ${h2Lineas(h, s, m, sched, warn)}
+    ${mt && sched ? hbMtCtl(h, t) : ''}
     ${window.cadena?.emp?.(h) || ''}
     ${detail}
   </section>`;
@@ -2102,7 +2626,7 @@ function h2Ventana(h, dias) {
 const H2_PROT_MES = 2, H2_PROT_MOTIVOS = ['Viaje', 'Turno', 'Enfermedad', 'Otro'];
 const h2Protegidos = h => Array.isArray(h?.protegidos) ? h.protegidos.filter(h2Valida) : [];
 function h2Prot(h, k) { if (typeof h === 'string') h = state.habits.find(x => x.id === h); return !!h && h2Protegidos(h).includes(k); }
-window.hbProtegido = (h, k) => h2Prot(h, k);
+window.hbProtegido = (h, k) => { const x = typeof h === 'string' ? state.habits.find(y => y && y.id === h) : h; return h2Prot(x || h, k) || hbSemLibre(x, k) || (k === today() && hbMtCerrado(x, k)); };   // 2.22.5 (W) · semana libre; meta que hoy ya no se cumple
 const h2ProtMotivo = (h, k) => String(h.protegidoPor?.[k] || '').trim();
 const h2ProtDelMes = (h, mes) => h2Protegidos(h).filter(k => k.startsWith(mes)).length;
 function h2Proteger(h, k, motivo) {
@@ -2297,7 +2821,7 @@ function h2Subida(h) {
 }
 function hbSubir(h, s = stats(h)) {
   if (h.cambioLunes || h2BajadaActiva(h) || h2Revision(h) || h.graduado) return '';
-  if (s.streak < 14 || (h2Valida(h.metaSubida) && daysBetween(h.metaSubida, today()) < 14)) return '';
+  if (s.semanas || s.streak < 14 || (h2Valida(h.metaSubida) && daysBetween(h.metaSubida, today()) < 14)) return '';
   const x = h2Subida(h);
   return `<p class="meta">14 días seguidos. ¿Subes un poco desde el lunes?${x ? ` Por ejemplo, de ${esc(x.de)} a ${esc(x.a + x.u)}. <button class="link" data-act="hb-subir" data-id="${esc(h.id)}">Subir desde el lunes</button>` : ''}</p>`;
 }
@@ -2579,7 +3103,7 @@ function hbSaleAnim() {
 // Hecho hoy (para «Hechos hoy · n»): un hábito completo o en su versión de 2 min; una rutina, con todos los suyos de hoy hechos.
 function hbHechoHoy(h) {
   const t = today();
-  if (h.rutina) { const k = hbHijosOrd(h.id).filter(x => isSched(x, t)); return k.length > 0 && k.every(x => isDone(x, t)); }
+  if (h.rutina) { const k0 = hbHijosOrd(h.id).filter(x => isSched(x, t)), k = k0.filter(x => isDone(x, t) || !hbFuera(x, t)); if (!k.length) return k0.length > 0; return k.every(x => isDone(x, t)); }   // 2.22.5 (W)
   const m = mark(h, t); return m === 'full' || m === 'min';
 }
 // Dentro de una rutina: «Después de {anterior}»; el primero, su hora de hoy (la de la cadena).
@@ -3989,9 +4513,9 @@ function celebrate(h, volvio = false, xv = null) {
   el.innerHTML = `<canvas class="cele-canvas"></canvas><div class="cele-inner">
     <div class="cele-flame"><div class="sunburst"></div><div class="cele-glow"></div>${flame()}</div>
     <div class="roll" aria-label="${n}"><div class="roll-inner"><span>${Math.max(0, n - 1)}</span><span>${n}</span></div></div>
-    <p class="cele-label">${n === 1 ? 'día de racha' : 'días de racha'}</p>
+    <p class="cele-label">${hbSemN(h) ? (n === 1 ? 'semana de racha' : 'semanas de racha') : n === 1 ? 'día de racha' : 'días de racha'}</p>
     <div class="week">${week}</div>
-    <p class="motivation">${volvio ? 'Volviste. Eso es lo que forma el hábito.' : hbFrase(h, n)}</p>
+    <p class="motivation">${volvio ? 'Volviste. Eso es lo que forma el hábito.' : hbSemN(h) ? esc(hbSemTxt(h)) + '.' : hbFrase(h, n)}</p>
     ${xcCeleLinea(h, xv)}
     <p class="meta">${esc(h.celebracion || '¡Así se hace!')} ${jdCeleLinea(h)}</p>
     ${h.disfrute ? `<p class="meta" style="margin:10px 0 0">Lo que disfrutas: <b>${esc(h.disfrute)}</b></p>` : ''}
@@ -4120,7 +4644,7 @@ $('#msg-dialog').addEventListener('click', e => {
     hbPrimeroSale(state.habits.find(x => x && x.id === id));   // 2.21 (M) · si era el primero de su rutina, su hora pasa al siguiente
     state.habits.forEach(x => { if (x.padre === id) { x.padre = ''; delete x.orden; x.ordenEn = Date.now(); } });   // 2.21 (M) · al final de tu lista
     state.habits = state.habits.filter(x => x.id !== id); forget(id);
-    delete state.log[id];
+    delete state.log[id]; delete state.logTarde?.[id]; delete state.logMeta?.[id];   // 2.22.5 (H) · (W)
     delete state.razones[id]; delete state.motivos[id];
     save(); renderAll(); $('#msg-dialog').close();
   }
@@ -4164,6 +4688,7 @@ function missForm(id, day) {
     <p class="meta" style="color:var(--text);margin-top:10px">Todavía no. ¿Qué cambias mañana?</p>
     <p class="meta">¿Qué le dirías a un amigo que falló esto? Esa misma frase vale para ti (Breines y Chen, 2012).</p>
     <input id="motivo" class="reason" placeholder="¿Qué pasó?" maxlength="140" value="${esc(state.motivos[h.id]?.[day] || '')}">
+    ${hbDiaPuede(day) && hbAplica(h, day) ? `<p class="meta" style="margin-top:12px">¿Sí lo hiciste? <button class="link" data-hb-ver-dia="${day}" style="min-height:44px">Ver ese día</button></p>` : ''}
     <div class="dialog-actions">
       ${left > 0 ? `<button class="link" data-justify="${id}|${day}">Justificar</button>` : ''}
       <button class="link" data-close>Cancelar</button>
@@ -4197,7 +4722,7 @@ let view = 'hoy', calHabit = null, calMonth = new Date(new Date().getFullYear(),
 
 function dayStatus(h, day) {
   const t = today();
-  if (day >= h.creado && h2Prot(h, day) && !isDone(h, day)) return 'prot';   // 2.12 · día protegido, en gris
+  if (day >= h.creado && (h2Prot(h, day) || hbSemLibre(h, day)) && !isDone(h, day)) return 'prot';   // 2.22.5 (W) · semanal: en gris   // 2.12 · día protegido, en gris
   if (day > t) return 'future';
   if (day < h.creado) return 'before';
   const m = mark(h, day);
@@ -4229,9 +4754,10 @@ function renderCal() {
     const day = dayKey(new Date(y, mo, n));
     const st = dayStatus(h, day);
     if (st in counts) counts[st]++;
-    const tappable = st === 'miss' || st === 'just' || (st === 'pending');
+    const tarde = hbTardeNota(h, day);   // 2.22.5 (H) · hecho después: un punto, y al tocarlo, cuándo se agregó
+    const tappable = st === 'miss' || st === 'just' || (st === 'pending') || !!tarde;
     cells += `<button class="day ${st}${day === today() ? ' today' : ''}" data-day="${day}" style="--i:${n}"
-      ${tappable ? '' : 'disabled'} aria-label="${longDate(day)}">${n}</button>`;
+      ${tappable ? '' : 'disabled'} aria-label="${longDate(day)}${tarde ? ', ' + tarde.toLowerCase() : ''}">${n}${tarde ? '<i class="hb-cal-t" aria-hidden="true"></i>' : ''}</button>`;
   }
   const done = counts.done + counts.half;
   const rate = done + counts.miss ? Math.round(done / (done + counts.miss) * 100) : null;
@@ -4262,7 +4788,22 @@ $('#view-cal').addEventListener('click', e => {
   if (b.dataset.estdia) { estCalDia(b.dataset.estdia); return; }   // 2.14 (X)
   if (b.dataset.day) {
     const h = state.habits.find(x => x.id === calHabit), day = b.dataset.day;
-    if (isJust(h, day)) {
+    if (isDone(h, day) && hbTardeNota(h, day)) {   // 2.22.5 (H)
+      showMsg(`<h2>Día hecho</h2>
+        <p class="meta">${esc(h.nombre)} · ${longDate(day)}</p>
+        <p class="meta" style="font-style:italic">${esc(hbTardeNota(h, day))}</p>
+        <div class="dialog-actions">
+          ${hbDiaPuede(day) && hbAplica(h, day) ? `<button class="link" data-hb-ver-dia="${day}" style="min-height:44px">Ver ese día</button>` : ''}
+          <button class="primary" data-close>Cerrar</button>
+        </div>`);
+    } else if (hbSemLibre(h, day) && mark(h, day) !== 'just' && !h2Prot(h, day)) {   // 2.22.5 (W)
+      showMsg(`<h2>Día libre</h2>
+        <p class="meta">${esc(h.nombre)} · ${longDate(day)}</p>
+        <p>${esc(hbSemCalTxt(h, day))}</p>
+        <div class="dialog-actions">
+          <button class="primary" data-close>Cerrar</button>
+        </div>`);
+    } else if (isJust(h, day)) {
       showMsg(`<h2>Día justificado</h2>
         <p class="meta">${esc(h.nombre)} · ${longDate(day)}</p>
         <p>${esc(state.razones[h.id]?.[day] || 'Sin motivo')}</p>
@@ -4835,8 +5376,8 @@ $('#add-hour').onclick = () => {
   formHoras.sort(); renderHoras(); setTime('');
 };
 $('#hours-list').addEventListener('click', e => { const b = e.target.closest('[data-rm-hora]'); if (!b) return; formHoras = formHoras.filter(h => h !== b.dataset.rmHora); renderHoras(); });
-const metaUI = () => { const m = $('#form').elements.modo.value; $('#meta-row').hidden = m === 'check'; $('#meta-label').textContent = m === 'tiempo' ? 'Minutos al día' : 'Veces al día'; };
-$('#form').addEventListener('change', e => { if (e.target.name === 'modo') metaUI(); });
+const metaUI = () => { const m = $('#form').elements.modo.value; $('#meta-row').hidden = m === 'check' || String(m).startsWith('mt-') /* 2.22.5 (W) */; $('#meta-label').textContent = m === 'tiempo' ? 'Minutos al día' : 'Veces al día'; };
+$('#form').addEventListener('change', e => { if (e.target.name === 'modo') metaUI(); if (['modo', 'frec', 'mtcbn', 'mtcbh'].includes(e.target.name)) hbFormWUI(); });   // 2.22.5 (W)
 
 $('#icon-picker').innerHTML = Object.keys(ICONS).map((k, i) =>
   `<label><input type="radio" name="icono" value="${k}" ${i ? '' : 'checked'} aria-label="${k}"><span class="icon-pick">${icon(k)}</span></label>`).join('');
@@ -4903,6 +5444,7 @@ function openForm(h = null, { rutina = false, padre = '' } = {}) {
   setTime('');
   renderHoras(); metaUI(); tintForm();
   hbTrasOpciones(h);   // 2.20.2
+  try { hbFormW(formIsRoutine ? null : h); } catch (e) { console.warn('Hoja del hábito (W)', e); }   // 2.22.5 (W) · frecuencia y tipo de meta
   $('#form-dialog').showModal();
 }
 
@@ -4932,6 +5474,7 @@ $('#form').addEventListener('submit', e => {
     data.contras = lines(f.elements.contras.value);
     if (!data.beneficios.length || !data.contras.length) { e.preventDefault(); return; }
     data.dias = [...f.elements.dias].filter(c => c.checked).map(c => +c.value);
+    if (!hbFormWLeer(f, data)) { e.preventDefault(); dialogResult('Elige la hora', 'Esta meta necesita una hora.'); return; }   // 2.22.5 (W)
     if (!data.dias.length) { e.preventDefault(); dialogResult('Elige al menos un día', 'Un hábito necesita al menos un día de la semana.'); return; }
     // Si dejaste una hora puesta sin pulsar «Añadir», también cuenta.
     const pending = readTime(); if (pending && !formHoras.includes(pending)) formHoras.push(pending);
@@ -4945,6 +5488,7 @@ $('#form').addEventListener('submit', e => {
   }
   if (editing) { if (!formIsRoutine && (editing.padre || '') !== (data.padre || '')) { hbPrimeroSale(editing); delete editing.orden; editing.ordenEn = Date.now(); } delete editing.horasOrden; Object.assign(editing, data); }   // 2.21 (M)
   else state.habits.push({ id: crypto.randomUUID(), creado: today(), clave: false, rutina: formIsRoutine, ...data });
+  hbFormWFin(editing || state.habits[state.habits.length - 1]);   // 2.22.5 (W)
   save(); render();
 });
 
@@ -4968,6 +5512,7 @@ function anaDays(h, from) {
 }
 const rateOf = rows => { const done = rows.filter(r => r.st === 'done').length, miss = rows.filter(r => r.st === 'miss').length; return done + miss ? Math.round(done / (done + miss) * 100) : null; };
 function bestStreak(h) {
+  if (hbSemN(h)) return hbSemMejor(h);   // 2.22.5 (W) · en semanas
   let best = 0, cur = 0;
   for (let d = new Date(h.creado + 'T12:00'); dayKey(d) <= today(); d = addDays(d, 1)) {
     const k = dayKey(d);
@@ -5029,7 +5574,8 @@ function renderAnalisis() {
   const from = anaRange ? dayKey(addDays(new Date(), -(anaRange - 1))) : '0000-00-00';
   const rows = sel.flatMap(h => anaDays(h, from).map(r => ({ ...r, h })));
   const rate = rateOf(rows), done = rows.filter(r => r.st === 'done').length;
-  const best = Math.max(0, ...sel.map(bestStreak));
+  const selD = sel.filter(h => !hbSemN(h)), bestSem = !selD.length && sel.length > 0;   // 2.22.5 (W) · días y semanas no se mezclan
+  const best = Math.max(0, ...(bestSem ? sel : selD).map(bestStreak));
   const votes = sel.reduce((n, h) => n + stats(h).done, 0);
   const vueltas = sel.reduce((n, h) => { let prev = null, c = 0; for (let d = new Date(Math.max(Date.parse(h.creado + 'T12:00'), Date.parse((from === '0000-00-00' ? h.creado : from) + 'T12:00'))); dayKey(d) <= today(); d = addDays(d, 1)) { const k = dayKey(d); if (!isSched(h, k)) continue; if (prev && !isDone(h, prev) && !isJust(h, prev) && isDone(h, k)) c++; prev = k; } return n + c; }, 0);
 
@@ -5073,7 +5619,7 @@ function renderAnalisis() {
     <div class="summary ana-hero">
       <div><b>${rate === null ? '–' : rate + '%'}</b><span>acierto</span></div>
       <div><b>${done}</b><span>días hechos</span></div>
-      <div><b>${best}</b><span>mejor racha</span></div>
+      <div><b>${best}</b><span>${bestSem ? 'mejor racha (semanas)' : 'mejor racha'}</span></div>
       <div><b>${votes}</b><span>votos</span></div>
       <div><b>${vueltas}</b><span>veces que volviste</span></div>
     </div>
@@ -5082,7 +5628,7 @@ function renderAnalisis() {
     <section class="ana"><h3>Acierto por semana</h3>${wk.length ? barsSVG(wk, 'w') : '<p class="meta">Aún no hay semanas completas.</p>'}</section>
     <section class="ana"><h3>Días hechos acumulados</h3>${cumS.length > 1 ? lineSVG(cumS, 'c') : '<p class="meta">Marca al menos dos días.</p>'}</section>
     <section class="ana"><h3>Por día de la semana</h3>${barsSVG(wdItems, 'd')}</section>
-    ${!anaHabit && hs.length > 1 ? `<section class="ana"><h3>Por hábito</h3>${perH.map(p => hbar(`${icon(p.h.icono)}${esc(p.h.nombre)}`, p.rate ?? 0, 100, p.rate === null ? '–' : `${p.rate}% · ${flame(!p.best)}${p.best}`, p.h.color || 'var(--text)')).join('')}</section>` : ''}
+    ${!anaHabit && hs.length > 1 ? `<section class="ana"><h3>Por hábito</h3>${perH.map(p => hbar(`${icon(p.h.icono)}${esc(p.h.nombre)}`, p.rate ?? 0, 100, p.rate === null ? '–' : `${p.rate}% · ${flame(!p.best)}${p.best}${hbSemN(p.h) ? ' sem' : ''}`, p.h.color || 'var(--text)')).join('')}</section>` : ''}
     <section class="ana"><h3>Por qué no</h3>
       ${top.length ? top.map(g => hbar(esc(g.text) + (anaHabit || g.habits.size > 1 ? '' : ` <small>${esc([...g.habits][0])}</small>`), g.n, top[0].n, g.n)).join('') : '<p class="meta">Sin motivos apuntados todavía.</p>'}
       ${missNoReason ? `<p class="meta" style="margin-top:10px">${missNoReason} ${missNoReason === 1 ? 'día no hecho sin motivo' : 'días no hechos sin motivo'}. Tócalos en el calendario para apuntar qué pasó.</p>` : ''}
@@ -5567,7 +6113,7 @@ function pendientes() {
   const agH = new Map();   // 2.21.2 (H) · 2.21.4 (S) · la Agenda ya no tiene hábitos: cada uno va a su hora
   const horaDe = h => { const it = agH.get(h.id); return it ? (/^\d\d:\d\d$/.test(it.h || '') ? it.h : '99') : firstHour(h); }, rkDe = h => { const it = agH.get(h.id); return it && +it.rango >= 1 ? +it.rango : 1e9; };
   const habits = (s.habits || [])
-    .filter(h => !h.rutina && (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !s.log?.[h.id]?.[t] && !window.hbProtegido?.(h, t))
+    .filter(h => !h.rutina && (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !s.log?.[h.id]?.[t] && !window.hbProtegido?.(h, t) && !window.hbMtCerrado?.(h, t))   // 2.22.5 (W)
     .sort((a, b) => horaDe(a) < horaDe(b) ? -1 : horaDe(a) > horaDe(b) ? 1 : rkDe(a) - rkDe(b) || (RKp.get(a.id) ?? 1e7) - (RKp.get(b.id) ?? 1e7));   // 2.21 (M) · 2.21.2 (H) · por hora; empate: el número y luego tu orden
   const items = (s.tareas?.items || []).filter(x => !x.hecha);
   const due = items.filter(x => x.fecha && x.fecha <= t).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
@@ -11540,13 +12086,14 @@ function ivPonerAviso(k, r) {
   } });
 }
 // «+ Iniciativa propia»: la categoría y, después, el formulario SMART de esa categoría (iniCrearSmart, se guarda en «Mis iniciativas»).
-function ivPropia() {
+function ivPropia(cb) {   // 2.22.5 (C) · cb(k, r): desde «Elegir iniciativa» del Inicio, la deja en la tarjeta en vez de en tu día
+  if (typeof cb !== 'function') cb = null;
   showSheet(`<h2>Iniciativa propia</h2><p class="note">¿De qué es? Después la armas en un minuto.</p>
     <div class="rows">${IV_ORDEN.filter(k => iniIdx(k) >= 0).map(k => { const [, n, d] = INI4[iniIdx(k)]; return `<button class="row" data-ivp="${k}"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>${esc(n)}</div><small>${esc(d)}</small></span><span class="tag">›</span></button>`; }).join('')}</div>
     <div class="actions"><button class="link" id="ivp-x">Cerrar</button></div>`);
   const b = $('#sheet-body');
   $('#ivp-x').onclick = closeSheet;
-  b.querySelectorAll('[data-ivp]').forEach(x => x.onclick = () => { const k = x.dataset.ivp; iniCrearSmart(k, r => { if (!r) return ivPropia(); closeSheet(); ivPonerAviso(k, r); }); });
+  b.querySelectorAll('[data-ivp]').forEach(x => x.onclick = () => { const k = x.dataset.ivp; iniCrearSmart(k, r => { if (!r) return ivPropia(cb); closeSheet(); if (cb) cb(k, r); else ivPonerAviso(k, r); }); });
 }
 window.ivPropia = ivPropia;
 
@@ -11767,10 +12314,12 @@ function agParaToque(q, k, t, bid) {
     agParaRepintar(); return;
   }
   const I = ini4Semana(), x0 = I.items[iniIdx(k)], elegida = !!(x0 && x0.t && x0.t === t && !x0.hecho);
-  if (!(INI_CAT[k] || []).includes(t) && !elegida) return;
+  const enCat = (INI_CAT[k] || []).includes(t), mia = !elegida ? (ES.catalogoIni?.[k] || []).find(o => o && o.t === t) : null;   // 2.22.5 (C) · la tuya primero, aunque el texto también esté en el catálogo (la tarjeta y la hoja la muestran así)
+  if (!enCat && !elegida && !mia) return;
   if (q === 'hecho' && marcaBloq('ag', '\u0000para')) return;   // otro ✓ hace un instante: el 2.º toque no marca esto
   const sinXp = !IV_ORDEN.some(c => iniIdx(c) >= 0 && !(I.items[iniIdx(c)] || {}).hecho), c0 = !!agenda().completa;
   const r = elegida ? { t, exito: x0.exito, min: x0.min, h: x0.hora || '', por: x0.por, paso: x0.paso, obj: x0.obj, iden: x0.iden }
+    : mia ? { t, exito: mia.exito || EXITO_DEF[k], min: +mia.min || agParaMin(t), h: mia.hora || '', por: mia.por || '', paso: mia.paso || '', obj: mia.obj || '', iden: mia.iden || '', src: 'mia:' + mia.id }
     : { t, exito: EXITO_DEF[k], min: agParaMin(t), h: '', por: '', paso: '', src: 'idea' };
   const R = ivPoner(k, r); if (!R) return;
   const it = R.it;
@@ -18990,6 +19539,12 @@ const INI_CSS = `
   .ic-c .ag-foco-b .ic-stp:disabled { opacity: .4; }
   .ic-c .ic-num { flex: 0 0 auto; min-width: 34px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
   .ic-c .ag-foco-d { margin-top: 6px; } .ic-c .ag-foco-d .link { min-width: 44px; justify-content: center; }
+  #ini-c-ini .ic-ini-m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 2.22.5 (C) · «Categoría: …» en una línea */
+  @media (max-width: 359px) { #ini-c-ini .ic-ini-m { font-size: .78rem; letter-spacing: -.02em; } }
+  #ini-c-ini .ag-foco-t { height: 2.5em; min-height: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }   /* alto fijo: «Siguiente» recorre ideas largas y cortas sin mover nada; el mismo alto que reservaba 2.22.4 */
+  @media (max-width: 389px) { #ini-c-ini .ag-foco-t { height: 3.75em; -webkit-line-clamp: 3; } }
+  #ini-c-ini .ic-ini-pie { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: -6px; }
+  #ini-c-ini .ic-ini-sx { margin-right: auto; font-size: .85rem; } #ini-c-ini .ic-elegir { white-space: nowrap; }
   @media (max-width: 359px) { .ag-foco-b button { font-size: .84rem; } }`;
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS + AG_YA_BTN_CSS; iniR.append(iniStyle, iniW); }   // 2.21.3 (B) · AG_YA_BTN_CSS
@@ -19169,6 +19724,7 @@ function iniFocoWire() {
 function iniRepintar() { try { if (view === 'inicio' && !document.getElementById('view-inicio')?.hidden) renderInicio(); } catch (e) { console.warn('Inicio', e); } }
 
 // ====================================================================
+// 2.22.5 (C) · Iniciativa: categoría, «Siguiente» y «Elegir iniciativa».
 // 2.22.4 (T) · «Te pedí todos los apartados previamente hablados con este estilo en el inicio.» Una tarjeta grande por apartado, con las
 // clases de la de arriba (ag-foco-c, ag-foco-k, ag-foco-t, ag-foco-m, ag-foco-b), siempre a la vista. Cada botón llama a lo mismo que su
 // sección (nada se duplica): el estado, el XP y la píldora salen iguales. Se pinta con renderInicio (los mismos repintados de siempre:
@@ -19233,17 +19789,93 @@ function icEstHtml() {
     icB('ag-fb-ok', 'est-ok', '✓ Hecho') + emp, icL('est-ver', 'Ver ruta'), ` data-ic-b="${esc(b.id)}" data-ic-ruta="${esc(x.r.id)}"`);
 }
 const E_txt = b => { try { return window.est.textoBloque(b); } catch { return 'Estudio'; } };
-// ---------- T3 · Iniciativa: una idea del catálogo (agParaIdeas de 2.22.3 A), con «Otra»
-function icIniHtml() {
-  const L = agParaIdeas(), otra = '<button type="button" class="ag-fb-man" data-para="otra" aria-label="Otra iniciativa">Otra</button>';
-  if (!L.length) return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p><p class="ag-foco-t">Elige una iniciativa</p><p class="ag-foco-m">Todas son opcionales: haz las que quieras.</p>
-    <div class="ag-foco-b"><button type="button" class="ag-fb-go" data-para="ver">Ver iniciativas</button></div></section>`;
-  const x = L[((agParaN % L.length) + L.length) % L.length];
-  const min = x.elegida ? (+(ini4Semana().items[iniIdx(x.k)] || {}).min || agParaMin(x.t)) : agParaMin(x.t);
-  return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" data-para-k="${esc(x.k)}" data-para-t="${esc(x.t)}" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p>
-    <p class="ag-foco-t">${esc(x.t)}</p><p class="ag-foco-m">${esc(iniNombre(x.k))} · ${icMin(min)}${x.sinXp ? ' · sin XP extra' : ''}</p>
-    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-para="hecho">✓ Hecho</button><button type="button" class="ag-fb-go" data-para="empezar">Empezar</button>${otra}</div></section>`;
+// ---------- T3 · Iniciativa: una idea del catálogo (agParaIdeas de 2.22.3 A)
+// 2.22.5 (C) · «Pon la categoría, que pueda darle a siguiente y vea demás propuestas; abajo a la derecha, Elegir iniciativa.»
+// La lista entera de propuestas, en un orden fijo: primero las de hoy (agParaIdeas: categorías aún sin hacer, como en 2.22.4), después las
+// demás de esas categorías y luego las de las categorías ya hechas, una de cada categoría por vuelta; en cada una, primero las tuyas
+// («Mis iniciativas») y después el catálogo. Fuera lo que ya está en tu día (salvo la elegida de una categoría sin hacer), como ivIdeas.
+var icIniSel = null;   // { d, k, t }: la que está en la tarjeta (elegida o con «Siguiente»); solo hoy, en memoria
+const icIniKey = x => x.k + '\u0000' + x.t;
+function icIniMias(k) { try { return (ES.catalogoIni?.[k] || []).filter(o => o && typeof o.t === 'string' && o.t.trim()); } catch { return []; } }
+function icIniCats() { return IV_ORDEN.filter(k => iniIdx(k) >= 0); }
+// Todas las de una categoría (las tuyas primero, sin repetir el texto), para la hoja y para la lista.
+function icIniDeCat(k) {
+  const out = [], vistos = new Set();
+  for (const o of icIniMias(k)) if (!vistos.has(o.t)) { vistos.add(o.t); out.push({ k, t: o.t, mia: o }); }
+  for (const t of INI_CAT[k] || []) if (!vistos.has(t)) { vistos.add(t); out.push({ k, t }); }
+  return out;
 }
+function icIniLista() {
+  const I = ini4Semana(), cats = icIniCats(), libres = cats.filter(k => !(I.items[iniIdx(k)] || {}).hecho), sinXp = !libres.length;
+  const A = agenda(), ya = new Set((A.items || []).map(it => String(it && it.t || '')));
+  const eleg = k => { const x = I.items[iniIdx(k)] || {}; return !x.hecho && x.t ? x.t : ''; };
+  const vale = x => !ya.has(x.t) || eleg(x.k) === x.t;
+  const out = [], en = new Set(), pon = x => { const q = icIniKey(x); if (en.has(q) || !vale(x)) return; en.add(q); out.push({ ...x, sinXp }); };
+  for (const x of agParaIdeas()) { const mia = x.elegida ? null : icIniMias(x.k).find(o => o.t === x.t); pon({ k: x.k, t: x.t, elegida: !!x.elegida, ...(mia ? { mia } : {}) }); }
+  const orden = [...libres, ...cats.filter(k => !libres.includes(k))];
+  const por = orden.map(k => { const L = icIniDeCat(k), m = L.filter(x => x.mia), c = L.filter(x => !x.mia), s0 = c.length ? (semilla() + iniIdx(k) * 5) % c.length : 0; return [...m, ...c.slice(s0), ...c.slice(0, s0)]; });
+  const n = Math.max(0, ...por.map(L => L.length));
+  for (let i = 0; i < n; i++) for (const L of por) if (L[i]) pon({ k: L[i].k, t: L[i].t, elegida: eleg(L[i].k) === L[i].t, ...(L[i].mia ? { mia: L[i].mia } : {}) });
+  return out;
+}
+// La de la tarjeta: la que elegiste o a la que llegaste hoy, si sigue en la lista; si no, la primera (la de 2.22.4).
+function icIniActual(L = icIniLista()) {
+  if (!L.length) return null;
+  if (icIniSel && icIniSel.d === today()) { const x = L.find(y => y.k === icIniSel.k && y.t === icIniSel.t); if (x) return x; }
+  return L[0];
+}
+function icIniSiguiente() {
+  const L = icIniLista(); if (!L.length) return null;
+  const a = icIniActual(L), i = L.findIndex(y => y.k === a.k && y.t === a.t), x = L[(i + 1) % L.length];
+  icIniSel = { d: today(), k: x.k, t: x.t }; return x;
+}
+function icIniMin(x) {
+  const m = x.mia && +x.mia.min; if (m >= 1 && m <= 240) return m;
+  return x.elegida ? (+(ini4Semana().items[iniIdx(x.k)] || {}).min || agParaMin(x.t)) : agParaMin(x.t);
+}
+function icIniHtml() {
+  const L = icIniLista(), x = icIniActual(L);
+  const sig = '<button type="button" class="ag-fb-man ic-sig" data-ic="ini-sig" aria-label="Siguiente iniciativa">Siguiente</button>';
+  const pie = sx => `<p class="ag-foco-d ic-ini-pie">${sx ? '<span class="ic-ini-sx">Sin XP extra</span>' : ''}<button type="button" class="link ag-para-add ic-elegir" data-ic="ini-elegir">Elegir iniciativa</button></p>`;
+  if (!x) return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p><p class="ag-foco-t">Elige una iniciativa</p><p class="ag-foco-m">Todas son opcionales: haz las que quieras.</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-go" data-para="ver">Ver iniciativas</button></div>${pie(false)}</section>`;
+  const cat = iniNombre(x.k);
+  return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" data-para-k="${esc(x.k)}" data-para-t="${esc(x.t)}" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p>
+    <p class="ag-foco-t" title="${esc(x.t)}">${esc(x.t)}</p><p class="ag-foco-m ic-ini-m" title="Categoría: ${esc(cat)}">Categoría: ${esc(cat)} · ${icMin(icIniMin(x))}</p>
+    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-para="hecho">✓ Hecho</button><button type="button" class="ag-fb-go" data-para="empezar">Empezar</button>${sig}</div>${pie(x.sinXp)}</section>`;
+}
+// «Elegir iniciativa»: la hoja de siempre, con todas por categoría y «+ Crear una iniciativa» arriba.
+var icHojaL = [];
+function icIniPoner(k, t) {
+  icIniSel = { d: today(), k, t }; iniRepintar();
+  const n = iniW.querySelector('#ini-c-ini');
+  if (n) { n.querySelector('[data-para="hecho"]')?.focus({ preventScroll: true }); const tt = n.querySelector('.ag-foco-t')?.textContent.trim(), mm = n.querySelector('.ag-foco-m')?.textContent.trim(); if (tt) agParaDecir(`En la tarjeta: ${tt}. ${mm || ''}`); }
+}
+function icIniHoja() {
+  const L = icIniLista(), en = new Set(L.map(icIniKey)), a = icIniActual(L), aK = a ? icIniKey(a) : '';
+  icHojaL = [];
+  const grupo = k => {
+    const filas = icIniDeCat(k).map(x => {
+      const n = icHojaL.push(x) - 1, q = icIniKey(x), ok = en.has(q), min = icIniMin({ ...x, elegida: (L.find(y => icIniKey(y) === q) || {}).elegida });
+      const sub = [fmtMin(min), x.mia ? 'Mía' : '', !ok ? 'Ya en tu día' : '', q === aK ? 'En la tarjeta' : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="row ic-el-row${q === aK ? ' on' : ''}" data-ici="${n}"${ok ? '' : ' aria-disabled="true"'} aria-label="${esc(x.t)}. ${esc(sub)}"><span class="dot" style="--c:${x.mia ? 'var(--green)' : 'var(--accent)'}"></span><span class="t"><div>${esc(x.t)}</div><small>${esc(sub)}</small></span><span class="tag">›</span></button>`;
+    }).join('');
+    return `<h3 class="ic-el-h">${esc(iniNombre(k))}</h3><div class="rows" role="group" aria-label="${esc(iniNombre(k))}">${filas}</div>`;
+  };
+  showSheet(`<h2>Elegir iniciativa</h2><p class="note">Toca una y queda en la tarjeta del Inicio. Todas son opcionales.</p>
+    <button type="button" class="ic-el-crear" id="ic-el-crear">+ Crear una iniciativa</button>
+    <div class="ic-el">${icIniCats().map(grupo).join('')}</div>
+    <div class="actions"><button class="link" id="ic-el-x">Cerrar</button></div>`);
+  const b = $('#sheet-body');
+  $('#ic-el-x').onclick = closeSheet;
+  $('#ic-el-crear').onclick = () => ivPropia((k, r) => { if (r && r.t) icIniPoner(k, r.t); });
+  b.querySelectorAll('[data-ici]').forEach(r => r.onclick = () => { const x = icHojaL[+r.dataset.ici]; if (!x) return; if (r.getAttribute('aria-disabled') === 'true') { toast('Ya está en tu día'); return; } closeSheet(); icIniPoner(x.k, x.t); });
+  setTimeout(() => b.querySelector('.ic-el-row.on')?.scrollIntoView?.({ block: 'center' }), 60);
+}
+try { const st = document.createElement('style'); st.textContent = `
+  .ic-el-crear { display: block; width: 100%; min-height: 52px; margin: 4px 0 6px; border-radius: 999px; border: 1.5px solid var(--text); background: transparent; color: var(--text); font-weight: 600; font-size: 1rem; }
+  .ic-el-h { margin: 18px 0 2px; } .ic-el .row { min-height: 52px; } .ic-el .row .t { min-width: 0; } .ic-el .row .t div { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.3; }
+  .ic-el .row[aria-disabled="true"] { opacity: .5; } .ic-el .row.on .t div { font-weight: 700; }`; ov.appendChild(st); } catch {}
 // ---------- T4 · Hábitos: el siguiente pendiente de hoy (pendientes(): por hora y tu orden)
 function icHabito() {
   const S = HT(), t = today(), w = wd(t), act = (S.habits || []).filter(h => h && !h.rutina);
@@ -19251,6 +19883,16 @@ function icHabito() {
   const hoy = act.filter(h => (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !window.hbProtegido?.(h, t));
   const hechos = hoy.filter(h => { const v = S.log?.[h.id]?.[t]; return v === 'full' || v === 'min'; }).length;
   return { h: (pendientes().habits || [])[0] || null, tot: hoy.length, hechos };
+}
+// 2.22.5 (W) · Un hábito con tipo de meta: en la tarjeta, los botones de la meta (como en Metas de consistencia).
+function hbMtIcBtns(h) {
+  const m = hbMt(h), t = today(), r = hbMtReg(h, t), k = hbMtClave(m), v = hbMtV(r) || 0, hh = hbMtH(r);
+  if (k === 'si') return icB('ag-fb-ok', 'hbm-csi', '✓ Sí') + icB('ag-fb-go', 'hbm-cno', 'No');
+  if (k === 'antes' || k === 'despues') return icB('ag-fb-ok', 'hbm-csi', '✓ Sí') + icB('ag-fb-go', 'hbm-cno', 'No');
+  let b = `${icB('ag-fb-go ic-stp', 'hbm-menos', '−', ` aria-label="Uno menos"${v <= 0 ? ' disabled' : ''}`)}<span class="ic-num" aria-live="polite">${v}</span>${icB('ag-fb-go ic-stp', 'hbm-mas', '+', ' aria-label="Uno más"')}`
+    + (m.tipo === 'max' && hbMtV(r) === null ? icB('ag-fb-man', 'hbm-cero', 'Hoy, ninguno') : '');
+  if (k === 'comb' && !(m.tipo === 'max' && v > m.n)) { const q = hbMtQ(m); b += `</div><div class="ag-foco-b ic-cbh" role="group" aria-label="${esc(q)}"><span class="ic-cbq">${esc(q)}</span>${icB('ag-fb-go' + (hh === true ? ' ic-on' : ''), 'hbm-hsi', 'Sí', ` aria-pressed="${hh === true}"`)}${icB('ag-fb-go' + (hh === false ? ' ic-on ic-no' : ''), 'hbm-hno', 'No', ` aria-pressed="${hh === false}"`)}`; }
+  return b;
 }
 function icHbHtml() {
   const x = icHabito(), ver = icB('ag-fb-go', 'hb-ver', 'Ver hábitos');
@@ -19262,15 +19904,16 @@ function icHbHtml() {
   let rc = 0; try { rc = +stats(h).streak || 0; } catch {}
   let T = null; try { const T0 = tempDe(cadHabItem(h).id); T = T0 && T0.d === today() ? T0 : null; } catch {}
   const emp = T ? `<button type="button" class="ag-fb-go ag-fb-temp" data-ic="hb-emp" aria-label="Temporizador en marcha. Toca para verlo"><span data-temp-left data-temp-corto>${tempTxt(T, true)}</span></button>` : icB('ag-fb-go', 'hb-emp', 'Empezar');
-  return icCard('hb', 'Hábitos', `Hábito${hora && !agHorasOcultas() ? ' · ' + fmtHora(hora) : ''}`, esc(h.nombre), `${rc ? `Racha de ${rc} ${rc === 1 ? 'día' : 'días'} · ` : ''}${cuenta}`,
-    icB('ag-fb-ok', 'hb-ok', '✓ Hecho') + emp + icB('ag-fb-man', 'hb-no', 'Hoy no'), '', ` data-ic-h="${esc(h.id)}"`);
+  const sem = hbSemN(h) ? stats(h).semanas : false;   // 2.22.5 (W) · semanal: racha en semanas y «4 de 6 esta semana»; con meta, su regla
+  return icCard('hb', 'Hábitos', `Hábito${hora && !agHorasOcultas() ? ' · ' + fmtHora(hora) : ''}`, esc(h.nombre), `${hbMt(h) ? esc(hbMtEstado(h, today()).txt) + ' · ' : ''}${rc ? `Racha de ${rc} ${sem ? (rc === 1 ? 'semana' : 'semanas') : rc === 1 ? 'día' : 'días'} · ` : ''}${sem ? esc(hbSemTxt(h)) + ' · ' : ''}${cuenta}`,
+    hbMt(h) ? hbMtIcBtns(h) : icB('ag-fb-ok', 'hb-ok', '✓ Hecho') + emp + icB('ag-fb-man', 'hb-no', 'Hoy no'), '', ` data-ic-h="${esc(h.id)}"`);
 }
 // ---------- T5 · Metas de consistencia: la siguiente sin anotar hoy, con sus controles de siempre
 function icCons() {
   const A = csActivas(); if (!A.length) return { vacio: true };
   const L = A.filter(c => csToca(c, csDiaDe(c))); if (!L.length) return { nada: true };
   const n = L.filter(c => csReg(c, csDiaDe(c))?.ok).length;
-  const pend = c => { const d = csDiaDe(c), r = csReg(c, d); return r ? c.tipo === 'min' && !r.ok : !csTemprano(c, d); };
+  const pend = c => { const d = csDiaDe(c), r = csReg(c, d); if (csCb(c)) return csCbPend(c, d); return r ? c.tipo === 'min' && !r.ok : !csTemprano(c, d); };   // 2.22.5 (K)
   const fijo = icCsFijo && icCsFijo.d === today() ? L.find(c => c.id === icCsFijo.id) || null : null;
   let P = null; try { P = csPregunta(); } catch {}
   const M = P ? L.filter(c => !(c.id === P.c.id && csDiaDe(c) === P.ay)) : L;   // la que ya pregunta arriba la tarjeta de la mañana no se repite
@@ -19287,14 +19930,15 @@ function icCsHtml() {
   const c = x.c, d = csDiaDe(c), r = csReg(c, d), st0 = csEstado(c, d), id = esc(c.id), t = today();
   const cuando = d === t ? 'Hoy' : csCuando(c, d) === 'anoche' ? 'Anoche' : 'Ayer';   // de mañana, la de anoche: como en la sección
   const st = { ...st0, txt: d !== t && st0.txt.startsWith('Hoy') ? st0.txt.replace(/^Hoy/, cuando).replace('Mañana, otra', 'Hoy, otra') : st0.txt };
-  const k = `Meta de consistencia${c.tipo === 'antes' || c.tipo === 'despues' ? ' · ' + esc(csHora12(c.hora)) : ''}`;
+  const k = `Meta de consistencia${c.tipo === 'antes' || c.tipo === 'despues' ? ' · ' + esc(csHora12(c.hora)) : csCb(c) ? ' · ' + esc(csHora12(c.comb.hora)) : ''}`;
   let btns, m;
   if (!r && csTemprano(c, d)) { btns = ver; m = esc(st.txt); }
   else if (c.tipo === 'max' || c.tipo === 'min') {
-    const v = r ? +r.v || 0 : 0;
+    const rr = csCb(c) ? csRaw(c, d) : r, v = rr ? +rr.v || 0 : 0;   // 2.22.5 (K)
     btns = `${icB('ag-fb-go ic-stp', 'cs-menos', '−', ` aria-label="Uno menos"${v <= 0 ? ' disabled' : ''}`)}<span class="ic-num" aria-live="polite">${v}</span>${icB('ag-fb-go ic-stp', 'cs-mas', '+', ' aria-label="Uno más"')}`
-      + (c.tipo === 'max' && !r ? icB('ag-fb-man', 'cs-cero', `${cuando}, ninguno`) : x.fijo ? icB('ag-fb-man', 'cs-listo', 'Listo') : '');
-    m = d !== t ? esc(st.txt) : esc(r ? st.txt : csRegla(c)) + ` · ${cuenta}`;
+      + (c.tipo === 'max' && !rr ? icB('ag-fb-man', 'cs-cero', `${cuando}, ninguno`) : x.fijo ? icB('ag-fb-man', 'cs-listo', 'Listo') : '');
+    m = d !== t ? esc(st.txt) : esc(rr ? st.txt : csRegla(c)) + ` · ${cuenta}`;
+    if (csCb(c) && !(c.tipo === 'max' && v > c.n)) { const h = csCbH(rr); btns += `</div><div class="ag-foco-b ic-cbh" role="group" aria-label="${esc(csCbQ(c))}"><span class="ic-cbq">${esc(csCbQ(c))}</span>${icB('ag-fb-go' + (h === true ? ' ic-on' : ''), 'cs-hsi', 'Sí', ` aria-pressed="${h === true}"`)}${icB('ag-fb-go' + (h === false ? ' ic-on ic-no' : ''), 'cs-hno', 'No', ` aria-pressed="${h === false}"`)}`; }   // 2.22.5 (K) · la parte de hora
   } else {
     btns = icB('ag-fb-ok', 'cs-si', '✓ Lo cumplí') + icB('ag-fb-go', 'cs-no', `${cuando} no`);
     m = d !== t ? `${csSub(c) ? esc(csSub(c)) + ' · ' : ''}${esc(st.txt)}` : `${csSub(c) ? esc(csSub(c)) + ' · ' : ''}${cuenta}`;
@@ -19319,12 +19963,15 @@ function icTarjetasHtml() {
     if (oc.has(IC_SEC[k])) continue;
     try { out.push(f() || ''); } catch (e) { console.warn('Tarjeta del Inicio', k, e); }
   }
+  try { out.push(igTarjetasHtml(oc)); } catch (e) { console.warn('Tarjetas del Inicio (G)', e); }   // 2.22.5 (G) · Gratitud y Oración
   return out.join('');
 }
 // ---------- Los toques (uno solo, en el Inicio): lo mismo que en cada sección
 function icToque(q, c) {
   const ds = c ? c.dataset : {};
   if (q === 'agenda') { irA('agenda'); return; }
+  if (q === 'ini-sig') { icIniSiguiente(); return; }   // 2.22.5 (C) · mirar no da XP
+  if (q === 'ini-elegir') { icIniHoja(); return; }
   if (q === 'est-nueva') { window.est?.nuevaRuta?.(); return; }
   if (q === 'est-ver') { window.est?.abrir?.(ds.icRuta || ''); return; }
   if (q === 'est-ok' || q === 'est-emp') {
@@ -19338,6 +19985,7 @@ function icToque(q, c) {
   }
   if (q === 'hb-nuevo') { openForm(); return; }
   if (q === 'hb-ver') { irA('hoy'); return; }
+  if (q.startsWith('hbm-')) { const h = HT().habits.find(x => x && x.id === ds.icH); if (h) hbMtAccion(h, q.slice(4)); return; }   // 2.22.5 (W)
   if (q === 'hb-ok' || q === 'hb-emp' || q === 'hb-no') {
     const h = HT().habits.find(x => x && x.id === ds.icH); if (!h) return;
     if (q === 'hb-emp') { window.cadena?.empHb?.(h); return; }
@@ -19361,6 +20009,7 @@ function icToque(q, c) {
     else if (q === 'cs-no') csAnotar(cc, false, '');
     else if (q === 'cs-mas' || q === 'cs-menos') { icCsFijo = { id: cc.id, d: today() }; csPaso(cc, q === 'cs-mas' ? 1 : -1); }
     else if (q === 'cs-cero') { icCsFijo = null; csCero(cc); }
+    else if (q === 'cs-hsi' || q === 'cs-hno') csCbHora(cc, q === 'cs-hsi');   // 2.22.5 (K)
     return;
   }
   if (q === 'rf-resp') { rfEmpezar('intro'); return; }
@@ -19369,7 +20018,7 @@ function icToque(q, c) {
   if (q === 'rf-lista') { rfAbrir(); return; }
   if (q === 'rf-ideas') { irA('pizarra'); return; }
 }
-const IC_DECIR = { 'rf-otra': 1, 'est-ok': 1, 'hb-ok': 1, 'cs-si': 1, 'cs-no': 1, 'cs-mas': 1, 'cs-menos': 1, 'cs-cero': 1 };
+const IC_DECIR = { 'ini-sig': 1, 'rf-otra': 1, 'est-ok': 1, 'hb-ok': 1, 'cs-si': 1, 'cs-no': 1, 'cs-mas': 1, 'cs-menos': 1, 'cs-cero': 1, 'cs-hsi': 1, 'cs-hno': 1 };
 iniW.addEventListener('click', e => {
   const b = e.target.closest?.('[data-ic]'); if (!b || !iniW.contains(b) || b.disabled) return;
   e.stopPropagation();
@@ -19378,7 +20027,7 @@ iniW.addEventListener('click', e => {
   iniRepintar();
   const n = cid ? iniW.querySelector('#' + CSS.escape(cid)) : null; if (!n || n === c) return;
   if (foco) (n.querySelector(`[data-ic="${q}"]:not([disabled])`) || n.querySelector('button:not([disabled])'))?.focus({ preventScroll: true });   // el foco no se va al principio
-  if (IC_DECIR[q]) { const tt = n.querySelector('.ag-foco-t')?.textContent.trim(), kk = n.querySelector('.ag-foco-k')?.textContent.trim(); if (tt) agParaDecir(`${kk ? kk + ': ' : ''}${tt}`); }
+  if (IC_DECIR[q]) { const tt = n.querySelector('.ag-foco-t')?.textContent.trim(), kk = n.querySelector('.ag-foco-k')?.textContent.trim(), mm = n.querySelector('.ag-foco-m')?.textContent.trim(); if (tt) agParaDecir(q === 'ini-sig' ? `Siguiente: ${tt}. ${mm || ''}` : `${kk ? kk + ': ' : ''}${tt}`); }   // 2.22.5 (C)
 });
 // El «+» flotante no tapa un botón de las tarjetas: si queda encima de uno (en reposo o al terminar de desplazar), sube lo justo para
 // quedar sobre esa fila de botones (sobre texto, no sobre un botón). Sigue a la vista y a un toque. Solo si no hay hueco en la mitad de
@@ -19411,6 +20060,161 @@ const icFabQuieto = () => { clearTimeout(icFabT); icFabT = setTimeout(icFabPide,
 addEventListener('scroll', icFabQuieto, { passive: true });
 addEventListener('resize', icFabQuieto, { passive: true });
 window.icFabCede = icFabPide;
+
+// ====================================================================
+// 2.22.5 (G) · «Agrega una pestaña del estilo que hemos hablado que sea de agradecimiento, otra de oración. Ambas te deben llevar a actuar
+// desde ahí y te permiten llevar con un botón a su apartado para más profundidad.» Dos tarjetas más, con las clases de 2.22.4 (ic-c).
+// Cada botón llama a lo mismo que su sección: Gratitud, a la práctica «Gracias a Dios: tres cosas» de Bienestar (ES.buenas de hoy y
+// practicaRegistrar); Oración, a la casilla de Vida espiritual (espMarcar, fbHecho y espDeshacer). Nada se guarda al pintar.
+// Sus botones llevan data-ig (no data-ic): tienen su propio oyente y no tocan el de 2.22.4.
+// ====================================================================
+const IG_MAX = 3;   // desde aquí, hasta tres gracias al día (en Bienestar, las que quieras)
+var igDraft = '';   // lo que escribes (por si un toque propio repinta la tarjeta)
+function igBuenasHoy() { const t = today(), b = (Array.isArray(ES.buenas) ? ES.buenas : []).find(x => x && x.d === t); return b && Array.isArray(b.items) ? b.items.filter(x => typeof x === 'string' && x.trim()) : []; }
+function igCampo(ph) {
+  // Si el campo tenía el foco, vuelve a tenerlo tras el repintado (en el mismo turno, con el cursor donde estaba).
+  let a = null; try { a = iniR?.activeElement; } catch {}
+  if (a && a.id === 'ig-in') { const p = a.selectionStart; queueMicrotask(() => { const n = iniW.querySelector('#ig-in'); if (!n || iniR.activeElement === n) return; n.focus({ preventScroll: true }); try { n.setSelectionRange(p, p); } catch {} }); }
+  return `<div class="ig-in"><input id="ig-in" type="text" maxlength="140" enterkeyhint="done" autocomplete="off" placeholder="${esc(ph)}" aria-label="¿Por qué das gracias hoy?" value="${esc(igDraft)}"></div>`;
+}
+function igGrHtml() {
+  // La misma altura en todos los estados (revisión): el campo (o, con tres, su hueco con una nota), la línea gris de una sola línea y el
+  // enlace de abajo siempre están, así que guardar no empuja lo de abajo. El título queda corto; las gracias, en la línea gris.
+  const L = igBuenasHoy(), n = L.length, pie = igL('gr-ir', 'Ir a Gratitud');
+  const b = (cls, q, txt) => `<button type="button" class="${cls}" data-ig="${q}">${txt}</button>`;
+  const con = (hueco, t, m, btns) => icCard('gr', 'Gratitud de hoy', 'Gratitud de hoy', t, m, btns, pie)
+    .replace('<p class="ag-foco-m">', n ? `<p class="ag-foco-m" title="${esc(L.join(' · '))}">` : '<p class="ag-foco-m">')
+    .replace('<div class="ag-foco-b">', hueco + '<div class="ag-foco-b">');
+  if (!n) return con(igCampo('Doy gracias por…'), '¿Por qué das gracias hoy?', 'Una cosa concreta basta.', b('ag-fb-ok', 'gr-ok', '✓ Guardar'));
+  const t = `Hoy agradeciste ${n === 1 ? 'una cosa' : n + ' cosas'}`, m = `Última: «${esc(L[n - 1])}»`;
+  if (n < IG_MAX) return con(igCampo('Y también por…'), t, m, b('ag-fb-ok', 'gr-ok', '✓ Guardar'));
+  return con('<div class="ig-in"><p class="ig-nota">Tres hoy, gracias a Dios.</p></div>', t, m, b('ag-fb-go', 'gr-mas3', 'Añadir más'));
+}
+// Guardar una gracia: como «Amén» en «Gracias a Dios: tres cosas» (lo mismo en ES.buenas y, la primera del día, practicaRegistrar).
+// Devuelve false si no había nada que guardar. La píldora trae «Deshacer» (quita justo lo de este toque).
+function igGuardar(txt) {
+  txt = String(txt || '').replace(/\s+/g, ' ').trim().slice(0, 140); if (!txt) return false;
+  const t = today(), L0 = igBuenasHoy();
+  if (L0.length >= IG_MAX) return false;
+  if (L0.some(x => x.trim().toLowerCase() === txt.toLowerCase())) { igDraft = ''; return 'ya'; }
+  if (!Array.isArray(ES.buenas)) ES.buenas = [];
+  const pr = prDe('gracias'), I = ini4Semana(), e4 = I.items[4], iniYa = !!e4?.hecho, iniT0 = e4 ? e4.t : '';
+  const xp0 = new Set(Object.keys(xpLibroHoy(true) || {})), reg = !!pr && !practicasHoy().some(x => x.k === 'gracias');
+  let hoyB = ES.buenas.find(b => b && b.d === t); const nueva = !hoyB;
+  if (hoyB) hoyB.items = [...new Set([...(Array.isArray(hoyB.items) ? hoyB.items : []), txt])]; else { hoyB = { id: crypto.randomUUID(), d: t, items: [txt] }; ES.buenas.push(hoyB); }
+  let pid = '';
+  if (reg) { practicaRegistrar(pr, 2, true); pid = ES.practicas.at(-1)?.k === 'gracias' ? ES.practicas.at(-1).id : ''; } else guardar();
+  igDraft = '';
+  const deshacer = () => {
+    // Pasada la medianoche, no: el XP, los minutos y la iniciativa son del día en que guardaste (como el «Hoy no» de los hábitos).
+    if (today() !== t) { toast('Ya es otro día: lo de ayer queda como estaba.'); return; }
+    const B = (ES.buenas || []).find(b => b && b.id === hoyB.id);
+    if (B) { B.items = (B.items || []).filter(x => x !== txt); if (nueva && !B.items.length) ES.buenas = ES.buenas.filter(b => b !== B); }
+    // Si después la registraste también en Bienestar (otro «Amén» hoy), la práctica sigue cumplida: su XP y la iniciativa se quedan.
+    if (pid && (ES.practicas || []).some(x => x && x.k === 'gracias' && x.d === t && x.id !== pid)) { guardar(); try { renderBw(); } catch {} try { iniCambio(); } catch {} igRepintarYa(); return; }
+    if (pid) { const n0 = ES.practicas.length; ES.practicas = ES.practicas.filter(x => x.id !== pid); if (ES.practicas.length < n0) bump('espiritu', -2); }
+    const e = ini4Semana().items[4];
+    if (!iniYa && e?.hecho) { iniMarcar(4, false); if (!String(iniT0 || '').trim()) e.t = iniT0 || ''; }
+    for (const [k, v] of Object.entries(xpLibroHoy(true) || {})) if (!xp0.has(k) && v && v.n > 0) xpQuitar(k);
+    guardar(); try { renderBw(); } catch {} try { iniCambio(); } catch {} igRepintarYa();
+  };
+  fbHecho({ deshacer });
+  return true;
+}
+// ---------- Oración: la siguiente norma pendiente del plan de vida de hoy
+function igOracion() {
+  const E = espD(); if (!E.configurado) return { sin: true };
+  const L = espHoyLista(today()); if (!L.length) return { nada: true };
+  const pend = L.filter(x => !x.hecha), hechas = L.length - pend.length;
+  return { x: pend.length ? espSiguiente(L) || pend[0] : null, hechas, tot: L.length };
+}
+function igAgendaItem(id) { const A = ES.agendaHoy; return A && A.fecha === today() && Array.isArray(A.items) ? A.items.find(it => it && it.tipo === 'libre' && it.esp === id) || null : null; }
+const igL = (q, txt) => `<button type="button" class="link ag-para-add" data-ig="${q}">${txt}</button>`;   // el enlace de abajo, con data-ig
+function igOrHtml() {
+  const o = igOracion(), ir = t => `<button type="button" class="ag-fb-go" data-ig="or-ir">${t}</button>`, pie = igL('or-ir', 'Vida espiritual');
+  if (o.sin) return icCard('or', 'Oración', 'Oración', 'Arma tu plan de vida', 'Tus normas de piedad, cada una a su hora.', ir('Armar mi plan'));
+  if (o.nada) return icCard('or', 'Oración', 'Oración', 'Hoy no toca ninguna norma', 'Mañana sigue tu plan de vida.', ir('Vida espiritual'));
+  const cuenta = `${o.hechas} de ${o.tot} hoy`;
+  if (!o.x) return icCard('or', 'Oración', 'Oración', 'Tu plan de vida de hoy, hecho', cuenta, ir('Vida espiritual'));
+  const n = o.x.n, h = n.h && !agHorasOcultas() ? ' · ' + fmtHora(n.h) : '', it = igAgendaItem(n.id);
+  let T = null; try { T = it ? tempDe(it.id) : null; } catch {}
+  const emp = T ? `<button type="button" class="ag-fb-go ag-fb-temp" data-ig="or-emp" aria-label="Temporizador en marcha. Toca para verlo"><span data-temp-left data-temp-corto>${tempTxt(T, true)}</span></button>`
+    : `<button type="button" class="ag-fb-go" data-ig="or-emp">Empezar</button>`;
+  return icCard('or', 'Oración', `Oración${h}`, esc(o.x.nombre), `${+n.min ? icMin(+n.min) + ' · ' : ''}${cuenta}`,
+    `<button type="button" class="ag-fb-ok" data-ig="or-ok">✓ Hecho</button>${emp}`, pie, ` data-ig-n="${esc(n.id)}"`);
+}
+function igTarjetasHtml(oc) {
+  const out = [];
+  if (!oc.has('bienestar')) { try { out.push(igGrHtml()); } catch (e) { console.warn('Gratitud', e); } }
+  if (!oc.has('espiritu')) { try { out.push(igOrHtml()); } catch (e) { console.warn('Oración', e); } }
+  return out.join('');
+}
+// ---------- Los toques
+function igToque(q, c) {
+  const ds = c ? c.dataset : {};
+  if (q === 'gr-ok') {
+    const inp = c?.querySelector('#ig-in'), v = inp ? inp.value : igDraft; const r = igGuardar(v);
+    if (!r) { igDraft = v || ''; if (inp && !String(v || '').trim()) toast('Escribe una cosa y toca Guardar.'); return inp ? 'campo' : true; }
+    if (r === 'ya') toast('Esa ya la tenías hoy.'); return true;
+  }
+  if (q === 'gr-mas') return 'campo';   // (2.22.5 G, primera versión) el campo ya está siempre que haya menos de tres
+  if (q === 'gr-mas3') { if (!window.practicaIniciar?.('gracias')) irA('bienestar'); return false; }   // con tres: «Gracias a Dios: tres cosas» en Bienestar
+  if (q === 'gr-ir') { window.practicaIniciar?.('gratitud'); return false; }
+  if (q === 'or-ir') { irA('espiritu'); return false; }
+  if (q === 'or-ok' || q === 'or-emp') {
+    const id = ds.igN || ''; if (!espD().normas.some(n => n && n.id === id)) return true;
+    if (q === 'or-emp') { const it = igAgendaItem(id); if (it && !agHecho(it)) agFocoEmpezar(it); else espSheet(id); return true; }
+    if (espHecha(id)) return true;
+    const iniYa = !!ini4Semana().items[4]?.hecho;   // como la casilla de Vida espiritual (2.22.1 P)
+    espMarcar(id, true); if (view === 'espiritu') renderEspiritu();
+    if (espHecha(id)) fbHecho({ deshacer: () => { espDeshacer(id, iniYa); igRepintarYa(); } });
+    try { iniCambio(); } catch {}
+    return true;
+  }
+  return false;
+}
+iniW.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-ig]'); if (!b || !iniW.contains(b) || b.disabled) return;
+  e.stopPropagation();
+  const c = b.closest('section'), cid = c?.id || '', q = b.dataset.ig;
+  let r = false; try { r = igToque(q, c); } catch (err) { console.warn('Tarjeta del Inicio (G)', err); }
+  if (r === false) return;
+  igRepintarYa();
+  const n = cid ? iniW.querySelector('#' + CSS.escape(cid)) : null; if (!n) return;
+  const inp = n.querySelector('#ig-in');
+  if (r === 'campo' && inp) { inp.focus({ preventScroll: true }); return; }
+  (n.querySelector(`[data-ig="${q}"]:not([disabled])`) || n.querySelector('.ag-foco-b button:not([disabled])'))?.focus({ preventScroll: true });
+  const tt = n.querySelector('.ag-foco-t')?.textContent.trim(), kk = n.querySelector('.ag-foco-k')?.textContent.trim(); if (tt) agParaDecir(`${kk ? kk + ': ' : ''}${tt}`);
+});
+iniW.addEventListener('input', e => { if (e.target?.id === 'ig-in') igDraft = e.target.value; });
+// Mientras escribes en el campo, nada más repinta el Inicio (el minuto, la sincronización, iniCambio, el temporizador): quitar el nodo con el
+// foco cierra el teclado en el teléfono, rompe la palabra a medias del teclado (composición) y pierde la selección. Solo repintan tus
+// toques en la tarjeta (igForzar). Lo que quedó pendiente se repinta al salir del campo, cuando no hay un dedo abajo (para no quitarle el
+// botón a un toque que empieza).
+var igForzar = false, igPend = false, igPtr = false, igPendT = 0;
+function igRepintarYa() { igForzar = true; try { iniRepintar(); } finally { igForzar = false; } }   // lo que haces tú en la tarjeta (y su «Deshacer»)
+function igEscribiendo() { try { const a = iniR?.activeElement; return !!(a && a.id === 'ig-in' && a.isConnected); } catch { return false; } }
+const igRenderInicio0 = renderInicio;
+renderInicio = function () { if (!igForzar && igEscribiendo()) { igPend = true; return; } igPend = false; return igRenderInicio0.apply(this, arguments); };
+window.renderInicio = renderInicio;
+function igPendiente() { clearTimeout(igPendT); igPendT = setTimeout(() => { if (!igPend) return; if (igPtr || igEscribiendo()) { igPendiente(); return; } iniRepintar(); }, 400); }
+iniW.addEventListener('focusout', e => { if (e.target?.id === 'ig-in' && igPend) igPendiente(); });
+iniW.addEventListener('pointerdown', () => { igPtr = true; }, true);
+for (const ev of ['pointerup', 'pointercancel', 'click']) addEventListener(ev, () => { igPtr = false; }, true);
+iniW.addEventListener('keydown', e => {
+  if (e.target?.id !== 'ig-in' || e.key !== 'Enter' || e.isComposing) return;
+  e.preventDefault(); iniW.querySelector('#ini-c-gr [data-ig="gr-ok"]')?.click();
+});
+if (iniR) { const st = document.createElement('style'); st.textContent = `
+  .ic-c .ig-in { margin: 0 0 12px; }
+  .ic-c .ig-in input { width: 100%; min-height: 48px; box-sizing: border-box; border: 1.5px solid var(--line); border-radius: 14px; padding: 0 14px; font-size: 1rem; background: transparent; color: var(--text); }
+  .ic-c .ig-in input:focus { border-color: var(--text); outline: none; }
+  .ic-c .ig-nota { margin: 0; min-height: 48px; box-sizing: border-box; display: flex; align-items: center; padding: 0 14px; border: 1.5px dashed var(--line); border-radius: 14px; color: var(--muted); font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ini-c-gr .ag-foco-m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .enf.ini > .rows .row .t > div, .enf.ini .ini-mas .rows .row .t > div { font-size: 1.12em; }   /* 2.22.5 (G) · «Aumenta el tamaño de los nombres» */
+  .enf.ini > h3 { font-size: .9rem; }`; iniR.append(st); }
+window.igInicio = { gratitud: () => igBuenasHoy(), oracion: () => { const o = igOracion(); return o.x ? { id: o.x.n.id, nombre: o.x.nombre, h: o.x.n.h, hechas: o.hechas, tot: o.tot } : o; }, guardar: t => igGuardar(t), draft: () => igDraft, pendiente: () => igPend };   // 2.22.5 (G) · para las pruebas
+window.icIniciativa = { lista: () => icIniLista().map(x => ({ k: x.k, t: x.t, mia: !!x.mia, sinXp: !!x.sinXp })), actual: () => { const x = icIniActual(); return x ? { k: x.k, t: x.t } : null; }, sel: () => icIniSel, cat: k => iniNombre(k), catalogo: k => (INI_CAT[k] || []).slice(), ideasHoy: () => agParaIdeas().map(x => ({ k: x.k, t: x.t })) };   // 2.22.5 (C) · para las pruebas
 window.icInicio = { estudio: () => icEstudio(icArribaEst()), habito: () => icHabito(), cons: () => icCons(), rf: () => icRfHecha(), preg: () => rfPregHoy(), rfDraft: () => rfDraft, rfVista: () => rfVista, rfGuardar: txt => { if (!rfDraft) return null; rfDraft.r.txt = txt; const g = rfGuardarDraft(true); rfVista = null; rfDraft = null; return g; } };   // para las pruebas
 function iniMananaHtml() {
   if (nowMin() < 20 * 60) return '';
@@ -23054,6 +23858,17 @@ function xpSemanaRevisar() {
   if (ES.semanasMeta?.[L] && xpActivo(r) && xmSemanaDias(L) < 5) { const m = { ...ES.semanasMeta }; delete m[L]; ES.semanasMeta = m; xpQuitar(r); }
 }
 window.xpQuitar = xpQuitar; window.xpDeshecho = xpDeshecho; window.xpActivo = xpActivo;
+// 2.22.5 (H) · Deshacer un hábito de un día anterior: exactamente lo que dio ESE día (y lo que dependía de eso); xpQuitar solo mira hoy.
+window.xpQuitarDia = (ref, dia, o = {}) => {
+  if (typeof ref !== 'string' || !ref || !xpEsDia(dia) || dia >= today()) return 0;
+  const L = ES.xpLog?.[dia], e = L?.[ref]; if (!(e?.n > 0)) return 0;
+  let tot = xpQuitarUno(dia, e);
+  for (const c of Object.values(L)) if (c && c.p === ref && c.n > 0) tot += xpQuitarUno(dia, c);
+  guardar();
+  if (!o.sinPop) xpPopMenos(tot, e.m || 'Lo que habías marcado');
+  xpSemanaRevisar(); renderXp();
+  return tot;
+};
 window.xpLibro = { stats: xpCatStats, rango: c => { const st = xpCatStats()[c]; return st ? { ...st, rango: XP_RANGOS[xpRangoDe(st)], i: xpRangoDe(st) } : null; }, RANGOS: XP_RANGOS };
 // ====================================================================
 // 2.19.0 (X) · Lo que queda sin hacer resta, y el nivel baja con el XP. Vuelta a Novato (una vez por cuenta) y niveles más exigentes.
@@ -23119,6 +23934,19 @@ function xpCastigos() {
     }
     ES.xpPenHasta = d;
   }
+  try {   // 2.22.5 (W)
+    const lunes = hbSemLunes(today()), finSem = dayKey(addDays(new Date(lunes + 'T12:00'), -1)), hasta = ES.xpPenHasta && ES.xpPenHasta < finSem ? ES.xpPenHasta : finSem;
+    let d2 = dayKey(addDays(new Date(lunes + 'T12:00'), -14)); if (d2 < desdeR) d2 = desdeR; if (d2 < tope) d2 = tope;
+    for (let i = 0; d2 <= hasta && i < 15; d2 = dayKey(addDays(new Date(d2 + 'T12:00'), 1)), i++) {
+      for (const h of (HT().habits || [])) {
+        if (!hbSemN(h) && !h.semanaHist) continue;
+        if (ES.xpPen?.[d2]?.[`ph:${h.id}:${d2}`] || !xpHabitoDebia(h, d2)) continue;
+        let c = ''; try { c = window.cat?.de?.('habito', h) || ''; } catch {}
+        const n = xpPenPoner(d2, `ph:${h.id}:${d2}`, XP_PEN, c, `Hábito sin hacer: ${h.nombre}`);
+        out.push({ d: d2, tipo: 'Hábito', t: h.nombre, n });
+      }
+    }
+  } catch (e) { console.warn('XP semanal (W)', e); }
   return out;
 }
 // Un hábito marcado (después) para un día que ya había restado: lo restado vuelve. Corre al guardar; solo toca lo que cambia.
@@ -24790,7 +25618,7 @@ function cadPasos(key, o = {}) {
   const add = it => { if (it && cadPend(it) && !out.some(p => p.id === it.id)) out.push(cadPaso(it)); };
   try {
     if (k === 'rutina') {
-      let L = hbHijosOrd(id).filter(h => isSched(h, t) && (!h.creado || h.creado <= t) && !cadQuitHoy(h));
+      let L = hbHijosOrd(id).filter(h => isSched(h, t) && (!h.creado || h.creado <= t) && !cadQuitHoy(h) && !hbFuera(h, t));   // 2.22.5 (W)
       if (o.desde) { const j = L.findIndex(h => h.id === o.desde); if (j > 0) L = L.slice(j); }
       L.forEach(h => add(cadHabItem(h)));
     } else if (k === 'bt') {
@@ -24831,7 +25659,7 @@ function cadRefrescar(C) {
   if (!C || !String(C.key).startsWith('rutina:')) return C;
   try {
     const id = C.key.slice(7), t = today(), ya = C.pasos.slice(0, (+C.i || 0) + 1), refs = new Set(ya.map(p => p.ref));
-    let L = hbHijosOrd(id).filter(h => isSched(h, t) && (!h.creado || h.creado <= t) && !cadQuitHoy(h));
+    let L = hbHijosOrd(id).filter(h => isSched(h, t) && (!h.creado || h.creado <= t) && !cadQuitHoy(h) && !hbFuera(h, t));   // 2.22.5 (W)
     if (C.desde) { const j = L.findIndex(h => h.id === C.desde); if (j > 0) L = L.slice(j); }
     const viejos = new Map(C.pasos.map(p => [p.ref, p])), resto = [];
     for (const h of L) { if (refs.has(h.id)) continue; const p = viejos.get(h.id); if (p) { resto.push(p); continue; } const it = cadHabItem(h); if (cadPend(it)) resto.push(cadPaso(it)); }
@@ -25083,7 +25911,7 @@ function hbEmpMin(h, viejo) { const g = Math.round(+h?.min); return g >= 1 && g 
 function hbEmpHtml(h) { try { return hbEmpHtml0(h); } catch { return ''; } }
 function hbEmpHtml0(h) {
   const t = today();
-  if (!h || h.rutina || !isSched(h, t) || (h.creado && h.creado > t) || cadQuitHoy(h)) return '';
+  if (!h || h.rutina || !isSched(h, t) || (h.creado && h.creado > t) || cadQuitHoy(h) || hbSemListoHoy(h) || hbMtCerrado(h, t) || (hbMt(h) && hbMt(h).tipo !== 'si')) return '';   // 2.22.5 (W) · sin temporizador en metas de hora o de número
   const it = cadHabItem(h), T0 = tempDe(it.id), T = T0 && T0.d === t ? T0 : null, n = esc(h.nombre);   // el de ayer (mismo id «v:habito:id») no cuenta aquí
   if (T) return `<div class="hb-emp-w"><button type="button" class="hb-emp on" data-act="empezar" data-id="${esc(h.id)}" aria-label="Temporizador en marcha de «${n}». Toca para verlo"><span data-temp-left>${tempTxt(T)}</span> · Ver</button></div>`;
   if (!cadPend(it)) return '';
@@ -25592,7 +26420,7 @@ window.enfoqueVisible = () => { if (!ES.bienvenida && !ES.sesion && enfPrimeraHe
 // ====================================================================
 // 2.21 (L) · Metas de consistencia (ver la cabecera de patch_2210_L.py). Todo pasa por estas funciones; los datos, por consNorm/consFusion.
 // ====================================================================
-var CS_TIPOS = [['antes', 'Antes de una hora'], ['despues', 'No antes de una hora'], ['si', 'Sí o no'], ['max', 'Como máximo'], ['min', 'Como mínimo']];
+var CS_TIPOS = [['antes', 'Antes de una hora'], ['despues', 'No antes de una hora'], ['si', 'Sí o no'], ['max', 'Como máximo'], ['min', 'Como mínimo'], ['comb', 'Combinado']];   // 2.22.5 (K) · Combinado
 var CS_PLANT = [
   { t: 'Acostarme antes de las 10:35 PM', tipo: 'antes', hora: '22:35', cat: 'salud', aviso: true },
   { t: 'Levantarme antes de las 6:30 AM', tipo: 'antes', hora: '06:30', cat: 'salud' },
@@ -25601,6 +26429,7 @@ var CS_PLANT = [
   { t: 'Máximo 2 cafés', tipo: 'max', n: 2, unidad: 'cafés', cat: 'salud' },
   { t: '8 vasos de agua', tipo: 'min', n: 8, unidad: 'vasos', cat: 'salud' },
   { t: 'Sin redes antes de las 9:00 AM', tipo: 'despues', hora: '09:00', cat: 'salud' },
+  { t: 'Máximo 2 cafés antes de las 12:00 PM', tipo: 'max', n: 2, unidad: 'cafés', comb: { tipo: 'antes', hora: '12:00' }, cat: 'salud' },   // 2.22.5 (K) · al final: las demás no cambian de lugar
 ];
 var CS_DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 var csOrdenando = false, csArchAbierto = false;
@@ -25612,7 +26441,7 @@ function csGet(id) { return typeof id === 'string' && id ? csTodas().find(c => c
 function csActivas() { return csTodas().filter(c => c && !c.archivada).sort((a, b) => (+a.orden || 0) - (+b.orden || 0)); }
 function csLog() { if (!ES.consLog || typeof ES.consLog !== 'object' || Array.isArray(ES.consLog)) ES.consLog = {}; return ES.consLog; }
 function csToca(c, d) { return !!c && (!c.creado || c.creado <= d) && (Array.isArray(c.dias) && c.dias.length ? c.dias : ALL_DAYS).includes(wd(d)); }
-function csReg(c, d) { const r = csLog()[d]?.[c.id]; return r && (r.ok === true || r.ok === false) ? r : null; }
+function csReg(c, d) { const r = csLog()[d]?.[c.id]; if (r && typeof r === 'object' && (csCb(c) || 'okc' in r)) { const ok = csCbV(c, r); return ok === null ? null : ok === r.ok ? r : { ...r, ok }; } return r && (r.ok === true || r.ok === false) ? r : null; }   // 2.22.5 (K) · combinada: el veredicto de las dos partes
 function csDiaMas(d, n) { return dayKey(addDays(new Date(d + 'T12:00'), n)); }
 function csHora12(hm) { return fmtHora(hm) || hm; }
 // Una meta «antes» de noche: la hora va de las 6:00 PM a las 4:59 AM (acostarse antes de las 10:35 PM, o de las 12:30 AM).
@@ -25636,6 +26465,7 @@ function csAhoraCuenta(c, d) { return d === today() || (nowMin() < 5 * 60 && d =
 function csSing(u) { const [p, ...r] = String(u).split(' '); const s = /ces$/i.test(p) ? p.slice(0, -3) + 'z' : /[aeiouáéíóú]s$/i.test(p) ? p.slice(0, -1) : p; return [s, ...r].join(' '); }
 function csUnidad(c, v = c.n) { const u = c.unidad || 'veces'; return +v === 1 ? csSing(u) : u; }
 function csRegla(c) {
+  if (csCb(c)) return `${c.tipo === 'max' ? 'Como máximo' : 'Al menos'} ${c.n} ${csUnidad(c)} al día, ${csCbTxt(c, true)}`;   // 2.22.5 (K)
   if (c.tipo === 'antes') return `Antes de las ${csHora12(c.hora)}`;
   if (c.tipo === 'despues') return `No antes de las ${csHora12(c.hora)}`;
   if (c.tipo === 'max') return `Como máximo ${c.n} ${csUnidad(c)} al día`;
@@ -25649,17 +26479,57 @@ function csCumple(c, v) {
   if (c.tipo === 'antes' && /^\d\d:\d\d$/.test(v || '')) { const m = toMin(v), h = toMin(c.hora); return csNoche(c) ? csNM(m) <= csNM(h) : m <= h; }
   return true;
 }
+// 2.22.5 (K) · Combinada: número (tipo max o min) y hora (comb). Lo anotado: v = la cuenta, h = la hora (true, false o null).
+function csCb(c) { return !!(c && (c.tipo === 'max' || c.tipo === 'min') && c.comb && typeof c.comb === 'object' && (c.comb.tipo === 'antes' || c.comb.tipo === 'despues') && /^\d\d:\d\d$/.test(c.comb.hora || '')); }
+function csRaw(c, d) { const r = csLog()[d]?.[c.id]; return r && typeof r === 'object' ? r : null; }
+function csCbH(r) { return r && (r.h === true || r.h === false) ? r.h : null; }
+function csCbTxt(c, min = false) { return `${c.comb.tipo === 'antes' ? (min ? 'antes' : 'Antes') : (min ? 'no antes' : 'No antes')} de las ${csHora12(c.comb.hora)}`; }
+// La pregunta de la fila Sí / No, en positivo: «Antes de las 12:00 PM» o «Desde las 9:00 AM» (sin doble negación).
+function csCbQ(c, min = false) { return c.comb.tipo === 'antes' ? csCbTxt(c, min) : `${min ? 'desde' : 'Desde'} las ${csHora12(c.comb.hora)}`; }
+// true: las dos partes; false: una ya no se cumple (la hora dijo no, o pasó del máximo); null: falta algo (la hora sin responder).
+function csCbOk(c, v, h) { v = +v || 0; if (h === false || (c.tipo === 'max' && v > c.n)) return false; if (h === true) return c.tipo === 'min' ? v >= c.n : true; return null; }
+// El veredicto de lo anotado (r tal cual): okc si está; con h pero sin okc (la cuenta llegó de una app vieja), de v y h; si no, ok.
+function csCbV(c, r) {
+  if (!r || typeof r !== 'object') return null;
+  if ('okc' in r) return r.okc === true ? true : r.okc === false ? false : null;
+  if ('h' in r && csCb(c)) return typeof r.v === 'number' || csCbH(r) !== null ? csCbOk(c, r.v, csCbH(r)) : null;
+  return r.ok === true ? true : r.ok === false ? false : null;
+}
+function csCbPend(c, d) { const r = csRaw(c, d), ok = csCbV(c, r); return !r || ok == null || (ok === false && c.tipo === 'min' && csCbH(r) !== false); }
+function csCbEstado(c, d) {
+  const r = csRaw(c, d), v = r && typeof r.v === 'number' ? r.v : 0, h = csCbH(r), n = c.n, ok = csCbV(c, r);
+  if (!r || (typeof r.v !== 'number' && h === null)) return { txt: 'Hoy: sin anotar', cls: '' };
+  if (ok === true) return { txt: `Hoy: ${v} de ${n}${c.tipo === 'max' ? ' como máximo' : ''}${h === true ? ', ' + (c.comb.tipo === 'antes' ? 'a tiempo' : csCbQ(c, true)) : ''} ✓`, cls: 'ok' };
+  if (h === false) return { txt: 'Hoy: fuera de hora. Mañana, otra oportunidad.', cls: '' };
+  if (c.tipo === 'max' && v > n) return { txt: `Hoy: ${v}, más que ${n}. Mañana, otra oportunidad.`, cls: '' };
+  const P = [`Hoy: ${v} de ${n}`]; if (c.tipo === 'min' && v < n) P.push(n - v === 1 ? 'falta 1' : `faltan ${n - v}`); if (h === null) P.push('falta la hora');
+  return { txt: P.join(' · '), cls: '' };
+}
+// La fila «Antes de las 12:00 PM: Sí / No» de #cons. Otro toque en la misma respuesta la quita.
+// Pasado del máximo, la hora ya no cambia nada: la fila no sale.
+function csCbFila(c, r) {
+  if (c.tipo === 'max' && r && typeof r.v === 'number' && r.v > c.n) return '';
+  const h = csCbH(r), id = esc(c.id), q = esc(csCbQ(c));
+  return `<div class="cs-cbh" role="group" aria-label="${q}"><span>${q}</span><button type="button" class="cs-cbb${h === true ? ' on' : ''}" data-cs-hh="si" data-cs="${id}" aria-pressed="${h === true}">Sí</button><button type="button" class="cs-cbb${h === false ? ' on no' : ''}" data-cs-hh="no" data-cs="${id}" aria-pressed="${h === false}">No</button></div>`;
+}
+function csCbHora(c, si, d = csDiaDe(c)) {
+  const r = csRaw(c, d), v = r && typeof r.v === 'number' ? r.v : 0, h = csCbH(r) === si ? null : si;
+  const prev = csPoner(c, d, csCbOk(c, v, h), v, { sinPop: true, h });
+  csPintarTodo();
+  csAvisoAnotado(c, d, prev, h === null ? 'Quitado. Anótalo otra vez cuando quieras.' : h ? `Anotado: ${csCbQ(c, true)}.` : `Anotado. ${d === today() ? 'Mañana' : 'Hoy'}, otra oportunidad.`);
+}
 function csHM(m) { m = ((m % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
 function csXpTxt(n) { try { if (typeof xmDatos === 'function' && xmDatos()) return ''; } catch {} return n > 0 ? `+${n} XP · ` : n < 0 ? `${n} XP · ` : ''; }
 // La línea de debajo del nombre: la regla si el nombre no la dice ya, y los días si no son todos.
 function csSub(c) {
-  const t = String(c.t || '').toLowerCase(), dicho = c.tipo === 'antes' || c.tipo === 'despues' ? t.includes(csHora12(c.hora).toLowerCase()) || t.includes(c.hora) : c.tipo === 'max' || c.tipo === 'min' ? new RegExp(`(^|\\D)${c.n}(\\D|$)`).test(t) : true;
+  const t = String(c.t || '').toLowerCase(), dicho = csCb(c) ? new RegExp(`(^|\\D)${c.n}(\\D|$)`).test(t) && (t.includes(csHora12(c.comb.hora).toLowerCase()) || t.includes(c.comb.hora)) : c.tipo === 'antes' || c.tipo === 'despues' ? t.includes(csHora12(c.hora).toLowerCase()) || t.includes(c.hora) : c.tipo === 'max' || c.tipo === 'min' ? new RegExp(`(^|\\D)${c.n}(\\D|$)`).test(t) : true;
   const dias = Array.isArray(c.dias) && c.dias.length && c.dias.length < 7 ? c.dias.map(i => CS_DIAS[i]).join(' ') : '';
   return [dicho ? '' : csRegla(c), dias ? 'Días: ' + dias : ''].filter(Boolean).join(' · ');
 }
 function csEstado(c, d) {
   const r = csReg(c, d);
   if (!csToca(c, d)) return { txt: d === today() ? 'Hoy no toca' : 'No tocaba', cls: '' };
+  if (csCb(c)) return csCbEstado(c, d);   // 2.22.5 (K)
   if (!r) return { txt: csTemprano(c, d) ? `Hoy: se anota esta noche, desde las ${csHora12(csHM(toMin(c.hora) - 240))}` : 'Hoy: sin anotar', cls: '' };
   if (c.tipo === 'max' || c.tipo === 'min') { const v = +r.v || 0;
     if (c.tipo === 'max') return r.ok ? { txt: `Hoy: ${v} de ${c.n} como máximo ✓`, cls: 'ok' } : { txt: `Hoy: ${v}, más que ${c.n}. Mañana, otra oportunidad.`, cls: '' };
@@ -25673,7 +26543,7 @@ function csSemana(c, hasta = today()) {
   return L;
 }
 function csN7(c, hasta = today()) { return csSemana(c, hasta).filter(x => x.toca && x.ok).length; }
-function csDiasOk(id, desde, hasta) { const c = csGet(id), L = csLog(); if (!c) return 0; return Object.keys(L).filter(d => d >= desde && d <= hasta && L[d]?.[id]?.ok === true).length; }
+function csDiasOk(id, desde, hasta) { const c = csGet(id), L = csLog(); if (!c) return 0; return Object.keys(L).filter(d => d >= desde && d <= hasta && csReg(c, d)?.ok === true).length; }   // 2.22.5 (K) · por csReg (combinadas)
 function csMejorRacha(c) {
   const L = csLog(), dias = Object.keys(L).filter(d => L[d]?.[c.id]).sort(), t = today();
   let d = [c.creado, dias[0]].filter(Boolean).sort()[0] || t, run = 0, mejor = 0, k = 0;
@@ -25689,7 +26559,10 @@ function csMejorRacha(c) {
 function csXpRef(c, d) { return `cs:${c.id}:${d}`; }
 function csPoner(c, d, ok, v = '', o = {}) {
   const L = csLog(), prev = L[d]?.[c.id] ? { ...L[d][c.id] } : null;
-  (L[d] ||= {})[c.id] = { ok: ok === true ? true : ok === false ? false : null, v: v === '' || v == null ? '' : v, en: Date.now() };
+  const e = { ok: ok === true ? true : ok === false ? false : null, v: v === '' || v == null ? '' : v, en: Date.now() };
+  // 2.22.5 (K) · Combinada: h (la hora) sigue; okc = las dos (el XP va con él); ok = solo la cuenta, lo que una app vieja pinta y cuenta.
+  if (csCb(c)) { e.h = 'h' in o ? (o.h === true || o.h === false ? o.h : null) : csCbH(prev); e.okc = e.ok; e.ok = typeof e.v === 'number' ? csCumple(c, e.v) : null; }
+  (L[d] ||= {})[c.id] = e;
   const ref = csXpRef(c, d); let xp = 0;
   if (ok === true) { if (xpGanar(5, `Consistencia · ${c.t}`, ref, { cat: c.cat || 'otro', dia: d, sinPop: !!o.sinPop })) xp = 5; }
   else if (xpQuitar(ref, { cualquierDia: true, m: `Consistencia · ${c.t}`, sinPop: !!o.sinPop }) > 0) xp = -5;
@@ -25699,7 +26572,7 @@ function csPoner(c, d, ok, v = '', o = {}) {
 }
 function csDeshacer(c, d, prev) {
   if (!csGet(c.id)) return;
-  csPoner(c, d, prev && (prev.ok === true || prev.ok === false) ? prev.ok : null, prev ? prev.v : '');
+  csPoner(c, d, csCb(c) ? csCbV(c, prev) : prev && (prev.ok === true || prev.ok === false) ? prev.ok : null, prev ? prev.v : '', csCb(c) ? { h: csCbH(prev) } : {});
   csPintarTodo();
 }
 function csAvisoAnotado(c, d, prev, txt) { const deshacer = () => csDeshacer(c, d, prev); if (csReg(c, d)?.ok === true && typeof window.fbHecho === 'function') { window.fbHecho({ xp: Math.max(0, +csPoner.xp || 0), deshacer }); return; } toast(csXpTxt(csPoner.xp) + txt, { deshacer }); }   // 2.22.1 (P) · cumplida: la píldora, sin el nombre
@@ -25735,14 +26608,14 @@ function csHoraSheet(c, d) {
   $('#cs-hs-ok').onclick = () => { const v = $('#cs-hs-o').value; if (!/^\d\d:\d\d$/.test(v)) { $('#cs-hs-o').focus(); return; } fin(v); };
 }
 function csPaso(c, delta) {
-  const d = csDiaDe(c), r = csReg(c, d), v = Math.max(0, Math.min(999, (r ? +r.v || 0 : 0) + delta)), primera = !r;
-  const prev = csPoner(c, d, csCumple(c, v), v, { sinPop: primera });
+  const cb = csCb(c), d = csDiaDe(c), r = cb ? csRaw(c, d) : csReg(c, d), v = Math.max(0, Math.min(999, (r ? +r.v || 0 : 0) + delta)), primera = !r;
+  const prev = csPoner(c, d, cb ? csCbOk(c, v, csCbH(r)) : csCumple(c, v), v, { sinPop: primera });
   csPintarTodo();
   if (primera) csAvisoAnotado(c, d, prev, `Anotado: ${v} ${csUnidad(c, v)}.`);
 }
 // «Hoy, ninguno» (máximo): el mejor día, de un toque.
 function csCero(c) {
-  const d = csDiaDe(c), prev = csPoner(c, d, csCumple(c, 0), 0, { sinPop: true });
+  const d = csDiaDe(c), prev = csPoner(c, d, csCb(c) ? csCbOk(c, 0, csCbH(csRaw(c, d))) : csCumple(c, 0), 0, { sinPop: true });
   csPintarTodo();
   csAvisoAnotado(c, d, prev, `Anotado: 0 ${csUnidad(c, 0)}.`);
 }
@@ -25753,8 +26626,8 @@ function csTarjeta(c) {
   let acc = '';
   if (!toca || (!r && csTemprano(c, d))) acc = '';
   else if (c.tipo === 'max' || c.tipo === 'min') {
-    const v = r ? +r.v || 0 : 0;
-    acc = `<div class="cs-stp"><button type="button" data-cs-paso="-1" data-cs="${esc(c.id)}" aria-label="Uno menos" ${v <= 0 ? 'disabled' : ''}>−</button><b aria-live="polite">${v}</b><button type="button" data-cs-paso="1" data-cs="${esc(c.id)}" aria-label="Uno más">+</button><small>${c.tipo === 'max' ? `de ${c.n} ${esc(csUnidad(c))} como máximo` : `de ${c.n} ${esc(csUnidad(c))}`}</small></div>${c.tipo === 'max' && !r ? `<button type="button" class="cs-no" data-cs-cero="${esc(c.id)}">${d === t ? 'Hoy' : csCuando(c, d) === 'anoche' ? 'Anoche' : 'Ayer'}, ninguno</button>` : ''}`;
+    const rr = csCb(c) ? csRaw(c, d) : r, v = rr ? +rr.v || 0 : 0;   // 2.22.5 (K)
+    acc = `<div class="cs-stp"><button type="button" data-cs-paso="-1" data-cs="${esc(c.id)}" aria-label="Uno menos" ${v <= 0 ? 'disabled' : ''}>−</button><b aria-live="polite">${v}</b><button type="button" data-cs-paso="1" data-cs="${esc(c.id)}" aria-label="Uno más">+</button><small>${c.tipo === 'max' ? `de ${c.n} ${esc(csUnidad(c))} como máximo` : `de ${c.n} ${esc(csUnidad(c))}`}</small></div>${c.tipo === 'max' && !rr ? `<button type="button" class="cs-no" data-cs-cero="${esc(c.id)}">${d === t ? 'Hoy' : csCuando(c, d) === 'anoche' ? 'Anoche' : 'Ayer'}, ninguno</button>` : ''}${csCb(c) ? csCbFila(c, rr) : ''}`;
   } else if (r) acc = `<button type="button" class="link cs-cambiar" data-cs-cambiar="${esc(c.id)}">Cambiar lo de ${d === t ? 'hoy' : csCuando(c, d)}</button>`;
   else if (c.tipo === 'antes') acc = `<button type="button" class="cs-si" data-cs-si="${esc(c.id)}">Lo cumplí</button><button type="button" class="cs-no" data-cs-no="${esc(c.id)}">Hoy no</button>`;
   else acc = `<button type="button" class="cs-si" data-cs-si="${esc(c.id)}">✓ Lo cumplí</button><button type="button" class="cs-no" data-cs-no="${esc(c.id)}">✗ Hoy no</button>`;
@@ -25798,6 +26671,7 @@ function csPintarTodo() {
     if (!c) return;
     if (b.dataset.csSi) csCumpli(c);
     else if (b.dataset.csNo) csAnotar(c, false, '');
+    else if (b.dataset.csHh) csCbHora(c, b.dataset.csHh === 'si');   // 2.22.5 (K)
     else if (b.dataset.csPaso) csPaso(c, +b.dataset.csPaso);
     else if (b.dataset.csCero) csCero(c);
     else if (b.dataset.csCambiar) { const d = csDiaDe(c), prev = csPoner(c, d, null, '', { sinPop: true }); csPintarTodo(); toast(csXpTxt(csPoner.xp) + 'Quitado. Anótalo otra vez cuando quieras.', { deshacer: () => csDeshacer(c, d, prev) }); }
@@ -25815,19 +26689,20 @@ function csEditar(id) { const c = csGet(id); if (c) csForm(c); }
 function csForm(c) {
   const nuevo = !c, x = c || { t: '', tipo: 'antes', hora: '22:35', n: 2, unidad: '', dias: [0, 1, 2, 3, 4, 5, 6], cat: '', iden: '', mid: '', aviso: false };
   const metas = (() => { try { return mtActivas(); } catch { return []; } })(), midAct = c ? (mtDe('consistencia', c.id)[0]?.id || '') : '';
-  let tipo = x.tipo, dias = new Set(x.dias), borrar = false;
+  let tipo = x.tipo, dias = new Set(x.dias), borrar = false, cbN = x.tipo === 'min' ? 'min' : 'max', cbH = x.comb && x.comb.tipo === 'despues' ? 'despues' : 'antes';   // 2.22.5 (K)
+  if (csCb(x)) tipo = 'comb';
   showSheet(`<p class="paso">Metas de consistencia</p><h2>${nuevo ? 'Nueva meta de consistencia' : 'Editar meta de consistencia'}</h2>
     ${nuevo ? `<p class="meta">Algo que quieres cumplir cada día y no es un hábito. Toca una idea o escribe la tuya.</p><div class="chips" id="cs-pl">${CS_PLANT.map((p, i) => { const ya = csIgual(p.t, p.tipo); return `<button type="button" class="chip${ya ? ' cs-ya' : ''}" data-cs-pl="${i}"${ya ? ' data-cs-ya="1"' : ''}>${esc(p.t)}${ya ? ' <small>· ya la tienes</small>' : ''}</button>`; }).join('')}</div>` : ''}
     <div class="field"><label for="cs-t">Qué</label><input id="cs-t" maxlength="80" value="${esc(x.t)}" placeholder="Acostarme antes de las 10:35 PM" autocomplete="off"></div>
-    <div class="field"><label>Tipo</label><div class="chips" id="cs-tipo">${CS_TIPOS.map(([k, n]) => `<button type="button" class="chip${k === tipo ? ' on' : ''}" data-cs-tipo="${k}" aria-pressed="${k === tipo}">${n}</button>`).join('')}</div></div>
-    <div class="field" id="cs-f-h"><label for="cs-h">Hora</label><input type="time" id="cs-h" value="${esc(x.hora || '22:35')}"></div>
-    <div class="field" id="cs-f-n"><label for="cs-n" id="cs-n-l">Número por día</label><div style="display:flex;gap:8px;flex-wrap:wrap"><input type="number" id="cs-n" min="0" max="999" inputmode="numeric" value="${esc(String(x.n ?? ''))}" style="flex:0 1 96px;min-width:0"><input id="cs-u" maxlength="20" value="${esc(x.unidad || '')}" placeholder="cafés, vasos…" style="flex:1 1 120px;min-width:0" aria-label="Unidad"></div></div>
+    <div class="field"><label>Tipo</label><div class="chips" id="cs-tipo">${CS_TIPOS.map(([k, n]) => `<button type="button" class="chip${k === tipo ? ' on' : ''}" data-cs-tipo="${k}" aria-pressed="${k === tipo}" style="min-height:44px">${n}</button>`).join('')}</div></div>
+    <div class="field" id="cs-f-h"><label for="cs-h">Hora</label><div class="chips" id="cs-cb-h" style="margin-bottom:8px">${[['antes', 'Antes de'], ['despues', 'No antes de']].map(([k, n]) => `<button type="button" class="chip" data-cs-cbh="${k}" style="min-height:44px">${n}</button>`).join('')}</div><input type="time" id="cs-h" value="${esc((csCb(x) ? x.comb.hora : x.hora) || '22:35')}"><p class="meta" id="cs-cb-p" style="margin:8px 0 0">Se cumple el día que cumples las dos.</p></div>
+    <div class="field" id="cs-f-n"><label for="cs-n" id="cs-n-l">Número por día</label><div class="chips" id="cs-cb-n" style="margin-bottom:8px">${[['max', 'Como máximo'], ['min', 'Como mínimo']].map(([k, n]) => `<button type="button" class="chip" data-cs-cbn="${k}" style="min-height:44px">${n}</button>`).join('')}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><input type="number" id="cs-n" min="0" max="999" inputmode="numeric" value="${esc(String(x.n ?? ''))}" style="flex:0 1 96px;min-width:0"><input id="cs-u" maxlength="20" value="${esc(x.unidad || '')}" placeholder="cafés, vasos…" style="flex:1 1 120px;min-width:0" aria-label="Unidad"></div></div>
     <details id="cs-mas"><summary class="link" style="min-height:44px;display:flex;align-items:center">Más: días, categoría, identidad${metas.length ? ', meta' : ''} y aviso</summary>
       <div class="field"><label>Días</label><div class="chips" id="cs-dias">${CS_DIAS.map((n, i) => `<button type="button" class="chip${dias.has(i) ? ' on' : ''}" data-cs-dia="${i}" aria-pressed="${dias.has(i)}" style="min-width:44px">${n}</button>`).join('')}</div></div>
       ${(() => { try { return window.cat?.chips?.('cs-cat', x.cat || '', { from: '#cs-t', jd: 'cs-jd', tocado: !!x.cat }) || ''; } catch { return ''; } })()}
       ${(() => { try { return jdChipsHtml('cs-jd', x.iden || ''); } catch { return ''; } })()}
       ${metas.length ? `<div class="field"><label for="cs-meta">Para una meta</label><select id="cs-meta"><option value="">Ninguna</option>${metas.map(m => `<option value="${esc(m.id)}"${m.id === midAct ? ' selected' : ''}>${esc(m.t)}</option>`).join('')}</select></div>` : ''}
-      <label class="field" id="cs-f-av" style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="checkbox" id="cs-av" ${x.aviso ? 'checked' : ''} style="width:22px;height:22px;flex:none"> Avisarme 15 minutos antes (con los avisos de la noche)</label>
+      <label class="field" id="cs-f-av" style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="checkbox" id="cs-av" ${x.aviso ? 'checked' : ''} style="width:22px;height:22px;flex:none"> <span id="cs-av-t">Avisarme 15 minutos antes (con los avisos de la noche)</span></label>
     </details>
     <p class="meta bad" id="cs-err" role="alert"></p>
     ${nuevo ? '' : `<p class="meta">Si cambias la hora, el número o el tipo, lo de hoy se vuelve a calcular. Los días anteriores quedan como estaban.</p><div class="actions stack" style="margin-top:4px"><button class="outline" id="cs-arch">Archivar</button><button class="link" id="cs-del">Eliminar</button></div>`}
@@ -25836,10 +26711,17 @@ function csForm(c) {
   const body = $('#sheet-body');
   const pintarTipo = () => {
     body.querySelectorAll('#cs-tipo .chip').forEach(b => { const on = b.dataset.csTipo === tipo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
-    body.querySelector('#cs-f-h').hidden = !(tipo === 'antes' || tipo === 'despues');
-    body.querySelector('#cs-f-n').hidden = !(tipo === 'max' || tipo === 'min');
-    body.querySelector('#cs-f-av').hidden = tipo !== 'antes';
-    body.querySelector('#cs-n-l').textContent = tipo === 'max' ? 'Como máximo, por día' : 'Al menos, por día';
+    // 2.22.5 (K) · Combinado: primero el número (con «Como máximo» o «Como mínimo») y debajo la hora (con «Antes de» o «No antes de»).
+    const cb = tipo === 'comb', tn = cb ? cbN : tipo, fh = body.querySelector('#cs-f-h'), fn = body.querySelector('#cs-f-n');
+    fh.hidden = !(tipo === 'antes' || tipo === 'despues' || cb);
+    fn.hidden = !(tn === 'max' || tn === 'min');
+    body.querySelector('#cs-f-av').hidden = !(tipo === 'antes' || (cb && cbH === 'antes'));
+    body.querySelector('#cs-n-l').textContent = cb ? 'Cuántos por día' : tn === 'max' ? 'Como máximo, por día' : 'Al menos, por día';
+    body.querySelector('#cs-cb-n').hidden = body.querySelector('#cs-cb-h').hidden = body.querySelector('#cs-cb-p').hidden = !cb;
+    body.querySelectorAll('[data-cs-cbn]').forEach(b => { const on = b.dataset.csCbn === cbN; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    body.querySelectorAll('[data-cs-cbh]').forEach(b => { const on = b.dataset.csCbh === cbH; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    body.querySelector('#cs-av-t').textContent = cb ? 'Avisarme 15 minutos antes de la hora (con los avisos de la noche)' : 'Avisarme 15 minutos antes (con los avisos de la noche)';
+    if (cb) { if (fn.nextElementSibling !== fh) fn.after(fh); } else if (fh.nextElementSibling !== fn) fn.before(fh);
   };
   pintarTipo();
   body.querySelector('#cs-pl')?.addEventListener('click', e => {
@@ -25847,12 +26729,15 @@ function csForm(c) {
     body.querySelectorAll('#cs-pl .chip').forEach(z => z.classList.toggle('on', z === b));
     $('#cs-t').value = p.t; tipo = p.tipo;
     if (p.hora) $('#cs-h').value = p.hora;
+    if (p.comb) { tipo = 'comb'; cbN = p.tipo; cbH = p.comb.tipo; $('#cs-h').value = p.comb.hora; }   // 2.22.5 (K)
     if (p.n != null) { $('#cs-n').value = p.n; $('#cs-u').value = p.unidad || ''; }
     $('#cs-av').checked = !!p.aviso;
     try { const box = body.querySelector('[data-cat-pref="cs-cat"]'); if (box && p.cat && !box.dataset.tocado) { box.dataset.sel = p.cat; box.querySelectorAll('[data-catk]').forEach(z => { const on = z.dataset.catk === p.cat; z.classList.toggle('on', on); z.setAttribute('aria-pressed', on); }); } } catch {}
     pintarTipo();
   });
   body.querySelector('#cs-tipo').addEventListener('click', e => { const b = e.target.closest('[data-cs-tipo]'); if (!b) return; tipo = b.dataset.csTipo; pintarTipo(); });
+  body.querySelector('#cs-cb-n').addEventListener('click', e => { const b = e.target.closest('[data-cs-cbn]'); if (!b) return; cbN = b.dataset.csCbn; pintarTipo(); });   // 2.22.5 (K)
+  body.querySelector('#cs-cb-h').addEventListener('click', e => { const b = e.target.closest('[data-cs-cbh]'); if (!b) return; cbH = b.dataset.csCbh; pintarTipo(); });
   body.querySelector('#cs-dias').addEventListener('click', e => { const b = e.target.closest('[data-cs-dia]'); if (!b) return; const i = +b.dataset.csDia; if (dias.has(i)) { if (dias.size > 1) dias.delete(i); } else dias.add(i); body.querySelectorAll('#cs-dias .chip').forEach(z => { const on = dias.has(+z.dataset.csDia); z.classList.toggle('on', on); z.setAttribute('aria-pressed', on); }); });
   $('#cs-x').onclick = closeSheet;
   $('#cs-arch')?.addEventListener('click', () => { c.archivada = true; c.cambiado = Date.now(); guardar(); closeSheet(); csPintarTodo(); toast('Archivada. Está en «Archivadas», debajo.'); });
@@ -25863,15 +26748,19 @@ function csForm(c) {
     const L = csLog(); for (const d of Object.keys(L)) if (L[d]?.[c.id]) { delete L[d][c.id]; if (!Object.keys(L[d]).length) delete L[d]; }
     guardar(); closeSheet(); csPintarTodo(); toast('Meta de consistencia eliminada.');
   });
-  $('#cs-ok').onclick = () => {
+  // 2.22.5 (K) · Combinado se guarda como su tipo de número (tipo = max o min) con comb = { tipo, hora }.
+  $('#cs-ok').onclick = () => { const cb = tipo === 'comb'; if (cb) tipo = cbN; try { csGuardar(cb); } finally { if (cb) tipo = 'comb'; } };
+  const csGuardar = cb => {
     const t = $('#cs-t').value.replace(/\s+/g, ' ').trim(), hora = $('#cs-h').value, n = Math.round(+$('#cs-n').value), err = $('#cs-err');
     if (!t) { err.textContent = 'Escribe qué quieres cumplir.'; $('#cs-t').focus(); return; }
-    if ((tipo === 'antes' || tipo === 'despues') && !/^\d\d:\d\d$/.test(hora)) { err.textContent = 'Elige la hora.'; $('#cs-h').focus(); return; }
+    if ((tipo === 'antes' || tipo === 'despues' || cb) && !/^\d\d:\d\d$/.test(hora)) { err.textContent = 'Elige la hora.'; $('#cs-h').focus(); return; }
     if ((tipo === 'max' || tipo === 'min') && !(Number.isFinite(n) && n >= (tipo === 'min' ? 1 : 0) && n <= 999)) { err.textContent = 'Pon el número por día.'; $('#cs-n').focus(); return; }
     let cat = ''; try { cat = window.cat?.leer?.(body, 'cs-cat') || ''; } catch {}
     let iden = ''; try { iden = jdLeerChips(body, 'cs-jd') || ''; } catch {}
     const d = { t: t.slice(0, 80), tipo, hora: tipo === 'antes' || tipo === 'despues' ? hora : '', n: tipo === 'max' || tipo === 'min' ? n : 0, unidad: tipo === 'max' || tipo === 'min' ? $('#cs-u').value.trim().slice(0, 20) : '',
-      dias: [...dias].sort((a, b) => a - b), cat, iden, aviso: tipo === 'antes' && $('#cs-av').checked, cambiado: Date.now() };
+      dias: [...dias].sort((a, b) => a - b), cat, iden, aviso: (tipo === 'antes' || (cb && cbH === 'antes')) && $('#cs-av').checked, cambiado: Date.now() };
+    if (cb) d.comb = { tipo: cbH, hora }; else if (c && 'comb' in c) d.comb = false;   // 2.22.5 (K) · false: quitado aquí (no vuelve al sincronizar)
+    if (c && cb && csCb(c) && c.comb.hora !== hora && d.t === c.t) { const a12 = csHora12(c.comb.hora), b12 = csHora12(hora); if (d.t.includes(a12)) d.t = d.t.replace(a12, b12); else if (d.t.includes(c.comb.hora)) d.t = d.t.replace(c.comb.hora, hora); }
     // Si el nombre lleva la hora vieja y la cambiaste, el nombre la sigue.
     // Igual con el número («Máximo 2 cafés» → «Máximo 1 café»).
     if (c && (c.tipo === 'max' || c.tipo === 'min') && d.tipo === c.tipo && d.n !== c.n && d.t === c.t) { const re = new RegExp(`(^|\\D)${c.n}(?=\\D|$)`); if (re.test(d.t)) { d.t = d.t.replace(re, `$1${d.n}`); if (c.unidad && d.unidad === c.unidad) { const s1 = csSing(c.unidad); if (d.n === 1 && d.t.includes(`${d.n} ${c.unidad}`)) d.t = d.t.replace(`${d.n} ${c.unidad}`, `${d.n} ${s1}`); else if (d.n !== 1 && c.n === 1 && d.t.includes(`${d.n} ${s1}`) && !d.t.includes(`${d.n} ${c.unidad}`)) d.t = d.t.replace(`${d.n} ${s1}`, `${d.n} ${c.unidad}`); } } }
@@ -25886,12 +26775,16 @@ function csForm(c) {
       obj.creado = csDiaDe(obj);   // de madrugada, su primera noche es la de ayer
       csTodas().push(obj);
     } else {
-      const antes = { tipo: c.tipo, n: c.n, hora: c.hora };
+      const antes = { tipo: c.tipo, n: c.n, hora: c.hora, cb: csCb(c) ? JSON.stringify(c.comb) : '' };
       Object.assign(c, d);
       // Cambió la regla: lo de hoy (el día al que va ahora) se vuelve a calcular, con su XP. Los días anteriores son historia.
-      if (antes.tipo !== c.tipo || antes.n !== c.n || antes.hora !== c.hora) {
+      if (antes.tipo !== c.tipo || antes.n !== c.n || antes.hora !== c.hora || antes.cb !== (csCb(c) ? JSON.stringify(c.comb) : '')) {
         const dia = csDiaDe(c), r = csLog()[dia]?.[c.id];
-        if (r && (r.ok === true || r.ok === false)) {
+        // 2.22.5 (K) · Combinada: la cuenta y la hora anotadas siguen; de una de número a combinada, falta la hora. De combinada a número: la cuenta.
+        if (r && csCb(c)) { const v = typeof r.v === 'number' ? r.v : 0, h = csCbH(r), ok = csCbOk(c, v, h); if ((typeof r.v === 'number' || h !== null) && (csCbV(c, r) !== ok || r.v !== v || !('okc' in r))) csPoner(c, dia, ok, v, { h }); }
+        else if (r && 'okc' in r) { if ((c.tipo === 'max' || c.tipo === 'min') && typeof r.v === 'number') csPoner(c, dia, csCumple(c, r.v), r.v); else csPoner(c, dia, null, ''); }   // de combinada a otro tipo
+        else if (r && r.ok == null && typeof r.v === 'number' && (c.tipo === 'max' || c.tipo === 'min')) csPoner(c, dia, csCumple(c, r.v), r.v);
+        else if (r && (r.ok === true || r.ok === false)) {
           const num = typeof r.v === 'number', hm = typeof r.v === 'string' && /^\d\d:\d\d$/.test(r.v);
           let ok = r.ok, v = r.v, vale = true;
           if (c.tipo === 'max' || c.tipo === 'min') { if (num) ok = csCumple(c, v); else vale = false; }
@@ -25933,6 +26826,8 @@ window.csIniHtml = () => {
       <div class="cs-preg-b"><button class="ini-man-b" data-cs-preg="si">Sí</button><button class="cs-preg-no" data-cs-preg="no">No</button></div><button class="link cs-preg-x" data-cs-preg="x">Ahora no</button></section>`;
   } catch { return ''; }
 };
+if (iniR) { const st = document.createElement('style'); st.textContent = `.ic-c .ic-cbh { margin-top: 8px; align-items: center; flex-wrap: wrap; } .ic-c .ic-cbh .ic-cbq { flex: 1 1 100%; min-width: 0; font-size: .9rem; font-weight: 600; overflow-wrap: anywhere; }
+  .ic-c .ic-cbh button { flex: 1 1 0; } .ic-c .ic-cbh .ic-on { background: var(--green); border-color: var(--green); color: #fff; } .ic-c .ic-cbh .ic-on.ic-no { background: var(--muted); border-color: var(--muted); color: var(--bg); }`; iniR.append(st); }   // 2.22.5 (K) · combinada en la tarjeta del Inicio
 if (iniR) { const st = document.createElement('style'); st.textContent = `.cs-preg .cs-preg-q { font-weight: 600; font-size: 1.05rem; margin: 2px 0 12px; overflow-wrap: anywhere; }
   .cs-preg-b { display: flex; gap: 10px; } .cs-preg-b .ini-man-b { flex: 1; }
   .cs-preg-no { flex: 1; min-height: 48px; border-radius: 999px; border: 1.5px solid var(--line); background: none; color: var(--text); font-weight: 600; font-size: 1rem; }
@@ -25992,6 +26887,16 @@ function csToolMarcar(a = {}) {
   if (c.tipo === 'max' || c.tipo === 'min') { const n = Math.round(+String(a.valor || '').replace(',', '.')); if (Number.isFinite(n) && String(a.valor || '').trim() !== '') { v = Math.max(0, Math.min(999, n)); ok = csCumple(c, v); } else v = ok ? (c.tipo === 'min' ? c.n : 0) : (c.tipo === 'min' ? 0 : c.n + 1); }
   else if (c.tipo === 'antes' && /^\d\d:\d\d$/.test(a.valor || '')) { v = a.valor; ok = csCumple(c, v); }
   else if (c.tipo === 'despues') v = c.hora;
+  // 2.22.5 (K) · Combinada: la hora anotada sigue salvo que la persona hable de ella (a_tiempo); sin cuántos, la cuenta anotada sigue.
+  if (csCb(c)) {
+    const raw = csRaw(c, dia), nv = Math.round(+String(a.valor ?? '').replace(',', '.')), dado = String(a.valor ?? '').trim() !== '' && Number.isFinite(nv);
+    let vv = dado ? Math.max(0, Math.min(999, nv)) : raw && typeof raw.v === 'number' ? raw.v : 0, h = csCbH(raw);
+    const at = a.a_tiempo === true || a.a_tiempo === 'si' ? true : a.a_tiempo === false || a.a_tiempo === 'no' ? false : null;
+    if (at !== null) h = at;
+    else if (!dado && typeof a.cumplida === 'boolean') { h = a.cumplida; if (a.cumplida && c.tipo === 'min' && vv < c.n) vv = c.n; }
+    const okc = csCbOk(c, vv, h); csPoner(c, dia, okc, vv, { h }); csPintarTodo();
+    return { ok: true, meta: c.t, dia, cumplida: okc === true, valor: vv, a_tiempo: h };
+  }
   csPoner(c, dia, ok, v); csPintarTodo();
   return { ok: true, meta: c.t, dia, cumplida: ok, valor: v };
 }
@@ -25999,10 +26904,12 @@ IA_TOOLS.push(
   iaTool('consistencia_ver', 'Devuelve las metas de consistencia de la persona (lo que quiere cumplir cada día y no es un hábito: antes de una hora, no antes de una hora, sí o no, o un número con tope o mínimo): la regla, los días, lo anotado hoy, cuántos de los últimos 7 días cumplió y su mejor racha.', {}),
   iaTool('consistencia_marcar', 'Anota un día de una meta de consistencia (cumplida o no). Úsala solo si la persona lo pide.', {
     meta: S('Nombre o id de la meta de consistencia.'), cumplida: { type: 'boolean', description: 'true si la cumplió; false si no.' }, dia: S('hoy, ayer o AAAA-MM-DD (de los últimos 30 días).'),
-    valor: S('Con una meta de hora: la hora HH:MM si la dijo; con una de número: cuántos; si no, vacío.') }),
+    valor: S('Con una meta de hora: la hora HH:MM si la dijo; con una de número (o combinada: número y hora): cuántos; si no, vacío.'),
+    a_tiempo: { type: 'string', enum: ['si', 'no', ''], description: 'Solo con una combinada (número y hora): si cumplió la parte de hora, no si no la cumplió; vacío si no lo dijo o no es combinada.' } }),
 );
 window.cs = { lista: () => csActivas().map(c => JSON.parse(JSON.stringify(c))), de: csGet, regla: csRegla, diasOk: csDiasOk, editar: csEditar, nueva: csNueva, render: csRender, anotar: (id, ok, v, d) => { const c = csGet(id); if (c) csAnotar(c, ok, v ?? '', d || csDiaDe(c)); }, n7: id => { const c = csGet(id); return c ? csN7(c) : 0; }, racha: id => { const c = csGet(id); return c ? csMejorRacha(c) : 0; }, pregunta: () => { const P = csPregunta(); return P ? { id: P.c.id, ay: P.ay, txt: csPreguntaTxt(P.c) } : null; }, herramienta: (n, a) => n === 'consistencia_ver' ? csToolVer() : n === 'consistencia_marcar' ? csToolMarcar(a) : null };
 window.csRender = csRender;
+window.csApi = { cbOk: csCbOk, cumple: csCumple };   // 2.22.5 (W) · la regla de la combinada, la misma para los hábitos con meta
 // 2.22.3 (M) · «Metas de consistencia» en su propio apartado: el mismo #cons (manejadores, csRender, csPintarTodo) se pasa a
 // #view-consistencia mientras estás ahí y vuelve a su sitio en Hábitos al salir. Lo que marcas es lo mismo en los dos lados.
 { const el = document.getElementById('cons'), casa = document.createComment('cons');
