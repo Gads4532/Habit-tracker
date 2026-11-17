@@ -612,6 +612,12 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.8: «Continuar lo pendiente» en Iniciativas
+
+- Nueva categoría en Iniciativas, la primera: «Continuar lo pendiente». Sale de lo que de verdad quedó sin hacer: actividades de la agenda de días anteriores (o de hoy cuya hora ya pasó), tareas vencidas o sin fecha, sesiones de estudio que pasaron, hábitos que no hiciste ayer y pasos de proyectos con fecha pasada. Cada una dice de dónde viene y cuándo («Tarea · venció el jue 12 nov», «Ruta «Parcial» · Sesión 2/23 de ayer»). ✅
+- En cada una: «✓ Hecho» la marca en su lugar original con el mismo XP; «Para hoy» la mueve a tu día (no una copia); «Ya no» la quita de la lista, con «Deshacer». ✅
+- También en la tarjeta de Iniciativa del Inicio (lo pendiente sale primero, con su origen arriba) y como primer grupo en «Elegir iniciativa». Sin nada pendiente: «Nada pendiente. Todo al día.». ✅
+
 ## 2.22.7: meta de ejercicios en las rutas, «Completar» sesiones y Descanso cognitivo
 
 - Rutas de estudio: la meta puede ser «Horas», «Ejercicios» (total hasta el examen) o «Las dos», al crear la ruta o en sus Ajustes (también en las rutas que ya tenías). Con ejercicios, la ruta muestra «Meta 300 ejercicios · Hechos 40 · Faltan 260» y cada sesión sugiere cuántos hacer. Con «Las dos», «Al día» solo sale si vas bien en horas y en ejercicios. ✅

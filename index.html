@@ -755,7 +755,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.7';
+const APP_VERSION = '2.22.8';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1436,6 +1436,7 @@ function mergeStates(a, b) {
     relevancia: relFusion(eN.relevancia, eO.relevancia),   /* 2.21.7 (R) */
     reflexiones: rfFusion(eN.reflexiones, eO.reflexiones, dead),   /* 2.22.1 (R) */
     descanso: dcFusion(eN.descanso, eO.descanso, dead),   /* 2.22.6 (D) */
+    ...(eN.contFuera || eO.contFuera ? { contFuera: (typeof contFueraFusion === 'function' ? contFueraFusion : window.contFueraFusion)(eN.contFuera, eO.contFuera) } : {}),   /* 2.22.7 (P) */
     objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), consistencias: consFusion(eN.consistencias, eO.consistencias, dead), consLog: consLogFusion(eN.consLog, eO.consLog, dead), consPreg: [eO.consPreg, eN.consPreg].filter(Boolean).sort().pop() || '', espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
@@ -12082,7 +12083,7 @@ function ivEligeHtml() {
       <button type="button" class="link iv-mas" data-iv-mas="${k}">${k === 'ideas' ? 'Más ideas y journaling' : `Más ideas de ${esc(n.toLowerCase())}`} ›</button>${k === 'ideas' ? ivIrHtml('', 'iv-ir-card') : ''}</div>`; };   // 2.22.0 (J)
   return `<section class="iv-elige" id="iv-elige" aria-label="Elige una iniciativa"><h3>Elige una</h3>
     <p class="meta">Toca una idea y entra a tu día. Todas son opcionales: haz las que quieras.</p>
-    ${IV_ORDEN.filter(k => iniIdx(k) >= 0).map(tarjeta).join('')}
+    ${(() => { try { return contCardHtml(); } catch (e) { console.warn('Continuar lo pendiente', e); return ''; } })()}${IV_ORDEN.filter(k => iniIdx(k) >= 0).map(tarjeta).join('')}
     <button type="button" class="iv-propia" id="iv-propia">+ Iniciativa propia</button></section>`;
 }
 // Después de pintar la Agenda en modo iniciativas: fuera lo que es de todo el día; la frase, el vacío y «Elige una».
@@ -12099,6 +12100,7 @@ function ivDespues(its) {
   E.querySelectorAll('[data-iv-poner]').forEach(b => b.onclick = () => { const k = b.dataset.ivPoner, x = ini4Semana().items[iniIdx(k)]; if (x?.t) ivPonerAviso(k, { t: x.t, exito: x.exito, min: x.min, h: x.hora || '', por: x.por, paso: x.paso, obj: x.obj, iden: x.iden }); });
   E.querySelectorAll('[data-iv-mas]').forEach(b => b.onclick = () => { const k = b.dataset.ivMas; iniElegir(k, r => { if (!r) { closeSheet(); return; } closeSheet(); ivPonerAviso(k, r); }); });
   E.querySelector('#iv-propia').onclick = () => ivPropia();
+  try { contWire(E); } catch (e) { console.warn('Continuar lo pendiente', e); }   // 2.22.7 (P)
 }
 // Lo que hace «Añadir a la agenda» con una iniciativa (agAddSheet), sin pisar la que ya elegiste: si la de esa categoría está hecha, o ya
 // tienes otra distinta, entra como extra de esa categoría. Devuelve lo necesario para «Deshacer».
@@ -12140,6 +12142,275 @@ function ivPropia(cb) {   // 2.22.5 (C) · cb(k, r): desde «Elegir iniciativa»
   b.querySelectorAll('[data-ivp]').forEach(x => x.onclick = () => { const k = x.dataset.ivp; iniCrearSmart(k, r => { if (!r) return ivPropia(cb); closeSheet(); if (cb) cb(k, r); else ivPonerAviso(k, r); }); });
 }
 window.ivPropia = ivPropia;
+
+// ====================================================================
+// 2.22.7 (P) · «Crea la parte de iniciativas de continuar actividades que no se han hecho.» Categoría «Continuar lo pendiente»: tus cosas
+// reales sin hacer, cada una por su camino de siempre. Nada nuevo se guarda salvo lo que dejas fuera con «Ya no» (ES.contFuera).
+// ====================================================================
+const CONT_NOM = 'Continuar lo pendiente', CONT_MAX = 20, CONT_DIAS = 14;
+const contNorm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ]+/g, ' ').trim();
+const contFecha = d => d === dayKey(addDays(new Date(), -1)) ? 'ayer' : 'el ' + new Date(d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/[.,]/g, '');
+const contDel = d => d === dayKey(addDays(new Date(), -1)) ? 'de ayer' : 'del ' + contFecha(d).slice(3);
+// «Ya no»: { clave: ms } positivo = fuera, negativo = devuelto («Deshacer»). Al combinar teléfonos gana el más reciente.
+function contFueraMapa() { const F = ES.contFuera; return F && typeof F === 'object' && !Array.isArray(F) ? F : {}; }
+function contFueraEs(k) { return +contFueraMapa()[k] > 0; }
+function contFueraPoner(k, v) {
+  const F = { ...contFueraMapa() }, t = Math.max(1, Date.now()), lim = Date.now() - 90 * 864e5;
+  F[k] = v ? t : -t;
+  for (const [x, y] of Object.entries(F)) if (Math.abs(+y || 0) < lim) delete F[x];
+  ES.contFuera = F;
+}
+function contFueraFusion(a, b) {
+  const out = {};
+  for (const M of [a, b]) if (M && typeof M === 'object' && !Array.isArray(M)) for (const [k, v] of Object.entries(M)) { const n = +v; if (!Number.isFinite(n) || !n) continue; if (!(k in out) || Math.abs(n) > Math.abs(out[k])) out[k] = n; }
+  return out;
+}
+window.contFueraFusion = contFueraFusion;
+// La lista, una vez por pintado (se olvida al terminar la tarea en curso): el Inicio y la sección la piden varias veces seguidas.
+var contMemo = null;
+function contLista() {
+  if (contMemo) return contMemo;
+  let L = [];
+  try { L = contCalcular(); } catch (e) { console.warn('Continuar lo pendiente', e); }
+  contMemo = L; try { queueMicrotask(() => { contMemo = null; }); } catch { setTimeout(() => { contMemo = null; }, 0); }
+  return L;
+}
+function contOlvidar() { contMemo = null; }
+function contCalcular() {
+  const hoy = today(), ayer = dayKey(addDays(new Date(), -1)), desde = dayKey(addDays(new Date(), -CONT_DIAS)), S = HT(), oc = agHorasOcultas();
+  const A = agenda(), its = A.items.filter(agVivo), now = nowMin();
+  const enHoyK = new Set(its.map(it => it.tipo + ':' + it.ref)), enHoyT = new Set(its.map(it => contNorm(it.t)));
+  const cand = [];
+  const pon = x => { if (!x.t || contFueraEs(x.key) || (x.alias || []).some(contFueraEs)) return; cand.push(x); };
+  // Lo de hoy cuya hora ya terminó, sin marcar.
+  for (const it of its) {
+    if (!['libre', 'tarea', 'prio', 'estudio'].includes(it.tipo) || it.esp || it.foco || it.extraIni || agHecho(it)) continue;
+    if (!/^\d\d:\d\d$/.test(it.h || '') || toMin(it.h) + (+it.min || 30) >= now) continue;
+    // «Ya no» guarda también la clave que tendrá mañana (en el historial, en Tareas o en su ruta): no vuelve después de la medianoche.
+    const alias = it.tipo === 'tarea' ? ['t:' + it.ref] : it.tipo === 'estudio' ? ['e:' + it.ref] : ['a:' + contNorm(it.t) + ':' + hoy];
+    pon({ key: 'g:' + it.id, alias, src: 'hoy', it, t: it.tipo === 'estudio' ? agTituloEst(it) : it.t, origen: oc ? 'Agenda · hoy, ya pasó su hora' : `Agenda · hoy a las ${fmtHora(it.h)}`, min: +it.min || AG_MIN[it.tipo] || 30, d: hoy, p: 0 });
+  }
+  // Lo que vuelve a aparecer otro día (o ya está hoy, o pasó a un día que viene) solo cuenta en su última vez.
+  const H = ES.agendaHist && typeof ES.agendaHist === 'object' ? ES.agendaHist : {}, ult = new Map(), dias = Object.keys(H).filter(d => /^\d{4}-\d\d-\d\d$/.test(d) && d < hoy && d >= desde).sort();
+  for (const d of dias) for (const it of Array.isArray(H[d]) ? H[d] : []) if (it && it.t) ult.set(contNorm(it.t), d);
+  for (const t of enHoyT) ult.set(t, hoy);
+  try { for (const [d, P] of Object.entries(ES.agendaPlanes || {})) if (d > hoy && P && Array.isArray(P.items)) for (const it of P.items) if (it && it.t) ult.set(contNorm(it.t), d); } catch {}
+  const tarAg = new Map();   // tarea → el último día que estuvo en la agenda sin hacer
+  for (const d of dias.slice().reverse()) for (const it of Array.isArray(H[d]) ? H[d] : []) {
+    if (!it || it.hecho || it.esp || it.foco) continue;
+    if (it.tipo === 'tarea') { if (!tarAg.has(it.ref)) tarAg.set(it.ref, d); continue; }
+    if (it.tipo !== 'libre' && it.tipo !== 'ini') continue;
+    const n = contNorm(it.t); if (!n || (ult.get(n) || '') > d) continue;
+    if (it.tipo === 'ini') { if (iniIdx(it.ref) < 0 || (ES.iniHist?.[d] || []).includes(it.ref)) continue;
+      pon({ key: 'i:' + it.ref + ':' + n + ':' + d, src: 'ini', k: it.ref, t: it.t, origen: `Iniciativa · quedó pendiente ${contFecha(d)}`, min: +it.min || AG_MIN.ini, d, p: 4, iden: it.iden || '' }); continue; }
+    pon({ key: 'a:' + n + ':' + d, src: 'agenda', t: it.t, origen: `Agenda · quedó pendiente ${contFecha(d)}`, min: +it.min || AG_MIN.libre, d, p: 3, iden: it.iden || '' });
+  }
+  // Tareas: vencidas, de hoy fuera de tu día o sin fecha.
+  for (const x of S.tareas?.items || []) {
+    if (!x || x.hecha || !x.id || !String(x.titulo || '').trim() || enHoyK.has('tarea:' + x.id)) continue;
+    const f = /^\d{4}-\d\d-\d\d$/.test(x.fecha || '') ? x.fecha : '';
+    if (f > hoy) continue;
+    const dAg = tarAg.get(x.id) || '';
+    const origen = f && f < hoy ? `Tarea · venció ${contFecha(f)}` : f === hoy ? 'Tarea · vence hoy' : dAg ? `Tarea · quedó pendiente ${contFecha(dAg)}` : 'Tarea · sin fecha';
+    pon({ key: 't:' + x.id, src: 'tarea', ref: x.id, t: x.titulo, origen, min: +x.min || AG_MIN.tarea, d: f || dAg, p: 1 });
+  }
+  // Sesiones de estudio que ya pasaron sin hacer (de rutas vivas).
+  try {
+    const E = window.est;
+    if (E && typeof E.rutas === 'function') for (const r of E.rutas() || []) {
+      if (!r || r.archivada || r.terminada || !Array.isArray(r.plan) || (r.fecha && r.fecha < hoy)) continue;
+      const h = r.hechos || {}, fuera = typeof estSesFueraSet === 'function' ? estSesFueraSet(r) : new Set();
+      for (const b of r.plan) {
+        if (!b || typeof b.id !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(b.d || '') || b.d >= hoy || b.d < desde || h[b.id] || fuera.has(b.id) || enHoyK.has('estudio:' + b.id) || (typeof estRepartido === 'function' && estRepartido(r, b))) continue;   // repartida por un plan nuevo: ya no cuenta
+        const eb = E.bloque(b.id); if (!eb || eb.hecho) continue;
+        let q = ''; try { q = E.sesTexto(eb) || ''; } catch {}
+        pon({ key: 'e:' + b.id, src: 'estudio', ref: b.id, t: E.textoBloque(eb), origen: `Ruta «${r.nombre || 'Estudio'}» · ${q ? q + ' ' : ''}${contDel(b.d)}`, min: +b.min || AG_MIN.ini, d: b.d, p: 2 });
+      }
+    }
+  } catch (e) { console.warn('Continuar: estudio', e); }
+  // Hábitos que ayer quedaron sin hacer y hoy tocan (retomarlos hoy).
+  let nh = 0;
+  for (const h of S.habits || []) {
+    if (nh >= 5) break;
+    try {
+      if (!h || h.rutina || h.archivado || !hbAplica(h, ayer) || !hbAplica(h, hoy) || isDone(h, ayer) || isJust(h, ayer) || window.hbProtegido?.(h, ayer)) continue;
+      const v = S.log?.[h.id]?.[hoy]; if (v === 'full' || v === 'min' || v === 'skip' || v === 'just') continue;
+      nh++; pon({ key: 'h:' + h.id + ':' + ayer, src: 'habito', ref: h.id, t: `Retomar: ${h.nombre}`, origen: 'Hábito · quedó pendiente ayer', min: h.modo === 'tiempo' && +h.meta > 0 ? +h.meta : AG_MIN.habito, d: ayer, p: 5 });
+    } catch {}
+  }
+  // El siguiente paso de un proyecto, si su fecha ya pasó.
+  // (fuera si ese paso ya quedó hecho en la agenda de su día o de uno posterior: «Para hoy» lo pone ahí)
+  const pasoAg = (pr, n) => its.some(it => agHecho(it) && (it.proy === pr.id || contNorm(it.t) === n)) || dias.some(d => d >= pr.cuando && (Array.isArray(H[d]) ? H[d] : []).some(it => it && it.hecho && (it.proy === pr.id || contNorm(it.t) === n)));
+  try { for (const pr of proyectosActivos()) { if (!pr.paso || !/^\d{4}-\d\d-\d\d$/.test(pr.cuando || '') || pr.cuando >= hoy || pasoAg(pr, contNorm(pr.paso))) continue;
+    pon({ key: 'p:' + pr.id + ':' + contNorm(pr.paso), src: 'proyecto', ref: pr.id, t: pr.paso, origen: `Proyecto «${pr.nombre}» · paso para ${contFecha(pr.cuando)}`, min: +pr.min || 25, d: pr.cuando, p: 6 }); } } catch {}
+  // Lo más reciente primero; la misma cosa por dos caminos, una vez (gana la que tiene su original: la tarea antes que su texto en la
+  // agenda; de dos sesiones del mismo tema, la más reciente); fuera lo que ya está en tu día.
+  cand.sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0) || a.p - b.p);
+  const out = [], vistos = new Set();
+  for (const x of cand) {
+    const n = contNorm(x.t); if (vistos.has(x.key) || vistos.has(n)) continue;
+    if (x.src !== 'hoy' && enHoyT.has(n)) continue;
+    vistos.add(x.key); vistos.add(n); x.min = Math.max(5, Math.min(240, Math.round(+x.min || 30))); out.push(x);
+    if (out.length >= CONT_MAX) break;
+  }
+  return out;
+}
+const contDe = t => contLista().find(x => x.t === t) || null;
+const contPorKey = k => contLista().find(x => x.key === k) || null;
+// El segundo botón: «Para hoy» (a tu agenda de hoy), «Empezar» (ya es de hoy) o «Ver hábito» (los hábitos viven en Hábitos).
+const contAcc2 = x => x.src === 'hoy' ? 'Empezar' : x.src === 'habito' ? 'Ver hábito' : 'Para hoy';
+function contRepintar() {
+  contOlvidar();
+  try { if (view === 'iniciativas') renderAg(); } catch (e) { console.warn('Iniciativas', e); }
+  try { iniRepintar(); } catch {}
+}
+function contVirtual(x) {
+  if (x.src === 'tarea') return { id: 'v:tarea:' + x.ref, tipo: 'tarea', ref: x.ref, t: x.t, min: x.min, v: 1 };
+  if (x.src === 'estudio') return { id: 'v:estudio:' + x.ref, tipo: 'estudio', ref: x.ref, t: x.t, min: x.min, v: 1 };
+  if (x.src === 'habito') return { id: 'v:habito:' + x.ref, tipo: 'habito', ref: x.ref, t: x.t, min: x.min, v: 1 };
+  return null;
+}
+// Lo de la agenda de otro día entra a hoy como una cosa suelta, igual que «Organizar mi día» lo trae de ayer (orgDesdeHist).
+function contLibreHoy(x) {
+  const A = agenda(), it = { id: crypto.randomUUID(), tipo: 'libre', ref: '', t: x.t, h: '', min: x.min || AG_MIN.libre, hecho: false, alta: Date.now(), ...(x.iden ? { iden: x.iden } : {}), ...(x.proy ? { proy: x.proy } : {}) };
+  A.items.push(it); return it;
+}
+function contSacar(id) { const A = agenda(), y = A.items.find(i => i && i.id === id); if (!y) return; A.items = A.items.filter(i => i !== y); forget(id); }
+// ✓ Hecho: lo original, por su camino de siempre (mismo XP, mismo «Deshacer»).
+function contHecho(x) {
+  if (!x) return;
+  if (marcaBloq('ag', '\u0000cont')) return;
+  if (x.src === 'hoy') { const it = agPorId(x.it.id); if (!it || agHecho(it)) return; marcaPon('ag', it.id); if (!(it.tipo === 'estudio' && exPedirEj(it))) agMarcarAviso(it, true); contRepintar(); return; }
+  if (x.src === 'proyecto') { const pr = (ES.proyectos || []).find(p => p && p.id === x.ref); if (pr) pasoHecho(pr); return; }
+  const v = contVirtual(x);
+  if (v) {
+    if (x.src === 'tarea' && !(HT().tareas?.items || []).some(y => y && y.id === x.ref)) return;
+    marcaPon('ag', v.id);
+    if (!(v.tipo === 'estudio' && exPedirEj(v))) agMarcarAviso(v, true);
+    contRepintar(); return;
+  }
+  // Agenda de otro día o iniciativa de otro día: entra a hoy y se marca como en la Agenda (o como en Iniciativas).
+  let it = null, R = null; const c0 = !!agenda().completa;
+  if (x.src === 'ini') { R = ivPoner(x.k, { t: x.t, exito: EXITO_DEF[x.k], min: x.min, h: '', por: '', paso: '', iden: x.iden || '', src: 'cont' }); if (!R) return; it = R.it; }
+  else it = contLibreHoy(x);
+  marcaPon('ag', it.id); agFocoUlt = it.id; agMarcar(it, true);
+  const y0 = agPorId(it.id) || it;
+  if (agHecho(y0)) fbHecho({ deshacer: () => {
+    const y = agPorId(it.id); if (!y) return;
+    if (agHecho(y)) { agFocoUlt = ''; agMarcar(y, false); }
+    if (!R || R.creado) contSacar(it.id);
+    if (R && R.antes) { const z = ini4Semana().items[iniIdx(R.k)]; if (z && !z.hecho) Object.assign(z, R.antes); }
+    if (R) iniCambio();
+    try { agParaBono(c0); } catch {}
+    guardar(); contRepintar();
+  } });
+  contRepintar();
+}
+// «Para hoy»: lo original pasa a tu agenda de hoy (con «Deshacer»).
+function contParaHoy(x) {
+  if (!x) return;
+  if (x.src === 'hoy') { const it = agPorId(x.it.id); if (it) agFocoEmpezar(it); contRepintar(); return; }
+  if (x.src === 'habito') { irA('hoy'); setTimeout(() => { try { document.querySelector(`.habit[data-id="${CSS.escape(x.ref)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 150); return; }
+  const A = agenda(); let und = null, msg = `En tu día: «${x.t}». Toca la fila para ponerle hora.`;
+  if (x.src === 'tarea') {
+    const f = (HT().tareas?.items || []).find(y => y && y.id === x.ref); if (!f || f.hecha) return;
+    const fa = f.fecha || '', k = 'tarea:' + f.id, q0 = agQuitado(A, k);
+    f.fecha = today(); f.mod = Date.now();
+    if (q0) agQuitMarcar(A, k, false);
+    A.vistos = [...new Set([...(Array.isArray(A.vistos) ? A.vistos : []), k])];
+    let it = A.items.find(i => i && i.tipo === 'tarea' && i.ref === f.id);
+    const nuevo = !it;
+    if (!it) { it = { id: crypto.randomUUID(), tipo: 'tarea', ref: f.id, t: f.titulo, h: f.hora || '', min: +f.min || AG_MIN.tarea, hecho: false, alta: Date.now(), exito: f.exito || '', iden: f.iden || '' }; A.items.push(it); }
+    save(); try { gAuto(); } catch {}
+    und = () => { const g = (HT().tareas?.items || []).find(y => y && y.id === x.ref); if (g && !g.hecha) { g.fecha = fa; g.mod = Date.now(); } if (nuevo) { const y = agPorId(it.id); if (y && !agHecho(y)) contSacar(it.id); } if (q0) agQuitMarcar(agenda(), k, true); save(); try { gAuto(); } catch {} };
+  } else if (x.src === 'estudio') {
+    const E = window.est, r = E?.ruta?.(E.bloque(x.ref)?.ruta), b = r && Array.isArray(r.plan) ? r.plan.find(p => p && p.id === x.ref) : null; if (!b) return;
+    if (r.fecha && r.fecha <= today()) { toast('Su examen es hoy: la ruta ya no tiene más días.'); return; }
+    const d0 = b.d, h0 = b.h || '', hf0 = !!b.hFija;
+    E.moverBloque(x.ref, today(), '');
+    A.ocultos = (Array.isArray(A.ocultos) ? A.ocultos : []).filter(z => z !== x.ref); agQuitMarcar(A, 'estudio:' + x.ref, false);
+    agenda();
+    und = () => { const r2 = E.ruta(r.id), b2 = r2 && r2.plan.find(p => p && p.id === x.ref); if (!b2 || (r2.hechos || {})[x.ref]) return;
+      b2.d = d0; b2.h = h0; if (hf0) b2.hFija = true; else delete b2.hFija; r2.cambiado = Date.now();
+      const A2 = agenda(), y = A2.items.find(i => i && i.tipo === 'estudio' && i.ref === x.ref); if (y) { A2.items = A2.items.filter(i => i !== y); forget(y.id); } };
+  } else if (x.src === 'ini') {
+    const R = ivPoner(x.k, { t: x.t, exito: EXITO_DEF[x.k], min: x.min, h: '', por: '', paso: '', iden: x.iden || '', src: 'cont' }); if (!R) return;
+    if (R.it.tipo === 'libre') msg = `En tu día: «${x.t}» (extra). Toca la fila para ponerle hora.`;
+    und = () => { const y = agPorId(R.it.id); if (!y || agHecho(y)) return; if (R.creado) agQuitar(y); if (R.antes) { const z = ini4Semana().items[iniIdx(R.k)]; if (z && !z.hecho) Object.assign(z, R.antes); } iniCambio(); };
+  } else if (x.src === 'proyecto') {   // el paso del proyecto pasa a hoy (su fecha) y entra a tu agenda ligado a él
+    const pr = (ES.proyectos || []).find(p => p && p.id === x.ref); if (!pr) return;
+    const c0 = pr.cuando || '';
+    pr.cuando = today();
+    const it = contLibreHoy({ ...x, proy: pr.id });
+    und = () => { const p2 = (ES.proyectos || []).find(p => p && p.id === x.ref); if (p2 && p2.cuando === today()) p2.cuando = c0; const y = agPorId(it.id); if (y && !agHecho(y)) contSacar(it.id); };
+  } else {   // agenda de otro día
+    const it = contLibreHoy(x);
+    und = () => { const y = agPorId(it.id); if (y && !agHecho(y)) contSacar(it.id); };
+  }
+  guardar(); renderE(); contRepintar();
+  toast(msg, { deshacer: () => { try { und && und(); } catch (e) { console.warn('Deshacer', e); } guardar(); renderE(); contRepintar(); } });
+}
+// «Ya no»: fuera de esta lista (la cosa original no cambia).
+function contYaNo(x) {
+  if (!x) return;
+  const ks = [x.key, ...(x.alias || [])];
+  ks.forEach(k => contFueraPoner(k, true)); guardar(); contRepintar();
+  toast('Fuera de la lista. Lo original sigue igual.', { deshacer: () => { ks.forEach(k => contFueraPoner(k, false)); guardar(); contRepintar(); } });
+}
+function contAccion(q, x) { if (q === 'hecho') contHecho(x); else if (q === 'hoy' || q === 'empezar') contParaHoy(x); else if (q === 'fuera') contYaNo(x); }
+// La fila (sección y hoja «Ver todo»): el texto, de dónde viene y sus minutos; ✓ Hecho, Para hoy, Ya no.
+function contFilaHtml(x) {
+  const n = esc(x.t), m = `${esc(x.origen)} · ${esc(fmtMin(x.min)).replace(/ /g, '&nbsp;')}`;
+  return `<div class="cont-f" data-cont-k="${esc(x.key)}" role="group" aria-label="${n}"><p class="cont-t">${n}</p><p class="cont-m">${m}</p>
+    <div class="cont-b"><button type="button" class="cont-ok" data-cont="hecho" aria-label="Hecho: ${n}">✓ Hecho</button><button type="button" class="cont-go" data-cont="hoy" aria-label="${esc(contAcc2(x))}: ${n}">${esc(contAcc2(x))}</button><button type="button" class="link cont-no" data-cont="fuera" aria-label="Quitar de la lista: ${n}">Ya no</button></div></div>`;
+}
+const CONT_VER = 3;
+function contCardHtml() {
+  const L = contLista();
+  const cab = `<div class="iv-card-t"><b>${CONT_NOM}</b><small>Lo que quedó sin hacer, para retomarlo cuando quieras</small></div>`;
+  if (!L.length) return `<div class="iv-card cont-card" id="cont-card" data-iv-k="pend" role="group" aria-label="${CONT_NOM}">${cab}<p class="cont-vacio">Nada pendiente. Todo al día.</p><button type="button" class="link iv-mas" data-cont-otras>Ver las demás categorías ›</button></div>`;
+  return `<div class="iv-card cont-card" id="cont-card" data-iv-k="pend" role="group" aria-label="${CONT_NOM}">${cab}<div class="cont-l">${L.slice(0, CONT_VER).map(contFilaHtml).join('')}</div>
+    ${L.length > CONT_VER ? `<button type="button" class="link iv-mas" data-cont-todo>Ver todo lo pendiente (${L.length}) ›</button>` : ''}</div>`;
+}
+function contWire(R) {
+  if (!R) return;
+  R.querySelectorAll('[data-cont]').forEach(b => b.onclick = e => {
+    e.stopPropagation(); const f = b.closest('[data-cont-k]'); if (!f) return;
+    const x = contPorKey(f.dataset.contK); if (!x) { contRepintar(); return; }
+    const enHoja = !!b.closest('#sheet-body'), q = b.dataset.cont;
+    // En la hoja «Ver todo»: se cierra antes (así «Ver hábito» no queda debajo y lo que abra la acción, como la pregunta de ejercicios, se
+    // ve); «Ya no» la vuelve a pintar; el paso de proyecto la reemplaza con «Pequeña victoria».
+    if (enHoja && q !== 'fuera' && !(q === 'hecho' && x.src === 'proyecto')) { try { closeSheet(); } catch {} }
+    contAccion(q, x);
+    if (enHoja && q === 'fuera') contHoja(true);
+  });
+  R.querySelectorAll('[data-cont-todo]').forEach(b => b.onclick = () => contHoja());
+  R.querySelectorAll('[data-cont-otras]').forEach(b => b.onclick = () => { const c = b.closest('.iv-elige')?.querySelector('.iv-card:not(.cont-card)'); if (c) { c.scrollIntoView({ block: 'start', behavior: 'smooth' }); c.querySelector('button')?.focus({ preventScroll: true }); } });
+}
+function contHoja(rep = false) {
+  const L = contLista();
+  showSheet(`<h2>${CONT_NOM}</h2><p class="note">Lo que quedó sin hacer. «Ya no» lo saca de aquí; lo original sigue igual.</p>
+    <div class="cont-l cont-hoja">${L.length ? L.map(contFilaHtml).join('') : '<p class="cont-vacio">Nada pendiente. Todo al día.</p>'}</div>
+    <div class="actions"><button class="link" id="cont-x">Cerrar</button></div>`);
+  const b = $('#sheet-body'); $('#cont-x').onclick = closeSheet; contWire(b);
+}
+window.contPend = { lista: () => contLista().map(x => ({ key: x.key, src: x.src, t: x.t, origen: x.origen, min: x.min, d: x.d })), fuera: () => ({ ...contFueraMapa() }), fusion: contFueraFusion, accion: (k, q) => { const x = contPorKey(k); if (x) contAccion(q, x); return !!x; }, hoja: () => contHoja() };   // para las pruebas
+{ const css = `
+  .cont-card .cont-l { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .cont-f { border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px 6px; min-width: 0; }
+  .cont-t { margin: 0; font-size: .97rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+  .cont-m { margin: 2px 0 0; font-size: .84rem; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+  .cont-b { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; }
+  .cont-b button { min-height: 44px; font-size: .92rem; }
+  .cont-ok, .cont-go { padding: 0 14px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+  .cont-ok { border: 0; background: var(--green); color: #fff; }   /* el mismo verde que ✓ Hecho en el Inicio */
+  .cont-go { border: 1.5px solid var(--text); background: transparent; color: var(--text); }
+  .cont-no { margin-left: auto; padding: 0 6px; min-width: 44px; color: var(--muted); }
+  .cont-vacio { margin: 8px 0 0; font-size: .95rem; }
+  .cont-hoja { margin-top: 8px; }
+  .ic-el-row.ic-el-pd .t small { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-overflow: clip; }`;
+  try { const st = document.createElement('style'); st.textContent = css; agR.appendChild(st); } catch {}
+  try { const st = document.createElement('style'); st.textContent = css.replace(/\.cont-card /g, ''); ov.appendChild(st); } catch {} }
 
 // 2.22.0 (J) · Ideas y journaling: una iniciativa de esta categoría lleva directo a Journaling (las de escribir) o a Ideas (las de ideas o
 // pizarra). Son las secciones de siempre (irA): el temporizador compartido no se toca, sigue arriba mientras escribes.
@@ -12348,6 +12619,7 @@ function agParaDecir(txt) {
 function agParaToque(q, k, t, bid) {
   if (q === 'otra') { agParaN++; agParaRepintar(); return; }
   if (q === 'ver') { irA('iniciativas'); return; }
+  if (k === 'pend') { const x = contDe(t); if (x) contAccion(q === 'empezar' ? 'hoy' : q, x); agParaRepintar(); return; }   // 2.22.7 (P) · lo pendiente, por su camino
   if (bid) {
     const b = window.est?.bloque?.(bid); if (!b || b.hecho) { agParaRepintar(); return; }
     const it = agParaBloqueIt(b);
@@ -20272,6 +20544,7 @@ function iniFocoWire() {
 function iniRepintar() { try { if (view === 'inicio' && !document.getElementById('view-inicio')?.hidden) renderInicio(); } catch (e) { console.warn('Inicio', e); } }
 
 // ====================================================================
+// 2.22.7 (P) · Iniciativas: «Continuar lo pendiente».
 // 2.22.5 (C) · Iniciativa: categoría, «Siguiente» y «Elegir iniciativa».
 // 2.22.4 (T) · «Te pedí todos los apartados previamente hablados con este estilo en el inicio.» Una tarjeta grande por apartado, con las
 // clases de la de arriba (ag-foco-c, ag-foco-k, ag-foco-t, ag-foco-m, ag-foco-b), siempre a la vista. Cada botón llama a lo mismo que su
@@ -20363,7 +20636,13 @@ function icIniDeCat(k) {
   for (const t of INI_CAT[k] || []) if (!vistos.has(t)) { vistos.add(t); out.push({ k, t }); }
   return out;
 }
-function icIniLista() {
+function icIniLista() {   // 2.22.7 (P) · con lo pendiente
+  const B = icIniListaBase(); let C = [];
+  try { C = contLista().map(p => ({ k: 'pend', t: p.t, pend: p, sinXp: false })); } catch {}
+  const t = new Set(C.map(x => x.t)), B2 = B.filter(x => !t.has(x.t));
+  return C.length ? [C[0], ...B2, ...C.slice(1)] : B;
+}
+function icIniListaBase() {
   const I = ini4Semana(), cats = icIniCats(), libres = cats.filter(k => !(I.items[iniIdx(k)] || {}).hecho), sinXp = !libres.length;
   const A = agenda(), ya = new Set((A.items || []).map(it => String(it && it.t || '')));
   const eleg = k => { const x = I.items[iniIdx(k)] || {}; return !x.hecho && x.t ? x.t : ''; };
@@ -20388,6 +20667,7 @@ function icIniSiguiente() {
   icIniSel = { d: today(), k: x.k, t: x.t }; return x;
 }
 function icIniMin(x) {
+  if (x.k === 'pend') return x.pend ? x.pend.min : AG_MIN.ini;   // 2.22.7 (P)
   const m = x.mia && +x.mia.min; if (m >= 1 && m <= 240) return m;
   return x.elegida ? (+(ini4Semana().items[iniIdx(x.k)] || {}).min || agParaMin(x.t)) : agParaMin(x.t);
 }
@@ -20397,10 +20677,11 @@ function icIniHtml() {
   const pie = sx => `<p class="ag-foco-d ic-ini-pie">${sx ? '<span class="ic-ini-sx">Sin XP extra</span>' : ''}<button type="button" class="link ag-para-add ic-elegir" data-ic="ini-elegir">Elegir iniciativa</button></p>`;
   if (!x) return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p><p class="ag-foco-t">Elige una iniciativa</p><p class="ag-foco-m">Todas son opcionales: haz las que quieras.</p>
     <div class="ag-foco-b"><button type="button" class="ag-fb-go" data-para="ver">Ver iniciativas</button></div>${pie(false)}</section>`;
-  const cat = iniNombre(x.k);
-  return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" data-para-k="${esc(x.k)}" data-para-t="${esc(x.t)}" aria-label="Iniciativa"><p class="ag-foco-k">¿Te sientes aburrido?</p>
+  const pd = x.k === 'pend' ? x.pend : null, cat = pd ? CONT_NOM : iniNombre(x.k);   // 2.22.7 (P)
+  // Lo pendiente lleva arriba, a la vista, de dónde viene y cuándo («Agenda · quedó pendiente ayer») en lugar de «¿Te sientes aburrido?».
+  return `<section class="ag-foco-c ic-c ag-para" id="ini-c-ini" data-para-k="${esc(x.k)}" data-para-t="${esc(x.t)}" aria-label="Iniciativa"><p class="ag-foco-k${pd ? ' ic-ini-o' : ''}">${pd ? esc(pd.origen) : '¿Te sientes aburrido?'}</p>
     <p class="ag-foco-t" title="${esc(x.t)}">${esc(x.t)}</p><p class="ag-foco-m ic-ini-m" title="Categoría: ${esc(cat)}">Categoría: ${esc(cat)} · ${icMin(icIniMin(x))}</p>
-    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-para="hecho">✓ Hecho</button><button type="button" class="ag-fb-go" data-para="empezar">Empezar</button>${sig}</div>${pie(x.sinXp)}</section>`;
+    <div class="ag-foco-b"><button type="button" class="ag-fb-ok" data-para="hecho">✓ Hecho</button><button type="button" class="ag-fb-go" data-para="empezar">${pd ? esc(contAcc2(pd)) : 'Empezar'}</button>${sig}</div>${pie(x.sinXp)}</section>`;
 }
 // «Elegir iniciativa»: la hoja de siempre, con todas por categoría y «+ Crear una iniciativa» arriba.
 var icHojaL = [];
@@ -20413,16 +20694,17 @@ function icIniHoja() {
   const L = icIniLista(), en = new Set(L.map(icIniKey)), a = icIniActual(L), aK = a ? icIniKey(a) : '';
   icHojaL = [];
   const grupo = k => {
-    const filas = icIniDeCat(k).map(x => {
+    const filas = (k === 'pend' ? L.filter(y => y.k === 'pend').map(y => ({ k: 'pend', t: y.t, pend: y.pend })) : icIniDeCat(k)).map(x => {   // 2.22.7 (P)
       const n = icHojaL.push(x) - 1, q = icIniKey(x), ok = en.has(q), min = icIniMin({ ...x, elegida: (L.find(y => icIniKey(y) === q) || {}).elegida });
-      const sub = [fmtMin(min), x.mia ? 'Mía' : '', !ok ? 'Ya en tu día' : '', q === aK ? 'En la tarjeta' : ''].filter(Boolean).join(' · ');
-      return `<button type="button" class="row ic-el-row${q === aK ? ' on' : ''}" data-ici="${n}"${ok ? '' : ' aria-disabled="true"'} aria-label="${esc(x.t)}. ${esc(sub)}"><span class="dot" style="--c:${x.mia ? 'var(--green)' : 'var(--accent)'}"></span><span class="t"><div>${esc(x.t)}</div><small>${esc(sub)}</small></span><span class="tag">›</span></button>`;
+      const sub = [x.pend ? x.pend.origen : '', fmtMin(min), x.mia ? 'Mía' : '', !ok ? 'Ya en tu día' : '', q === aK ? 'En la tarjeta' : ''].filter(Boolean).join(' · ');
+      return `<button type="button" class="row ic-el-row${x.pend ? ' ic-el-pd' : ''}${q === aK ? ' on' : ''}" data-ici="${n}"${ok ? '' : ' aria-disabled="true"'} aria-label="${esc(x.t)}. ${esc(sub)}"><span class="dot" style="--c:${x.mia ? 'var(--green)' : x.pend ? 'var(--amber)' : 'var(--accent)'}"></span><span class="t"><div>${esc(x.t)}</div><small>${esc(sub)}</small></span><span class="tag">›</span></button>`;
     }).join('');
-    return `<h3 class="ic-el-h">${esc(iniNombre(k))}</h3><div class="rows" role="group" aria-label="${esc(iniNombre(k))}">${filas}</div>`;
+    const nom = k === 'pend' ? CONT_NOM : iniNombre(k);   // 2.22.7 (P)
+    return `<h3 class="ic-el-h">${esc(nom)}</h3><div class="rows" role="group" aria-label="${esc(nom)}">${filas || '<p class="meta ic-el-vacio">Nada pendiente. Todo al día.</p>'}</div>`;
   };
   showSheet(`<h2>Elegir iniciativa</h2><p class="note">Toca una y queda en la tarjeta del Inicio. Todas son opcionales.</p>
     <button type="button" class="ic-el-crear" id="ic-el-crear">+ Crear una iniciativa</button>
-    <div class="ic-el">${icIniCats().map(grupo).join('')}</div>
+    <div class="ic-el">${['pend', ...icIniCats()].map(grupo).join('')}</div>
     <div class="actions"><button class="link" id="ic-el-x">Cerrar</button></div>`);
   const b = $('#sheet-body');
   $('#ic-el-x').onclick = closeSheet;
