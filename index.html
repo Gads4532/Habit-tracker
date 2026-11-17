@@ -556,6 +556,7 @@
   <div id="view-agenda" hidden></div>
   <div id="view-iniciativas" hidden></div>
   <div id="view-consistencia" hidden></div>   <!-- 2.22.3 (M) -->
+  <div id="view-descanso" hidden></div>   <!-- 2.22.6 (D) -->
   <div id="view-bloques" hidden></div>
   <div id="view-estudio" hidden></div>
   <div id="view-journal" hidden></div>
@@ -633,6 +634,9 @@
   </button>
   <button class="tab" data-view="bienestar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>Bienestar
+  </button>
+  <button class="tab" data-view="descanso">   <!-- 2.22.6 (D) -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M7.5 12.5c1.5-1.8 3-1.8 4.5 0s3 1.8 4.5 0"/></svg>Descanso cognitivo
   </button>
   <button class="tab" data-view="cal" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendario
@@ -751,7 +755,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.6';
+const APP_VERSION = '2.22.7';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1032,6 +1036,29 @@ function iniEnfoqueJSON() {
   }
   return o;
 }
+// 2.22.6 (D) · Descanso cognitivo: { ult, ultMod, ses: [{ id, d, min, en, mod?, xp? }] }. Hasta 400 sesiones (las más nuevas).
+function dcNorm(x) {
+  const F = v => typeof v === 'string' && /^\d{4}-\d\d-\d\d$/.test(v) ? v : '';
+  const o = x && typeof x === 'object' && !Array.isArray(x) ? x : {}, u = Math.round(+o.ult), out = [], vistos = new Set();
+  for (const z of Array.isArray(o.ses) ? o.ses : []) {
+    if (!z || typeof z !== 'object' || typeof z.id !== 'string' || !z.id || vistos.has(z.id) || !F(z.d)) continue;
+    const min = Math.round(+z.min); if (!(min >= 1 && min <= 600)) continue;
+    vistos.add(z.id);
+    const n = { id: z.id.slice(0, 80), d: z.d, min, en: +z.en > 0 ? +z.en : 0 };
+    if (+z.mod > 0) n.mod = +z.mod;
+    if (F(z.xp)) n.xp = z.xp;
+    out.push(n);
+  }
+  out.sort((a, b) => a.en - b.en);
+  return { ult: u >= 1 && u <= 120 ? u : 5, ultMod: +o.ultMod > 0 ? +o.ultMod : 0, ses: out.slice(-400) };
+}
+// Dos copias: unión por id (gana la cambiada más tarde); lo quitado no vuelve; el último tiempo elegido, el más reciente.
+function dcFusion(x, y, dead) {
+  const A = dcNorm(x), B = dcNorm(y), m = new Map(), T = z => +z.mod || +z.en || 0;
+  for (const z of [...B.ses, ...A.ses]) { const o = m.get(z.id); if (!o || T(z) >= T(o)) m.set(z.id, z); }
+  const g = A.ultMod >= B.ultMod ? A : B;
+  return dcNorm({ ult: g.ult, ultMod: g.ultMod, ses: [...m.values()].filter(z => !(dead && dead.has(z.id))) });
+}
 function normEnfoque(e) {
   e ||= {};
   const d = new Date(), hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1045,6 +1072,7 @@ function normEnfoque(e) {
   e.constantes = kcNorm(e.constantes);   // 2.21.6 (C) · acciones constantes
   e.relevancia = relNorm(e.relevancia);   // 2.21.7 (R) · relevancia 1 a 5
   e.reflexiones = rfNorm(e.reflexiones);   // 2.22.1 (R) · reflexiones guiadas
+  e.descanso = dcNorm(e.descanso);   // 2.22.6 (D) · descanso cognitivo
   if (!Array.isArray(e.personas)) e.personas = [];
   for (const p of e.personas) { p.cada = +p.cada || 30; p.ultimo ||= ''; p.tel ||= ''; if (!Array.isArray(p.historial)) p.historial = []; }
   if (!Array.isArray(e.proyectos)) e.proyectos = [];
@@ -1205,7 +1233,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -1407,6 +1435,7 @@ function mergeStates(a, b) {
     constantes: kcFusion(eN.constantes, eO.constantes, dead),   /* 2.21.6 (C) */
     relevancia: relFusion(eN.relevancia, eO.relevancia),   /* 2.21.7 (R) */
     reflexiones: rfFusion(eN.reflexiones, eO.reflexiones, dead),   /* 2.22.1 (R) */
+    descanso: dcFusion(eN.descanso, eO.descanso, dead),   /* 2.22.6 (D) */
     objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), consistencias: consFusion(eN.consistencias, eO.consistencias, dead), consLog: consLogFusion(eN.consLog, eO.consLog, dead), consPreg: [eO.consPreg, eN.consPreg].filter(Boolean).sort().pop() || '', espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
@@ -3627,6 +3656,7 @@ function estNorm(x) {
       creado: Z(r.creado), cambiado: Z(r.cambiado), replan: Z(r.replan), archivada: !!r.archivada,
       ...(r.meta && typeof r.meta === 'object' && !Array.isArray(r.meta) ? { meta: { min: Math.max(0, Math.min(18000, Math.round(+r.meta.min) || 0)), dias: [...new Set(A(r.meta.dias).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b), mod: Z(r.meta.mod), ...estMetaBaseN(r.meta), ...(() => { const q = {}; if (r.meta.pesos && typeof r.meta.pesos === 'object') for (let wd = 0; wd < 7; wd++) { const v = Math.round(+r.meta.pesos[wd]); if (v >= 15 && v <= 480) q[wd] = v; } return Object.keys(q).length ? { pesos: q } : {}; })() } } : {}),   // 2.21.8 (D) · meta de horas (pesos: los minutos por día de la semana de los días que se quitaron, para cuando vuelvan)
       ...(() => { const f = estFechasN(r.fechas); return f ? { fechas: f } : {}; })(), ...(r.inicio && typeof r.inicio === 'object' && F(r.inicio.d) ? { inicio: { d: F(r.inicio.d), mod: Z(r.inicio.mod) } } : {}),   // 2.22.3 (I) · el día en que empieza ...(typeof r.fechasH === 'string' && r.fechasH ? { fechasH: r.fechasH.slice(0, 24) } : {}),   // 2.21.8 (K) · cambios por fecha y la huella del plan
+      ...(['horas', 'ej', 'ambas'].includes(r.metaTipo) ? { metaTipo: r.metaTipo, metaEj: Z(r.metaEj, 100000), metaEjMod: Z(r.metaEjMod), ...(Z(r.metaHAnt, 18000) > 0 ? { metaHAnt: Z(r.metaHAnt, 18000) } : {}) } : {}),   // 2.22.6 (E) · la meta: horas, ejercicios o las dos
       ...(r.ses && typeof r.ses === 'object' && Z(r.ses.n, 2000) > 0 && BLQ.includes(+r.ses.L) ? { ses: { n: Z(r.ses.n, 2000), L: +r.ses.L, ...(Z(r.ses.h, 18000) ? { h: Z(r.ses.h, 18000) } : {}), mod: Z(r.ses.mod), ...(r.ses.sucio === true ? { sucio: true } : {}) } } : {}),   // 2.22.5 (R) · sesiones
       ...(() => { const o = O(r.sesFuera), q = {}; for (const [k, v] of Object.entries(o).slice(0, 60)) { const f = F(k); if (f && Array.isArray(v)) { const ids = v.filter(x => typeof x === 'string' && x).map(x => x.slice(0, 80)).slice(0, 30); if (ids.length) q[f] = [...new Set(ids)]; } } return Object.keys(q).length ? { sesFuera: q } : {}; })(),   // 2.22.5 (R) · lo dejado fuera de su día
       ...(r.archivada && r.terminada && typeof r.terminada === 'object' && Z(r.terminada.en) ? { terminada: { en: Z(r.terminada.en) } } : {}) };   // 2.20.1 (T)
@@ -3719,6 +3749,8 @@ function estSesFus(g, p) {
   for (const [k, v] of [...Object.entries(O(p && p.sesFuera)), ...Object.entries(O(g && g.sesFuera))]) if (Array.isArray(v)) fu[k] = [...new Set([...(fu[k] || []), ...v])].slice(0, 30);
   return { ...(w ? { ses: w } : {}), ...(Object.keys(fu).length ? { sesFuera: fu } : {}) };
 }
+// 2.22.6 (E) · metaTipo y metaEj: los de metaEjMod más reciente (una copia sin ellos, como 2.22.6, nunca los borra).
+function estMetaEjFus(g, p) { const ok = v => !!v && ['horas', 'ej', 'ambas'].includes(v.metaTipo), a = ok(g) ? g : null, b = ok(p) ? p : null; const w = a && b ? ((+b.metaEjMod || 0) > (+a.metaEjMod || 0) ? b : a) : a || b; return w ? { metaTipo: w.metaTipo, metaEj: Math.max(0, Math.round(+w.metaEj || 0)), metaEjMod: +w.metaEjMod || 0, ...(+w.metaHAnt > 0 ? { metaHAnt: Math.round(+w.metaHAnt) } : {}) } : {}; }
 function estMetaFus(g, p) { const ok = v => !!v && typeof v === 'object' && !Array.isArray(v), a = ok(g && g.meta) ? g.meta : null, b = ok(p && p.meta) ? p.meta : null; const w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b; return w ? { meta: w } : {}; }
 function estFusion(a, b, dead) {
   a = a && typeof a === 'object' ? a : {}; b = b && typeof b === 'object' ? b : {};
@@ -3752,7 +3784,7 @@ function estFusion(a, b, dead) {
     const gT = g.terminada || (p.terminada && g.archivada && p.archivada && n(g.cambiado) === n(p.cambiado) ? p.terminada : null);   // 2.20.1 (T)
     const temas = gT ? g.temas : Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true }
       : t && typeof t === 'object' && t.hecho && muertos.size && plan.some(b => b.tema === t.id && muertos.has(b.id)) && !visto(plan, t, hechos, rd) ? { ...t, hecho: false } : t) : g.temas;
-    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), ...estInicioFus(g, p), ...estSesFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
+    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), ...estInicioFus(g, p), ...estSesFus(g, p), ...estMetaEjFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
   }
   return { materias: byId(L(a.materias), L(b.materias)), rutas: [...rutas.values()].filter(r => !dead.has(r.id)).map(r => ({ ...r, pendientes: L(r.pendientes).filter(x => !dead.has(x.id)), ...(Array.isArray(r.sesiones) ? { sesiones: L(r.sesiones).filter(x => !dead.has(x.id)) } : {}) })), cfg: a.cfg && typeof a.cfg === 'object' ? a.cfg : b.cfg };
 }
@@ -8219,10 +8251,13 @@ const IA_TOOLS = [
     quitar_fecha: S('Solo con ruta: fechas AAAA-MM-DD que se quitan del plan, separadas por comas. Sus minutos no van a otro día: quedan como deuda.'),
     agregar_fecha: S('Solo con ruta: fechas AAAA-MM-DD que se agregan como días de estudio, con «:minutos» si se sabe («2026-11-21:60»); sin minutos, lo de siempre por día.'),
     minutos_fecha: S('Solo con ruta: minutos para un día concreto, «AAAA-MM-DD:90», separados por comas.'),
-    repartir_deuda: { type: 'boolean', description: 'Solo con ruta: reparte la deuda de horas en los días de estudio que quedan (como mucho el máximo por día). Solo si la persona lo pidió.' } }),
-  iaTool('estudio_bloque', 'Marca un bloque de estudio como hecho (con los ejercicios hechos), lo deshace o lo mueve a otro día u hora. El id del bloque sale de estudio_ver.', {
+    repartir_deuda: { type: 'boolean', description: 'Solo con ruta: reparte la deuda de horas en los días de estudio que quedan (como mucho el máximo por día). Solo si la persona lo pidió.' },
+    meta: { type: 'string', enum: ['horas', 'ejercicios', 'las_dos'], description: 'La meta de la ruta: horas (la de siempre), ejercicios (un total de ejercicios hasta el examen) o las dos. Al crear o, con ruta, para cambiarla.' },
+    ejercicios_total: { type: 'integer', description: 'Ejercicios en total hasta el examen (con meta ejercicios o las_dos); 0 si no aplica.' } }),
+  iaTool('estudio_bloque', 'Marca un bloque de estudio como hecho (con los minutos, los ejercicios y una nota; si ya estaba hecho, cambia lo anotado), lo deshace o lo mueve a otro día u hora. El id del bloque sale de estudio_ver.', {
     accion: { type: 'string', enum: ['hecho', 'deshacer', 'mover'] }, bloque: S('Id del bloque.'), fecha: S('Al mover: AAAA-MM-DD o vacío.'), hora: S('Al mover: HH:MM en 24 h o vacío.'),
-    ejercicios: { type: 'integer', description: 'Ejercicios hechos al marcar; -1 si no se sabe (se usan los del bloque).' } }),
+    ejercicios: { type: 'integer', description: 'Ejercicios hechos al marcar; -1 si no se sabe (se usan los sugeridos del bloque).' },
+    minutos: { type: 'integer', description: 'Minutos que de verdad estudió al marcar; 0 si no se sabe (los del bloque).' }, nota: S('Nota corta de lo que hizo, o vacío.') }),
   iaTool('estudio_pendiente', 'Añade una tarea o una entrega a una ruta de estudio (va también a la lista «Estudio» de Tareas).', {
     ruta: S('Nombre del examen, de la materia o id de la ruta.'), texto: S('Qué hay que hacer o entregar.'), clase: { type: 'string', enum: ['tarea', 'entrega'] }, fecha: S('AAAA-MM-DD o vacío.'), hora: S('HH:MM en 24 h o vacío.') }),
   iaTool('estudio_terminar', 'Termina una ruta de estudio: pasa a «Anteriores», los bloques que quedaban salen del plan, de la Agenda y de Google Calendar, y lo hecho se queda. Úsala solo si la persona lo pidió (ya hizo el examen o deja la ruta).', {   // 2.20.1 (T)
@@ -11722,7 +11757,7 @@ const xpTabla = () => [['Si desmarcas algo, su XP se quita; si lo vuelves a marc
   ['Día organizado (Agenda)', 20], ['Mañana organizado la noche antes', 20], ['Agenda del día completa (una vez al día)', 25], ['Cosa suelta de la agenda', 10], ['Bloque de estudio hecho, en Estudio, la Agenda, el enfoque o el asistente (una vez por bloque)', 10], ['Tema de una ruta visto', 15], ['Tarea o entrega de una ruta', 'como una tarea'], ['Normas de Vida espiritual', 'cuentan en tu iniciativa espiritual del día'], ['Lo de dentro de un bloque de tiempo', 'lo suyo; el bloque no suma aparte'],
   ['Minutos de enfoque', '1 por minuto, hasta 90; +20 sin interrupciones'], ['Descanso con propósito', '1 por minuto, hasta 30 al día; +10 una vez al día si lo completas sin mirar el teléfono'], ['Resistir una apertura', 15], ['Alternativa elegida', 10],
   ['Escribir, llamar o proponer un plan', '20–25'], ['Paso de proyecto', 30], ['Misión social', 25], ['Práctica de Bienestar (una vez al día cada una)', '5–15'], ['Chequeo de ánimo', 5],
-  ['Objetivo SMART creado', 15], ['Avance en un objetivo (uno al día por objetivo)', 5], ['Objetivo cumplido', 100], ['Tres cosas buenas', 10], ['Journaling', 10], ['Reflexión guiada (una vez al día)', 10], ['Noche sin teléfono en el cuarto (una por mañana)', 10], ['Un cambio en tu teléfono (una vez por paso)', 10], ['Día dentro de tu presupuesto (uno al día)', 10], ['Plan de rescate', 20]];
+  ['Objetivo SMART creado', 15], ['Avance en un objetivo (uno al día por objetivo)', 5], ['Objetivo cumplido', 100], ['Tres cosas buenas', 10], ['Journaling', 10], ['Reflexión guiada (una vez al día)', 10], ['Descanso cognitivo (una vez al día, desde 3 min)', 10], ['Noche sin teléfono en el cuarto (una por mañana)', 10], ['Un cambio en tu teléfono (una vez por paso)', 10], ['Día dentro de tu presupuesto (uno al día)', 10], ['Plan de rescate', 20]];
 // 2.19.3 · «Cuando le dé clic a los niveles debo ver cuántos hay y debe ser algo competitivo… y gratificante hacer lo que debo y subir de
 // nivel.» Arriba, tu insignia, el XP y lo que falta; después la liga de la semana (Bronce → Diamante, se reinicia cada lunes), la carrera
 // contra tu semana pasada al mismo día, tus récords (mejor día y mejor semana) y la escalera de los 20 niveles con lo que pide cada uno.
@@ -11949,7 +11984,7 @@ function renderAg() {
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecha" aria-pressed="${ok}"></button>
       <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}${(() => { if (fo || it.tipo !== 'estudio' || typeof it.ref !== 'string') return ''; let q = ''; try { q = window.est.sesTexto(it.ref) || ''; } catch {} return q ? ` <span class="ag-ses-n">· ${esc(q)}</span>` : ''; })()}</div><small>${fo ? 'Bloque protegido' : esc(agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
-      ${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a"><button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
+      ${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
   const pendE = it => esLead(it) ? RG.lead.get(it.id).ms.some(agPendVis) : agPendVis(it);
@@ -16427,7 +16462,7 @@ const estRepartido = (r, b) => !!(r && b && r.hechos && !r.hechos[b.id] && b.d <
 // ---------- Bloques enriquecidos y textos.
 function estEnriquecer(r, b) {
   const m = estMateria(r.materia), hi = r.hechos[b.id] || null;
-  return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', iden: r.iden || (m && m.iden) || '', habito: r.habito || (m && m.habito) || '', examen: r.fecha, hecho: !!hi, hechoInfo: hi ? { ...hi } : null };
+  return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', iden: r.iden || (m && m.iden) || '', habito: r.habito || (m && m.habito) || '', examen: r.fecha, hecho: !!hi, hechoInfo: hi ? { ...hi } : null, ...(() => { if (hi) return {}; try { return estEjOn(r) ? { ej: estEjSug(r, b), ejPlan: b.ej, ejSug: true } : {}; } catch { return {}; } })() };   // 2.22.6 (E) · con meta de ejercicios, los sugeridos
 }
 function estBloquesDe(fecha = today()) {
   fecha = estF(fecha) || today();
@@ -16915,6 +16950,9 @@ function estCrear(datos = {}) {
   const ini = datos.inicio === undefined || datos.inicio === null || datos.inicio === '' ? '' : estF(datos.inicio);   // 2.22.3 (I)
   if (datos.inicio && !ini) throw new Error('La fecha de inicio no es válida.'); if (ini && ini < hoy) throw new Error('El inicio va de hoy en adelante.'); if (ini && ini > hoy && ini >= fecha) throw new Error(EST_INI_MAL);
   const temas = estTemasDe(datos.temas); if (!temas.length) throw new Error('Añade al menos un tema.');
+  const mtE = ['horas', 'ej', 'ambas'].includes(datos.metaTipo) ? datos.metaTipo : '', mtN = Math.max(0, Math.min(100000, Math.round(+datos.metaEj || 0)));   // 2.22.6 (E)
+  if ((mtE === 'ej' || mtE === 'ambas') && !(mtN > 0)) throw new Error('Escribe cuántos ejercicios en total.');
+  if (mtE === 'ambas' && !(datos.meta && typeof datos.meta === 'object' && +datos.meta.min > 0)) throw new Error('Elige cuántas horas en total.');   // «Las dos» lleva horas
   if (D.rutas.length >= 40) throw new Error('Ya hay 40 rutas guardadas, contando las archivadas: borra alguna antigua desde su ficha para crear otra.');   // 2.17.1 (D) · antes de crear la materia
   let m = estMateria(datos.materia);
   if (!m && estS(datos.materiaNombre, 40)) m = estMateriaCrear({ nombre: datos.materiaNombre, color: datos.materiaColor }, false);   // avisa ('materia', m) si es nueva
@@ -16923,7 +16961,8 @@ function estCrear(datos = {}) {
     config: { ...estD().cfg, ...(datos.config && typeof datos.config === 'object' ? datos.config : {}) }, plan: [], hechos: {}, pendientes: [], iden: datos.iden, obj: datos.obj, habito: datos.habito,
     notion: null, gcal: {}, aviso: null, resultado: null, creado: Date.now(), cambiado: Date.now(), replan: 0, archivada: false });
   if (ini && ini > hoy) r.inicio = { d: ini, mod: Date.now() };   // 2.22.3 (I) · hoy (o nada) = como siempre
-  if (datos.meta && typeof datos.meta === 'object' && +datos.meta.min > 0) { r.meta = estNormRuta({ ...r, meta: { min: datos.meta.min, dias: Array.isArray(datos.meta.dias) && datos.meta.dias.length ? datos.meta.dias : [0, 1, 2, 3, 4, 5, 6], mod: Date.now() } }).meta; r.config.porDia = estMetaPorDia(r.config.porDia, r.meta.dias, r.meta); }   // 2.21.8 (D)
+  if (mtE) { r.metaTipo = mtE; r.metaEj = mtN; r.metaEjMod = Date.now(); }   // 2.22.6 (E) · con «Ejercicios», sin meta de horas
+  if (mtE !== 'ej' && datos.meta && typeof datos.meta === 'object' && +datos.meta.min > 0) { r.meta = estNormRuta({ ...r, meta: { min: datos.meta.min, dias: Array.isArray(datos.meta.dias) && datos.meta.dias.length ? datos.meta.dias : [0, 1, 2, 3, 4, 5, 6], mod: Date.now() } }).meta; r.config.porDia = estMetaPorDia(r.config.porDia, r.meta.dias, r.meta); }   // 2.21.8 (D)
   if (r.meta && datos.meta && datos.meta.base) { const nb = estMetaBaseN({ base: datos.meta.base }); if (nb.base) { r.meta.base = nb.base; r.meta.desde = estMetaDesde(); if (+datos.meta.red > 0 && +datos.meta.red < 15) r.meta.red = Math.round(+datos.meta.red); } }   // 2.21.8 (K)
   if (r.meta && datos.fechas) { const fx = estFechasN(datos.fechas), now = Date.now(); if (fx) r.fechas = Object.fromEntries(Object.entries(fx).filter(([, o]) => o.min >= 0).map(([k, o]) => [k, { min: o.min, mod: now }])); }
   estPlanificar(r); try { if (estFechasAct(r)) { const on = !!estMetaOn(r), H = on ? 0 : estSesHorasPlan(r); r.ses = { n: Math.max(1, estSesN(r, 0) || 1), L: estSesLen(r), ...(H > 0 ? { h: H } : {}), mod: Date.now(), sucio: true }; } else estSesionar(r); } catch (e) { console.warn('Estudio: sesiones', e); }   // 2.22.5 (R) · la ruta nace en sesiones (con días quitados en el borrador, el plan de siempre con su deuda y «Reacomodar»)
@@ -16936,6 +16975,15 @@ function estEditar(id, cambios = {}) {
   { const nf = cambios.fecha !== undefined ? estF(cambios.fecha) : r.fecha, ni = cambios.inicio !== undefined ? estF(cambios.inicio) : estIni(r);   // 2.22.3 (I) · antes de tocar nada
     if (cambios.inicio !== undefined && !ni) throw new Error('La fecha de inicio no es válida.');
     if (ni && nf && ni > hoy && ni >= nf) throw new Error(cambios.inicio !== undefined ? EST_INI_MAL : 'El examen va después del día en que empiezas: cambia también el inicio.'); }
+  // 2.22.6 (E) · La meta: horas, ejercicios o las dos. Con «Ejercicios» la meta de horas se apaga (min 0, como al quitarla).
+  let mtE = null; if (cambios.metaTipo !== undefined || cambios.metaEj !== undefined) {
+    const t = ['horas', 'ej', 'ambas'].includes(cambios.metaTipo) ? cambios.metaTipo : estMetaTipo(r), n = cambios.metaEj !== undefined ? Math.max(0, Math.min(100000, Math.round(+cambios.metaEj || 0))) : estMetaEjN(r);
+    if ((t === 'ej' || t === 'ambas') && !(n > 0)) throw new Error('Escribe cuántos ejercicios en total.');
+    if ((cambios.metaTipo === 'horas' || cambios.metaTipo === 'ambas') && cambios.meta === undefined && !estMetaOn(r) && +r.metaHAnt > 0) cambios = { ...cambios, meta: { min: Math.round(+r.metaHAnt) } };   // vuelve a las horas que tenía
+    const hOn = cambios.meta !== undefined ? +(cambios.meta && cambios.meta.min) > 0 : !!estMetaOn(r);
+    if (t === 'ambas' && !hOn) throw new Error('Elige cuántas horas en total.');   // «Las dos» lleva horas
+    mtE = { t, n }; if (t === 'ej' && estMetaOn(r) && cambios.meta === undefined) cambios = { ...cambios, meta: { min: 0 } };
+  } else if (cambios.meta !== undefined && !(+(cambios.meta && cambios.meta.min) > 0) && estMetaTipo(r) === 'ambas' && estMetaOn(r)) mtE = { t: 'ej', n: estMetaEjN(r) };   // sin horas, «Las dos» queda en «Ejercicios»
   const pdAntes = { ...((r.config && r.config.porDia) || {}) }, metaAntes = r.meta && typeof r.meta === 'object' ? JSON.parse(JSON.stringify(r.meta)) : null;   // 2.21.8 (K)   // 2.21.8 (D) · para guardar en meta.pesos los minutos de un día que se quita
   if (cambios.fecha !== undefined) { const f = estF(cambios.fecha); if (!f || f < hoy) throw new Error('La fecha del examen va de hoy en adelante.'); if (f !== r.fecha) { r.fecha = f; replan = true; } }
   if (cambios.hora !== undefined) r.hora = estH(cambios.hora);
@@ -16954,6 +17002,8 @@ function estEditar(id, cambios = {}) {
   const sesCrudo = replan && !r.terminada && !!r.ses && (iniCambio || estSesClave(r) !== sesK0);   // 2.22.5 (R) · cambió lo que define N: hay que reacomodar
   if (replan && !r.terminada) { estPlanificar(r, today(), sesCrudo ? { sinSes: true } : {}); r.replan = Date.now(); }   // 2.20.1 (T) · terminada: sin plan nuevo
   if (sesCrudo && r.ses) { const on = !!estMetaOn(r), q = { ...r.ses, sucio: true, mod: Math.max(Date.now(), (+r.ses.mod || 0) + 1) }; if (on) delete q.h; else q.h = Math.max(1, estSesHorasPlan(r)); r.ses = q; }   // 2.22.5 (R) · sin meta: las horas nuevas salen de los ajustes nuevos
+  if (mtE && (mtE.t !== r.metaTipo || mtE.n !== estMetaEjN(r))) { if (mtE.t === 'ej' && metaAntes && +metaAntes.min > 0) r.metaHAnt = Math.round(+metaAntes.min); r.metaTipo = mtE.t; r.metaEj = mtE.n; r.metaEjMod = Math.max(Date.now(), (+r.metaEjMod || 0) + 1); }   // 2.22.6 (E) · (metaHAnt: las horas que tenía, por si vuelve a «Horas»)
+  if (mtE && mtE.t === 'ej' && metaAntes && +metaAntes.min > 0 && !estMetaOn(r) && !r.terminada && !r.archivada) { try { if (estSesInfo(r).mal) { estSesAplicar(r); r.replan = Date.now(); } } catch (e) { console.warn('Estudio', e); } }   // sin la meta de horas, las sesiones cuadran al momento (como «Reacomodar»)
   r.cambiado = Date.now(); guardar(); estAvisar('ruta', r);
   if (sesCrudo) { try { if (estSesInfo(r).mal && estSesGuarda) estSesPedirLuego(r.id); } catch {} }   // 2.22.5 (R) · al guardar los ajustes con un cambio que descuadra, «Reacomodar» al momento (en lo demás, el aviso)
   return r;
@@ -16987,10 +17037,11 @@ function estTemaHecho(r, temaId) {
 }
 function estMarcar(id, hecho = true, { min, ej, nota } = {}) {
   const r = estRutaDeBloque(id, true); if (!r) return null;
+  { const cc = hecho && estCompletarCon && estCompletarCon.id === id ? estCompletarCon : null; if (cc) { min = cc.min; ej = cc.ej; nota = cc.nota; } }   // 2.22.6 (E) · lo de la hoja «Completar», por cualquier camino
   const b = r.plan.find(x => x.id === id), antes = !hecho && r.hechos[id] && typeof r.hechos[id] === 'object' ? { ...r.hechos[id] } : null;   // 2.14.1 (X) · lo anotado, para el oyente al deshacer
   if (hecho) {
     const dz = r.deshechos && typeof r.deshechos === 'object' ? r.deshechos : null;   // 2.17.1 (D) · el hecho nuevo va después de la marca de borrado
-    r.hechos[id] = { en: Math.max(Date.now(), dz ? (+dz[id] || 0) + 1 : 0), min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : b.ej, nota: String(nota ?? '').trim().slice(0, 200) };
+    r.hechos[id] = { en: Math.max(Date.now(), dz ? (+dz[id] || 0) + 1 : 0), min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : estEjSug(r, b), nota: String(nota ?? '').trim().slice(0, 200) };
     if (dz) delete dz[id];
     const ks = Object.keys(r.hechos); if (ks.length > 1600) for (const k of ks.sort((x, y) => (r.hechos[x].en || 0) - (r.hechos[y].en || 0)).slice(0, ks.length - 1600)) delete r.hechos[k];
   } else {
@@ -17072,7 +17123,7 @@ function estCalendario(anio, mes0) {
 }
 function estResumenIA() {
   const activas = estRutas(); if (!activas.length) return null;
-  const rutas = activas.slice(0, 10).map(r => { const s = estResumen(r.id); return { id: r.id, rango: estJerRango(r.id) || null, nombre: r.nombre, materia: estMatNombre(r), examen: r.fecha, ...(estIni(r) > today() ? { empieza: estIni(r) } : {}), hora: r.hora, dias: s.diasRestantes, temas: `${s.temasHechos} de ${s.temasTotal}`, bloques: `${s.bloquesHechos} de ${s.bloquesTotal}`, sinHacer: s.sinHacer, estudiado: estRealTxt(estReal(r.id)) || 'nada aún', ...(() => { const x = estMetaInfo(r); return x.on ? { horas_total: fmtMin(x.min), dias_estudio: estMetaDiasT(x.dias), progreso: `${fmtMin(x.real)} de ${fmtMin(x.min)}`, ...(x.falta >= 15 ? { no_cabe: `Quedan ${fmtMin(x.falta)} fuera (máximo ${x.tope.min} min por día desde las ${x.tope.desde})` } : {}), ...estBalIA(r) } : { dias_estudio: estMetaDiasT(x.dias) }; })(), aviso: s.aviso ? `No cabe todo: harían falta ${s.aviso.faltan} min por día` : '' }; });
+  const rutas = activas.slice(0, 10).map(r => { const s = estResumen(r.id); return { id: r.id, ...estEjIA(r), rango: estJerRango(r.id) || null, nombre: r.nombre, materia: estMatNombre(r), examen: r.fecha, ...(estIni(r) > today() ? { empieza: estIni(r) } : {}), hora: r.hora, dias: s.diasRestantes, temas: `${s.temasHechos} de ${s.temasTotal}`, bloques: `${s.bloquesHechos} de ${s.bloquesTotal}`, sinHacer: s.sinHacer, estudiado: estRealTxt(estReal(r.id)) || 'nada aún', ...(() => { const x = estMetaInfo(r); return x.on ? { horas_total: fmtMin(x.min), dias_estudio: estMetaDiasT(x.dias), progreso: `${fmtMin(x.real)} de ${fmtMin(x.min)}`, ...(x.falta >= 15 ? { no_cabe: `Quedan ${fmtMin(x.falta)} fuera (máximo ${x.tope.min} min por día desde las ${x.tope.desde})` } : {}), ...estBalIA(r) } : { dias_estudio: estMetaDiasT(x.dias) }; })(), aviso: s.aviso ? `No cabe todo: harían falta ${s.aviso.faltan} min por día` : '' }; });
   const hoy = estBloquesDe().slice(0, 12).map(b => ({ id: b.id, texto: estTexto(b), hora: b.h, min: b.min, ej: b.ej, hecho: b.hecho, ...(b.hecho && b.hechoInfo ? { minReal: b.hechoInfo.min, ejReal: b.hechoInfo.ej } : {}) }));   // 2.21.7 (E)
   const pendientes = estPendientes().slice(0, 20).map(p => ({ id: p.id, texto: p.t, clase: p.clase, fecha: p.fecha, hora: p.hora, ruta: p.rutaNombre }));
   return { rutas, hoy, pendientes, sinHacer: rutas.reduce((n, r) => n + r.sinHacer, 0), aviso: rutas.filter(r => r.aviso).map(r => `${r.nombre}: ${r.aviso}`) };
@@ -17167,6 +17218,64 @@ function estSesAviso(r, nombre = false) {
   return `${tu} tiene ${i.S} de ${i.N} sesiones agendadas. Reacomoda para que cuadren.`;
 }
 const estSesMalR = r => { try { return estSesInfo(r).mal; } catch { return false; } };
+// ====================================================================
+// 2.22.6 (E) · Meta de la ruta: horas (la de siempre), ejercicios o las dos. Ejercicios hechos = los anotados en los bloques hechos y lo
+// anotado aparte. Cada sesión que queda (de hoy en adelante, antes del examen, en su agenda) sugiere lo que falta repartido en orden; nunca
+// menos que los del bloque («Ejercicios por día»). Al día: hechos ≥ meta × días de estudio pasados / días de estudio de la ruta.
+// ====================================================================
+let estCompletarCon = null;   // { id, min, ej, nota }: lo de la hoja «Completar» mientras marca (lo lee estMarcar)
+const EST_MT = ['horas', 'ej', 'ambas'];
+function estMetaTipo(r) { const t = r && r.metaTipo; return EST_MT.includes(t) ? t : 'horas'; }
+function estMetaEjN(r) { return Math.max(0, Math.round(+(r && r.metaEj) || 0)); }
+function estEjOn(r) { const t = estMetaTipo(r); return (t === 'ej' || t === 'ambas') && estMetaEjN(r) > 0; }
+function estEjHechos(r) { let e = 0; for (const [k, h] of Object.entries((r && r.hechos) || {})) { if (!h || typeof h !== 'object' || k === 'aviso') continue; e += Math.max(0, Math.round(+h.ej || 0)); } for (const x of Array.isArray(r && r.sesiones) ? r.sesiones : []) e += Math.max(0, Math.round(+(x && x.ej) || 0)); return e; }
+let estEjC = null;
+function estEjPlan(r) {
+  if (!estEjC) { estEjC = new WeakMap(); Promise.resolve().then(() => { estEjC = null; }); }
+  const hoy = today(), h = r.hechos || {}, hechos = estEjHechos(r), meta = estMetaEjN(r);
+  let oc0 = ''; try { const A = ES.agendaHoy; oc0 = A && A.fecha === hoy && Array.isArray(A.ocultos) ? A.ocultos.join(',') : ''; } catch {}
+  const f = [hoy, meta, hechos, Object.keys(h).length, (r.plan || []).length, +r.cambiado || 0, +r.replan || 0, JSON.stringify(r.sesFuera || 0), oc0, (r.plan || []).map(b => b && b.id + b.d + (b.h || '')).join(',')].join('|'), c = estEjC.get(r);
+  if (c && c.f === f) return c.v;
+  const fuera = estSesFueraSet(r), ocD = new Map(), L = [];
+  for (const b of r.plan || []) {
+    if (!estSesTipo(b) || h[b.id] || !(b.d >= hoy) || (r.fecha && b.d >= r.fecha) || fuera.has(b.id)) continue;
+    let o = ocD.get(b.d); if (!o) { o = estSesOcultos(b.d); ocD.set(b.d, o); } if (o.has(b.id)) continue;
+    L.push(b);
+  }
+  L.sort(estSesCron);
+  const rest = Math.max(0, meta - hechos), k = L.length, base = k ? Math.floor(rest / k) : 0, extra = k ? rest % k : 0, map = new Map();
+  L.forEach((b, i) => map.set(b.id, base + (i < extra ? 1 : 0)));
+  const v = { map, por: k ? Math.ceil(rest / k) : rest, k, rest, hechos, meta }; estEjC.set(r, { f, v }); return v;
+}
+// Los ejercicios sugeridos de un bloque sin hacer (sin meta de ejercicios, los del bloque).
+function estEjSug(r, b) {
+  if (!r || !b) return 0; const raw = Math.max(0, Math.round(+b.ej || 0)); if (!estEjOn(r)) return raw;
+  const pl = estEjPlan(r), s = pl.map.has(b.id) ? pl.map.get(b.id) : estSesTipo(b) ? pl.por : 0; return Math.max(s, raw);
+}
+function estEjInfo(x) {
+  const r = typeof x === 'string' ? estRuta(x) || estTodas().find(y => y.id === x) : x; if (!r || typeof r !== 'object') return null;
+  const tipo = estMetaTipo(r), on = estEjOn(r), meta = estMetaEjN(r), hechos = estEjHechos(r), faltan = Math.max(0, meta - hechos);
+  if (!on) return { on: false, tipo, meta, hechos, faltan: 0, esperado: 0, deuda: 0, alDia: true, por: 0, ses: 0, horasOk: true };
+  const pl = estEjPlan(r), hoy = today(), dias = new Set();
+  for (const b of r.plan || []) if (estSesTipo(b) && b.d && (!r.fecha || b.d < r.fecha)) dias.add(b.d);
+  const tot = dias.size, pas = [...dias].filter(d => d < hoy).length, vivo = !r.archivada && !r.terminada;
+  const esperado = tot ? Math.floor(meta * pas / tot) : 0, deuda = vivo ? Math.max(0, esperado - hechos) : 0;
+  let horasOk = true; if (tipo === 'ambas') { try { const m = estMetaInfo(r); horasOk = !(m && m.on && m.deuda); } catch {} }
+  return { on, tipo, meta, hechos, faltan, esperado, deuda, alDia: deuda === 0, por: pl.por, ses: pl.k, horasOk };
+}
+// Con meta de ejercicios: «Meta 300 ejercicios · Hechos 40 · Faltan 260 · Al día» (texto; la interfaz lo pinta con colores).
+function estEjT(x) {
+  const i = x && typeof x === 'object' && 'on' in x ? x : estEjInfo(x); if (!i || !i.on) return '';
+  const st = !i.faltan ? 'Meta cumplida' : i.deuda ? `Deuda ${i.deuda}` : i.horasOk ? 'Al día' : 'Ejercicios al día';
+  return `Meta ${i.meta} ${i.meta === 1 ? 'ejercicio' : 'ejercicios'} · Hechos ${i.hechos} · Faltan ${i.faltan} · ${st}`;
+}
+const EST_MT_T = { horas: 'horas', ej: 'ejercicios', ambas: 'horas y ejercicios' };
+function estEjIA(r) {
+  const i = estEjInfo(r); if (!i) return {};
+  if (!i.on) return { meta: EST_MT_T[i.tipo === 'horas' ? 'horas' : i.tipo] || 'horas' };
+  return { meta: EST_MT_T[i.tipo], meta_ejercicios: i.meta, ejercicios_hechos: i.hechos, ejercicios_faltan: i.faltan, ejercicios_por_sesion: i.por, ejercicios_estado: estEjT(i) };
+}
+
 // Los números en el orden del plan (después de mover una sesión): los mismos números, ordenados por día y hora.
 function estSesRenum(r) {
   if (!r || !Array.isArray(r.plan) || !r.ses || r.ses.sucio) return;
@@ -17383,6 +17492,8 @@ const estAPI = {
   diaSheet: fecha => estAPI.ui.diaSheet?.(fecha),
 };
 window.est = estAPI;
+Object.assign(estAPI, { metaTipo: r => estMetaTipo(typeof r === 'string' ? estRuta(r) : r), ejOn: r => estEjOn(typeof r === 'string' ? estRuta(r) : r), ejInfo: estEjInfo, ejT: estEjT, ejIA: estEjIA,   // 2.22.6 (E)
+  ejSug: (r, b) => { const R = typeof r === 'string' ? estRuta(r) : r; const B = typeof b === 'string' ? (R && R.plan.find(x => x.id === b)) : b; return estEjSug(R, B); }, completarCon: v => { estCompletarCon = v && typeof v === 'object' && typeof v.id === 'string' ? { ...v } : null; } });
 // 2.17.1 (R) · La jerarquía de las rutas.
 function estJerOrden() { return estRutas().map(r => r.id); }
 function estJerRango(id) { const hoy = today(), i = estRutas().filter(r => r.fecha >= hoy).findIndex(r => r.id === id); return i + 1; }
@@ -17587,9 +17698,9 @@ function estAnotar(id, c = {}) {
   const r = estRutaDeBloque(id, true); if (!r) return null;
   const h = r.hechos[id]; if (!h || typeof h !== 'object') return null;
   const antes = { ...h }, m = estSesMin(c.min), e = c.ej === undefined || c.ej === null || c.ej === '' || !Number.isFinite(+c.ej) ? null : Math.max(0, Math.min(10000, Math.round(+c.ej)));
-  if (m) h.min = m; if (e !== null) h.ej = e;
+  if (m) h.min = m; if (e !== null) h.ej = e; if (c.nota !== undefined && c.nota !== null) h.nota = String(c.nota).replace(/\r/g, '').trim().slice(0, 200);   // 2.22.6 (E) · y la nota
   const b = r.plan.find(x => x.id === id);
-  if (h.min === antes.min && h.ej === antes.ej) return estEnriquecer(r, b);
+  if (h.min === antes.min && h.ej === antes.ej && (h.nota || '') === (antes.nota || '')) return estEnriquecer(r, b);
   h.mod = Math.max(Date.now(), (+h.mod || 0) + 1, (+h.en || 0) + 1);
   guardar(); const eb = estEnriquecer(r, b); estAvisar('anotado', eb, { antes }); return eb;
 }
@@ -17808,7 +17919,7 @@ function euUltimoDelTema(r, b) {
 // «hecho hoy», «hecho ayer» o «hecho el 4 nov» (nada si el registro no trae una fecha válida).
 const euHechoEl = en => { const k = +en > 0 ? dayKey(new Date(+en)) : ''; if (!euF(k)) return ''; const f = fmtFecha(k); return /^(Hoy|Ayer)$/.test(f) ? ' ' + f.toLowerCase() : ' el ' + esc(f); };
 // Un bloque de cualquier ruta (también archivada), enriquecido como los de est.bloque.
-function euEnr(r, b) { const m = EU()?.materia(r.materia); return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', examen: r.fecha, hecho: !!r.hechos[b.id], hechoInfo: r.hechos[b.id] ? { ...r.hechos[b.id] } : null }; }
+function euEnr(r, b) { const m = EU()?.materia(r.materia); return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', examen: r.fecha, hecho: !!r.hechos[b.id], hechoInfo: r.hechos[b.id] ? { ...r.hechos[b.id] } : null, ...(() => { try { const E = EU(); return !r.hechos[b.id] && E && E.ejOn && E.ejOn(r) ? { ej: E.ejSug(r, b), ejPlan: b.ej, ejSug: true } : {}; } catch { return {}; } })() }; }   // 2.22.6 (E)
 function euBloqueDe(id) { const E = EU(); if (!E) return null; const b = E.bloque(id); if (b) return b; const r = E.rutas(true).find(x => x.plan.some(y => y.id === id)); return r ? euEnr(r, r.plan.find(y => y.id === id)) : null; }
 // Chips «Vota por» (área J) si hay identidades; si no, nada.
 const euIdnChips = sel => { try { return typeof jdChipsHtml === 'function' ? jdChipsHtml('eu', sel || '') : (window.idn?.chips?.(sel || '', 'eu') || ''); } catch { return ''; } };
@@ -17837,12 +17948,21 @@ function euEjVals(ej) { const s = new Set([0]); if (ej <= 6) for (let i = 1; i <
 const euEjChips = (pref, ej) => `<div class="eu-ej" data-ej="${esc(pref)}"><p class="meta" style="margin:0 0 6px">¿Cuántos ejercicios?</p>${euPickChips(pref, euEjVals(ej).map(v => [v, String(v)]), ej)}</div>`;
 
 // ---------- Filas: un bloque (con [Empezar] [Hecho] si es de hoy y está pendiente) y una tarea o entrega (con casilla).
-function euBloqueRow(b, { botones = true } = {}) {
+function euBloqueRow(b, { botones = true, comp = false } = {}) {
   const E = EU(), hoy = today(), pasado = b.d < hoy && !b.hecho;
-  const est = b.hecho ? '<span class="green">hecho</span>' : pasado ? '<span class="amber">quedó sin hacer</span>' : '';
-  return `<div class="row eu-b" data-b="${esc(b.id)}" style="cursor:pointer"><span class="dot" style="--c:${esc(b.color || 'var(--text)')}"></span>
-    <span class="t"><div>${b.h ? `${esc(fmtHora(b.h))} · ` : ''}${(() => { const q = E && typeof E.sesTexto === 'function' ? E.sesTexto(b) : ''; return q ? `<span class="eu-ses-n">${esc(q)}</span> · ` : ''; })()}${esc(E ? E.textoBloque(b) : b.t)}</div><small>${b.hecho && b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}` : `${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''}`} · ${EU_TIPO[b.tipo] || 'Estudio'}${est ? ' · ' + est : ''}</small>
-    ${botones && !b.hecho && b.d === hoy ? `<span class="eu-acc"><button class="eu-btn" data-go="${esc(b.id)}">Empezar</button><button class="eu-btn" data-ok="${esc(b.id)}">Hecho</button></span>` : ''}</span></div>`;
+  const est = b.hecho ? '' : pasado ? '<span class="amber">quedó sin hacer</span>' : '';
+  // 2.22.6 (E) · «Completar» (hoy o antes) y, hecho, «Hecha · 45 min · 12 ejercicios» con «Editar». Nada en una ruta terminada.
+  let ter = false; try { const r = E && b.ruta ? (E.rutas(true) || []).find(x => x.id === b.ruta) : null; ter = !!(r && r.terminada); } catch {}
+  const conComp = (botones || comp) && !ter && (b.hecho || b.d <= hoy);
+  const hi = b.hecho && b.hechoInfo ? b.hechoInfo : null;
+  const linea = hi ? `<span class="green">Hecha</span> · ${hi.min} min${hi.ej ? ` · ${euEjT(hi.ej)}` : ''} · ${EU_TIPO[b.tipo] || 'Estudio'}` : `${b.min} min${b.ej ? ` · ${b.ejSug ? '≈ ' : ''}${euEjT(b.ej)}` : ''} · ${EU_TIPO[b.tipo] || 'Estudio'}${est ? ' · ' + est : ''}`;
+  let qn = ''; try { qn = [E && typeof E.sesTexto === 'function' ? E.sesTexto(b) : '', E ? E.textoBloque(b) : b.t].filter(Boolean).join(', '); } catch {}
+  const compB = `<button class="eu-btn eu-comp" data-comp="${esc(b.id)}" aria-label="${esc((b.hecho ? 'Editar lo estudiado de ' : 'Completar ') + qn)}">${b.hecho ? 'Editar' : 'Completar'}</button>`;
+  const acc = botones && !b.hecho && b.d === hoy ? `<button class="eu-btn" data-go="${esc(b.id)}">Empezar</button><button class="eu-btn" data-ok="${esc(b.id)}" aria-label="${esc('Hecho: ' + qn)}">Hecho</button>${compB}`   // el «Hecho» de un toque de siempre, y «Completar» con lo estudiado
+    : conComp ? compB : '';
+  return `<div class="row eu-b${b.hecho ? ' eu-hecha' : ''}" data-b="${esc(b.id)}" style="cursor:pointer"><span class="dot" style="--c:${esc(b.color || 'var(--text)')}"></span>
+    <span class="t"><div>${b.h ? `${esc(fmtHora(b.h))} · ` : ''}${(() => { const q = E && typeof E.sesTexto === 'function' ? E.sesTexto(b) : ''; return q ? `<span class="eu-ses-n">${esc(q)}</span> · ` : ''; })()}${esc(E ? E.textoBloque(b) : b.t)}</div><small>${linea}</small>${hi && hi.nota ? `<small class="eu-nota">«${esc(hi.nota)}»</small>` : ''}
+    ${acc ? `<span class="eu-acc">${acc}</span>` : ''}</span></div>`;
 }
 function euPendRow(p, conRuta = true, quitar = false) {
   const hoy = today(), venc = p.fecha && p.fecha < hoy && !p.hecha;
@@ -17851,6 +17971,7 @@ function euPendRow(p, conRuta = true, quitar = false) {
 function euWireBloques(cont, pintar) {
   cont.querySelectorAll('[data-go]').forEach(b => b.onclick = e => { e.stopPropagation(); euEmpezar(b.dataset.go); });
   cont.querySelectorAll('[data-ok]').forEach(b => b.onclick = e => { e.stopPropagation(); euHechoDesde(cont, b.dataset.ok, pintar); });
+  cont.querySelectorAll('[data-comp]').forEach(b => b.onclick = e => { e.stopPropagation(); const enHoja = cont === euBody(); exCompletar(b.dataset.comp, { volver: () => { if (enHoja) pintar?.(); else { closeSheet(); pintar?.(); } } }); });   // 2.22.6 (E)
   cont.querySelectorAll('.eu-b').forEach(r => r.addEventListener('click', e => { if (e.target.closest('button')) return; euBloqueSheet(r.dataset.b); }));
 }
 function euWirePend(cont, pintar) {
@@ -17913,6 +18034,61 @@ function euHoyHtml(H) {
     ${ps.length ? `<div id="eu-hoy-p">${ps.map(p => euPendRow(p)).join('')}</div>` : ''}
     ${nada ? '<p class="empty" style="margin:0 0 10px">Hoy no hay bloques.</p><div class="row-b"><button class="primary" id="eu-nueva">Nueva ruta</button></div>' : ''}</div>`;
 }
+// ---------- 2.22.6 (E) · Meta de ejercicios: la línea de progreso, la elección de la meta y lo de terminar.
+const euEjOnR = r => { try { return !!EU()?.ejOn?.(r); } catch { return false; } };
+function euEjLinea(r, ficha = false) {
+  const E = EU(); let x = null; try { x = E.ejInfo(r); } catch {} if (!x || !x.on) return '';
+  const vivo = !r.archivada && !r.terminada && !!euF(r.fecha) && r.fecha >= today();
+  let st = '';
+  if (!x.faltan) st = ' · <b class="green">Meta cumplida</b>';
+  else if (vivo) st = x.deuda ? ` · <b class="amber">Deuda ${x.deuda}</b>` : !x.horasOk ? ' · <b class="green">Ejercicios al día</b>' : ' · <b class="green">Al día</b>';   // solo los ejercicios: las sesiones sin agendar ya tienen su aviso con «Reacomodar»
+  const por = ficha && vivo && x.faltan && x.ses ? `<p class="meta eu-ej-ses"${ficha ? ' id="eu-f-ejses"' : ''}>Unos ${x.por} por sesión en ${euPl(x.ses, 'sesión', 'sesiones')}</p>` : '';
+  return `<p class="meta eu-ej-prog"${ficha ? ' id="eu-f-ej"' : ''}>Meta ${esc(euEjT(x.meta))} · Hechos ${x.hechos} · Faltan ${x.faltan}${st}</p>${por}`;
+}
+function euEjTer(r, id) { const E = EU(); let x = null; try { x = E.ejInfo(r); } catch {} if (!x || !x.on) return ''; return `<p class="meta" id="${id}">Ejercicios: <b>${x.hechos} de ${x.meta}</b>${x.faltan ? '' : ' · meta cumplida'}.</p>`; }
+function euMetaTipoHtml(p, tipo, n, quita = 0) {
+  tipo = ['horas', 'ej', 'ambas'].includes(tipo) ? tipo : 'horas'; const v = Math.max(0, Math.round(+n || 0)) || 200;
+  return `<div class="field eu-mt" id="${p}-mt-f"><label>Meta</label>${euPickChips(p + '-mt', [['horas', 'Horas'], ['ej', 'Ejercicios'], ['ambas', 'Las dos']], tipo)}</div>
+    <div class="field" id="${p}-mej-f"${tipo === 'horas' ? ' hidden' : ''}><label for="${p}-mej">Ejercicios en total hasta el examen</label>${euNumChips(p + '-mej', [100, 200, 300, 500], v, 1, 100000)}</div>
+    <p class="meta eu-mt-nota" id="${p}-mt-nota"${tipo === 'ej' ? '' : ' hidden'}>Sin meta de horas: mandan los minutos por día.${quita > 0 ? ` <b id="${p}-mt-quita">Se quita la meta de ${esc(fmtMin(quita))}.</b>` : ''}</p>`;
+}
+// Con «Ejercicios» no hay meta de horas: se ocultan las horas (no «¿Qué días estudias?») y mandan los minutos por día.
+function euMetaTipoPoner(body, p, t) {
+  const ej = t === 'ej';
+  const f = body.querySelector('#' + p + '-mej-f'); if (f) f.hidden = t === 'horas';
+  const nt = body.querySelector('#' + p + '-mt-nota'); if (nt) nt.hidden = !ej;
+  const hb = body.querySelector('#' + p + '-meta'); if (hb) { hb.hidden = false; hb.classList.toggle('eu-meta-ej', ej); const fs = hb.querySelectorAll(':scope > .field'); if (fs[1]) fs[1].hidden = ej; const ml = hb.querySelector('#' + p + '-ml'); if (ml) ml.hidden = ej; }
+  const pm = body.querySelector('#' + p + '-pormin'); if (pm) { const su = pm.querySelector(':scope > summary'), pp = pm.querySelector(':scope > p.meta'); if (pp) pp.hidden = ej; if (ej) { if (!pm.dataset.mtAb) pm.dataset.mtAb = pm.open ? '1' : '0'; pm.open = true; if (su) su.hidden = true; } else if (pm.dataset.mtAb) { pm.open = pm.dataset.mtAb === '1'; delete pm.dataset.mtAb; if (su) su.hidden = false; } }
+}
+// o.mt: la meta de horas de la pantalla. «Las dos» la enciende (con lo que se veía); con o.horas (Ajustes), «Horas» también, con las horas
+// que tenía la ruta (o.hAnt) si las hay. Volver a lo de antes la deja como estaba. Con «Ejercicios», los días solo cambian «Por día de la semana».
+function euMetaTipoWire(body, p, o = {}) {
+  const c = body.querySelector(`[data-pick="${p}-mt"]`); if (!c) return; const mt = o.mt || null, t0 = c.dataset.sel, on0 = mt ? mt.on : false, min0 = mt ? mt.min : 0;
+  c.addEventListener('pick', e => {
+    const t = e.detail;
+    if (mt) { const quiere = t === 'ambas' || (o.horas && t === 'horas' && t0 !== 'horas');
+      if (quiere && !mt.on) { mt.on = true; mt.min = +o.hAnt > 0 ? Math.round(+o.hAnt) : Math.max(30, euMetaR5(mt.imp())); mt.pintar?.(); }
+      else if (!quiere && t !== 'ej' && mt.on !== on0) { mt.on = on0; mt.min = min0; if (!on0 && mt.desdeForm) mt.dias = mt.desdeForm(); mt.pintar?.(); } }
+    euMetaTipoPoner(body, p, t);
+  });
+  const hb = body.querySelector('#' + p + '-meta');
+  if (hb && mt) hb.addEventListener('click', e => {
+    if (!hb.classList.contains('eu-meta-ej')) return; const w = e.target.closest('[data-wd]'); if (!w) return;
+    e.stopPropagation(); e.preventDefault(); const wd = +w.dataset.wd;
+    if (mt.dias.has(wd) && mt.dias.size <= 1) { toast('Deja al menos un día.'); return; }
+    if (mt.dias.has(wd)) mt.dias.delete(wd); else mt.dias.add(wd);
+    const inp = body.querySelector('#' + p + '-pd-' + wd); if (inp) { if (!mt.dias.has(wd)) { inp.dataset.prev = inp.value; inp.value = '0'; } else if (inp.value.trim() === '0') inp.value = inp.dataset.prev && inp.dataset.prev.trim() !== '0' ? inp.dataset.prev : ''; }
+    hb.querySelectorAll('[data-wd]').forEach(b => { const on = mt.dias.has(+b.dataset.wd); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  }, true);
+  euMetaTipoPoner(body, p, c.dataset.sel);
+}
+function euMetaTipoLeer(body, p, def = 'horas') { const t = euPickLeer(body, p + '-mt', def), i = body.querySelector('#' + p + '-mej'); return { t: ['horas', 'ej', 'ambas'].includes(t) ? t : 'horas', n: euNum(i ? i.value : 0, 0, 0, 100000) }; }
+// El paso «Plan»: lo mismo que dirá la ruta guardada (el borrador en sesiones, como al crearla, y el mismo reparto).
+function euEjP4(N, r0) {
+  if (!N || !['ej', 'ambas'].includes(N.metaTipo) || !(+N.metaEj > 0)) return '';
+  let por = 0, k = 0; try { const y = JSON.parse(JSON.stringify(r0)); y.metaTipo = N.metaTipo; y.metaEj = +N.metaEj; if (!estFechasAct(y)) estSesionar(y); const i = estEjInfo(y); por = i.por; k = i.ses; } catch (e) { console.warn('Estudio', e); }
+  return `<p class="meta" id="eu-p4-ej">Meta ${esc(euEjT(+N.metaEj))}${k ? ` · unos ${por} por sesión en ${euPl(k, 'sesión', 'sesiones')}` : ''}</p>`;
+}
 function euCardHtml(r) {
   const E = EU(), s = E.resumen(r.id) || {}, m = E.materia(r.materia), lun = lunes(), dom = euDia(lun, 6);
   let semPlan = 0, semHecho = 0; for (const b of r.plan) if (b.d >= lun && b.d <= dom && !E.repartido?.(r, b)) { semPlan += b.min; if (r.hechos[b.id]) semHecho += r.hechos[b.id].min || b.min; }
@@ -17921,9 +18097,9 @@ function euCardHtml(r) {
   return `<div class="eu-card" data-id="${esc(r.id)}">
     <div class="top"><b>${esc(r.nombre)}</b><span class="tag">${esc(m ? m.nombre : '')}</span></div>
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` · ${esc(fmtHora(r.hora))}` : ''}${euF(r.fecha) ? ` · ${euDiasT(s.diasRestantes)}` : ''}</p>${euIniFut(r) && !r.archivada ? `<p class="meta eu-ini-t"><b>${esc(euEmpiezaT(euIniFut(r)))}</b></p>` : ''}
-    ${euSesLinea(r)}<p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'}${euIniFut(r) && !semPlan ? '' : ` · ${semHecho} de ${semPlan} min esta semana`}</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}
+    ${euSesLinea(r)}<p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'}${euIniFut(r) && !semPlan ? '' : ` · ${semHecho} de ${semPlan} min esta semana`}</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}${euEjLinea(r)}
     <div class="meter-bar"><i style="width:${pct}%"></i></div>
-    ${s.diasRestantes > 0 ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) || estSesMalR(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
+    ${s.diasRestantes > 0 ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) || estSesMalR(r) || euEjOnR(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
     ${av}
     <div class="row-b"><button class="primary" data-ver="${esc(r.id)}">Ver ruta</button><button class="eu-term" data-anotar="${esc(r.id)}">Anotar estudio</button><button class="eu-term" data-term="${esc(r.id)}" aria-label="Terminar la ruta ${esc(r.nombre)}">Terminar</button></div></div>`;
 }
@@ -18367,16 +18543,16 @@ function euPaso3() {
   const N = euN, c = N.config, hasta = Math.max(1, euDiff(today(), N.fecha));
   if (!(c.diasAntes > 0)) c.diasAntes = Math.min(14, hasta);
   const mt = euMetaWiz(N);   // 2.21.8 (D)
-  showSheet(`${euPie(3, 'Tiempo')}<h2>¿Cuánto y cuándo?</h2>${euTiempoHtml('eu', c, hasta, mt)}
+  showSheet(`${euPie(3, 'Tiempo')}<h2>¿Cuánto y cuándo?</h2>${euMetaTipoHtml('eu', N.metaTipo || 'horas', N.metaEj || 0)}${euTiempoHtml('eu', c, hasta, mt)}
     <div class="actions"><button class="link" id="eu-back">Atrás</button><button class="primary" id="eu-next">Ver el plan</button></div>`);
   const body = euBody(); euWire(body); activarFranjas(body); euTiempoWire(body, 'eu');
   const cfgF = () => ({ ...N.config, ...euTiempoLeer(body, 'eu', c) });
   mt.imp = () => euMetaImpCfg(cfgF()); mt.visp = () => euPickLeer(body, 'eu-visp', c.vispera); mt.desdeForm = () => euMetaDiasForm(body, 'eu', c);
   mt.sim = o => euMetaSimWiz({ ...mt, on: o }, cfgF()); mt.lejos = () => euMetaLejos(N.fecha, cfgF(), N.inicio);
-  euMetaWire(body, 'eu', mt);
-  const leer = () => { Object.assign(N.config, euTiempoLeer(body, 'eu', c)); N.meta = mt.on ? { min: mt.min, dias: [...mt.dias].sort((a, b) => a - b) } : null; }; euLeerPaso = leer;
+  euMetaWire(body, 'eu', mt); euMetaTipoWire(body, 'eu', { mt });   // 2.22.6 (E)
+  const leer = () => { Object.assign(N.config, euTiempoLeer(body, 'eu', c)); N.meta = mt.on ? { min: mt.min, dias: [...mt.dias].sort((a, b) => a - b) } : null; const q = euMetaTipoLeer(body, 'eu', N.metaTipo || 'horas'); N.metaTipo = q.t; N.metaEj = q.n; if (q.t === 'ej') { N.meta = null; delete N.fechas; } }; euLeerPaso = leer;
   body.querySelector('#eu-back').onclick = () => { leer(); euPaso(2); };
-  body.querySelector('#eu-next').onclick = () => { leer(); euPaso(4); };
+  body.querySelector('#eu-next').onclick = () => { leer(); if (N.metaTipo !== 'horas' && !(N.metaEj > 0)) { toast('Escribe cuántos ejercicios en total.'); body.querySelector('#eu-mej')?.focus(); return; } if (N.metaTipo === 'ambas' && !(N.meta && +N.meta.min > 0)) { toast('Elige cuántas horas en total.'); return; } euPaso(4); };
 }
 // La ruta de vista previa: una copia que el motor planifica sin guardar nada.
 function euCopia() {
@@ -18398,8 +18574,8 @@ function euPaso4() {
     <p class="eu-meta4" id="eu-meta4" aria-live="polite"><b>${esc(fmtMin(mi.on && falta4 < 15 ? mi.min : min))} en ${euPl(rs4.n, 'día', 'días')}</b>${p4 ? ` · unos ${p4} min por día` : ''}${lejos4 ? (ini4 ? '. Reparte desde el día en que empiezas hasta el examen.' : '. Reparte desde hoy hasta el examen.') : ''}${ini4 ? `<br><span class="meta" id="eu-p4-ini">${esc(euEmpiezaT(N.inicio))}</span>` : ''}</p>
     ${falta4 >= 15 ? `<div id="eu-nocabe"><p class="meta amber" style="margin:0 0 8px">No cabe: quedan ${esc(fmtMin(falta4))} fuera (${esc(euTopeT(mi.tope))}). Suma días o baja las horas.</p>${baja4 < mi.min ? `<div class="chips" style="margin:0 0 12px"><button type="button" class="chip" id="eu-baja">Bajar a ${esc(fmtMin(baja4))}</button></div>` : ''}</div>` : ''}
     ${mi.on && euFxAct(r) && euP4Vista !== 'cal' ? `<p class="eu-bal" id="eu-p4-bal" aria-live="polite">${euBalHtml(mi)}</p>` : ''}
-    <div class="chips eu-p4-v" id="eu-p4-vista" role="group" aria-label="Ver el plan"><button type="button" class="chip${euP4Vista !== 'cal' ? ' on' : ''}" data-v="lista" aria-pressed="${euP4Vista !== 'cal'}">Lista</button><button type="button" class="chip${euP4Vista === 'cal' ? ' on' : ''}" data-v="cal" aria-pressed="${euP4Vista === 'cal'}">Calendario</button></div>
-    <p class="note" id="eu-resumen"><b>${euBlT(plan.length)} · ${euHorasT(min)}${ej ? ` · ${euEjT(ej)}` : ''} en ${euPl(dias.size, 'día', 'días')}</b>${plan.length ? '' : euNocheUltima(N.fecha) ? ' · Ya es de noche y el examen es mañana: no quedan días para repartir. Si quieres, haz un repaso ligero ahora.' : ' · No hay días para repartir: revisa la fecha, los días previos o los días libres.'}</p>
+    ${euEjP4(N, r)}<div class="chips eu-p4-v" id="eu-p4-vista" role="group" aria-label="Ver el plan"><button type="button" class="chip${euP4Vista !== 'cal' ? ' on' : ''}" data-v="lista" aria-pressed="${euP4Vista !== 'cal'}">Lista</button><button type="button" class="chip${euP4Vista === 'cal' ? ' on' : ''}" data-v="cal" aria-pressed="${euP4Vista === 'cal'}">Calendario</button></div>
+    <p class="note" id="eu-resumen"><b>${euBlT(plan.length)} · ${euHorasT(min)}${ej && !['ej', 'ambas'].includes(N.metaTipo) ? ` · ${euEjT(ej)}` : ''} en ${euPl(dias.size, 'día', 'días')}</b>${plan.length ? '' : euNocheUltima(N.fecha) ? ' · Ya es de noche y el examen es mañana: no quedan días para repartir. Si quieres, haz un repaso ligero ahora.' : ' · No hay días para repartir: revisa la fecha, los días previos o los días libres.'}</p>
     ${r.aviso ? `<div id="eu-av"><p class="meta amber" style="margin:0 0 8px">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 16px">${euAvSubirT(r, N.config.minDia) ? `<button type="button" class="chip" id="eu-av-subir">${esc(euAvSubirT(r, N.config.minDia))}</button>` : ''}<button type="button" class="chip" id="eu-av-temas">Quitar temas</button><button type="button" class="chip" id="eu-av-igual">Empezar igual</button></div></div>` : ''}
     ${euP4Vista === 'cal' ? '<div id="eu-p4-cal"></div>' : ''}${euP4Vista === 'cal' ? '' : euPlanDiasHtml(plan, [hoy, euDia(hoy, 1)], b => `<div class="row eu-b"><span class="t"><div>${b.h ? esc(fmtHora(b.h)) + ' · ' : ''}${esc(b.t)}</div><small>${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''} · ${EU_TIPO[b.tipo] || 'Estudio'}</small></span></div>`)}
     <div class="actions"><button class="link" id="eu-back">Atrás</button><button class="primary" id="eu-save">Guardar la ruta</button></div>`);
@@ -18410,6 +18586,7 @@ function euPaso4() {
   const otra4 = foco => { const sc = euBody()?.scrollTop || 0; euPaso4(); const sb = euBody(); if (sb) { sb.scrollTop = sc; sb.querySelector(foco)?.focus({ preventScroll: true }); } };   // el foco vuelve al mismo botón
   body.querySelector('#eu-p4-wd')?.addEventListener('click', e => {
     const b = e.target.closest('[data-wd]'); if (!b) return; const wd = +b.dataset.wd;
+    if (N.metaTipo === 'ej') { if (d4.has(wd) && d4.size <= 1) { toast('Deja al menos un día.'); return; } N.config.porDia = { ...N.config.porDia, [wd]: d4.has(wd) ? 0 : null }; otra4(`#eu-p4-wd [data-wd="${wd}"]`); return; }   // 2.22.6 (E) · sin meta de horas: solo «Por día de la semana»
     if (!N.meta || !(+N.meta.min > 0)) N.meta = { min: Math.max(30, euMetaR5(min)), dias: [...d4] };
     const S = new Set(N.meta.dias); if (S.has(wd)) { if (S.size <= 1) { toast('Deja al menos un día.'); return; } S.delete(wd); } else S.add(wd);
     N.meta.dias = [...S].sort((a, b) => a - b); delete N.meta.base; delete N.meta.red; otra4(`#eu-p4-wd [data-wd="${wd}"]`);
@@ -18422,7 +18599,7 @@ function euPaso4() {
   body.querySelector('#eu-back').onclick = () => euPaso(3);
   body.querySelector('#eu-save').onclick = () => {
     try {
-      const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, iden: N.iden, habito: N.habito, obj: N.obj, ...(euF(N.inicio) && N.inicio > today() ? { inicio: N.inicio } : {}), ...(N.meta && +N.meta.min > 0 ? { meta: N.meta, ...(N.fechas ? { fechas: N.fechas } : {}) } : {}) });
+      const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, iden: N.iden, habito: N.habito, obj: N.obj, ...(euF(N.inicio) && N.inicio > today() ? { inicio: N.inicio } : {}), ...(N.meta && +N.meta.min > 0 && N.metaTipo !== 'ej' ? { meta: N.meta, ...(N.fechas ? { fechas: N.fechas } : {}) } : {}), ...(['ej', 'ambas'].includes(N.metaTipo) ? { metaTipo: N.metaTipo, metaEj: N.metaEj } : N.metaTipo === 'horas' ? { metaTipo: 'horas' } : {}) });   // 2.22.6 (E)
       if (ruta.aviso && body.querySelector('#eu-av')?.hidden) euAvCallar(ruta);   // «Empezar igual»: la tarjeta nueva no vuelve a preguntar
       const n = ruta.plan.filter(b => b.d === hoy).length, m = ruta.plan.filter(b => b.d === euDia(hoy, 1)).length, noche = new Date().getHours() >= 20; euN = null; closeSheet(); toast(euIniFut(ruta) ? `Ruta creada. ${euEmpiezaT(euIniFut(ruta))}.` : !ruta.plan.length && euNocheUltima(ruta.fecha) ? 'Ruta creada. Mañana es el examen: si quieres, haz un repaso ligero ahora.' : noche && !n ? `Ruta creada. Empieza mañana: ${euBlT(m)}.` : `Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio(); btcTras(N.bt, { tipo: 'ruta', ref: ruta.id });
     } catch (e) { toast(e?.message || 'No se pudo crear la ruta.'); }
@@ -18442,16 +18619,16 @@ function euRutaSheet(id, sec = '') {
   const extrasHtml = extras.map(x => { let h = ''; try { h = String(x.html(r) ?? ''); } catch { h = '<p class="meta">Esta conexión no se pudo pintar.</p>'; } return `<div class="eu-card" data-extra="${esc(String(x.id || ''))}">${h}</div>`; }).join('');
   showSheet(`<p class="paso">${esc(m ? m.nombre : 'Estudio')} · ${!euF(r.fecha) ? 'sin fecha' : pasado ? 'examen pasado' : euDiasT(s.diasRestantes)}${r.terminada ? ' · terminada' : r.archivada ? ' · archivada' : ''}</p><h2>${esc(r.nombre)}</h2>
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` a las ${esc(fmtHora(r.hora))}` : ''}${r.lugar ? ` · ${esc(r.lugar)}` : ''}</p>${euIniFut(r) && !r.archivada ? `<p class="meta eu-ini-t" id="eu-f-ini"><b>${esc(euEmpiezaT(euIniFut(r)))}</b></p>` : ''}
-    ${euSesLinea(r, true)}<p class="meta" id="eu-f-res">Temas vistos ${s.temasHechos} de ${s.temasTotal} · ${s.bloquesTotal ? euProgBl(s) : 'sin bloques'} · ${s.minHechos} de ${s.minPlan} min${s.ejPlan || s.ejHechos ? ` · ${s.ejHechos} de ${s.ejPlan} ejercicios` : ''}</p>${euMetaProgHtml(r, true)}${euRealHtml(r, true, !!euMetaProgHtml(r, true))}${euBalCard(r)}
-    ${s.diasRestantes > 0 && !r.archivada ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) || estSesMalR(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
-    ${r.terminada ? `<p class="meta" id="eu-ter-info"><b>Terminada el ${esc(euTerFecha(r))}.</b> Lo que hiciste queda como registro.${r.resultado ? ` «${esc(r.resultado.nota)}»` : ''}</p>${(() => { const L = euTerMetas(r); return L.length ? `<p class="meta" id="eu-ter-meta">${euTerMetasTxt(L)} <button class="link" data-ter-meta="${esc(L[0].id)}" style="min-height:44px">Ver la meta</button></p>` : ''; })()}<p style="margin:8px 0 4px"><button class="link" id="eu-react" style="min-height:44px">Reactivar</button></p>`
+    ${euSesLinea(r, true)}<p class="meta" id="eu-f-res">Temas vistos ${s.temasHechos} de ${s.temasTotal} · ${s.bloquesTotal ? euProgBl(s) : 'sin bloques'} · ${s.minHechos} de ${s.minPlan} min${(s.ejPlan || s.ejHechos) && !euEjOnR(r) ? ` · ${s.ejHechos} de ${s.ejPlan} ejercicios` : ''}</p>${euMetaProgHtml(r, true)}${euRealHtml(r, true, !!euMetaProgHtml(r, true))}${euBalCard(r)}${euEjLinea(r, true)}
+    ${s.diasRestantes > 0 && !r.archivada ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) || estSesMalR(r) || euEjOnR(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
+    ${r.terminada ? `<p class="meta" id="eu-ter-info"><b>Terminada el ${esc(euTerFecha(r))}.</b> Lo que hiciste queda como registro.${r.resultado ? ` «${esc(r.resultado.nota)}»` : ''}</p>${euEjTer(r, 'eu-ter-ej')}${(() => { const L = euTerMetas(r); return L.length ? `<p class="meta" id="eu-ter-meta">${euTerMetasTxt(L)} <button class="link" data-ter-meta="${esc(L[0].id)}" style="min-height:44px">Ver la meta</button></p>` : ''; })()}<p style="margin:8px 0 4px"><button class="link" id="eu-react" style="min-height:44px">Reactivar</button></p>`
       : !r.archivada && !pasado ? `<p style="margin:12px 0 6px"><button class="primary" id="eu-term" style="min-height:44px;width:100%">Terminar la ruta</button></p>` : ''}
     ${euAvisoVivo(r, s) && !r.archivada ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips" style="margin:0 0 12px">${euAvSubirT(r, c.minDia, true) ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(euAvSubirT(r, c.minDia, true))}</button>` : ''}<button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : ''}
     ${pasado ? `<h3 id="eu-despues">Después del examen</h3><p class="meta">¿Cómo te fue? Unas líneas para ti.</p><textarea id="eu-res" class="eu-res" rows="3" maxlength="200" placeholder="Lo que salió bien y lo que cambiarías la próxima vez">${esc(r.resultado?.nota || '')}</textarea>
       <div class="actions" style="margin-top:0"><button class="link" id="eu-res-ok">Guardar</button>${!r.archivada ? '<button class="primary" id="eu-res-arch" style="min-height:44px">Terminar la ruta</button>' : ''}</div>` : ''}
     ${!pasado ? `<h3>Bloques de hoy</h3>${(window.cadena?.pasos?.('est:' + r.id) || []).length ? `<p style="margin:0 0 8px"><button class="primary" data-cad="est:${esc(r.id)}" style="min-height:44px;width:100%">▶ Empezar los bloques de hoy</button></p>` : ''}${s.hoy.length ? `<div class="rows" id="eu-f-hoy">${s.hoy.map(b => euBloqueRow(b)).join('')}</div>` : `<p class="empty">${euIniFut(r) ? `${esc(euEmpiezaT(euIniFut(r)))}: antes no hay bloques.` : 'Hoy no hay bloques de esta ruta.'}</p>`}` : ''}
     ${euSesHtml(r)}
-    <h3>Plan</h3>${r.plan.length ? euPlanDiasHtml(r.plan, [hoy], b => euBloqueRow(enr(b), { botones: false })) : '<p class="empty">Sin bloques en el plan.</p>'}
+    <h3>Plan</h3>${r.plan.length ? euPlanDiasHtml(r.plan, [hoy], b => euBloqueRow(enr(b), { botones: false, comp: true })) : '<p class="empty">Sin bloques en el plan.</p>'}
     <h3 id="eu-temas-h">Temas</h3><div id="eu-f-temas">${r.temas.map((t, i) => `<div class="eu-tema"><input type="checkbox" data-tv="${i}" ${t.hecho ? 'checked' : ''} aria-label="Tema visto" style="width:18px;height:18px;margin:0"><span class="t">${esc(t.t)}${t.hecho ? ' <span class="green">· visto</span>' : ''}${euTemaReal(r, t.id)}</span>${euPickChips('eu-tp-' + i, [[1, 'ligero'], [2, 'normal'], [3, 'pesado']], t.peso)}<button type="button" class="link" data-tx="${i}" aria-label="Quitar tema">×</button></div>`).join('')}</div>
     <div class="eu-libre" style="margin-top:10px"><input id="eu-tema-n" maxlength="80" placeholder="Tema nuevo"><button class="link" id="eu-tema-add">Añadir tema</button></div>
     <h3>Tareas y entregas</h3>${pend.length ? `<div id="eu-f-pend">${pend.map(p => euPendRow(p, false, true)).join('')}</div>` : '<p class="empty">Nada pendiente aparte de los bloques.</p>'}
@@ -18470,6 +18647,7 @@ function euRutaSheet(id, sec = '') {
       <div class="field"><label>Hora</label><input type="time" id="eu-a-hora" value="${esc(r.hora)}"></div>
       <div class="field"><label>Lugar</label><input id="eu-a-lugar" maxlength="60" value="${esc(r.lugar)}"></div>
       ${euIdnChips(r.iden)}${euHabSelect('eu-a-hab', r.habito)}
+      ${r.terminada ? '' : euMetaTipoHtml('eu-a', EU().metaTipo(r), r.metaEj, r.meta && +r.meta.min > 0 ? +r.meta.min : 0)}
       <div class="field"><label>Ejercicios por día</label>${euNumChips('eu-a-ej', [0, 5, 10, 20], c.ejDia, 0, 200)}</div>
       ${euTiempoHtml('eu-a', c, pasado || !euF(r.fecha) ? 0 : Math.max(1, euDiff(hoy, r.fecha)), mtA)}
       <div class="actions" style="margin-top:4px"><button class="primary" id="eu-a-ok">Guardar ajustes</button></div></details>
@@ -18480,6 +18658,7 @@ function euRutaSheet(id, sec = '') {
   mtA.visp = () => euPickLeer(body, 'eu-a-visp', c.vispera); mtA.desdeForm = () => euMetaDiasForm(body, 'eu-a', c); mtA.cfg = () => ({ ...c, ...euTiempoLeer(body, 'eu-a', c) }); mtA.ini = () => euF(body.querySelector('#eu-a-ini')?.value) || euIni(r);
   { const o0 = mtA.on; mtA.lejos = () => !o0 && euMetaLejos(r.fecha, mtA.cfg()); }
   euMetaWire(body, 'eu-a', mtA);   // 2.21.8 (D)
+  euMetaTipoWire(body, 'eu-a', { mt: mtA, horas: true, hAnt: +r.metaHAnt || 0 });   // 2.22.6 (E)
   euIniWire(body, 'eu-a', () => mtA.pintar?.());   // 2.22.3 (I)
   if (r.terminada) euTerSoloLeer(body);   // 2.20.1 (T)
   const pintar = () => { if (!E.ruta(id)) { closeSheet(); renderEstudio(); return; } euRutaSheet(id, sec); renderEstudio(); };
@@ -18518,6 +18697,11 @@ function euRutaSheet(id, sec = '') {
     if (JSON.stringify(cfg) !== JSON.stringify({ diasAntes: c.diasAntes, minDia: c.minDia, porDia: c.porDia, horaPref: c.horaPref, bloqueMin: c.bloqueMin, vispera: c.vispera, repasos: c.repasos, ejDia: c.ejDia })) cambios.config = cfg;
     { const was = !!(r.meta && +r.meta.min > 0), dd = [...mtA.dias].sort((a, b) => a - b), od = (r.meta && Array.isArray(r.meta.dias) ? r.meta.dias : []).slice().sort((a, b) => a - b);   // 2.21.8 (D)
       if (mtA.on ? !was || mtA.min !== +r.meta.min || dd.join() !== od.join() : was) cambios.meta = { min: mtA.on ? mtA.min : 0, dias: dd }; }
+    if (body.querySelector('[data-pick="eu-a-mt"]')) { const q = euMetaTipoLeer(body, 'eu-a', E.metaTipo(r)), n0 = Math.max(0, Math.round(+r.metaEj || 0));   // 2.22.6 (E)
+      if (q.t !== 'horas' && !(q.n > 0)) { toast('Escribe cuántos ejercicios en total.'); return; }
+      if (q.t === 'ambas' && !mtA.on) { toast('Elige cuántas horas en total.'); return; }
+      if (q.t !== E.metaTipo(r) || (q.t !== 'horas' && q.n !== n0)) { cambios.metaTipo = q.t; if (q.t !== 'horas') cambios.metaEj = q.n; }
+      if (q.t === 'ej' && r.meta && +r.meta.min > 0) cambios.meta = { min: 0, dias: (Array.isArray(r.meta.dias) ? r.meta.dias : []).slice() }; }
     if (!Object.keys(cambios).length) { toast('Nada que cambiar.'); return; }
     try { E.editar(id, cambios); toast(cambios.config || cambios.fecha || cambios.meta || cambios.inicio ? 'Guardado: el plan se volvió a repartir.' : 'Guardado.'); sec = 'ajustes'; pintar(); } catch (e) { toast(e?.message || 'No se pudo guardar.'); }
   };
@@ -18556,7 +18740,7 @@ function euTerminarSheet(id, desde = '', nota) {
   const hoy = today(), m = E.materia(r.materia), quedan = r.plan.filter(b => b.d >= hoy && !r.hechos[b.id]).length, hechos = r.plan.filter(b => r.hechos[b.id]).length;
   const n0 = typeof nota === 'string' ? nota : euTerNota.id === id && euTerNota.v ? euTerNota.v : (r.resultado?.nota || '');   // revisión: lo escrito antes de «Cancelar» vuelve
   showSheet(`<p class="paso">${esc(m ? m.nombre : 'Estudio')} · Examen ${esc(euFC(r.fecha))}</p><h2>Terminar «${esc(r.nombre)}»</h2>
-    <p class="meta" id="eu-t-que">La ruta pasa a «Anteriores»${hechos ? ` con lo que ya hiciste (${euBlT(hechos)} ${hechos === 1 ? 'hecho' : 'hechos'}): eso se queda` : ''}. Puedes reactivarla cuando quieras.</p>
+    <p class="meta" id="eu-t-que">La ruta pasa a «Anteriores»${hechos ? ` con lo que ya hiciste (${euBlT(hechos)} ${hechos === 1 ? 'hecho' : 'hechos'}): eso se queda` : ''}. Puedes reactivarla cuando quieras.</p>${euEjTer(r, 'eu-t-ej')}
     ${r.fecha >= hoy && quedan ? `<p class="meta" id="eu-t-quita">${euTerGcLuego(r) ? 'Los bloques que quedaban se quitan de tu plan y de la Agenda. Sus eventos salen de Google Calendar cuando vuelvas a conectar Google.' : 'Los bloques que quedaban se quitan de tu plan, de la Agenda y de Google Calendar.'}</p>` : ''}
     ${(() => { const L = euTerTareas(r.id); return L.length ? `<p class="meta" id="eu-t-tareas">${euTerTareasTxt(L)}</p>` : ''; })()}
     ${(() => { const L = euTerMetas(r); return L.length ? `<p class="meta" id="eu-t-meta">${euTerMetasTxt(L)}</p>` : ''; })()}
@@ -18614,7 +18798,7 @@ function euBloqueSheet(id) {
   const hoy = today(), r = E.ruta(b.ruta), pasado = b.d < hoy && !b.hecho, viva = !!r && !r.archivada && r.fecha > hoy && !!euF(r.fecha), ult = viva && !b.hecho ? euUltimoDelTema(r, b) : null;
   showSheet(`<p class="paso">${esc(E.etiqueta(b))} · ${esc(EU_TIPO[b.tipo] || 'Estudio')}</p><h2>${esc(E.textoBloque(b))}</h2>
     <p class="meta">${esc(r?.nombre || b.rutaNombre || '')} · ${esc(euCuando(b.d))}${b.h ? ` · ${esc(fmtHora(b.h))}` : ' · sin hora'} · ${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''} · ${b.hecho ? `<span class="green">hecho${euHechoEl(b.hechoInfo?.en)}</span>` : pasado ? '<span class="amber">quedó sin hacer: se reparte al replanificar</span>' : 'pendiente'}</p>
-    ${!b.hecho ? `<div class="actions stack" style="margin-top:6px"><button class="primary" id="eu-b-go" aria-label="Empezar acción: ${b.min} min de enfoque">Empezar acción</button>${b.ej ? euEjChips('eu-b-ej', b.ej) : ''}<button class="outline" id="eu-b-ok" data-guarda>Marcar hecho</button></div>`
+    ${!b.hecho ? `<div class="actions stack" style="margin-top:6px"><button class="primary" id="eu-b-go" aria-label="Empezar acción: ${b.min} min de enfoque">Empezar acción</button>${b.ej ? euEjChips('eu-b-ej', b.ej) : ''}<button class="outline" id="eu-b-ok" data-guarda>Marcar hecho</button>${r && r.terminada ? '' : `<button class="link" data-comp="${esc(b.id)}" style="min-height:44px">Completar</button>`}</div>`
       : `<p class="meta">${b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}${b.hechoInfo.nota ? ` · ${esc(b.hechoInfo.nota)}` : ''}` : ''}</p><div class="actions" style="margin-top:0"><button class="link" data-exq-abrir="${esc(b.id)}" style="min-height:44px">Cambiar lo estudiado</button><button class="link" id="eu-b-undo">Desmarcar</button></div>`}
     ${viva && !b.hecho ? `<details class="eu-sec" id="eu-b-mover"><summary>Mover a otro día</summary><div class="field" style="margin-top:8px"><label>Día</label><input type="date" id="eu-b-f" min="${hoy}" max="${esc(euDia(r.fecha, -1))}" value="${esc(b.d >= hoy ? b.d : hoy)}"></div><div class="field"><label>Hora <span class="meta">(vacía = la reparte la Agenda)</span></label><input type="time" id="eu-b-fh" value="${esc(euHoraLibre(b, b.d >= hoy ? b.d : hoy))}"></div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-mv">Mover</button></div></details>
       <details class="eu-sec" id="eu-b-hora"><summary>Cambiar hora</summary><div class="field" style="margin-top:8px"><label>Hora</label>${franjaChips('eu-b-h', b.h)}${horaInput('eu-b-h', b.h)}</div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-ch">Cambiar hora</button></div></details>` : ''}
@@ -18623,6 +18807,7 @@ function euBloqueSheet(id) {
   const body = euBody(); euWire(body); activarFranjas(body); body.scrollTop = 0;
   const pintar = () => { renderEstudio(); if (euBloqueDe(id)) euBloqueSheet(id); else closeSheet(); };
   body.querySelector('#eu-b-go')?.addEventListener('click', () => euEmpezar(id));
+  body.querySelector('[data-comp]')?.addEventListener('click', () => exCompletar(id, { volver: () => { renderEstudio(); if (euBloqueDe(id)) euBloqueSheet(id); else closeSheet(); } }));   // 2.22.6 (E)
   body.querySelector('#eu-b-ok')?.addEventListener('click', () => euMarcar(id, b.ej ? euNum(euPickLeer(body, 'eu-b-ej', b.ej), b.ej, 0, 10000) : undefined, pintar));
   body.querySelector('#eu-b-undo')?.addEventListener('click', () => { E.marcar(id, false); toast('Vuelve a pendiente.'); pintar(); });
   const mvF = body.querySelector('#eu-b-f'), mvH = body.querySelector('#eu-b-fh'); let mvAuto = true;   // 2.17.1 (U) · la hora sigue al día hasta que la cambias tú
@@ -18889,7 +19074,7 @@ function exFichaHtml(it) {
   if (!it || it.tipo !== 'estudio') return '';
   const b = exBloque(it.ref); if (!b) return '<p class="meta" style="margin:0 0 8px">Este bloque ya no está en la ruta (se repartió).</p>';
   const hi = b.hecho && b.hechoInfo ? ` · hecho: ${fmtMin(b.hechoInfo.min || 0)}${b.hechoInfo.ej ? `, ${exEj(b.hechoInfo.ej)}` : ''}` : '';
-  return `<p class="meta" id="ai-est-info" style="margin:0 0 8px">${b.ej ? `${exEj(b.ej)} · ` : ''}${esc(exExamenTxt(b))}${hi}</p>${b.hecho ? `<p style="margin:-4px 0 8px"><button type="button" class="link" data-exq-abrir="${esc(b.id)}" style="min-height:44px">Cambiar lo estudiado</button></p>` : ''}`;   // 2.21.7 (E)
+  return `<p class="meta" id="ai-est-info" style="margin:0 0 8px">${b.ej ? `${exEj(b.ej)} · ` : ''}${esc(exExamenTxt(b))}${hi}</p>${b.hecho ? `<p style="margin:-4px 0 8px"><button type="button" class="link" data-exq-abrir="${esc(b.id)}" style="min-height:44px">Cambiar lo estudiado</button></p>` : `<p style="margin:-4px 0 8px"><button type="button" class="link" data-ex-comp="${esc(b.id)}" data-ex-it="${esc(it.id || '')}" style="min-height:44px">Completar</button></p>`}`;   // 2.21.7 (E) · 2.22.6 (E) · «Completar»
 }
 // ---------- 2.21.7 (E) · «Hecho · ¿Cuánto estudiaste?»: el bloque ya está hecho con lo del plan (o lo que corrió el temporizador o la sesión);
 // el aviso, opcional, cambia minutos y ejercicios con un «Guardar». Cerrarlo deja lo puesto. Sin hoja abierta va arriba (y se va solo a los
@@ -18968,16 +19153,57 @@ function exCuantoGuardar(id, v) {
   return true;
 }
 // «Cambiar lo estudiado»: la misma pregunta en una hoja. Desde el detalle del bloque en Estudio, vuelve a él.
-function exCuantoHoja(id) {
-  const b = (typeof euBloqueDe === 'function' ? euBloqueDe(id) : null) || exBloque(id); if (!b || !b.hecho) { toast('Ese bloque ya no está hecho.'); return; }
-  const volver = sheet.open && !!$('#sheet-body')?.querySelector('#eu-b-acc'), v = exqValores(b);
-  showSheet(`<p class="paso">${esc(exTexto(b))}</p><h2>¿Cuánto estudiaste?</h2><p class="note">El plan traía ${fmtMin(b.min)}${b.ej ? ` y ${exEj(b.ej)}` : ''}.</p>
-    <div class="exq exq-in exq-hoja" data-exq-ref="" data-sin-hecho>${exqCampos(v.min, v.ej)}</div>
-    <div class="actions"><button class="link" id="exq-h-x">Cancelar</button><button class="primary" id="exq-h-ok">Guardar</button></div>`);
-  const body = $('#sheet-body'), atras = () => { if (volver && typeof euBloqueSheet === 'function') euBloqueSheet(id); else closeSheet(); };
-  body.querySelector('#exq-h-x').onclick = atras;
-  body.querySelector('#exq-h-ok').onclick = () => { if (exCuantoGuardar(id, exqLeer(body.querySelector('.exq')))) atras(); };
+function exCuantoHoja(id) {   // 2.22.6 (E) · la hoja «Completar», ya hecha: cambia minutos, ejercicios y nota, o desmarca
+  const volver = sheet.open && !!$('#sheet-body')?.querySelector('#eu-b-acc');
+  exCompletar(id, volver && typeof euBloqueSheet === 'function' ? { volver: () => euBloqueSheet(id) } : {});
 }
+// 2.22.6 (E) · «Completar»: minutos (los del bloque), ejercicios (los sugeridos; a la vista si la ruta tiene meta de ejercicios o ejercicios
+// por día, si no en «Ejercicios (opcional)») y nota opcional. «Guardar» marca el bloque por el camino de siempre de cada sitio (o.marcar: mismo
+// XP y mismo «Deshacer»; sin él, el de la ruta). Ya hecho: cambia lo anotado (sin XP) o «Desmarcar». o.volver: a dónde vuelve al terminar.
+function exCompletarMarcar(id) { if (typeof euMarcar === 'function') euMarcar(id, undefined, null); else window.est.marcar(id, true); }
+function exCompletar(id, o = {}) {
+  const E = window.est, b = (typeof euBloqueDe === 'function' ? euBloqueDe(id) : null) || exBloque(id); if (!E || !b) { toast('Ese bloque ya no está en el plan.'); return; }
+  const r = (E.rutas(true) || []).find(x => x.id === b.ruta) || null; if (r && r.terminada) { toast('La ruta está terminada: queda como registro.'); return; }
+  let ejOn = false; try { ejOn = !!(r && (E.ejOn(r) || +r.config.ejDia > 0)) || +b.ej > 0 || !!(b.hechoInfo && +b.hechoInfo.ej > 0); } catch {}
+  const hi = b.hecho && b.hechoInfo ? b.hechoInfo : null, min = Math.max(1, Math.round(+(hi ? hi.min : 0) || +b.min || 25)), ej = Math.max(0, Math.round(+(hi ? hi.ej : b.ej) || 0)), nota = hi ? String(hi.nota || '') : '';
+  let ses = ''; try { ses = E.sesTexto(b) || ''; } catch {}
+  const cuando = typeof euCuando === 'function' ? euCuando(b.d) : b.d;
+  const cs = exqCampos(min, ej), cut = cs.indexOf('<div class="exq-f">', 1), cMin = cs.slice(0, cut), cEj = cs.slice(cut);
+  const volver = () => { if (typeof o.volver === 'function') { try { o.volver(); } catch (e) { console.warn('Completar', e); closeSheet(); } } else closeSheet(); try { renderAg(); } catch {} try { if (view === 'estudio') window.renderEstudio?.(); } catch {} try { if (view === 'inicio') iniRepintar(); } catch {} };
+  showSheet(`<p class="paso">${esc([ses, cuando].filter(Boolean).join(' · '))}</p><h2>${b.hecho ? '¿Cuánto estudiaste?' : 'Completar'}</h2>
+    <p class="note">${esc(E.textoBloque(b))} · el plan traía ${fmtMin(b.min)}${b.ej ? ` y ${b.ejSug ? 'unos ' : ''}${exEj(b.ej)}` : ''}.</p>
+    <div class="exq exq-in exq-hoja exc" data-exq-ref="" data-sin-hecho>${cMin}${ejOn ? cEj : `<details class="eu-sec exc-ej"><summary>Ejercicios (opcional)</summary>${cEj}</details>`}</div>
+    <div class="field" style="margin-top:12px"><label for="exc-nota">Nota <span class="meta">(opcional)</span></label><textarea id="exc-nota" class="eu-res exc-nota" rows="2" maxlength="200" placeholder="Qué hiciste o qué quedó pendiente">${esc(nota)}</textarea></div>
+    <div class="actions">${b.hecho ? '<button class="link" id="exc-undo" style="min-height:44px">Desmarcar</button>' : ''}<button class="link" id="exc-x" style="min-height:44px">Cancelar</button><button class="primary" id="exc-ok" style="min-height:44px">Guardar</button></div>`);
+  const body = $('#sheet-body'); body.scrollTop = 0;
+  body.querySelector('#exc-x').onclick = () => volver();
+  body.querySelector('#exc-undo')?.addEventListener('click', () => {
+    try { if (typeof o.desmarcar === 'function') o.desmarcar(); else { const it = exItemDe(id); if (it) agMarcar(it, false); else E.marcar(id, false); } } catch (e) { console.warn('Completar', e); }
+    toast('Vuelve a pendiente.'); volver();
+  });
+  body.querySelector('#exc-ok').onclick = () => {
+    const v = exqLeer(body.querySelector('.exq')), nt = String(body.querySelector('#exc-nota').value || '').replace(/\r/g, '').trim().slice(0, 200), y = euBloqueDe ? euBloqueDe(id) : exBloque(id);
+    if (!y) { toast('Ese bloque ya no está en el plan.'); closeSheet(); return; }
+    if (y.hecho) { let z = null; try { z = E.anotar(id, { min: v.min, ej: v.ej, nota: nt }); } catch (e) { console.warn('Completar', e); } toast(z ? `Anotado: ${fmtMin(v.min)}${v.ej ? ` · ${exEj(v.ej)}` : ''}.` : 'Ese bloque ya no está hecho.'); volver(); return; }
+    E.completarCon({ id, min: v.min, ej: v.ej, nota: nt }); window.exCuantoNo = true;
+    try { if (typeof o.marcar === 'function') o.marcar(); else exCompletarMarcar(id); } catch (e) { console.warn('Completar', e); } finally { window.exCuantoNo = false; E.completarCon(null); }
+    volver();
+  };
+}
+// 2.22.6 (E) · «Completar» en la ficha del bloque en la Agenda y en «Organizar mi día» (por el camino de la Agenda: el mismo de ✓ Hecho).
+function exCompDeAg(id, itId) { const it = (itId && agPorId(itId)) || exItemDe(id); const b = exBloque(id); if (!b) return null; const x = it || agParaBloqueIt(b); return () => { const y = (x.id && agPorId(x.id)) || x; marcaPon('ag', y.id); agMarcarAviso(y, true); }; }
+function exCompClick(e) {
+  const t = e.target; if (!t || typeof t.closest !== 'function') return;
+  const a = t.closest('[data-ex-comp]');
+  if (a) { e.preventDefault(); e.stopPropagation(); const id = a.dataset.exComp, it = a.dataset.exIt || ''; exCompletar(id, { marcar: exCompDeAg(id, it), volver: () => { closeSheet(); try { renderAg(); } catch {} } }); return; }
+  const g = t.closest('[data-og-comp]');
+  if (g && org) {
+    e.preventDefault(); e.stopPropagation(); const id = g.dataset.ogComp, prop = !!g.closest('#op-wrap'), sc = $('#sheet-body')?.scrollTop || 0, dest = org.dest;
+    const atras = () => { try { if (prop) orgPropuestaSheet(dest, true); else organizarDia(4, true); const b2 = $('#sheet-body'); if (b2) b2.scrollTop = sc; } catch (err) { console.warn('Completar', err); closeSheet(); } };
+    exCompletar(id, { marcar: exCompDeAg(id, ''), volver: atras });
+  }
+}
+for (const R of [document, ov, typeof agR !== 'undefined' ? agR : null]) if (R) R.addEventListener('click', exCompClick, true);
 // Un solo oyente por raíz (documento, hojas y pestaña Estudio): − / +, Guardar, cerrar y «Cambiar lo estudiado».
 function exqClick(e) {
   const t = e.target; if (!t || typeof t.closest !== 'function') return;
@@ -19704,13 +19930,22 @@ function esToolRutaMeta(E, a) {
   if (!r) throw new Error(`No encontré esa ruta. Rutas: ${rutas.map(x => `${x.nombre} (${esMat(x)})`).join(', ')}.`);
   const dias = esDiasIA(a.dias), h = esHorasIA(a.horas_total), fx = esFechasIA(a);   // 2.21.8 (K)
   { const iniIA = esF(a.inicio); if (iniIA) { E.editar(r.id, { inicio: iniIA }); if (!dias.length && !h && !fx.n && !a.repartir_deuda) { if (view === 'estudio') window.renderEstudio?.(); const n = E.ruta(r.id); return { cambiada: n.nombre, materia: esMat(n), empieza: iniIA, hoy: n.plan.filter(b => b.d === today()).length, ...esMetaIA(E, n), nota: 'El plan se volvió a repartir desde ese día: antes no hay bloques.' }; } } }   // 2.22.3 (I)
-  if (!dias.length && !h && !fx.n && !a.repartir_deuda) throw new Error('Para cambiar una ruta pásame dias, horas_total, quitar_fecha, agregar_fecha, minutos_fecha o repartir_deuda.');
+  let mtLuego = null; { const mt = esMetaTipoIA(a, r); if (mt.metaTipo) { if (mt.metaTipo === 'ambas' && !E.meta(r).on && h) mtLuego = mt; else { const rp0 = +E.ruta(r.id).replan || 0; E.editar(r.id, mt); if (!dias.length && !h && !fx.n && !a.repartir_deuda) { if (view === 'estudio') window.renderEstudio?.(); const n = E.ruta(r.id), otra = (+n.replan || 0) !== rp0, av = E.sesAviso(n); return { cambiada: n.nombre, materia: esMat(n), ...E.ejIA(n), ...esMetaIA(E, n), ...(av ? { sesiones: av } : {}), nota: otra ? 'La meta cambió y el plan se volvió a repartir: los bloques nuevos ya están en la Agenda.' : 'La meta cambió. El plan sigue igual.' }; } } } }   // 2.22.6 (E) · «Las dos» con horas nuevas: junto con ellas
+  if (!dias.length && !h && !fx.n && !a.repartir_deuda) throw new Error('Para cambiar una ruta pásame meta, ejercicios_total, dias, horas_total, quitar_fecha, agregar_fecha, minutos_fecha o repartir_deuda.');
   if (!dias.length && !h) return esToolFechas(E, r, a, fx);
   const x = E.meta(r), meta = { min: h || (x.on ? x.min : Math.max(30, Math.round(x.implicita / 5) * 5)), dias: dias.length ? dias : x.dias };
-  const n = E.editar(r.id, { meta });
+  const n = E.editar(r.id, { meta, ...(mtLuego || {}) });
   if (fx.n || a.repartir_deuda) return { ...esToolFechas(E, n, a, fx), dias_y_horas: 'cambiados' };   // 2.21.8 (K)
   if (view === 'estudio') window.renderEstudio?.();
   return { cambiada: n.nombre, materia: esMat(n), ...esMetaIA(E, n), hoy: n.plan.filter(b => b.d === today()).length, nota: 'El plan se volvió a repartir: los bloques nuevos ya están en la Agenda.' };
+}
+// 2.22.6 (E) · meta ('horas' | 'ejercicios' | 'las_dos') y ejercicios_total → { metaTipo, metaEj } (con r: cambiar una ruta que ya existe).
+function esMetaTipoIA(a, r = null) {
+  const M = { horas: 'horas', ejercicios: 'ej', ej: 'ej', las_dos: 'ambas', ambas: 'ambas', 'las dos': 'ambas' }, t0 = M[String(a && a.meta || '').trim().toLowerCase()] || '', n = Number.isFinite(+(a && a.ejercicios_total)) && +a.ejercicios_total > 0 ? Math.min(100000, Math.round(+a.ejercicios_total)) : 0;
+  let t = t0; if (!t && n) { const cur = r ? window.est.metaTipo(r) : ''; t = cur === 'ej' || cur === 'ambas' ? cur : (r ? (window.est.meta(r).on ? 'ambas' : 'ej') : (esHorasIA(a.horas_total) ? 'ambas' : 'ej')); }
+  if (!t) return {};
+  if (t === 'ambas' && !esHorasIA(a.horas_total) && !(r && window.est.meta(r).on)) throw new Error('Para «las_dos» hace falta también horas_total (las horas en total hasta el examen).');
+  return { metaTipo: t, ...(n ? { metaEj: n } : {}) };
 }
 function esToolRuta(a) {
   const E = esE(); if (!E) throw esSinMotor();
@@ -19726,20 +19961,20 @@ function esToolRuta(a) {
   if (esH(a.hora_preferida)) config.horaPref = a.hora_preferida;
   const diasIA = esDiasIA(a.dias), horasIA = esHorasIA(a.horas_total);   // 2.21.8 (D) · solo días: los demás quedan libres; con horas: la meta
   if (diasIA.length && !horasIA) config.porDia = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map(wd => [wd, diasIA.includes(wd) ? null : 0]));
-  const r = E.crear({ materiaNombre: materia, nombre: esS(a.examen, 80) || 'Examen', fecha, hora: esH(a.hora), temas, config, ...(esF(a.inicio) && esF(a.inicio) > today() ? { inicio: esF(a.inicio) } : {}), ...(horasIA ? { meta: { min: horasIA, dias: diasIA.length ? diasIA : [0, 1, 2, 3, 4, 5, 6] } } : {}) });
+  const r = E.crear({ materiaNombre: materia, nombre: esS(a.examen, 80) || 'Examen', fecha, hora: esH(a.hora), temas, config, ...(esF(a.inicio) && esF(a.inicio) > today() ? { inicio: esF(a.inicio) } : {}), ...(horasIA && esMetaTipoIA(a).metaTipo !== 'ej' ? { meta: { min: horasIA, dias: diasIA.length ? diasIA : [0, 1, 2, 3, 4, 5, 6] } } : {}), ...esMetaTipoIA(a) });   // 2.22.6 (E)
   const s = E.resumen(r.id) || {}, hoy = r.plan.filter(b => b.d === today()).length;
   if (view === 'estudio') window.renderEstudio?.();
   return { creada: r.nombre, materia: esMat(r), examen: r.fecha, ...(r.inicio && r.inicio.d > today() ? { empieza: r.inicio.d } : {}), hora: r.hora || '', dias: s.diasRestantes, bloques: s.bloquesTotal, minutos: s.minPlan, ejercicios: s.ejPlan, hoy,
-    ...esMetaIA(E, r), aviso: r.aviso ? `No cabe todo: harían falta ${r.aviso.faltan} min por día. La persona puede subir minutos, quitar temas o dejarlo así.` : '', nota: 'La ruta está en la pestaña Estudio; los bloques de hoy entran en la Agenda.' };
+    ...esMetaIA(E, r), ...(E.ejIA ? E.ejIA(r) : {}), aviso: r.aviso ? `No cabe todo: harían falta ${r.aviso.faltan} min por día. La persona puede subir minutos, quitar temas o dejarlo así.` : '', nota: 'La ruta está en la pestaña Estudio; los bloques de hoy entran en la Agenda.' };
 }
 function esToolBloque(a) {
   const E = esE(); if (!E) throw esSinMotor();
   const id = String(a.bloque || '').trim(), b = id ? E.bloque(id) : null;
   if (!b) throw new Error('No encontré ese bloque. Los ids de los bloques de hoy salen en estudio_ver.');
   if (a.accion === 'hecho') {
-    if (b.hecho) return { bloque: esTexto(b), hecho: true, nota: 'Ya estaba hecho.' };
-    const ej = Number.isFinite(+a.ejercicios) && +a.ejercicios >= 0 ? Math.round(+a.ejercicios) : undefined;
-    window.exCuantoNo = true; let x; try { x = E.marcar(id, true, ej === undefined ? {} : { ej }); } finally { window.exCuantoNo = false; } return { bloque: esTexto(x), hecho: true, minutos: x.hechoInfo?.min ?? x.min, ejercicios: x.hechoInfo?.ej ?? x.ej };
+    const ej = Number.isFinite(+a.ejercicios) && +a.ejercicios >= 0 ? Math.round(+a.ejercicios) : undefined, mn = Number.isFinite(+a.minutos) && +a.minutos > 0 ? Math.min(1440, Math.round(+a.minutos)) : undefined, nt = typeof a.nota === 'string' && a.nota.trim() ? a.nota.trim().slice(0, 200) : undefined;   // 2.22.6 (E)
+    if (b.hecho) { if (ej === undefined && mn === undefined && nt === undefined) return { bloque: esTexto(b), hecho: true, nota: 'Ya estaba hecho.' }; const y = E.anotar(id, { ...(mn ? { min: mn } : {}), ...(ej !== undefined ? { ej } : {}), ...(nt !== undefined ? { nota: nt } : {}) }); return { bloque: esTexto(y || b), hecho: true, cambiado: true, minutos: y?.hechoInfo?.min, ejercicios: y?.hechoInfo?.ej }; }
+    window.exCuantoNo = true; let x; try { x = E.marcar(id, true, { ...(ej === undefined ? {} : { ej }), ...(mn ? { min: mn } : {}), ...(nt !== undefined ? { nota: nt } : {}) }); } finally { window.exCuantoNo = false; } return { bloque: esTexto(x), hecho: true, minutos: x.hechoInfo?.min ?? x.min, ejercicios: x.hechoInfo?.ej ?? x.ej };
   }
   if (a.accion === 'deshacer') { const x = b.hecho ? E.marcar(id, false) : b; return { bloque: esTexto(x), hecho: false }; }
   if (a.accion === 'mover') {
@@ -19862,7 +20097,7 @@ const INI_CSS = `
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS + AG_YA_BTN_CSS; iniR.append(iniStyle, iniW); }   // 2.21.3 (B) · AG_YA_BTN_CSS
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
-const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'iniciativas', 'bloques', 'hoy', 'consistencia', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
+const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'iniciativas', 'bloques', 'hoy', 'consistencia', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar', 'descanso']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
 // Líneas de estado: se calculan solo al pintar, una llamada a cada helper, sin guardar nada.
 const INI_ESTADO = {
   identidad: () => {
@@ -20109,7 +20344,7 @@ function icEstHtml0() {
   const ej = Math.max(0, Math.round(+b.ej || 0));
   const emp = T ? `<button type="button" class="ag-fb-go ag-fb-temp" data-ic="est-emp" aria-label="Temporizador en marcha. Toca para verlo"><span data-temp-left data-temp-corto>${tempTxt(T, true)}</span></button>` : icB('ag-fb-go', 'est-emp', 'Empezar');
   return icCard('est', 'Estudio', `Estudio · ${esc(cuando)}${h}`, esc(it.t || E_txt(b)), `${ruta}${(() => { const q = window.est?.sesTexto?.(b) || ''; return q ? ' · ' + esc(q).replace(/ /g, '&nbsp;') : ''; })()} · ${icMin(b.min || AG_MIN.ini)}${ej ? ` · ${ej}&nbsp;${ej === 1 ? 'ejercicio' : 'ejercicios'}` : ''} · ${icExamenTxt(x.r.fecha)}`,
-    icB('ag-fb-ok', 'est-ok', '✓ Hecho') + emp, icL('est-ver', 'Ver ruta'), ` data-ic-b="${esc(b.id)}" data-ic-ruta="${esc(x.r.id)}"`);
+    icB('ag-fb-ok', 'est-ok', '✓ Hecho') + emp, `<button type="button" class="link ag-para-add" data-ic="est-comp" aria-label="${esc('Completar ' + (it.t || E_txt(b)))}">Completar</button>` + icL('est-ver', 'Ver ruta'), ` data-ic-b="${esc(b.id)}" data-ic-ruta="${esc(x.r.id)}"`);
 }
 const E_txt = b => { try { return window.est.textoBloque(b); } catch { return 'Estudio'; } };
 // ---------- T3 · Iniciativa: una idea del catálogo (agParaIdeas de 2.22.3 A)
@@ -20287,6 +20522,7 @@ function icTarjetasHtml() {
     try { out.push(f() || ''); } catch (e) { console.warn('Tarjeta del Inicio', k, e); }
   }
   try { out.push(igTarjetasHtml(oc)); } catch (e) { console.warn('Tarjetas del Inicio (G)', e); }   // 2.22.5 (G) · Gratitud y Oración
+  try { out.push(dcInicioHtml(oc)); } catch (e) { console.warn('Descanso cognitivo', e); }   // 2.22.6 (D)
   return out.join('');
 }
 // ---------- Los toques (uno solo, en el Inicio): lo mismo que en cada sección
@@ -20297,6 +20533,7 @@ function icToque(q, c) {
   if (q === 'ini-elegir') { icIniHoja(); return; }
   if (q === 'est-nueva') { window.est?.nuevaRuta?.(); return; }
   if (q === 'est-ver') { window.est?.abrir?.(ds.icRuta || ''); return; }
+  if (q === 'est-comp') { const b = window.est?.bloque?.(ds.icB || ''); if (!b || b.hecho) return; const it = agParaBloqueIt(b); exCompletar(b.id, { marcar: () => { if (marcaBloq('ag', '\u0000ic-est')) return; marcaPon('ag', it.id); agMarcarAviso(it, true); }, volver: () => { closeSheet(); iniRepintar(); } }); return; }   // 2.22.6 (E)
   if (q === 'est-ok' || q === 'est-emp') {
     const b = window.est?.bloque?.(ds.icB || ''); if (!b || b.hecho) return;
     const it = agParaBloqueIt(b);
@@ -20537,6 +20774,344 @@ if (iniR) { const st = document.createElement('style'); st.textContent = `
   .enf.ini > .rows .row .t > div, .enf.ini .ini-mas .rows .row .t > div { font-size: 1.12em; }   /* 2.22.5 (G) · «Aumenta el tamaño de los nombres» */
   .enf.ini > h3 { font-size: .9rem; }`; iniR.append(st); }
 window.igInicio = { gratitud: () => igBuenasHoy(), oracion: () => { const o = igOracion(); return o.x ? { id: o.x.n.id, nombre: o.x.nombre, h: o.x.n.h, hechas: o.hechas, tot: o.tot } : o; }, guardar: t => igGuardar(t), draft: () => igDraft, pendiente: () => igPend };   // 2.22.5 (G) · para las pruebas
+
+// ====================================================================
+// 2.22.6 (D) · «Crear nuevo apartado de descanso cognitivo (es una meditación) y crea una pestaña como estas que te lleve a ello. Ahí escojo
+// el tiempo del temporizador.» La sección (#view-descanso, sin shadow root: estilos con #view-descanso), su tarjeta del Inicio y su XP.
+// El tiempo sale siempre de la hora de fin (r.fin) o de lo que quedaba al pausar (r.resta): nunca de contar segundos.
+// ====================================================================
+const DC_CHIPS = [3, 5, 10, 15, 20], DC_RUN_K = 'dc-run', DC_XP_MIN = 3, DC_XP = 10;
+const dcHost = document.getElementById('view-descanso');
+let dcBody = null;
+if (dcHost) { dcBody = document.createElement('div'); dcBody.className = 'dc-body'; dcHost.append(dcBody); }
+function dcD() { let D = ES.descanso; if (!D || typeof D !== 'object' || Array.isArray(D) || !Array.isArray(D.ses)) { D = dcNorm(D); ES.descanso = D; } return D; }
+function dcUlt() { const u = Math.round(+dcD().ult); return u >= 1 && u <= 120 ? u : 5; }
+function dcRun() {
+  try { const r = JSON.parse(localStorage.getItem(DC_RUN_K) || 'null');
+    if (!r || typeof r !== 'object' || !(+r.min >= 1 && +r.min <= 120) || !(+r.ini > 0) || !(+r.fin > 0 || +r.resta >= 0)) return null;
+    return r; } catch { return null; }
+}
+function dcRunPoner(r) { try { if (r) localStorage.setItem(DC_RUN_K, JSON.stringify(r)); else localStorage.removeItem(DC_RUN_K); } catch {} }
+// Con la hora del teléfono atrasada, nunca más de lo elegido (ni minutos «hechos» negativos).
+function dcResta(r, now = Date.now()) { return !r ? 0 : Math.max(0, Math.min(r.min * 60000, +r.fin > 0 ? +r.fin - now : +r.resta || 0)); }
+function dcFase(r) { if (!r) return ''; if (r.preg) return 'preg'; if (+r.fin > 0) return Date.now() >= +r.fin ? 'listo' : 'corre'; return 'pausa'; }
+function dcHechos(r) { return r ? Math.floor((r.min * 60000 - dcResta(r)) / 60000) : 0; }
+function dcSes() { return dcD().ses.filter(z => z && z.d && +z.min > 0); }
+function dcMinDia(d) { let n = 0; for (const z of dcSes()) if (z.d === d) n += +z.min; return n; }
+function dcSemana() { const t = today(), d = new Date(t + 'T12:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); const L = dayKey(d); let n = 0; for (const z of dcSes()) if (z.d >= L && z.d <= t) n += +z.min; return n; }
+function dcRacha() { const S = new Set(dcSes().map(z => z.d)); let d = new Date(today() + 'T12:00'), n = 0; if (!S.has(dayKey(d))) d = addDays(d, -1); while (n < 400 && S.has(dayKey(d))) { n++; d = addDays(d, -1); } return n; }
+const dcDias = n => `${n} ${n === 1 ? 'día' : 'días'}`;
+function dcDecir(t) { try { agParaDecir(t); } catch {} }
+// ---------- Sonido suave, vibración y pantalla encendida
+function dcSonar() {
+  try {
+    if (typeof tempSonidoOn === 'function' && !tempSonidoOn()) return;
+    const a = tempAudioCtx(!navigator.userActivation || navigator.userActivation.hasBeenActive); if (!a) return;
+    if (a.state === 'suspended') a.resume?.()?.catch?.(() => {});
+    const t0 = a.currentTime + 0.05, out = a.createGain(); out.gain.value = 0.5; out.connect(a.destination);
+    [[392, 0], [523.25, 0.9]].forEach(([f, d]) => {   // sol y do, lentos y bajos
+      const o = a.createOscillator(), g = a.createGain(), t = t0 + d; o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + 2.3);
+    });
+  } catch {}
+}
+function dcPreparar() { try { const a = tempAudioCtx(true); if (a && a.state === 'suspended') a.resume?.()?.catch?.(() => {}); } catch {} }
+// Un solo pedido a la vez: dos «encender» seguidos (Empezar desde el Inicio y el repintado de la vista) no dejan un candado suelto.
+let dcWL = null, dcWLPend = false;
+async function dcWake(on) {
+  try {
+    if (!on) { const w = dcWL; dcWL = null; if (w) await w.release(); return; }
+    if (dcWL || dcWLPend || !navigator.wakeLock || document.visibilityState !== 'visible') return;
+    dcWLPend = true; let w;
+    try { w = await navigator.wakeLock.request('screen'); } finally { dcWLPend = false; }
+    if (dcWL || dcFase(dcRun()) !== 'corre' || document.visibilityState !== 'visible') { try { await w.release(); } catch {} return; }
+    dcWL = w;
+    w.addEventListener?.('release', () => { if (dcWL === w) dcWL = null; });
+  } catch { dcWLPend = false; }
+}
+// ---------- El reloj: un toque por segundo solo para pintar; el tiempo sale de r.fin
+let dcT = 0, dcVisto = 0;
+// Si la hora del teléfono se atrasa con la página abierta, la hora de fin se corre lo mismo: lo ya hecho se conserva.
+function dcReloj(r) {
+  const now = Date.now();
+  if (r && +r.fin > 0 && !r.preg && dcVisto && now < dcVisto - 2000) { const d = dcVisto - now; r.fin = +r.fin - d; r.ini = Math.max(1, +r.ini - d); dcRunPoner(r); }
+  if (r && +r.fin > 0 && now < +r.ini) { const d = +r.ini - now; r.fin = +r.fin - d; r.ini = now; dcRunPoner(r); }   // tras recargar, sin la última hora vista
+  dcVisto = now; return r;
+}
+function dcTickOn() { clearInterval(dcT); dcT = 0; if (dcFase(dcRun()) === 'corre') dcT = setInterval(dcTick, 1000); }
+function dcTick() {
+  const r = dcReloj(dcRun()), f = dcFase(r);
+  if (f !== 'corre') { clearInterval(dcT); dcT = 0; if (f === 'listo') dcFin(r); return; }
+  dcPintarHora(r);
+}
+function dcSync() {
+  const r = dcReloj(dcRun()), f = dcFase(r);
+  if (f === 'listo') { dcFin(r); return; }
+  if (f === 'corre') dcWake(true); else dcWake(false);
+  dcTickOn(); if (r) dcPintarHora(r);
+}
+// Al terminar: el sonido y la vibración solo a la vista y si acabó hace poco (al volver mucho después, solo «Listo»). Una vez.
+function dcFin(r) {
+  clearInterval(dcT); dcT = 0; dcWake(false);
+  if (document.visibilityState !== 'visible') return;   // en segundo plano: al volver (visibilitychange)
+  if (!r.sonado) {
+    r.sonado = 1; dcRunPoner(r);
+    if (Date.now() - +r.fin < 120000) { dcSonar(); buzz([180, 120, 180]); }
+    dcDecir(`Listo. Descansaste ${r.min} min.`);
+    if (view === 'descanso') dcRender('fin');
+  } else if (view === 'descanso' && !dcBody?.querySelector('.dc-fin')) dcRender('fin');
+  iniRepintar();
+}
+function dcRespTxt(r) { const e = (r.min * 60000 - dcResta(r)) / 1000; return Math.floor(e / 4) % 2 ? 'Exhala' : 'Inhala'; }
+function dcPintarHora(r) {
+  const left = fmtClock(dcResta(r) / 1000);
+  if (view === 'descanso' && dcBody) {
+    const L = dcBody.querySelector('#dc-left'); if (L && L.textContent !== left) L.textContent = left;
+    const R = dcBody.querySelector('#dc-resp'); if (R && dcFase(r) === 'corre') { const t = dcRespTxt(r); if (R.textContent !== t) R.textContent = t; }
+  }
+  if (view === 'inicio') { const n = iniW.querySelector('[data-dc-left]'); if (n && n.textContent !== left) n.textContent = left; }
+}
+// ---------- Acciones
+function dcEmpezar(min) {
+  min = Math.round(+min); if (!(min >= 1 && min <= 120)) return false;
+  dcPreparar();
+  const D = dcD(); D.ult = min; D.ultMod = Date.now(); guardar();
+  const now = Date.now(); dcRunPoner({ id: crypto.randomUUID(), min, ini: now, fin: now + min * 60000 });
+  dcSel = DC_CHIPS.includes(min) ? min : 'otro'; if (dcSel === 'otro') dcOtroV = String(min);
+  dcWake(true); dcTickOn();
+  dcDecir(`Empezó tu descanso de ${min} min.`);
+  if (view !== 'descanso') { dcFocoPend = 'timer'; irA('descanso'); } else dcRender('timer');
+  return true;
+}
+function dcPausa() { const r = dcReloj(dcRun()); if (dcFase(r) !== 'corre') return; r.resta = dcResta(r); r.fin = 0; dcRunPoner(r); dcWake(false); dcTickOn(); dcDecir('En pausa.'); dcRender('[data-dc-acc="seguir"]'); }
+function dcSeguir() { const r = dcRun(), f = dcFase(r); if (f !== 'pausa' && f !== 'preg') return; r.fin = Date.now() + dcResta(r); delete r.resta; delete r.preg; dcRunPoner(r); dcWake(true); dcTickOn(); dcDecir('Sigue tu descanso.'); dcRender('[data-dc-acc="pausa"]'); }
+function dcTerminar() {
+  const r = dcReloj(dcRun()), f = dcFase(r); if (!r) return;
+  if (f === 'listo') { dcRender('fin'); return; }
+  if (f === 'corre') { r.resta = dcResta(r); r.fin = 0; }
+  dcWake(false); clearInterval(dcT); dcT = 0;
+  if (dcHechos(r) >= 1) { r.preg = 1; dcRunPoner(r); dcDecir(`¿Anotas los ${dcHechos(r)} min que hiciste?`); dcRender('fin'); return; }
+  dcRunPoner(null); dcDecir('Descanso terminado.'); dcRender('go'); iniRepintar();
+}
+function dcDescartar() { dcRunPoner(null); dcWake(false); dcTickOn(); dcRender('go'); iniRepintar(); }
+// Anotar: la sesión (del día en que acabó) y, la primera de hoy desde 3 min, +10 XP. La píldora con «Deshacer».
+function dcAnotar(min, d) {
+  min = Math.max(1, Math.min(600, Math.round(+min || 0)));
+  const D = dcD(), t = today(), z = { id: crypto.randomUUID(), d: d || t, min, en: Date.now() };
+  D.ses.push(z); if (D.ses.length > 400) D.ses = D.ses.slice(-400);
+  if (z.d === t && min >= DC_XP_MIN && !dcSes().some(x => x.xp === t && x.id !== z.id) && xpGanar(DC_XP, 'Descanso cognitivo', 'dc:' + t, { cat: 'salud' })) z.xp = t;
+  guardar();
+  fbHecho({ deshacer: () => {
+    if (today() !== t) { toast('Ya es otro día: lo de ayer queda como estaba.'); return; }
+    const Z = dcD().ses.find(x => x && x.id === z.id); if (!Z) return;
+    dcD().ses = dcD().ses.filter(x => x !== Z); forget(Z.id); dcXpTras(Z, t);
+    guardar(); if (view === 'descanso') dcRender(); iniRepintar();
+  } });
+  return z;
+}
+// La sesión que se va tenía el XP de hoy: pasa a otra de hoy (desde 3 min) o se quita.
+function dcXpTras(z, t, sinPop) {
+  if (z.xp !== t) return false;
+  const otra = dcSes().find(x => x.d === t && +x.min >= DC_XP_MIN && x.id !== z.id);
+  if (otra) { otra.xp = t; otra.mod = Date.now(); return false; }
+  return xpQuitar('dc:' + t, sinPop ? { sinPop: true } : {}) > 0;
+}
+function dcAnotarRun(r) {
+  const f = dcFase(r); if (f !== 'listo' && f !== 'preg') return null;
+  const min = f === 'listo' ? r.min : dcHechos(r), d = f === 'listo' ? dayKey(new Date(+r.fin)) : today();
+  dcRunPoner(null); dcWake(false); dcTickOn();
+  return min >= 1 ? dcAnotar(min, d) : null;
+}
+function dcQuitar(id) {
+  const D = dcD(), z = D.ses.find(x => x && x.id === id); if (!z) return;
+  const t = today(); D.ses = D.ses.filter(x => x !== z); forget(z.id);
+  const quito = dcXpTras(z, t, true); guardar(); dcRender('list');   // sin la píldora de −XP: taparía el «Deshacer» de este aviso
+  toast(`Sesión quitada: ${z.min} min${quito ? ` · −${DC_XP} XP` : ''}.`, { deshacer: () => {
+    const n = { ...z, id: crypto.randomUUID(), mod: Date.now() }; delete n.xp;   // otro id: lo quitado ya puede estar en la nube
+    dcD().ses.push(n);
+    if (quito && today() === t && xpGanar(DC_XP, 'Descanso cognitivo', 'dc:' + t, { cat: 'salud' })) n.xp = t;
+    guardar(); if (view === 'descanso') dcRender('list'); iniRepintar();
+  } });
+}
+// ---------- La sección
+var dcSel = null, dcOtroV = '', dcFocoPend = '', dcSigV = '';
+function dcSelIni() { if (dcSel !== null) return; const u = dcUlt(); if (DC_CHIPS.includes(u)) dcSel = u; else { dcSel = 'otro'; dcOtroV = String(u); } }
+function dcOtroMin() { const v = String(dcOtroV || '').trim(); if (!/^\d{1,3}$/.test(v)) return 0; const n = +v; return n >= 1 && n <= 120 ? n : 0; }
+function dcElegido() { return dcSel === 'otro' ? dcOtroMin() : +dcSel || 0; }
+function dcFechaTxt(z) {
+  const t = today(), a = dayKey(addDays(new Date(t + 'T12:00'), -1));
+  let f = z.d === t ? 'Hoy' : z.d === a ? 'Ayer' : new Date(z.d + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\.$/, '');
+  if (z.en > 0 && !agHorasOcultas() && (z.d === t || z.d === a)) f += ' · ' + fmtHora(hhmm(new Date(z.en)));
+  return f;
+}
+function dcPickerHtml() {
+  dcSelIni();
+  const m = dcElegido(), hoy = dcMinDia(today()), sem = dcSemana(), ra = dcRacha();
+  const chip = (v, txt) => `<button type="button" class="dc-chip${dcSel === v ? ' on' : ''}" data-dc-min="${v}" aria-pressed="${dcSel === v}">${txt}</button>`;
+  const otro = dcSel === 'otro' ? `<div class="dc-otro"><label for="dc-otro-in">Minutos</label><input id="dc-otro-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" enterkeyhint="go" autocomplete="off" placeholder="1 a 120" value="${esc(dcOtroV)}"><span class="dc-otro-n" id="dc-otro-n">${dcOtroV && !m ? 'De 1 a 120 min.' : ''}</span></div>` : '';
+  const L = dcSes().slice().sort((a, b) => b.en - a.en).slice(0, 5);
+  const lista = L.length ? `<div class="dc-list">${L.map(z => `<div class="dc-ses"><span class="dc-ses-t"><b>${esc(dcFechaTxt(z))}</b> · ${z.min}&nbsp;min</span><button type="button" class="dc-quitar" data-dc-quitar="${esc(z.id)}" aria-label="Quitar la sesión: ${esc(dcFechaTxt(z))}, ${z.min} min">Quitar</button></div>`).join('')}</div>`
+    : '<p class="dc-vacio">Aún no hay sesiones. Tres minutos bastan para empezar.</p>';
+  return `<div class="dc dc-pick">
+    <p class="dc-intro">Unos minutos para soltar la mente. Respiras y vuelves a lo tuyo con la cabeza más clara.</p>
+    <h3 class="dc-h" id="dc-h-t">¿Cuánto tiempo?</h3>
+    <div class="dc-chips" role="group" aria-labelledby="dc-h-t">${DC_CHIPS.map(v => chip(v, `${v} min`)).join('')}${chip('otro', 'Otro')}</div>
+    ${otro}
+    <button type="button" class="dc-go" id="dc-go"${m ? '' : ' disabled'}>${m ? `Empezar · ${m} min` : 'Empezar'}</button>
+    <p class="dc-stats" id="dc-stats">Hoy: ${hoy}&nbsp;min · Esta semana: ${sem}&nbsp;min${ra >= 2 ? ` · Racha de ${dcDias(ra)}` : ''}</p>
+    <h3 class="dc-h">Últimas sesiones</h3>${lista}</div>`;
+}
+function dcRunHtml(r) {
+  const f = dcFase(r), left = fmtClock(dcResta(r) / 1000), e = (r.min * 60000 - dcResta(r)) / 1000;
+  if (f === 'listo') return `<div class="dc dc-run dc-fin"><div class="dc-circ dc-quieto" aria-hidden="true"><div class="dc-bola"></div><span class="dc-resp">✓</span></div>
+    <p class="dc-t" id="dc-foco" tabindex="-1">Listo. Descansaste ${r.min}&nbsp;min.</p><p class="dc-ins">Toca ✓ para anotarlo.</p>
+    <div class="dc-b"><button type="button" class="dc-ok" data-dc-acc="hecho">✓ Hecho</button></div><p class="dc-pie"><button type="button" class="dc-link" data-dc-acc="descartar">No anotar</button></p></div>`;
+  if (f === 'preg') { const n = dcHechos(r); return `<div class="dc dc-run dc-fin"><p class="dc-k">En pausa · quedan ${left}</p>
+    <p class="dc-t" id="dc-foco" tabindex="-1">¿Anotas los ${n}&nbsp;min que hiciste?</p><p class="dc-ins">Lo que hiciste también cuenta.</p>
+    <div class="dc-b"><button type="button" class="dc-ok" data-dc-acc="anotar">✓ Anotar</button><button type="button" class="dc-btn" data-dc-acc="seguir">Seguir</button></div>
+    <p class="dc-pie"><button type="button" class="dc-link" data-dc-acc="descartar">No anotar</button></p></div>`; }
+  const pausa = f === 'pausa';
+  return `<div class="dc dc-run${pausa ? ' dc-pausa' : ''}"><p class="dc-k">${pausa ? 'En pausa' : `Descanso de ${r.min}&nbsp;min`}</p>
+    <div class="dc-circ" aria-hidden="true"><div class="dc-bola" style="animation-delay:-${(e % 8).toFixed(2)}s"></div><span class="dc-resp" id="dc-resp">${pausa ? '' : dcRespTxt(r)}</span></div>
+    <p class="dc-left" id="dc-left" role="timer" aria-live="off" aria-label="Tiempo que queda" tabindex="-1">${left}</p>
+    <p class="dc-ins">Suelta lo que estás pensando. Vuelve a tu respiración.</p>
+    <div class="dc-b">${pausa ? '<button type="button" class="dc-btn" data-dc-acc="seguir">Seguir</button>' : '<button type="button" class="dc-btn" data-dc-acc="pausa">Pausa</button>'}<button type="button" class="dc-btn dc-sec" data-dc-acc="terminar">Terminar</button></div></div>`;
+}
+// foco: 'go' | 'timer' | 'fin' | 'list' | 'chip' | un selector
+function dcRender(foco) {
+  if (!dcBody) return;
+  if (!foco && dcFocoPend) { foco = dcFocoPend; } dcFocoPend = '';
+  try { const a = document.activeElement; if (!foco && a && a.id === 'dc-otro-in' && dcBody.contains(a)) return; } catch {}   // escribiendo «Otro»: no se repinta
+  const r = dcRun(), D = dcD();
+  // Sin un toque propio (el repintado de la sincronización o del minuto), solo si cambió algo: no quita el foco ni reinicia el círculo.
+  const sig = JSON.stringify([dcFase(r), r && r.id, r && r.min, D.ses.length, D.ses.map(z => z.id + (z.xp || '')).join(), D.ult, dcSel, today(), agHorasOcultas()]);
+  if (!foco && sig === dcSigV && dcBody.firstChild) { if (r) dcPintarHora(r); return; }
+  dcSigV = sig;
+  dcBody.innerHTML = r ? dcRunHtml(r) : dcPickerHtml();
+  dcCabeza();
+  if (foco === 'timer' || foco === 'fin') try { scrollTo(0, 0); } catch {}
+  if (!foco) return;
+  const Q = { go: ['#dc-go:not([disabled])', '.dc-chip.on'], timer: ['#dc-left'], fin: ['#dc-foco'], list: ['.dc-quitar', '#dc-go'], chip: ['.dc-chip.on', '.dc-chip'] }[foco] || [foco];
+  let n = null; for (const q of Q) { n = dcBody.querySelector(q); if (n) break; }
+  if (n) try { n.focus({ preventScroll: foco === 'list' }); } catch {}
+}
+// Con el temporizador en marcha, la cabecera se reduce al título (sin fecha, sincronización, XP ni racha): el reloj, Pausa y Terminar caben en teléfonos bajos.
+function dcCabeza() { try { document.body.classList.toggle('dc-en-curso', view === 'descanso' && !!dcRun()); } catch {} }
+function dcVista() {
+  if (!dcHost) return;
+  dcHost.hidden = view !== 'descanso'; dcCabeza();
+  if (view === 'descanso') { dcRender(); const r = dcRun(); if (r) dcSync(); }
+}
+renderAll = (f => function () { const x = f.apply(this, arguments); try { dcVista(); } catch (e) { console.warn('Descanso cognitivo', e); } return x; })(renderAll);
+if (dcHost) {
+  dcHost.addEventListener('click', e => {
+    const t = e.target;
+    const c = t.closest?.('[data-dc-min]');
+    if (c) { const v = c.dataset.dcMin; dcSel = v === 'otro' ? 'otro' : +v;
+      if (dcSel !== 'otro') { const D = dcD(); if (D.ult !== dcSel) { D.ult = dcSel; D.ultMod = Date.now(); guardar(); } }
+      dcRender(dcSel === 'otro' ? '#dc-otro-in' : `[data-dc-min="${v}"]`); return; }
+    if (t.closest?.('#dc-go')) { const m = dcElegido(); if (!m) { dcBody.querySelector('#dc-otro-in')?.focus(); return; } dcEmpezar(m); return; }
+    const q = t.closest?.('[data-dc-quitar]'); if (q) { dcQuitar(q.dataset.dcQuitar); return; }
+    const a = t.closest?.('[data-dc-acc]'); if (!a) return;
+    const k = a.dataset.dcAcc;
+    if (k === 'pausa') dcPausa();
+    else if (k === 'seguir') dcSeguir();
+    else if (k === 'terminar') dcTerminar();
+    else if (k === 'descartar') dcDescartar();
+    else if (k === 'hecho' || k === 'anotar') { dcAnotarRun(dcRun()); dcRender('go'); iniRepintar(); }
+  });
+  dcHost.addEventListener('input', e => {
+    if (e.target?.id !== 'dc-otro-in') return;
+    const v = e.target.value.replace(/\D/g, '').slice(0, 3); if (v !== e.target.value) e.target.value = v;
+    dcOtroV = v; const m = dcOtroMin(), g = dcBody.querySelector('#dc-go'), n = dcBody.querySelector('#dc-otro-n');
+    if (g) { g.disabled = !m; g.textContent = m ? `Empezar · ${m} min` : 'Empezar'; }
+    if (n) n.textContent = v && !m ? 'De 1 a 120 min.' : '';
+    if (m) { const D = dcD(); if (D.ult !== m) { D.ult = m; D.ultMod = Date.now(); guardar(); } }
+  });
+  dcHost.addEventListener('keydown', e => { if (e.target?.id === 'dc-otro-in' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); dcBody.querySelector('#dc-go:not([disabled])')?.click(); } });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && dcRun()) dcSync(); else if (document.visibilityState !== 'visible') dcWake(false); });
+addEventListener('pageshow', () => { if (dcRun()) dcSync(); });
+// ---------- El Inicio: la tarjeta y la línea de la fila
+function dcInicioHtml(oc) {
+  if (oc && oc.has('descanso')) return '';
+  const r = dcRun(), f = dcFase(r), pie = '';   // sin enlace abajo: «Elegir tiempo» / «Ver» ya llevan a la sección
+  const B = (cls, q, t) => `<button type="button" class="${cls}" data-dc="${q}">${t}</button>`;
+  if (f === 'listo') return icCard('dc', 'Descanso cognitivo', 'Descanso cognitivo', `Listo. Descansaste ${r.min}&nbsp;min.`, 'Toca ✓ para anotarlo.', B('ag-fb-ok', 'ok', '✓ Hecho') + B('ag-fb-go', 'ver', 'Ver'), pie);
+  if (f) return icCard('dc', 'Descanso cognitivo', 'Descanso cognitivo', `${f === 'corre' ? 'Quedan' : 'En pausa · quedan'} <span data-dc-left>${fmtClock(dcResta(r) / 1000)}</span>`, `Descanso de ${r.min}&nbsp;min`, B('ag-fb-go', 'ver', 'Ver'), pie);
+  const u = dcUlt(), hoy = dcMinDia(today()), ra = dcRacha();
+  const m = hoy ? `Hecho hoy · ${hoy}&nbsp;min${ra >= 2 ? ` · Racha de ${dcDias(ra)}` : ''}` : `Hoy: 0&nbsp;min${ra ? ` · Racha de ${dcDias(ra)}` : ''}`;
+  return icCard('dc', 'Descanso cognitivo', 'Descanso cognitivo', `Una pausa de ${u}&nbsp;min`, m, B('ag-fb-go', 'emp', 'Empezar') + B('ag-fb-man', 'elegir', 'Elegir tiempo'), pie);
+}
+iniW.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-dc]'); if (!b || !iniW.contains(b) || b.disabled) return;
+  e.stopPropagation();
+  const q = b.dataset.dc;
+  if (q === 'emp') { dcEmpezar(dcUlt()); return; }
+  if (q === 'elegir') { dcSel = null; dcFocoPend = 'chip'; if (dcRun()) dcFocoPend = ''; irA('descanso'); return; }
+  if (q === 'ver' || q === 'ir') { irA('descanso'); return; }
+  if (q === 'ok') {
+    const r = dcRun(); if (dcFase(r) === 'listo') dcAnotarRun(r);
+    iniRepintar(); iniW.querySelector('#ini-c-dc .ag-foco-b button')?.focus({ preventScroll: true });
+    const t = iniW.querySelector('#ini-c-dc .ag-foco-t')?.textContent.trim(); if (t) agParaDecir(`Descanso cognitivo: ${t}`);
+  }
+});
+INI_ESTADO.descanso = () => {
+  const f = dcFase(dcRun());
+  if (f) return f === 'corre' ? 'En curso' : f === 'listo' ? 'Listo · falta anotarlo' : 'En pausa';
+  const h = dcMinDia(today()), w = dcSemana();
+  return h || w ? `Hoy: ${h} min · Esta semana: ${w} min` : 'Unos minutos para soltar la mente';
+};
+{ const st = document.createElement('style'); st.textContent = `
+  #view-descanso { --dc-soft: color-mix(in srgb, var(--text) 6%, var(--bg)); }
+  #view-descanso .dc-intro { color: var(--muted); font-size: .95rem; margin: -8px 0 22px; line-height: 1.45; }
+  #view-descanso .dc-h { margin: 0 0 10px; }
+  #view-descanso .dc-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #view-descanso .dc-chip { min-height: 48px; border-radius: 999px; border: 1.5px solid var(--line); font-weight: 600; font-size: .98rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #view-descanso .dc-chip.on { border-color: var(--text); background: var(--text); color: var(--bg); }
+  #view-descanso .dc-otro { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 14px 0 0; }
+  #view-descanso .dc-otro label { font-size: .95rem; font-weight: 600; }
+  #view-descanso .dc-otro input { width: 7.5em; min-height: 48px; box-sizing: border-box; border: 1.5px solid var(--line); border-radius: 14px; padding: 0 14px; font: inherit; font-size: 1.05rem; background: transparent; color: var(--text); }
+  #view-descanso .dc-otro input:focus { border-color: var(--text); outline: none; }
+  #view-descanso .dc-otro-n { color: var(--muted); font-size: .88rem; }
+  #view-descanso .dc-go { display: block; width: 100%; min-height: 54px; margin: 20px 0 0; border-radius: 999px; background: var(--text); color: var(--bg); font-weight: 700; font-size: 1.08rem; }
+  #view-descanso .dc-go:disabled { opacity: .45; cursor: default; }
+  #view-descanso .dc-stats { margin: 14px 0 30px; color: var(--muted); font-size: .92rem; text-align: center; overflow-wrap: anywhere; }
+  #view-descanso .dc-list { border-top: 1px solid var(--line); }
+  #view-descanso .dc-ses { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--line); }
+  #view-descanso .dc-ses-t { min-width: 0; overflow-wrap: anywhere; font-size: .95rem; } #view-descanso .dc-ses-t b { font-weight: 600; }
+  #view-descanso .dc-quitar { flex: none; min-height: 44px; min-width: 44px; padding: 0 6px; color: var(--muted); font-size: .9rem; text-decoration: underline; text-underline-offset: 3px; }
+  #view-descanso .dc-vacio { color: var(--muted); font-size: .92rem; margin: 0; }
+  #view-descanso .dc-run { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 4px 0 24px; }
+  body.dc-en-curso header.top .date, body.dc-en-curso #xp-chip, body.dc-en-curso #global { display: none !important; }
+  body.dc-en-curso header.top { margin-bottom: 14px; } body.dc-en-curso header.top h1 { font-size: 1.5rem; }
+  @media (max-height: 640px) { #view-descanso .dc-circ { width: min(150px, 42vw); margin-bottom: 12px; } #view-descanso .dc-k { margin-bottom: 12px; } #view-descanso .dc-ins { margin: 8px 0 16px; } }
+  #view-descanso .dc-k { margin: 0 0 18px; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  #view-descanso .dc-circ { position: relative; width: min(190px, 52vw); aspect-ratio: 1; display: grid; place-items: center; margin: 0 0 18px; }
+  #view-descanso .dc-bola { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); background: var(--dc-soft); transform: scale(.62); }
+  #view-descanso .dc-resp { position: relative; font-size: 1.05rem; font-weight: 600; color: var(--text); }
+  #view-descanso .dc-quieto .dc-bola { transform: scale(.85); } #view-descanso .dc-quieto .dc-resp { font-size: 2rem; color: var(--green); }
+  @media (prefers-reduced-motion: no-preference) {
+    #view-descanso .dc-run:not(.dc-fin) .dc-bola { animation: dcResp 8s ease-in-out infinite; }
+    #view-descanso .dc-pausa .dc-bola { animation-play-state: paused; }
+  }
+  @media (prefers-reduced-motion: reduce) { #view-descanso .dc-bola { transform: scale(.85); } }
+  @keyframes dcResp { 0%, 100% { transform: scale(.62); } 50% { transform: scale(1); } }
+  #view-descanso .dc-left { margin: 0; font-size: clamp(3rem, 16vw, 4.2rem); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; outline: none; }
+  #view-descanso .dc-t { margin: 0 0 6px; font-size: 1.4rem; font-weight: 700; line-height: 1.3; outline: none; overflow-wrap: anywhere; }
+  #view-descanso .dc-ins { margin: 12px 0 24px; color: var(--muted); font-size: .98rem; line-height: 1.45; max-width: 30ch; }
+  #view-descanso .dc-b { display: flex; gap: 10px; width: 100%; max-width: 360px; }
+  #view-descanso .dc-b button { flex: 1 1 0; min-width: 0; min-height: 52px; border-radius: 999px; font-weight: 600; font-size: 1rem; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #view-descanso .dc-btn { border: 1.5px solid var(--text); } #view-descanso .dc-btn.dc-sec { border-color: var(--line); color: var(--muted); }
+  #view-descanso .dc-ok { background: var(--green); color: #fff; }
+  #view-descanso .dc-pie { margin: 10px 0 0; }
+  #view-descanso .dc-link { min-height: 44px; padding: 0 12px; color: var(--muted); font-size: .92rem; text-decoration: underline; text-underline-offset: 3px; }
+  #view-descanso button:focus-visible, #view-descanso input:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+  #view-descanso .dc-left:focus, #view-descanso .dc-t:focus { outline: none; }`;
+  document.head.append(st); }
+dcTickOn(); try { const r0 = dcRun(); if (r0 && dcFase(r0) === 'listo') dcFin(r0); } catch {}
+window.dcApi = { run: () => dcRun(), fase: () => dcFase(dcRun()), resta: () => dcResta(dcRun()), datos: () => JSON.parse(JSON.stringify(dcD())), empezar: m => dcEmpezar(m), wake: () => !!dcWL, sel: () => dcSel };   // 2.22.6 (D) · para las pruebas
 window.icIniciativa = { lista: () => icIniLista().map(x => ({ k: x.k, t: x.t, mia: !!x.mia, sinXp: !!x.sinXp })), actual: () => { const x = icIniActual(); return x ? { k: x.k, t: x.t } : null; }, sel: () => icIniSel, cat: k => iniNombre(k), catalogo: k => (INI_CAT[k] || []).slice(), ideasHoy: () => agParaIdeas().map(x => ({ k: x.k, t: x.t })) };   // 2.22.5 (C) · para las pruebas
 window.icInicio = { estudio: () => icEstudio(icArribaEst()), habito: () => icHabito(), cons: () => icCons(), rf: () => icRfHecha(), preg: () => rfPregHoy(), rfDraft: () => rfDraft, rfVista: () => rfVista, rfGuardar: txt => { if (!rfDraft) return null; rfDraft.r.txt = txt; const g = rfGuardarDraft(true); rfVista = null; rfDraft = null; return g; } };   // para las pruebas
 function iniMananaHtml() {
@@ -23461,6 +24036,14 @@ function orgOrdenHora(L) {
 // aspecto que la lista de la Agenda: el número pequeño, × para dejarla fuera (o la casilla llena si ya está hecha), el título, una línea
 // pequeña («Tarea · Trabajo»), ⠿ (si se puede mover) y la hora como texto (el campo de hora, transparente encima, abre el selector). En
 // «Ordenar por importancia», la hora va en la línea pequeña y a la derecha ↑ ↓.
+// 2.22.6 (E) · Una sesión de hoy en «Organizar mi día»: «Completar» (hecha: lo anotado y «Editar»).
+function orgCompHtml(e) {
+  const k = String(e && e.key || ''); if (!k.startsWith('est:') || !org || org.manana) return '';
+  const id = k.slice(4); let b = null; try { b = exBloque(id); } catch {} if (!b || b.d !== today()) return '';
+  const h = b.hecho && b.hechoInfo ? b.hechoInfo : null;
+  return h ? `<span class="og-comp-w"><span class="og-hecha">Hecha · ${Math.round(+h.min || 0)} min${+h.ej > 0 ? ` · ${exEj(+h.ej)}` : ''}</span><button type="button" class="og-comp" data-og-comp="${esc(id)}" aria-label="Editar lo estudiado de ${esc(e.t)}">Editar</button></span>`
+    : `<span class="og-comp-w"><button type="button" class="og-comp" data-og-comp="${esc(id)}" aria-label="Completar ${esc(e.t)}">Completar</button></span>`;
+}
 function orgFilaAgHtml(e, i, n, rk, vRk, de) {
   const k = esc(e.key), mov = vRk || (!e.fijo && !e.hecho && !(e.foco && e.h && !org?.manana && toMin(e.h) <= nowMin()));   // por importancia, todo se ordena (como antes)
   const quita = !e.hecho && /^(tar|ini|lib|hab|est):/.test(String(e.key || ''));
@@ -23471,7 +24054,7 @@ function orgFilaAgHtml(e, i, n, rk, vRk, de) {
   return `<div class="row og-r og-ag${e.hecho ? ' ok' : ''}${de ? ' og-sub' : ''}" data-ok="${k}"${de ? ` data-og-de="${esc(de)}"${org?.rutAb?.has(de) ? '' : ' hidden'}` : ''}>`
     + orgRk(rk, e)   // 2.21.7 (R) · el puesto, pequeño y apagado, como en la Agenda
     + (e.hecho ? `<span class="box og-ok" style="${boxHecho}" aria-label="Hecha"></span>` : quita ? `<button type="button" class="op-x" data-op-x="${k}" aria-label="Dejar fuera ${esc(e.t)}">×</button>` : '<span class="og-x-v" aria-hidden="true"></span>')
-    + `<span class="t${vRk ? '' : ' rel-t'}"><div>${esc(e.t)}</div><small>${etq}</small>${vRk ? '' : relMarkHtml(orgRelKey(e))}</span>`   // 2.21.7 (R) · la relevancia, en la línea pequeña a la derecha (en «Elegir el orden», solo ⠿ y ↑ ↓)
+    + `<span class="t${vRk ? '' : ' rel-t'}"><div>${esc(e.t)}</div><small>${etq}</small>${vRk ? '' : orgCompHtml(e)}${vRk ? '' : relMarkHtml(orgRelKey(e))}</span>`   // 2.21.7 (R) · la relevancia, en la línea pequeña a la derecha (en «Elegir el orden», solo ⠿ y ↑ ↓)
     + (mov ? '<button type="button" class="og-asa og-asa-ag" data-asa tabindex="-1" aria-label="Arrastrar para mover">⠿</button>' : '<span class="og-asa-v" aria-hidden="true"></span>')
     + hora
     + (vRk ? `<span class="og-mv og-mv-ag"><button type="button" class="og-b" data-or-sube="${i}" aria-label="Subir" ${i ? '' : 'disabled'}>↑</button><button type="button" class="og-b" data-or-baja="${i}" aria-label="Bajar" ${i < n - 1 ? '' : 'disabled'}>↓</button></span>` : '')
@@ -23894,6 +24477,24 @@ for (const id of ['view-estudio', 'view-inicio', 'view-agenda', 'view-overlays']
   .ses-aj { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .ses-aj select, .ses-aj input { min-height: 44px; font: inherit; font-size: .95rem; color: var(--text); background: var(--soft, transparent); border: 1px solid color-mix(in srgb, var(--text) 25%, transparent); border-radius: 10px; padding: 0 10px; max-width: 100%; }
   .ses-cambiar { flex: none; min-height: 44px; min-width: 44px; padding: 0 4px; text-decoration: underline; }`; R.appendChild(st); } catch {} }
+// 2.22.6 (E) · «Completar», la meta de ejercicios y la hoja
+{ const css = `
+  .eu-acc { flex-wrap: wrap; }
+  .eu-acc .eu-btn { min-height: 44px; min-width: 44px; padding: 0 14px; font: inherit; font-size: .86rem; cursor: pointer; }
+  .eu-acc .eu-comp { font-weight: 600; border-color: var(--accent, var(--text)); }
+  .eu-b .eu-nota { display: block; white-space: normal; overflow-wrap: anywhere; font-style: italic; }
+  .eu-ej-prog b { font-weight: 600; }
+  .og-comp-w { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; min-width: 0; }
+  .og-hecha { font-size: .8rem; color: var(--muted, inherit); overflow-wrap: anywhere; }
+  .og-comp { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; padding: 0 2px; margin: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: .88rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .og-comp:focus-visible, .eu-comp:focus-visible { outline: 2px solid var(--accent, var(--text)); outline-offset: 2px; }
+  .exc .exq-f { flex-wrap: wrap; }
+  .exc-ej { margin-top: 8px; border: 0; }
+  .exc-ej > summary { min-height: 44px; display: flex; align-items: center; }
+  .exc-nota { width: 100%; box-sizing: border-box; }
+  .eu-mt .chip, [data-num$='-mej'] .chip, [data-num$='-mej'] input { min-height: 44px; box-sizing: border-box; }
+  [data-ic="est-comp"] { margin-right: 20px; }`;
+  for (const R of [document.head, document.getElementById('view-estudio')?.shadowRoot, document.getElementById('view-inicio')?.shadowRoot, document.getElementById('view-agenda')?.shadowRoot, document.getElementById('view-overlays')?.shadowRoot]) { try { if (!R) continue; const st = document.createElement('style'); st.textContent = css; R.appendChild(st); } catch {} } }
 // 2.21.7 (N) · el puesto se ve grande y en negrita, sin adornos
 const numCss = () => `
   .ag-lista .ag-it > .og-rk.ag-rk.ag-rk { width: 28px; height: 28px; font-size: 1.4rem; font-weight: 800; letter-spacing: -.04em; color: var(--text); background: none; box-shadow: none; margin-right: -2px; }
