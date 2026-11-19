@@ -612,6 +612,14 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.22.9: relevancia en los hábitos y en las rutinas
+
+- Cada hábito tiene su relevancia «n/5», con el mismo control que en «Organizar mi día»: se elige en la fila de la lista de Hábitos o en «Nuevo hábito» / «Editar hábito» (opcional, se puede quitar). ✅
+- Cada rutina tiene la suya, y cada hábito dentro de la rutina también. Un hábito sin relevancia propia usa la de su rutina, que se ve más tenue y en cursiva («Ahora: 4/5, la de la rutina»); «Usar la de la rutina» quita la propia. ✅
+- Solo desempata: a la misma hora, en la tarjeta Hábito de Inicio va primero el más relevante. No cambia el orden de la lista ni el de las rutinas. ✅
+- La relevancia de un día (clave por día) no cambia la del hábito. Se guarda con fecha de cambio y se une entre dispositivos (gana la más nueva); 2.22.8 la ignora sin problema. ✅
+- Asistente: `habitos_ver`, `habito_relevancia` (0 la quita; un valor fuera de 1 a 5 da error y no toca nada) y `relevancia` en `ver_estado`. ✅
+
 ## 2.22.8: «Continuar lo pendiente» en Iniciativas
 
 - Nueva categoría en Iniciativas, la primera: «Continuar lo pendiente». Sale de lo que de verdad quedó sin hacer: actividades de la agenda de días anteriores (o de hoy cuya hora ya pasó), tareas vencidas o sin fecha, sesiones de estudio que pasaron, hábitos que no hiciste ayer y pasos de proyectos con fecha pasada. Cada una dice de dónde viene y cuándo («Tarea · venció el jue 12 nov», «Ruta «Parcial» · Sesión 2/23 de ayer»). ✅

@@ -259,14 +259,15 @@
   input:focus, textarea:focus, select:focus { border-color: var(--text); }
   textarea { min-height: 56px; resize: vertical; }
   .two { display: flex; gap: 16px; } .two > div { flex: 1; min-width: 0; }
-  .time { display: flex; align-items: center; gap: 4px; }
+  .time { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; row-gap: 8px; }   /* 2.22.8 (H) · a 320 px «+ Añadir» baja de línea en vez de salirse */
   .time select { width: 64px; flex: none; }
   select { background: var(--bg); }
   option { background: var(--bg); color: var(--text); }
   option:checked { background: var(--text); color: var(--bg); }
   .ampm { display: flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; flex: none; margin-left: 12px; }
   .ampm label { margin: 0; padding: 5px 14px; font-size: .78rem; color: var(--muted); cursor: pointer; }
-  .ampm input { position: absolute; opacity: 0; pointer-events: none; }
+  .ampm label { position: relative; }
+  .ampm input { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; opacity: 0; pointer-events: none; }   /* 2.22.8 (H) · medía el 100 %: la hoja se desbordaba */
   .ampm label:has(input:checked) { background: var(--text); color: var(--bg); }
   .ampm label:has(input:focus-visible) { outline: 2px solid var(--muted); outline-offset: -2px; }
   .dialog-actions { display: flex; justify-content: flex-end; align-items: center; gap: 24px; margin-top: 28px; }
@@ -657,6 +658,9 @@
     <div class="picker" id="icon-picker"></div>
     <label>Color</label>
     <div class="picker" id="color-picker"></div>
+    <label id="hb-rel-l">Relevancia <small>· opcional</small></label>
+    <div class="hb-chips rel-ch" id="hb-rel" role="group" aria-labelledby="hb-rel-l"><button type="button" class="chip" data-relc="1" aria-pressed="false" aria-label="Relevancia 1 de 5">1</button><button type="button" class="chip" data-relc="2" aria-pressed="false" aria-label="Relevancia 2 de 5">2</button><button type="button" class="chip" data-relc="3" aria-pressed="false" aria-label="Relevancia 3 de 5">3</button><button type="button" class="chip" data-relc="4" aria-pressed="false" aria-label="Relevancia 4 de 5">4</button><button type="button" class="chip" data-relc="5" aria-pressed="false" aria-label="Relevancia 5 de 5">5</button></div>
+    <p class="meta hb-pista" id="hb-rel-p" hidden></p>
     <fieldset id="habit-only">
     <div id="padre-row">
       <label>Dentro de la rutina</label>
@@ -755,7 +759,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.8';
+const APP_VERSION = '2.22.9';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -855,6 +859,8 @@ function normalize(s) {
   s.enfoque = normEnfoque(s.enfoque);
   for (const h of s.habits) {
     for (const k of ['orden', 'ordenEn']) if (h && h[k] !== undefined && !(typeof h[k] === 'number' && Number.isFinite(h[k]))) { const v = typeof h[k] === 'string' && h[k].trim() !== '' ? +h[k] : NaN; if (Number.isFinite(v)) h[k] = v; else delete h[k]; }   // 2.21 (M) · el orden, también dentro de una rutina
+    if (h && h.rel !== undefined) { const v = Math.round(+h.rel); if (v >= 1 && v <= 5) h.rel = v; else delete h.rel; }   // 2.22.8 (H) · relevancia 1 a 5 (hábitos y rutinas)
+    if (h && h.relMod !== undefined) { const m = +h.relMod; if (Number.isFinite(m) && m > 0) h.relMod = m; else delete h.relMod; }
     if (h.rutina) continue;
     if (!Array.isArray(h.dias) || !h.dias.length) h.dias = [...ALL_DAYS];
     if (!Array.isArray(h.horas)) h.horas = h.hora ? [h.hora] : [];
@@ -973,6 +979,7 @@ function relNorm(R) {
     if (k.length > 140 || !/^[a-z]+:./.test(k)) continue;
     const x = R[k], v = Math.round(+(x && typeof x === 'object' ? x.v : x)), m = +(x && typeof x === 'object' ? x.m : 0) || 0;
     if (v >= 1 && v <= 5) L.push([k, v, m]);
+    else if (v === 0 && m > 0 && /^hab:[^:]+:\d{4}-\d\d-\d\d$/.test(k) && k.slice(-10) >= new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)) L.push([k, 0, m]);   // 2.22.8 (H) · quitada ese día (las de hace más de 60 días ya no hacen falta)
   }
   L.sort((a, b) => b[2] - a[2]);
   for (const [k, v, m] of L.slice(0, 800)) out[k] = { v, m };
@@ -1400,6 +1407,8 @@ function mergeStates(a, b) {
   const perId = (x, y) => { const o = {}; for (const k of new Set([...Object.keys(y), ...Object.keys(x)])) if (!dead.has(k)) o[k] = { ...y[k], ...x[k] }; return o; };
   const out = normalize({ ...older, ...newer });
   out.habits = byId(newer.habits, older.habits);
+  { const A = new Map(older.habits.map(h => [h.id, h])), B = new Map(newer.habits.map(h => [h.id, h]));   // 2.22.8 (H) · la relevancia: la elegida (o quitada) más tarde, venga de la copia que venga
+    out.habits = out.habits.map(h => { const x = A.get(h.id), y = B.get(h.id); if (!x || !y) return h; const w = (+x.relMod || 0) > (+y.relMod || 0) ? x : y; if ((+w.relMod || 0) <= (+h.relMod || 0)) return h; const o = { ...h, relMod: w.relMod }; if (w.rel) o.rel = w.rel; else delete o.rel; return o; }); }
   out.log = perId(newer.log, older.log); out.razones = perId(newer.razones, older.razones);
   out.motivos = perId(newer.motivos, older.motivos); out.progreso = perId(newer.progreso, older.progreso);
   out.timers = newer.timers;
@@ -1433,7 +1442,7 @@ function mergeStates(a, b) {
         m.set(i.id, (+otro.notion?.en || 0) > (+gana.notion?.en || 0) ? { ...gana, notion: otro.notion } : gana); }
       return [...m.values()].filter(i => !dead.has(i.id)); })(eN.diario || [], eO.diario || []), practicas: byId(eN.practicas, eO.practicas), estado: byId(eN.estado, eO.estado), ...xpFusion(eN, eO, dias), ...xpPenFusion(eN, eO),   /* 2.19 (X) · pérdidas y vuelta a Novato · 2.17 (XP) · por día y referencia, la más reciente; base de la copia con baseHasta más reciente */
     constantes: kcFusion(eN.constantes, eO.constantes, dead),   /* 2.21.6 (C) */
-    relevancia: relFusion(eN.relevancia, eO.relevancia),   /* 2.21.7 (R) */
+    relevancia: ((Rv, D) => { for (const k of Object.keys(Rv)) { const m = /^hab:([^:]+)/.exec(k); if (m && D.has(m[1])) delete Rv[k]; } return Rv; })(relFusion(eN.relevancia, eO.relevancia), dead),   /* 2.21.7 (R) · 2.22.8 (H) · sin las de hábitos borrados */
     reflexiones: rfFusion(eN.reflexiones, eO.reflexiones, dead),   /* 2.22.1 (R) */
     descanso: dcFusion(eN.descanso, eO.descanso, dead),   /* 2.22.6 (D) */
     ...(eN.contFuera || eO.contFuera ? { contFuera: (typeof contFueraFusion === 'function' ? contFueraFusion : window.contFueraFusion)(eN.contFuera, eO.contFuera) } : {}),   /* 2.22.7 (P) */
@@ -2293,7 +2302,7 @@ function routineHTML(r) {
         <div class="name">${esc(r.nombre)}</div>
         <div class="identity">${kids.length === 1 ? '1 hábito' : kids.length + ' hábitos'}</div>
       </button>
-      <span class="streak">${done}/${cuentan.length}</span>
+      ${relMarkHtml('hbh:' + r.id)}<span class="streak hb-rut-prog">${done}/${cuentan.length}</span>
     </div>
     ${window.cadena?.hb?.(r) || ''}
     ${inside}
@@ -2379,7 +2388,7 @@ function habitHTML(h) {
         <div class="name">${esc(h.nombre)}${h.clave ? ' ·' : ''}${catChipFila(h.cat)}</div>
         ${hbCadLinea(h)}<div class="identity">${esc(h.identidad)}</div>${hbSemLinea(h)}
       </button>
-      <span class="streak${s.streak ? ' on' : ''}" title="${s.semanas ? 'Racha en semanas' : 'Racha'}">${flame(!s.streak)}${s.streak}${s.semanas ? '<small> sem</small>' : ''}</span>
+      ${relMarkHtml('hbh:' + h.id)}<span class="streak${s.streak ? ' on' : ''}" title="${s.semanas ? 'Racha en semanas' : 'Racha'}">${flame(!s.streak)}${s.streak}${s.semanas ? '<small> sem</small>' : ''}</span>
     </div>
     ${h2Lineas(h, s, m, sched, warn)}
     ${mt && sched ? hbMtCtl(h, t) : ''}
@@ -5487,6 +5496,7 @@ function openForm(h = null, { rutina = false, padre = '' } = {}) {
   renderHoras(); metaUI(); tintForm();
   hbTrasOpciones(h);   // 2.20.2
   try { hbFormW(formIsRoutine ? null : h); } catch (e) { console.warn('Hoja del hábito (W)', e); }   // 2.22.5 (W) · frecuencia y tipo de meta
+  try { window.hbRelForm?.(h); } catch (e) { console.warn('Hoja del hábito (H)', e); }   // 2.22.8 (H) · relevancia
   $('#form-dialog').showModal();
 }
 
@@ -5511,6 +5521,7 @@ $('#delete').onclick = () => {
 $('#form').addEventListener('submit', e => {
   const f = e.target;
   const data = Object.fromEntries((formIsRoutine ? ROUTINE_FIELDS : FIELDS).map(k => [k, String(f.elements[k].value).trim()]));
+  let relF = 0; try { relF = window.relChipsLeer(f, 'hb-rel'); } catch {}   // 2.22.8 (H)
   if (!formIsRoutine) {
     data.beneficios = lines(f.elements.beneficios.value);
     data.contras = lines(f.elements.contras.value);
@@ -5531,6 +5542,7 @@ $('#form').addEventListener('submit', e => {
   if (editing) { if (!formIsRoutine && (editing.padre || '') !== (data.padre || '')) { hbPrimeroSale(editing); delete editing.orden; editing.ordenEn = Date.now(); } delete editing.horasOrden; Object.assign(editing, data); }   // 2.21 (M)
   else state.habits.push({ id: crypto.randomUUID(), creado: today(), clave: false, rutina: formIsRoutine, ...data });
   hbFormWFin(editing || state.habits[state.habits.length - 1]);   // 2.22.5 (W)
+  try { window.hbRelFormFin?.(editing || state.habits[state.habits.length - 1], relF); } catch (e) { console.warn('Relevancia (H)', e); }   // 2.22.8 (H)
   save(); render();
 });
 
@@ -6156,7 +6168,7 @@ function pendientes() {
   const horaDe = h => { const it = agH.get(h.id); return it ? (/^\d\d:\d\d$/.test(it.h || '') ? it.h : '99') : firstHour(h); }, rkDe = h => { const it = agH.get(h.id); return it && +it.rango >= 1 ? +it.rango : 1e9; };
   const habits = (s.habits || [])
     .filter(h => !h.rutina && (!h.creado || h.creado <= t) && (h.dias?.length ? h.dias : ALL_DAYS).includes(w) && !s.log?.[h.id]?.[t] && !window.hbProtegido?.(h, t) && !window.hbMtCerrado?.(h, t))   // 2.22.5 (W)
-    .sort((a, b) => horaDe(a) < horaDe(b) ? -1 : horaDe(a) > horaDe(b) ? 1 : rkDe(a) - rkDe(b) || (RKp.get(a.id) ?? 1e7) - (RKp.get(b.id) ?? 1e7));   // 2.21 (M) · 2.21.2 (H) · por hora; empate: el número y luego tu orden
+    .sort((a, b) => horaDe(a) < horaDe(b) ? -1 : horaDe(a) > horaDe(b) ? 1 : rkDe(a) - rkDe(b) || (() => { try { return hbRelCmp(a, b, t); } catch { return 0; } })() || (RKp.get(a.id) ?? 1e7) - (RKp.get(b.id) ?? 1e7));   // 2.22.8 (H) · a la misma hora, más relevancia primero (no dentro de una misma rutina)   // 2.21 (M) · 2.21.2 (H) · por hora; empate: el número y luego tu orden
   const items = (s.tareas?.items || []).filter(x => !x.hecha);
   const due = items.filter(x => x.fecha && x.fecha <= t).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
   const sinFecha = items.filter(x => !x.fecha).sort((a, b) => (b.creado || 0) - (a.creado || 0));
@@ -8275,7 +8287,7 @@ function iaEstado() {
     nombre: HT().nombre || '',
     xp: { nivel: nivelDe(xpTotal()), titulo: nivelNombre(nivelDe(xpTotal())), total: xpTotal(), perdido_7_dias: xpPerdidoDesde(7), hoy: xpHoy(), meta_diaria: metaHoy(), racha_dias: rachaXp(), semanas_con_meta: xmSemanasN(), dias_con_meta_esta_semana: xmSemanaDias() },
     prioridades_hoy: ES.prioridades.items.map((x, i) => ({ numero: i + 1, texto: x.t, hecha: !!x.hecho })),
-    habitos_pendientes_hoy: p.habits.map(h => ({ nombre: h.nombre, version_2_min: h.minima || '', hora: (h.horas || [])[0] || '' })),
+    habitos_pendientes_hoy: p.habits.map(h => { let rv = 0; try { rv = hbRelDia(h, today()); } catch {} return { nombre: h.nombre, version_2_min: h.minima || '', hora: (h.horas || [])[0] || '', relevancia: rv }; }),   // 2.22.8 (H) · 0 = sin elegir
     tareas_pendientes: [...p.due, ...p.sinFecha.slice(0, 20)].map(x => ({ id: x.id, titulo: x.titulo, fecha: x.fecha || '', vencida: !!x.fecha && x.fecha < today() })),
     proyectos: proyectosActivos().map(pr => ({ nombre: pr.nombre, prioridad: PRIO[pr.prioridad], siguiente_paso: pr.paso, fecha: pr.cuando, hora: pr.hora, lugar: pr.donde,
       dias_sin_avanzar: Number.isFinite(daysSince(ultimoPaso(pr))) ? daysSince(ultimoPaso(pr)) : null, deseo: pr.deseo, obstaculo: pr.obstaculo, plan_si_entonces: pr.plan })),
@@ -8395,6 +8407,8 @@ async function iaEjecutar(nombre, a) {
     case 'meta_actualizar': return mtToolActualizar(a);
     case 'consistencia_ver': return csToolVer();   // 2.21 (L)
     case 'consistencia_marcar': return csToolMarcar(a);
+    case 'habitos_ver': return hbRelToolVer();   // 2.22.8 (H)
+    case 'habito_relevancia': return hbRelToolPoner(a);
   }
   throw new Error('Herramienta desconocida.');
 }
@@ -24608,6 +24622,7 @@ function agRkGuardar() {
 // 2.21.7 (R) · Relevancia 1 a 5 (a la derecha; no cambia el orden ni el XP). Se guarda por la fuente en ES.relevancia (relNorm/relFusion).
 // ====================================================================
 function relVal(k) {
+  { let q = null; try { q = hbRelVal(k); } catch {} if (q) return q; }   // 2.22.8 (H) · hbh: (el hábito) y hab:ID:día
   const R = ES.relevancia && typeof ES.relevancia === 'object' ? ES.relevancia : {}, ok = x => x && x.v >= 1 && x.v <= 5;
   let x = k ? R[k] : null;
   if (!ok(x) && /^tar:/.test(k || '')) {   // una tarea que se repite: la de la vez anterior (origen), como mucho 20 saltos
@@ -24628,7 +24643,7 @@ function relKeyIt(it, dia) {
     case 'bt': return 'bt:' + r;
     case 'plan': return 'plan:' + r;
     case 'ini': return 'ini:' + r + ':' + (dia || today());
-    case 'habito': return 'hab:' + r;
+    case 'habito': return 'hab:' + r + ':' + (dia || today());   // 2.22.8 (H) · por día (parte de la del hábito)
     case 'examen': return 'exa:' + r;
   }
   return it.id ? 'ag:' + it.id : '';
@@ -24645,21 +24660,22 @@ function orgRelKey(e) {
     case 'cons': return 'cons:' + id;
     case 'bt': return 'bt:' + id;
     case 'plan': return 'plan:' + id;
-    case 'hab': return 'hab:' + id;
+    case 'hab': return 'hab:' + id + ':' + (org?.dest || today());   // 2.22.8 (H)
     case 'lib': case 'ev': return 'ag:' + id;
   }
   return '';
 }
 function RELHUECO(c) { return `<button type="button" class="link" tabindex="-1" aria-hidden="true" disabled style="visibility:hidden">${c}</button>`; }   // el hueco de ↑ o ↓
 function relPuntos(v, set = true) { return `<span class="rel-d rel-n" aria-hidden="true">${set ? Math.max(1, Math.min(5, Math.round(+v) || 3)) : '–'}/5</span>`; }   // 2.22.5 (R) · «4/5» (sin elegir, «–/5»)
-const relAria = r => r.set ? `Relevancia ${r.v} de 5` : 'Relevancia sin elegir';   // 2.22.5 (R) · sin elegir: «–/5»   // sin elegir, el lector lo dice
+const relAria = r => r.set ? `Relevancia ${r.v} de 5` : r.her ? `Relevancia ${r.v} de 5, la ${r.her === 'rutina' ? 'de la rutina' : 'del hábito'}` : 'Relevancia sin elegir';   // 2.22.8 (H) · la que viene de la rutina o del hábito   // 2.22.5 (R) · sin elegir: «–/5»   // sin elegir, el lector lo dice
 function relMarkHtml(k) {
   if (!k) return '';
   const r = relVal(k), a = relAria(r);
-  return `<button type="button" class="rel-m${r.set ? '' : ' rel-def'}" data-rel="${esc(k)}" aria-label="${a}" title="${a}">${relPuntos(r.v, r.set)}</button>`;
+  return `<button type="button" class="rel-m${r.set ? '' : r.her ? ' rel-her' : ' rel-def'}" data-rel="${esc(k)}" aria-label="${a}" title="${a}">${relPuntos(r.v, r.set || !!r.her)}</button>`;   // 2.22.8 (H) · rel-her: la heredada, en tenue
 }
 function relSet(k, v) {
   v = Math.round(+v); if (!k || !(v >= 1 && v <= 5)) return;
+  if (hbRelPoner(k, v)) return;   // 2.22.8 (H) · la del hábito vive en el hábito
   if (!ES.relevancia || typeof ES.relevancia !== 'object' || Array.isArray(ES.relevancia)) ES.relevancia = {};
   ES.relevancia[k] = { v, m: Date.now() };
   guardar(); relPintar(k);
@@ -24669,7 +24685,7 @@ function relPintar(k) {
   const r = relVal(k), roots = [document, root, ov, agR];
   for (const R of roots) {
     try {
-      R.querySelectorAll('.rel-m[data-rel]').forEach(b => { const q = relVal(b.dataset.rel), a = relAria(q); b.classList.toggle('rel-def', !q.set); b.setAttribute('aria-label', a); b.title = a; b.innerHTML = relPuntos(q.v, q.set); });
+      R.querySelectorAll('.rel-m[data-rel]').forEach(b => { const q = relVal(b.dataset.rel), a = relAria(q); b.classList.toggle('rel-def', !q.set && !q.her); b.classList.toggle('rel-her', !q.set && !!q.her); b.setAttribute('aria-label', a); b.title = a; b.innerHTML = relPuntos(q.v, q.set || !!q.her); });   // 2.22.8 (H)
       R.querySelectorAll('.rel-ch[data-relk]').forEach(c => { if (c.dataset.relk !== k) return; c.querySelectorAll('[data-relc]').forEach(x => { const on = r.set && +x.dataset.relc === r.v; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); }); });
     } catch {}
   }
@@ -24690,7 +24706,7 @@ function relAbrir(btn) {
   const misma = relPop && relPop.btn === btn; relCerrar(); if (misma) return;
   const r = relVal(k), dlg = btn.closest('dialog'), cont = dlg && dlg.open ? dlg : document.body;
   const el = document.createElement('div'); el.className = 'rel-pop'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Relevancia');
-  el.innerHTML = `<style>${relPopCss()}</style><span class="rel-pop-t">Relevancia</span><div class="rel-pop-b" role="group">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-relv="${n}" class="${r.set && n === r.v ? 'on' : ''}" aria-pressed="${r.set && n === r.v}" aria-label="Relevancia ${n} de 5">${n}</button>`).join('')}</div><span class="rel-pop-n">No cambia el orden</span>`;
+  el.innerHTML = `<style>${relPopCss()}</style><span class="rel-pop-t">Relevancia</span><div class="rel-pop-b" role="group">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-relv="${n}" class="${r.set && n === r.v ? 'on' : !r.set && r.her && n === r.v ? 'her' : ''}" aria-pressed="${r.set && n === r.v}" aria-label="Relevancia ${n} de 5">${n}</button>`).join('')}</div>${hbRelPopPie(k, r)}`;   // 2.22.8 (H) · en los hábitos: desempata, y «Sin elegir» / «Usar la de la rutina» / «Usar la del hábito»
   el.style.left = '0px'; el.style.top = '0px'; cont.appendChild(el);
   const o = el.getBoundingClientRect(), b = btn.getBoundingClientRect(), w = o.width, h = o.height;
   const x = Math.max(8, Math.min(innerWidth - w - 8, b.right - w)); let y = b.bottom + 4; if (y + h > innerHeight - 8) y = Math.max(8, b.top - h - 4);
@@ -24699,7 +24715,8 @@ function relAbrir(btn) {
   relPop = P;
   if (P.dlg) P.dlg.addEventListener('close', P.fin);   // la hoja se cierra: el selector, con ella
   try { atrasSync(); } catch {}   // Atrás lo cierra a él solo (atrasArriba)
-  el.addEventListener('click', e => { const v = e.target.closest?.('[data-relv]'); e.stopPropagation(); if (!v) return; relCerrar(); relSet(k, +v.dataset.relv); try { btn.focus({ preventScroll: true }); } catch {} });
+  const foco = () => { try { (btn.isConnected ? btn : document.querySelector('.rel-m[data-rel="' + CSS.escape(k) + '"]'))?.focus({ preventScroll: true }); } catch {} };   // 2.22.8 (H) · si la lista se redibujó, el botón nuevo con la misma clave
+  el.addEventListener('click', e => { const v = e.target.closest?.('[data-relv]'); e.stopPropagation(); if (!v && e.target.closest?.('[data-relq]')) { relCerrar(); hbRelQuitar(k); foco(); return; } if (!v) return; relCerrar(); relSet(k, +v.dataset.relv); foco(); });
   setTimeout(() => { if (relPop !== P) return; addEventListener('scroll', P.fin, true); addEventListener('resize', P.fin); document.addEventListener('pointerdown', P.fuera, true); document.addEventListener('keydown', P.esc, true); }, 0);
   try { el.querySelector('button.on, button')?.focus({ preventScroll: true }); } catch {}
 }
@@ -24720,7 +24737,11 @@ function relPopCss() {
   .rel-pop-n { margin: 4px 4px 0; font-weight: 500; font-size: .72rem; }
   .rel-pop-b { display: flex; gap: 2px; }
   .rel-pop-b button { width: 44px; height: 44px; border-radius: 10px; border: 0; background: var(--soft, #f2f2f2); font: 700 1.05rem system-ui, sans-serif; color: inherit; cursor: pointer; padding: 0; }
-  .rel-pop-b button.on { background: var(--text, #111); color: var(--bg, #fff); }`;
+  .rel-pop-b button.on { background: var(--text, #111); color: var(--bg, #fff); }
+  .rel-pop-b button.her { box-shadow: inset 0 0 0 2px currentColor; }   /* 2.22.8 (H) · la que vale ahora (heredada) */
+  .rel-pop-a { display: block; margin: 6px 2px 0; font: 600 .82rem/1.25 system-ui, -apple-system, sans-serif; }
+  .rel-pop-b button:not(.on) { background: var(--soft, color-mix(in srgb, currentColor 10%, transparent)); }   /* 2.22.8 (H) · fuera de una sombra (la lista de Hábitos) no hay --soft: en oscuro el número no se veía */
+  .rel-pop-q { display: block; width: 100%; min-height: 44px; margin: 4px 0 0; padding: 0 4px; border: 0; border-radius: 10px; background: none; color: inherit; font: 600 .82rem/1.2 system-ui, -apple-system, sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }   /* 2.22.8 (H) */`;
 }
 function relCss() {
   return `.rel-m { flex: none; box-sizing: border-box; width: 44px; height: 44px; margin: -6px -8px; padding: 0; border: 0; background: none; display: inline-flex; align-items: center; justify-content: center; align-self: center; cursor: pointer; color: var(--text); -webkit-tap-highlight-color: transparent; position: relative; }
@@ -24730,6 +24751,11 @@ function relCss() {
   .rel-m.rel-def .rel-d i.on { opacity: .34; }
   .rel-d.rel-n { gap: 0; font: 650 .82rem/1 system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; opacity: .9; }   /* 2.22.5 (R) */
   .rel-m.rel-def .rel-d.rel-n { opacity: .66; padding: 3px; border: 1px dashed currentColor; border-radius: 999px; }
+  .rel-m.rel-her .rel-d.rel-n { opacity: .7; font-style: italic; font-weight: 500; text-decoration: underline dotted; text-underline-offset: 3px; }   /* 2.22.8 (H) · la heredada (de la rutina o del hábito): cursiva y subrayado punteado, con buen contraste */
+  .habit > .row > .rel-m + .streak.hb-rut-prog { padding-left: 8px; border-left: 1px solid color-mix(in srgb, currentColor 30%, transparent); }   /* 2.22.8 (H) · que «4/5» y el avance «0/2» no se lean juntos */
+  .habit > .row > .rel-m { margin: 0 -8px 0 -6px; }
+  #form #hb-rel { gap: 3px; } #form #hb-rel .chip { flex: 1 1 0; min-width: 44px; max-width: 56px; padding: 0; justify-content: center; text-align: center; }   /* 2.22.8 (H) · los cinco en una fila también a 320 px */
+  @media (max-width: 359px) { .habit > .row { gap: 10px; } .habit > .row > .rel-m { margin: 0 -10px 0 -8px; } }
   .t.rel-t > .rel-m .rel-d.rel-n { font-size: .78rem; }
   .rel-m:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 10px; }
   .task > .rel-m { margin: 0 -4px 0 -8px; }
@@ -24786,6 +24812,115 @@ const numCss = () => `
   @media (max-width: 359px) { .ag-lista .ag-it > .og-rk.ag-rk.ag-rk { width: 24px; height: 24px; font-size: 1.2rem; } .og-orden .og-r.og-ag .og-rk.og-rk, #op-wrap .og-orden .og-r.og-ag .og-rk.og-rk { width: 22px; font-size: 1.15rem; } .pr-n.pr-n, #prio .row .pr-n.pr-n { width: 20px; font-size: 1.15rem; } }`;
 for (const R of [document.head, root, ov, agR]) { try { const st = document.createElement('style'); st.textContent = numCss(); R.appendChild(st); } catch {} }
 Object.assign(window, { relVal, relSet, relMarkHtml, relChipsHtml, relChipsLeer, relKeyIt });
+
+// ====================================================================
+// 2.22.8 (H) · Relevancia de los hábitos. h.rel (1 a 5) y h.relMod (cuándo se eligió o se quitó), en hábitos y rutinas.
+// Dentro de una rutina, cada hábito tiene la suya; sin ella, vale la de la rutina (se ve en tenue). Desempata: a la misma hora, primero el de
+// más relevancia (sin elegir = 3), salvo dos de la misma rutina (el orden de la rutina manda). Por día ('hab:ID:día' en ES.relevancia):
+// parte de la del hábito y cambiarla ese día no cambia la del hábito.
+// ====================================================================
+function hbRelH(id) { try { return (HT().habits || []).find(x => x && x.id === id) || null; } catch { return null; } }
+function hbRelOwn(h) {
+  if (!h) return 0;
+  const v = Math.round(+h.rel); if (v >= 1 && v <= 5) return v;
+  if (h.relMod) return 0;   // la quitaste aquí: la vieja no vuelve
+  try { const x = ES.relevancia && ES.relevancia['hab:' + h.id], w = x ? Math.round(+x.v) : 0; return w >= 1 && w <= 5 ? w : 0; } catch { return 0; }   // la de 2.22.7 («Organizar mi día», sin día)
+}
+function hbRelRut(h) { const p = h && !h.rutina && h.padre ? hbRelH(h.padre) : null; return p && p.rutina ? p : null; }
+function hbRelEf(h) { const v = hbRelOwn(h); if (v) return { v, de: 'propia' }; const r = hbRelRut(h), w = hbRelOwn(r); return w ? { v: w, de: 'rutina', r } : null; }
+// La que vale ese día (la del día si la elegiste; si no, la del hábito o la de su rutina). 0 = sin elegir.
+function hbRelDia(h, d) {
+  if (!h) return 0;
+  try { const x = ES.relevancia && ES.relevancia['hab:' + h.id + ':' + (d || today())], v = x ? Math.round(+x.v) : 0; if (v >= 1 && v <= 5) return v; } catch {}
+  const e = hbRelEf(h); return e ? e.v : 0;
+}
+// Para ordenar: más relevancia primero (sin elegir = 3); dos de la misma rutina, 0 (manda el orden de la rutina).
+function hbRelCmp(a, b, d) { const ra = hbRutDe(a), rb = hbRutDe(b); if (ra && ra === rb) return 0; return (hbRelDia(b, d) || 3) - (hbRelDia(a, d) || 3); }
+function hbRelVal(k) {
+  if (typeof k !== 'string') return null;
+  let m = /^hbh:(.+)$/.exec(k);
+  if (m) { const h = hbRelH(m[1]), v = hbRelOwn(h); if (v) return { v, set: true }; const e = hbRelEf(h); return e ? { v: e.v, set: false, her: 'rutina' } : { v: 3, set: false }; }
+  m = /^hab:([^:]+):(\d{4}-\d\d-\d\d)$/.exec(k);
+  if (m) {
+    const x = ES.relevancia && ES.relevancia[k], v = x ? Math.round(+x.v) : 0; if (v >= 1 && v <= 5) return { v, set: true, dia: true };
+    const e = hbRelEf(hbRelH(m[1])); return e ? { v: e.v, set: false, her: e.de === 'rutina' ? 'rutina' : 'habito' } : { v: 3, set: false };
+  }
+  return null;
+}
+function hbRelRepintar(k) {
+  try { render(); } catch {}
+  try { relPintar(k); } catch {}
+  try { iniRepintar(); } catch {}
+}
+// Poner la del hábito (o la de un día): true si la clave era de hábito.
+function hbRelPoner(k, v) {
+  const m = /^hbh:(.+)$/.exec(k || ''); if (!m) return false;
+  const h = hbRelH(m[1]); if (!h) return true;
+  h.rel = v; h.relMod = Math.max(Date.now(), (+h.relMod || 0) + 1);
+  save(); hbRelRepintar(k); return true;
+}
+function hbRelQuitar(k) {
+  let m = /^hbh:(.+)$/.exec(k || '');
+  if (m) { const h = hbRelH(m[1]); if (!h) return; delete h.rel; h.relMod = Math.max(Date.now(), (+h.relMod || 0) + 1); save(); hbRelRepintar(k); return; }
+  m = /^hab:([^:]+):(\d{4}-\d\d-\d\d)$/.exec(k || '');
+  if (m) { if (!ES.relevancia || typeof ES.relevancia !== 'object' || Array.isArray(ES.relevancia)) ES.relevancia = {}; ES.relevancia[k] = { v: 0, m: Date.now() }; guardar(); hbRelRepintar(k); }
+}
+function hbRelPopPie(k, r) {
+  const hb = /^hbh:/.test(k || ''), dia = /^hab:[^:]+:\d{4}-\d\d-\d\d$/.test(k || '');
+  if (!hb && !dia) return '<span class="rel-pop-n">No cambia el orden</span>';
+  let q = '';
+  if (hb && r.set) { const ru = hbRelRut(hbRelH(k.slice(4))); q = ru && hbRelOwn(ru) ? 'Usar la de la rutina' : 'Sin elegir'; }
+  if (dia && r.set && r.dia) q = 'Usar la del hábito';
+  const ahora = !r.set && r.her ? `<span class="rel-pop-a">Ahora: ${r.v}/5, la ${r.her === 'rutina' ? 'de la rutina' : 'del hábito'}</span>` : '';
+  return `${ahora}<span class="rel-pop-n">${hb ? 'No mueve la lista. Desempata a la misma hora' : 'Desempata a la misma hora'}</span>${q ? `<button type="button" class="rel-pop-q" data-relq="1">${q}</button>` : ''}`;
+}
+// La hoja del hábito: «Relevancia · opcional» (tocar la elegida la quita). En un hábito de una rutina, sin elegir vale la de la rutina.
+function hbRelForm(h) {
+  const box = document.getElementById('hb-rel'); if (!box) return;
+  const v = h ? hbRelOwn(h) : 0;
+  box.querySelectorAll('[data-relc]').forEach(x => { const on = +x.dataset.relc === v; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+  hbRelPista();
+}
+function hbRelPista() {
+  const p = document.getElementById('hb-rel-p'), f = document.getElementById('form'); if (!p || !f) return;
+  let t = '';
+  if (formIsRoutine) t = 'Los hábitos de la rutina sin la suya usan esta.';
+  else { const rid = f.elements.padre?.value || '', r = rid ? hbRelH(rid) : null, w = r && r.rutina ? hbRelOwn(r) : 0; if (w) t = `Sin elegir, usa la de la rutina: ${w}/5.`; }
+  p.textContent = t; p.hidden = !t;
+}
+function hbRelFormFin(h, v) {
+  if (!h) return;
+  v = Math.round(+v) || 0; if (!(v >= 1 && v <= 5)) v = 0;
+  if (v === hbRelOwn(h) && (v || !h.rel)) return;
+  if (v) h.rel = v; else delete h.rel;
+  h.relMod = Math.max(Date.now(), (+h.relMod || 0) + 1);
+}
+document.getElementById('form')?.elements?.padre?.addEventListener('change', () => { try { hbRelPista(); } catch {} });
+// Asistente
+function hbRelToolVer() {
+  const S = HT(), t = today(), fila = h => { const e = hbRelEf(h); return { nombre: h.nombre, relevancia: hbRelOwn(h) || 0, relevancia_que_vale: e ? e.v : 0, ...(e && e.de === 'rutina' ? { de_la_rutina: true } : {}) }; };
+  const top = hbTopOrdenados().filter(h => h && !h.archivado);
+  return { nota: 'Relevancia 1 a 5 (0 = sin elegir). Dentro de una rutina, un hábito sin la suya usa la de la rutina. Desempata a la misma hora; no cambia el orden de la rutina.',
+    rutinas: top.filter(h => h.rutina).map(r => ({ ...fila(r), habitos_en_orden: hbHijosOrd(r.id).map(fila) })),
+    habitos: top.filter(h => !h.rutina).map(h => ({ ...fila(h), toca_hoy: isSched(h, t) })) };
+}
+function hbRelToolPoner(a) {
+  const S = HT(), L = (S.habits || []).filter(h => h && !h.archivado), h = buscar(L, a?.habito, 'nombre');
+  if (!h) return { ok: false, error: `No encontré «${String(a?.habito || '')}». Hábitos y rutinas: ${nombresDe(L, 'nombre')}.` };
+  const x = a?.relevancia, quitar = x === 0 || x === '0' || x === null || x === '', v = Number(typeof x === 'string' ? x.trim() : x);
+  if (!quitar && !(Number.isInteger(v) && v >= 1 && v <= 5)) return { ok: false, error: 'La relevancia va de 1 a 5; 0 la quita.' };   // otro valor no toca nada
+  if (quitar) hbRelQuitar('hbh:' + h.id); else hbRelPoner('hbh:' + h.id, v);
+  const e = hbRelEf(h);
+  return { ok: true, nombre: h.nombre, rutina: !!h.rutina, relevancia: hbRelOwn(h) || 0, relevancia_que_vale: e ? e.v : 0 };
+}
+IA_TOOLS.push(
+  iaTool('habitos_ver', 'Lista los hábitos y las rutinas (con sus hábitos en el orden de la rutina) y la relevancia de cada uno, 1 a 5 (0 = sin elegir; dentro de una rutina, un hábito sin la suya usa la de la rutina).', {}),
+  iaTool('habito_relevancia', 'Pone la relevancia (1 a 5) de un hábito o de una rutina, por su nombre; 0 la quita (un hábito de una rutina vuelve a usar la de la rutina). Desempata a la misma hora y no cambia el orden de la rutina. Úsala solo si la persona lo pide.', {
+    habito: S('Nombre del hábito o de la rutina.'), relevancia: { type: 'integer', description: '1 a 5; 0 para quitarla.' } }),
+);
+Object.assign(IA_ACCION, { habitos_ver: 'Miró tus hábitos', habito_relevancia: 'Cambió la relevancia de un hábito' });
+Object.assign(window, { hbRelOwn, hbRelForm, hbRelFormFin, hbRelPista });   // lo usa el código de fuera de este bloque (la lista, la hoja)
+window.hbRel = { cmp: (a, b, d) => hbRelCmp(HT().habits.find(x => x.id === a), HT().habits.find(x => x.id === b), d || today()), pend: () => pendientes().habits.map(h => h.id), ia: (n, a) => iaEjecutar(n, a), tools: () => IA_TOOLS.map(t => t.name), aria: k => relAria(relVal(k)), val: k => relVal(k), own: id => hbRelOwn(hbRelH(id)), ef: id => hbRelEf(hbRelH(id)), dia: (id, d) => hbRelDia(hbRelH(id), d), poner: (k, v) => relSet(k, v), quitar: k => hbRelQuitar(k), herramienta: (n, a) => n === 'habitos_ver' ? hbRelToolVer() : n === 'habito_relevancia' ? hbRelToolPoner(a) : null };   // para las pruebas
 window.relT = { renderAg: () => renderAg(), propuesta: d => orgPropuestaSheet(d), prio: () => renderPrio(), prioForm: () => prioForm(), reordenar: () => agReordenar(), abrir: b => relAbrir(b), rescate: p => rescate(p), abierto: () => !!relPop, vista: () => view };   // para las pruebas
 
 // ---------- Estilos (la hoja y la Agenda)
