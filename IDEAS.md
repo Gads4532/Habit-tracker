@@ -612,6 +612,13 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.23.1: «Calendario» con todo y con filtros; el viejo pasa a «Mes de hábitos»
+
+- Nombres: «Calendario del día» ahora es «Calendario», y el mes de hábitos se llama «Mes de hábitos» (con sus textos de ayuda). Las claves internas no cambian: lo escondido sigue escondido. Los eventos de Google en la Agenda se llaman «Evento» (pestaña «Eventos»), para no confundirse con el apartado. ✅
+- Incluir todo: además de la agenda y los hábitos, el Calendario muestra lo que tiene fecha ese día: tareas, exámenes y entregas de estudio, sesiones de las rutas, bloques de tiempo, planes, prioridades, iniciativas, normas de Vida espiritual, acciones constantes, descansos hechos, el siguiente paso de cada proyecto, pasos hechos y fechas de metas y objetivos. Nada dos veces; en días futuros respeta lo apagado al organizar. ✅
+- Arrastrar: lo que tiene hora propia (tareas, iniciativas, bloques, paso de proyecto, sesiones de estudio) cambia esa hora como su editor; lo que no tiene hora se acomoda solo en el calendario de ese día (`state.calMas`, 60 días) y «Volver a «Sin hora»» lo regresa. Lo fijo (planes, exámenes, descansos, días pasados) no se mueve. ✅
+- Filtros: «Todo» y un botón por tipo con su color y cuántos hay; varios a la vez, se recuerda en el teléfono. Con filtro, la línea dice «Filtrado: … · 1 de 16» con «Ver todo». ✅
+
 ## 2.23.0: «Calendario del día», todo el día en un calendario arrastrable
 
 - Nuevo apartado «Calendario del día», con su fila en Inicio (debajo de Agenda) y su pestaña. Se llama así porque «Calendario» ya es el mes de hábitos. ✅
