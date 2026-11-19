@@ -612,6 +612,13 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.23.2: «Temporizador» con acción, descanso corto y largo, conectado a la Agenda
+
+- Nuevo apartado «Temporizador» (fila en Inicio, se puede esconder): fases «Acción», «Descanso corto» y «Descanso largo», con minutos a elección y cada cuántas acciones toca el largo (25 / 5 / 15, cada 4). Reloj grande, rondas «2 de 4», Pausa, Saltar y Terminar (con «Deshacer»). Cuenta con hora de fin: sigue aunque cierres la app; pantalla encendida, timbre y vibración al terminar cada fase, alarma nativa en Android. La siguiente fase espera; «Empezar sola la siguiente fase» es opcional. ✅
+- Conectado con la Agenda: muestra lo pendiente de hoy en orden y con su hora; tocas una y queda «Ahora: …». Los minutos de acción se guardan por cosa y por día (también los de antes de medianoche, en su día). «✓ Hecho» la marca con el mismo XP, una vez. En la Agenda, esa fila y la tarjeta «Ahora» muestran la cuenta. ✅
+- Nunca dos a la vez: empezar el Temporizador quita el de la Agenda (con «Deshacer»); empezar el de la Agenda o una sesión de enfoque pone en pausa el Temporizador y lo dice. Sin usarlo, «Empezar acción» queda igual. ✅
+- Resumen del día: «Hoy: 2 acciones · 50 min de acción». Ajustes y sesiones se sincronizan (`state.enfoque.temporizador`). ✅
+
 ## 2.23.1: «Calendario» con todo y con filtros; el viejo pasa a «Mes de hábitos»
 
 - Nombres: «Calendario del día» ahora es «Calendario», y el mes de hábitos se llama «Mes de hábitos» (con sus textos de ayuda). Las claves internas no cambian: lo escondido sigue escondido. Los eventos de Google en la Agenda se llaman «Evento» (pestaña «Eventos»), para no confundirse con el apartado. ✅

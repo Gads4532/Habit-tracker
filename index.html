@@ -559,6 +559,7 @@
   <div id="view-consistencia" hidden></div>   <!-- 2.22.3 (M) -->
   <div id="view-descanso" hidden></div>   <!-- 2.22.6 (D) -->
   <div id="view-caldia" hidden></div>   <!-- 2.22.9 (C) -->
+  <div id="view-temporizador" hidden></div>   <!-- 2.23.0 (T) -->
   <div id="view-bloques" hidden></div>
   <div id="view-estudio" hidden></div>
   <div id="view-journal" hidden></div>
@@ -612,6 +613,9 @@
   </button>
   <button class="tab" data-view="iniciativas">   <!-- 2.22.0 (N) -->
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.5 1.1-2.1A6 6 0 0 0 12 3z"/></svg>Iniciativas
+  </button>
+  <button class="tab" data-view="temporizador">   <!-- 2.23.0 (T) -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M10 2.5h4M18.3 7.2l1.4-1.4"/></svg>Temporizador
   </button>
   <button class="tab" data-view="bloques">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="3"/><circle cx="12" cy="12" r="3.6"/><path d="M12 10.3V12l1.2 1"/></svg>Bloques de tiempo
@@ -763,7 +767,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.23.1';
+const APP_VERSION = '2.23.2';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1072,6 +1076,32 @@ function dcFusion(x, y, dead) {
   const g = A.ultMod >= B.ultMod ? A : B;
   return dcNorm({ ult: g.ult, ultMod: g.ultMod, ses: [...m.values()].filter(z => !(dead && dead.has(z.id))) });
 }
+// 2.23.0 (T) · Temporizador: { accion, corto, largo, cada, auto, mod, ses: [{ sid, d, id, t, min, en, fin? }] } (hasta 400 sesiones).
+// Mínimo, máximo y lo de siempre de cada ajuste (una función: normalize puede llamarla antes de que corra el resto del archivo).
+function tzRangos() { return { accion: [1, 180, 25], corto: [1, 60, 5], largo: [1, 90, 15], cada: [2, 12, 4] }; }
+function tzNorm(x) {
+  const o = x && typeof x === 'object' && !Array.isArray(x) ? x : {}, out = {}, ses = [], vistos = new Set(), RG = tzRangos();
+  for (const k of Object.keys(RG)) { const v = Math.round(+o[k]), [a, b, d] = RG[k]; out[k] = v >= a && v <= b ? v : d; }
+  out.auto = o.auto === true || o.auto === 1;
+  out.mod = +o.mod > 0 ? +o.mod : 0;
+  for (const z of Array.isArray(o.ses) ? o.ses : []) {
+    if (!z || typeof z !== 'object' || typeof z.sid !== 'string' || !z.sid || vistos.has(z.sid) || typeof z.d !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(z.d)) continue;
+    const min = Math.round(+z.min); if (!(min >= 1 && min <= 600) && !(z.fin && min === 0)) continue;   // el último tramo de una acción cumplida puede quedar en 0 (cuenta la acción)
+    vistos.add(z.sid);
+    const n = { sid: z.sid.slice(0, 80), d: z.d, id: typeof z.id === 'string' ? z.id.slice(0, 160) : '', t: typeof z.t === 'string' ? z.t.slice(0, 160) : '', min, en: +z.en > 0 ? +z.en : 0 };
+    if (z.fin) n.fin = 1;
+    ses.push(n);
+  }
+  ses.sort((a, b) => a.en - b.en);
+  out.ses = ses.slice(-400);
+  return out;
+}
+// Dos copias: los ajustes, los cambiados más tarde; las sesiones, unión por sid (lo quitado con forget no vuelve).
+function tzFusion(x, y, dead) {
+  const A = tzNorm(x), B = tzNorm(y), g = A.mod >= B.mod ? A : B, m = new Map();
+  for (const z of [...B.ses, ...A.ses]) m.set(z.sid, z);
+  return tzNorm({ ...g, ses: [...m.values()].filter(z => !(dead && dead.has(z.sid))) });
+}
 function normEnfoque(e) {
   e ||= {};
   const d = new Date(), hoy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1086,6 +1116,7 @@ function normEnfoque(e) {
   e.relevancia = relNorm(e.relevancia);   // 2.21.7 (R) · relevancia 1 a 5
   e.reflexiones = rfNorm(e.reflexiones);   // 2.22.1 (R) · reflexiones guiadas
   e.descanso = dcNorm(e.descanso);   // 2.22.6 (D) · descanso cognitivo
+  e.temporizador = tzNorm(e.temporizador);   // 2.23.0 (T) · temporizador
   if (!Array.isArray(e.personas)) e.personas = [];
   for (const p of e.personas) { p.cada = +p.cada || 30; p.ultimo ||= ''; p.tel ||= ''; if (!Array.isArray(p.historial)) p.historial = []; }
   if (!Array.isArray(e.proyectos)) e.proyectos = [];
@@ -1246,7 +1277,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', temporizador: 'Temporizador', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -1514,6 +1545,7 @@ function mergeStates(a, b) {
     relevancia: ((Rv, D) => { for (const k of Object.keys(Rv)) { const m = /^hab:([^:]+)/.exec(k); if (m && D.has(m[1])) delete Rv[k]; } return Rv; })(relFusion(eN.relevancia, eO.relevancia), dead),   /* 2.21.7 (R) · 2.22.8 (H) · sin las de hábitos borrados */
     reflexiones: rfFusion(eN.reflexiones, eO.reflexiones, dead),   /* 2.22.1 (R) */
     descanso: dcFusion(eN.descanso, eO.descanso, dead),   /* 2.22.6 (D) */
+    temporizador: tzFusion(eN.temporizador, eO.temporizador, dead),   /* 2.23.0 (T) */
     ...(eN.contFuera || eO.contFuera ? { contFuera: (typeof contFueraFusion === 'function' ? contFueraFusion : window.contFueraFusion)(eN.contFuera, eO.contFuera) } : {}),   /* 2.22.7 (P) */
     objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), consistencias: consFusion(eN.consistencias, eO.consistencias, dead), consLog: consLogFusion(eN.consLog, eO.consLog, dead), consPreg: [eO.consPreg, eN.consPreg].filter(Boolean).sort().pop() || '', espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
@@ -12063,7 +12095,7 @@ function renderAg() {
   const pTodo = pest === 'todo', movN = it => it.tipo === 'tarea' ? +((HT().tareas?.items || []).find(y => y && y.id === it.ref)?.movida) || 0 : +it.movida || 0;   // 2.21 (A)
   const fila = it => { const ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, fo = !!it.foco, mv = movN(it), ab = agAbre === it.id;   // 2.21.3 (C) · en reposo, lo mínimo
     const Kt = it.tipo === 'tarea' && !ok ? tareaCalorAttr((HT().tareas?.items || []).find(y => y && y.id === it.ref)) : { cls: '', st: '', c: null };   // 2.19.6 · el calor de la tarea
-    const corre = !ok && it.tipo !== 'evento' && !!tempDe(it.id);   // con el temporizador en marcha, la cuenta atrás sigue a la vista
+    const corre = !ok && it.tipo !== 'evento' && (!!tempDe(it.id) || !!window.tzEnCosaId?.(it.id));   // con el temporizador en marcha, la cuenta atrás sigue a la vista · 2.23.0 (T) · también el Temporizador
     const edad = Kt.c && Kt.c.dias > 0 ? `<span class="ag-edad">${tareaHace(Kt.c.dias)}</span>` : '';   // (v2) con «calor», el motivo va en la línea pequeña (la fila roja se explica sola)
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecha" aria-pressed="${ok}"></button>
@@ -20888,6 +20920,7 @@ function icTarjetasHtml() {
   }
   try { out.push(igTarjetasHtml(oc)); } catch (e) { console.warn('Tarjetas del Inicio (G)', e); }   // 2.22.5 (G) · Gratitud y Oración
   try { out.push(dcInicioHtml(oc)); } catch (e) { console.warn('Descanso cognitivo', e); }   // 2.22.6 (D)
+  try { out.push(window.tzInicioHtml?.(oc) || ''); } catch (e) { console.warn('Temporizador', e); }   // 2.23.0 (T)
   return out.join('');
 }
 // ---------- Los toques (uno solo, en el Inicio): lo mismo que en cada sección
@@ -21477,6 +21510,505 @@ INI_ESTADO.descanso = () => {
   document.head.append(st); }
 dcTickOn(); try { const r0 = dcRun(); if (r0 && dcFase(r0) === 'listo') dcFin(r0); } catch {}
 window.dcApi = { run: () => dcRun(), fase: () => dcFase(dcRun()), resta: () => dcResta(dcRun()), datos: () => JSON.parse(JSON.stringify(dcD())), empezar: m => dcEmpezar(m), wake: () => !!dcWL, sel: () => dcSel };   // 2.22.6 (D) · para las pruebas
+
+// ====================================================================
+// 2.23.0 (T) · «También haz un temporizador (tiempo personalizable) con tiempo de acción, descanso corto y largo. Debe estar conectado con
+// la agenda y de ahí podré ver lo que tengo pendiente.» #view-temporizador (sin shadow root: estilos con #view-temporizador).
+// El tiempo sale de la hora de fin (r.fin) o de lo que quedaba al pausar (r.resta), como Descanso cognitivo. El timbre, el ajuste de
+// sonido y la preparación del audio son los del temporizador de la Agenda (tempSonar, tempSonidoOn, tempPreparar).
+// Lo que corre (localStorage 'tz-run'): { fase, n, min, ini, fin | resta, sid, segE, segId, segT } o, con la fase lista sin empezar,
+// { fase, n, espera: 1, desde }. n: acciones de esta vuelta. segE: lo que llevaba la acción al empezar el tramo de la cosa elegida.
+// ====================================================================
+const TZ_RUN_K = 'tz-run', TZ_FOCO_K = 'tz-foco', TZ_FASES = ['accion', 'corto', 'largo'];
+const TZ_NOM = { accion: 'Acción', corto: 'Descanso corto', largo: 'Descanso largo' };
+const tzHost = document.getElementById('view-temporizador');
+let tzBody = null;
+if (tzHost) { tzBody = document.createElement('div'); tzBody.className = 'tz-body'; tzHost.append(tzBody); }
+// ---------- Los datos
+function tzD() { let D = ES.temporizador; if (!D || typeof D !== 'object' || Array.isArray(D) || !Array.isArray(D.ses)) { D = tzNorm(D); ES.temporizador = D; } return D; }
+function tzMinFase(f) { const D = tzD(), v = Math.round(+D[f]), [a, b, d] = tzRangos()[f] || [1, 180, 25]; return v >= a && v <= b ? v : d; }
+function tzCada() { const v = Math.round(+tzD().cada); return v >= 2 && v <= 12 ? v : 4; }
+function tzRun() {
+  try {
+    const r = JSON.parse(localStorage.getItem(TZ_RUN_K) || 'null');
+    if (!r || typeof r !== 'object' || !TZ_FASES.includes(r.fase)) return null;
+    r.n = Math.max(0, Math.min(12, Math.round(+r.n) || 0));
+    if (r.espera) { if (+r.desde > 0 && Date.now() - +r.desde > 12 * 3600000) { tzRunPoner(null); return null; } return r; }   // lista desde hace más de 12 h: de cero
+    if (!(+r.min >= 1 && +r.min <= 180) || !(+r.ini > 0) || !(+r.fin > 0 || +r.resta >= 0)) return null;
+    return r;
+  } catch { return null; }
+}
+function tzRunPoner(r) { try { if (r) localStorage.setItem(TZ_RUN_K, JSON.stringify(r)); else localStorage.removeItem(TZ_RUN_K); } catch {} }
+// '' | 'espera' (la fase lista, sin empezar) | 'corre' | 'pausa' | 'fin' (pasó la hora de fin y aún no se atendió)
+function tzFase(r) { if (!r) return ''; if (r.espera) return 'espera'; if (+r.fin > 0) return Date.now() >= +r.fin ? 'fin' : 'corre'; return 'pausa'; }
+function tzActivo(r) { const f = tzFase(r); return f === 'corre' || f === 'pausa' || f === 'fin'; }
+function tzResta(r, now = Date.now()) {
+  if (!r) return tzMinFase('accion') * 60000;
+  if (r.espera) return tzMinFase(r.fase) * 60000;
+  return Math.max(0, Math.min(r.min * 60000, +r.fin > 0 ? +r.fin - now : +r.resta || 0));
+}
+const tzLleva = r => r && !r.espera ? r.min * 60000 - tzResta(r) : 0;
+function tzSig(r) {
+  if (r.fase === 'accion') { const n = r.n + 1; return { fase: n >= tzCada() ? 'largo' : 'corto', n }; }
+  return { fase: 'accion', n: r.fase === 'largo' ? 0 : r.n };
+}
+function tzSes() { return tzD().ses.filter(z => z && z.d && (+z.min > 0 || z.fin)); }
+function tzHoy() { const t = today(); let n = 0, m = 0; for (const z of tzSes()) if (z.d === t) { m += +z.min; if (z.fin) n++; } return { n, m }; }
+function tzHoyTxt() { const H = tzHoy(); return H.n || H.m ? `Hoy: ${H.n} ${H.n === 1 ? 'acción' : 'acciones'} · ${H.m} min de acción` : 'Hoy: sin acciones todavía'; }
+function tzMinCosa(id) {
+  if (!id) return 0; const t = today(); let m = 0;
+  for (const z of tzSes()) if (z.d === t && z.id === id) m += +z.min;
+  const r = tzRun(); if (r && !r.espera && r.fase === 'accion' && r.segId === id) m += Math.floor((tzLleva(r) - (+r.segE || 0)) / 60000);
+  return m;
+}
+function tzDecir(t) { try { agParaDecir(t); } catch {} }
+// ---------- Lo pendiente de la Agenda de hoy (lo que ves en la Agenda, en su orden)
+function tzPendOk(it) { return !!it && it.tipo !== 'evento' && it.tipo !== 'bt' && cadPend(it); }
+function tzPend() { let its = []; try { its = agItems(); } catch { return []; } try { its = cadAgOrden(its); } catch {} return its.filter(tzPendOk); }
+function tzFocoRaw() { try { const f = JSON.parse(localStorage.getItem(TZ_FOCO_K) || 'null'); return f && typeof f === 'object' && typeof f.id === 'string' && f.d === today() ? f : null; } catch { return null; } }
+function tzFocoIt() { const f = tzFocoRaw(); if (!f) return null; let it = null; try { it = agItems().find(x => x && x.id === f.id) || null; } catch {} return tzPendOk(it) ? it : null; }
+// Cierra el tramo de la acción en curso (los minutos van a la cosa elegida, o a ninguna). fin: la acción se cumplió (cuenta como hecha).
+function tzTramo(r, fin = false) {
+  if (!r || r.espera || r.fase !== 'accion') return null;
+  // Se redondea el total de la acción, no cada tramo: este tramo se lleva lo que suma el total menos lo ya guardado (r.acu).
+  const lleva = fin ? r.min * 60000 : tzLleva(r), acu = Math.max(0, Math.round(+r.acu || 0)), m = Math.max(0, Math.round(lleva / 60000) - acu), now = Date.now();
+  // El día del tramo es el de su comienzo (r.segIni); al cruzar la medianoche, tzTick lo cierra y empieza otro.
+  const d = +r.segIni > 0 ? dayKey(new Date(+r.segIni)) : fin && +r.fin > 0 ? dayKey(new Date(+r.fin)) : today();
+  r.segE = lleva; r.segIni = fin && +r.fin > 0 ? +r.fin : now;
+  if (m < 1 && !fin) return null;
+  r.acu = acu + m;
+  const z = { sid: crypto.randomUUID(), d, id: r.segId || '', t: r.segT || '', min: Math.min(600, m), en: now };
+  if (fin) z.fin = 1;
+  const D = tzD(); D.ses.push(z); if (D.ses.length > 400) D.ses = D.ses.slice(-400);
+  guardar();
+  return z;
+}
+// Elegir (o soltar) la cosa de la acción. Con la acción en marcha, lo hecho hasta aquí queda en la anterior.
+function tzElegir(it) {
+  const r = tzRun();
+  if (r && !r.espera && r.fase === 'accion' && tzActivo(r)) { tzTramo(r); r.segId = it ? it.id : ''; r.segT = it ? String(it.t || '') : ''; tzRunPoner(r); }
+  try { if (it) localStorage.setItem(TZ_FOCO_K, JSON.stringify({ d: today(), id: it.id, t: String(it.t || '') })); else localStorage.removeItem(TZ_FOCO_K); } catch {}
+  tzDecir(it ? `Ahora: «${it.t}».` : 'Sin una cosa elegida.');
+  tzRepintar(it ? `[data-tz-it="${CSS.escape(it.id)}"]` : '#tz-left');
+}
+// La cosa elegida ya está hecha o salió de hoy (en otro sitio): su tramo se cierra y la acción sigue sin ella.
+function tzFocoRevisar(r) {
+  if (!r || r.espera || r.fase !== 'accion' || !r.segId) return false;
+  let it = null; try { it = agItems().find(x => x && x.id === r.segId) || null; } catch {}
+  if (tzPendOk(it)) return false;
+  tzTramo(r); r.segId = ''; r.segT = ''; tzRunPoner(r);
+  const f = tzFocoRaw(); if (f && f.id && !tzPendOk(it)) try { localStorage.removeItem(TZ_FOCO_K); } catch {}
+  return true;
+}
+function tzHecho() {
+  const it = tzFocoIt(); if (!it) return;
+  const r = tzRun();
+  if (r && !r.espera && r.fase === 'accion' && tzActivo(r) && r.segId === it.id) { tzTramo(r); r.segId = ''; r.segT = ''; tzRunPoner(r); }
+  try { localStorage.removeItem(TZ_FOCO_K); } catch {}
+  agFocoHecho(it);   // el camino de siempre: el mismo XP, una vez, con «Deshacer»
+  tzRepintar('#tz-left');
+}
+// ---------- Sonido, vibración, pantalla encendida y avisos
+function tzSonar() { try { tempSonar(); } catch {} buzz([300, 120, 300]); }
+let tzWL = null, tzWLPend = false;
+async function tzWake(on) {
+  try {
+    if (!on) { const w = tzWL; tzWL = null; if (w) await w.release(); return; }
+    if (tzWL || tzWLPend || !navigator.wakeLock || document.visibilityState !== 'visible') return;
+    tzWLPend = true; let w;
+    try { w = await navigator.wakeLock.request('screen'); } finally { tzWLPend = false; }
+    if (tzWL || tzFase(tzRun()) !== 'corre' || document.visibilityState !== 'visible') { try { await w.release(); } catch {} return; }
+    tzWL = w;
+    w.addEventListener?.('release', () => { if (tzWL === w) tzWL = null; });
+  } catch { tzWLPend = false; }
+}
+function tzAvisoTxt(r) { const s = tzSig(r); return [`Temporizador · terminó ${r.fase === 'accion' ? 'la acción' : 'el descanso'}`, `Sigue: ${TZ_NOM[s.fase].toLowerCase()} · ${tzMinFase(s.fase)} min.`]; }
+// La alarma de Android (con la app cerrada o la pantalla apagada). Una por fase, con su propia clave: no toca las de la Agenda.
+let tzNatT = 0;
+function tzNat(r) {
+  try {
+    const A = OP_ANDROID ? window.OrgAndroid : null; if (!A) return;
+    const viejo = (() => { try { return localStorage.getItem('tz-nat') || ''; } catch { return ''; } })();
+    if (r && tzFase(r) === 'corre' && typeof A.programarAviso === 'function') {
+      const k = 'tz|' + r.sid, [ti, tx] = tzAvisoTxt(r);
+      if (viejo && viejo !== k && typeof A.cancelarAviso === 'function') A.cancelarAviso(viejo);
+      A.programarAviso(k, +r.fin, ti, tx, tempSonidoOn());
+      try { localStorage.setItem('tz-nat', k); } catch {}
+    } else if (viejo) { if (typeof A.cancelarAviso === 'function') A.cancelarAviso(viejo); try { localStorage.removeItem('tz-nat'); } catch {} }
+  } catch {}
+}
+function tzNotificar(ti, tx) {
+  if (OP_ANDROID) return;
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    tempReg().then(reg => reg?.showNotification?.(ti, { body: tx, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'tz', renotify: true, silent: !tempSonidoOn(), vibrate: [300, 120, 300], data: { url: './?v=temporizador' } })).catch(() => {});
+  } catch {}
+}
+// ---------- El reloj: un toque por segundo solo para pintar; el tiempo sale de r.fin
+let tzT = 0, tzVisto = 0;
+function tzReloj(r) {
+  const now = Date.now();
+  if (r && tzFase(r) === 'corre' && tzVisto && now < tzVisto - 2000) { const d = tzVisto - now; r.fin = +r.fin - d; r.ini = Math.max(1, +r.ini - d); tzRunPoner(r); }   // la hora se atrasó: lo hecho se conserva
+  if (r && +r.fin > 0 && now < +r.ini) { const d = +r.ini - now; r.fin = +r.fin - d; r.ini = now; tzRunPoner(r); }   // tras recargar, sin la última hora vista
+  tzVisto = now; return r;
+}
+function tzTickOn() { clearInterval(tzT); tzT = 0; const f = tzFase(tzRun()); if (f === 'corre' || f === 'fin') tzT = setInterval(tzTick, 1000); }
+function tzTick() {
+  try {
+    const r = tzReloj(tzRun()), f = tzFase(r);
+    if (f === 'fin') { tzFin(r); return; }
+    if (f !== 'corre') { clearInterval(tzT); tzT = 0; return; }
+    if (r.fase === 'accion' && +r.segIni > 0 && dayKey(new Date(+r.segIni)) !== today()) { tzTramo(r); tzRunPoner(r); }   // pasó la medianoche: lo de ayer queda en ayer
+    if (tzFocoRevisar(r)) tzRepintar();
+    if (OP_ANDROID && Date.now() - tzNatT > 30000) { tzNatT = Date.now(); tzNat(r); }   // otra alarma pudo quitar la suya
+    tzPintarHora(r);
+  } catch (e) { console.warn('Temporizador', e); }
+}
+function tzSync() {
+  const r = tzReloj(tzRun()), f = tzFase(r);
+  if (f === 'fin') { tzFin(r); return; }
+  tzWake(f === 'corre'); tzTickOn(); tzNat(r);
+  if (r) tzPintarHora(r);
+}
+// Al cumplirse la fase: la acción cuenta (sus minutos, a la cosa elegida) y la siguiente queda lista o empieza sola (si lo elegiste y
+// no pasó más de media hora). Al volver tarde, se pone al día por las horas de fin (hasta 8 fases).
+function tzFin(r0) {
+  let r = r0, k = 0, ult = null, ultFin = 0;
+  const auto = !!tzD().auto, now = Date.now();
+  while (r && tzFase(r) === 'fin' && k++ < 8) {
+    const fin = +r.fin; ult = { ...r }; ultFin = fin;
+    if (r.fase === 'accion') tzTramo(r, true);
+    const s = tzSig(r);
+    if (auto && now - fin < 30 * 60000) { const m = tzMinFase(s.fase); r = { fase: s.fase, n: s.n, min: m, ini: fin, fin: fin + m * 60000, sid: crypto.randomUUID(), segE: 0, segIni: fin, acu: 0, segId: s.fase === 'accion' ? (tzFocoIt()?.id || '') : '', segT: s.fase === 'accion' ? String(tzFocoIt()?.t || '') : '' }; }
+    else r = { fase: s.fase, n: s.n, espera: 1, desde: fin };
+  }
+  if (r && tzFase(r) === 'fin') r = { ...tzSig(r), espera: 1, desde: +r.fin };
+  tzRunPoner(r);
+  const f = tzFase(r);
+  tzWake(f === 'corre'); tzTickOn(); tzNat(r);
+  if (ult) {
+    const s = tzSig(ult), txt = `Terminó ${ult.fase === 'accion' ? 'la acción' : 'el descanso'}. ${f === 'corre' ? 'Empieza' : 'Sigue'}: ${TZ_NOM[s.fase].toLowerCase()} · ${tzMinFase(s.fase)} min.`;
+    if (document.visibilityState === 'visible') { if (now - ultFin < 120000) tzSonar(); }
+    else tzNotificar(...tzAvisoTxt(ult));
+    tzDecir(txt); tzUltTxt = txt;
+  }
+  tzRepintar(view === 'temporizador' ? '#tz-go' : '');
+}
+var tzUltTxt = '';
+function tzPintarHora(r) {
+  const left = fmtClock(tzResta(r) / 1000);
+  for (const R of [tzBody, iniW, agW]) { if (!R) continue; R.querySelectorAll('[data-tz-left]').forEach(e => { if (e.textContent !== left) e.textContent = left; }); }
+  // «Llevas N min»: al cambiar de minuto, solo el texto (sin repintar ni mover el foco).
+  if (tzBody && view === 'temporizador' && r && !r.espera && r.fase === 'accion' && r.segId) {
+    const n = tzBody.querySelector(`[data-tz-lleva="${CSS.escape(r.segId)}"]`) ? tzMinCosa(r.segId) : 0;
+    if (n) tzBody.querySelectorAll(`[data-tz-lleva="${CSS.escape(r.segId)}"]`).forEach(e => { const v = `${e.dataset.p || ''}${n} min${e.dataset.s || ''}`; if (e.textContent !== v) e.textContent = v; });
+  }
+}
+// ---------- Dos temporizadores nunca a la vez: el de la Agenda sale (con «Deshacer»)
+function tzQuitarAgenda() {
+  const T = tempAct(); if (!T) return null;
+  ES.temp = null; guardar(); tempParo(); try { tempRepintar(); } catch {}
+  return T;
+}
+// ---------- Acciones
+function tzEmpezar() {
+  if (ES.sesion) { toast('Ya hay una sesión de enfoque en marcha.'); return false; }
+  const r0 = tzRun(), f0 = tzFase(r0);
+  if (f0 === 'corre') return false;
+  if (f0 === 'pausa') return tzSeguir();
+  if (f0 === 'fin') { tzFin(r0); return false; }
+  const base = r0 || { fase: 'accion', n: 0, espera: 1 }, prevRun = r0 ? { ...r0 } : null;
+  tempPreparar();
+  const prevT = tzQuitarAgenda();
+  const m = tzMinFase(base.fase), now = Date.now(), it = base.fase === 'accion' ? tzFocoIt() : null;
+  const r = { fase: base.fase, n: base.n, min: m, ini: now, fin: now + m * 60000, sid: crypto.randomUUID(), segE: 0, segIni: now, acu: 0, segId: it ? it.id : '', segT: it ? String(it.t || '') : '' };
+  tzRunPoner(r); tzUltTxt = '';
+  tzWake(true); tzTickOn(); tzNat(r);
+  const txt = `${TZ_NOM[r.fase].toLowerCase()} de ${m} min${it ? ` para «${it.t}»` : ''}.`;
+  if (prevT) toast(`Temporizador: ${txt} El de «${prevT.t}» se quitó.`, { deshacer: () => { tzRunPoner(prevRun); tzNat(null); tzWake(false); ES.temp = prevT; guardar(); tempIniciar(); tempRepintar(); tzTickOn(); tzRepintar(); } });
+  tzDecir(`Empezó: ${txt}`);
+  if (view !== 'temporizador') { tzFocoPend = '#tz-left'; irA('temporizador'); } else tzRepintar('#tz-left');
+  return true;
+}
+function tzPausa() {
+  const r = tzReloj(tzRun()); if (tzFase(r) !== 'corre') return;
+  r.resta = tzResta(r); r.fin = 0; tzRunPoner(r); tzWake(false); tzTickOn(); tzNat(null);
+  tzDecir('En pausa.'); tzRepintar('[data-tz-acc="seguir"]');
+}
+function tzSeguir() {
+  const r = tzRun(); if (tzFase(r) !== 'pausa') return false;
+  if (ES.sesion) { toast('Ya hay una sesión de enfoque en marcha.'); return false; }
+  const prevT = tempAct() && !tempAct().pausa ? tzQuitarAgenda() : null;
+  r.fin = Date.now() + tzResta(r); delete r.resta; tzRunPoner(r); tzWake(true); tzTickOn(); tzNat(r);
+  if (prevT) toast(`Sigue tu ${TZ_NOM[r.fase].toLowerCase()}. El temporizador de «${prevT.t}» se quitó.`, { deshacer: () => { const x = tzRun(); if (tzFase(x) === 'corre') { x.resta = tzResta(x); x.fin = 0; tzRunPoner(x); } tzNat(null); tzWake(false); ES.temp = prevT; guardar(); tempIniciar(); tempRepintar(); tzTickOn(); tzRepintar(); } });
+  tzDecir(`Sigue: ${TZ_NOM[r.fase].toLowerCase()}.`); tzRepintar('[data-tz-acc="pausa"]');
+  return true;
+}
+// Pausa que pide el temporizador de la Agenda al empezar (lo dice su aviso).
+let tzCedioT = 0;
+function tzCeder() { const r = tzReloj(tzRun()); if (tzFase(r) !== 'corre') return false; r.resta = tzResta(r); r.fin = 0; tzRunPoner(r); tzWake(false); tzTickOn(); tzNat(null); tzCedioT = Date.now(); try { tzRepintar(); } catch {} return true; }
+function tzSaltar() {
+  const r = tzReloj(tzRun()); if (!r) return;
+  if (tzActivo(r) && r.fase === 'accion') tzTramo(r);
+  const s = tzSig(r), auto = !!tzD().auto && !r.espera && tzFase(r) === 'corre';
+  let x;
+  if (auto) { const m = tzMinFase(s.fase), now = Date.now(), it = s.fase === 'accion' ? tzFocoIt() : null; x = { fase: s.fase, n: s.n, min: m, ini: now, fin: now + m * 60000, sid: crypto.randomUUID(), segE: 0, segIni: now, acu: 0, segId: it ? it.id : '', segT: it ? String(it.t || '') : '' }; }
+  else x = { fase: s.fase, n: s.n, espera: 1, desde: Date.now() };
+  tzRunPoner(x); tzUltTxt = ''; tzWake(tzFase(x) === 'corre'); tzTickOn(); tzNat(x);
+  tzDecir(`Sigue: ${TZ_NOM[s.fase].toLowerCase()} · ${tzMinFase(s.fase)} min.`);
+  tzRepintar(tzFase(x) === 'corre' ? '[data-tz-acc="saltar"]' : '#tz-go');
+}
+function tzTerminar() {
+  const r0 = tzRun(); if (!r0) return;
+  const r = tzReloj({ ...r0 }), antes = { ...r0 };
+  const z = tzActivo(r) && r.fase === 'accion' ? tzTramo(r) : null;
+  tzRunPoner(null); tzWake(false); tzTickOn(); tzNat(null); tzUltTxt = '';
+  toast(`Temporizador terminado. ${tzHoyTxt()}.`, { deshacer: () => {
+    if (z) { const D = tzD(); D.ses = D.ses.filter(x => x.sid !== z.sid); forget(z.sid); guardar(); }
+    if (tzFase(antes) === 'corre' && tempAct() && !tempAct().pausa) { antes.resta = tzResta(antes); antes.fin = 0; }
+    tzRunPoner(antes); tzSync(); tzRepintar();
+  } });
+  tzDecir('Temporizador terminado.');
+  tzRepintar('#tz-go');
+}
+function tzAjustar(k, v) {
+  const RG = tzRangos()[k]; if (!RG) return;
+  const [a, b] = RG; if (String(v ?? '').trim() === '') { tzRender(`[data-tz-in="${k}"]`, true); return; }   // campo vacío: vuelve el valor de antes
+  v = Math.round(+v); if (!Number.isFinite(v)) return;
+  v = Math.max(a, Math.min(b, v));
+  const D = tzD(); if (D[k] === v) { tzRender(`[data-tz-in="${k}"]`, true); return; }
+  D[k] = v; D.mod = Date.now(); guardar();
+  tzRender(`[data-tz-in="${k}"]`, true); iniRepintar();
+}
+// ---------- La sección
+var tzFocoPend = '', tzSigV = '', tzAjAbierto = false, tzPintando = false;
+function tzPuntosHtml(r) {
+  const c = tzCada(), f = r ? r.fase : 'accion', n = Math.min(r ? r.n : 0, c), cur = f === 'accion' ? Math.min(n, c - 1) : -1;
+  const num = f === 'accion' ? Math.min(n + 1, c) : n;
+  const dots = Array.from({ length: c }, (_, i) => `<span class="tz-dot${i < n ? ' on' : ''}${i === cur ? ' cur' : ''}"></span>`).join('');
+  return `<div class="tz-dots" role="img" aria-label="${f === 'accion' ? `Acción ${num} de ${c}` : `${n} de ${c} acciones`}">${dots}<span class="tz-n" aria-hidden="true">${num} de ${c}</span></div>`;
+}
+function tzAhoraHtml(r) {
+  const f = r ? r.fase : 'accion';
+  if (f !== 'accion') return `<p class="tz-ahora tz-sin">${f === 'largo' ? 'Un descanso largo. Sal un rato de la pantalla.' : 'Levántate, toma agua y mira lejos.'}</p>`;
+  const it = tzFocoIt();
+  if (!it) return '<p class="tz-ahora tz-sin">Elige abajo en qué te enfocas, o empieza sin elegir.</p>';
+  const m = tzMinCosa(it.id);
+  return `<div class="tz-ahora"><p class="tz-ahora-t">Ahora: «${esc(agTituloEst(it))}»<small data-tz-lleva="${esc(it.id)}" data-p="Llevas " data-s=" hoy">${m ? `Llevas ${m} min hoy` : ''}</small></p><button type="button" class="tz-ok" data-tz-acc="hecho" aria-label="Hecho: ${esc(it.t)}">✓ Hecho</button></div>`;
+}
+function tzListaHtml() {
+  const L = tzPend(), sel = tzFocoIt()?.id || '', oculto = agHorasOcultas();
+  if (!L.length) return '<p class="tz-vacio">Nada pendiente en tu agenda de hoy. <button type="button" class="tz-link" data-tz-acc="agenda">Ver agenda</button></p>';
+  return `<div class="tz-list">${L.map(it => {
+    const on = it.id === sel, h = !oculto && /^\d\d:\d\d$/.test(it.h || '') ? fmtHora(it.h) : '', m = tzMinCosa(it.id);
+    return `<button type="button" class="tz-it${on ? ' on' : ''}" data-tz-it="${esc(it.id)}" aria-pressed="${on}">${oculto ? '' : `<span class="tz-it-h">${h ? esc(h).replace(' ', '&nbsp;') : 'Sin hora'}</span>`}<span class="tz-it-t">${esc(agTituloEst(it))}<small>${esc(fmtMin(agMinDe(it)))}<span data-tz-lleva="${esc(it.id)}" data-p=" · llevas ">${m ? ` · llevas ${m} min` : ''}</span></small></span></button>`;
+  }).join('')}</div>`;
+}
+function tzAjHtml() {
+  const D = tzD();
+  const fila = (k, txt, u) => { const [a, b] = tzRangos()[k]; return `<div class="tz-aj-f"><label class="tz-aj-l" for="tz-in-${k}">${txt}<small>${u}</small></label><div class="tz-aj-c"><button type="button" class="tz-pm" data-tz-pm="${k}" data-d="-1" aria-label="${txt}: menos"${D[k] <= a ? ' disabled' : ''}>−</button><input id="tz-in-${k}" data-tz-in="${k}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" value="${D[k]}" aria-describedby="tz-aj-r-${k}"><button type="button" class="tz-pm" data-tz-pm="${k}" data-d="1" aria-label="${txt}: más"${D[k] >= b ? ' disabled' : ''}>+</button></div><span class="tz-sr" id="tz-aj-r-${k}">De ${a} a ${b}</span></div>`; };
+  return `<details class="tz-aj"${tzAjAbierto ? ' open' : ''}><summary>Ajustar tiempos · ${D.accion} / ${D.corto} / ${D.largo}&nbsp;min</summary>
+    ${fila('accion', 'Acción', 'minutos')}${fila('corto', 'Descanso corto', 'minutos')}${fila('largo', 'Descanso largo', 'minutos')}${fila('cada', 'Descanso largo cada', 'acciones')}
+    <label class="tz-auto"><input type="checkbox" id="tz-auto"${D.auto ? ' checked' : ''}> Empezar sola la siguiente fase</label>
+    <p class="tz-aj-n">Los cambios valen desde la siguiente fase.</p></details>`;
+}
+function tzHtml() {
+  const r = tzRun(), f = tzFase(r), fase = r ? r.fase : 'accion', left = fmtClock(tzResta(r) / 1000);
+  const listo = f === 'espera' || !r, hay = !!r && !(f === 'espera' && r.fase === 'accion' && r.n === 0 && !tzUltTxt);
+  const bGo = `<button type="button" class="tz-go" id="tz-go" data-tz-acc="empezar">▶ Empezar ${fase === 'accion' ? 'acción' : TZ_NOM[fase].toLowerCase()} · ${tzMinFase(fase)}&nbsp;min</button>`;
+  const btns = listo ? bGo + (r ? '<button type="button" class="tz-btn tz-sec" data-tz-acc="saltar">Saltar</button>' : '')
+    : (f === 'pausa' ? '<button type="button" class="tz-btn" data-tz-acc="seguir">Continuar</button>' : '<button type="button" class="tz-btn" data-tz-acc="pausa">Pausa</button>') + '<button type="button" class="tz-btn tz-sec" data-tz-acc="saltar">Saltar</button>';
+  const msg = listo && tzUltTxt ? `<p class="tz-msg">${esc(tzUltTxt)}</p>` : '';
+  return `<div class="tz">
+    <section class="tz-reloj tz-f-${fase}${f === 'pausa' ? ' tz-pausa' : ''}" aria-label="Temporizador">
+      <p class="tz-k">${TZ_NOM[fase]}${f === 'pausa' ? ' · en pausa' : listo ? ' · lista' : ''}</p>
+      <p class="tz-left" id="tz-left" role="timer" aria-live="off" aria-label="Tiempo que queda" tabindex="-1"${listo ? '' : ' data-tz-left'}>${left}</p>
+      ${tzPuntosHtml(r)}
+      ${msg}${tzAhoraHtml(r)}
+      <div class="tz-b${listo ? ' tz-b-go' : ''}">${btns}</div>
+      ${hay ? '<p class="tz-pie"><button type="button" class="tz-link" data-tz-acc="terminar">Terminar</button></p>' : ''}
+    </section>
+    <p class="tz-res" id="tz-res">${esc(tzHoyTxt())}</p>
+    <h3 class="tz-h">Pendiente de hoy</h3>
+    ${tzListaHtml()}
+    ${tzAjHtml()}</div>`;
+}
+function tzRender(foco, forzar = false) {
+  if (!tzBody || tzPintando) return;   // al repintar, el campo que se va suelta el foco y su «change» no repinta otra vez
+  if (!foco && tzFocoPend) foco = tzFocoPend; tzFocoPend = '';
+  try { const a = document.activeElement; if (!foco && !forzar && a && a.matches?.('[data-tz-in]') && tzBody.contains(a)) return; } catch {}   // escribiendo un número: no se repinta
+  const r = tzRun(), D = tzD();
+  let pend = []; try { pend = tzPend().map(it => it.id + '|' + (it.h || '') + '|' + agMinDe(it) + '|' + it.t); } catch {}
+  const sig = JSON.stringify([tzFase(r), r && r.sid, r && r.fase, r && r.n, r && r.segId, tzFocoRaw()?.id, D.accion, D.corto, D.largo, D.cada, D.auto, D.ses.length, pend, today(), agHorasOcultas(), tzUltTxt]);
+  if (!foco && !forzar && sig === tzSigV && tzBody.firstChild) { if (r) tzPintarHora(r); return; }
+  tzSigV = sig;
+  const y = scrollY;
+  tzPintando = true;
+  try { tzBody.innerHTML = tzHtml(); } finally { tzPintando = false; }
+  tzCabeza();
+  if (!foco) return;
+  let n = null; for (const q of String(foco).split('||')) { try { n = tzBody.querySelector(q); } catch { n = null; } if (n) break; }
+  if (!n) n = tzBody.querySelector('#tz-left');
+  if (n) try { n.focus({ preventScroll: true }); } catch {}
+  try { scrollTo(0, y); } catch {}
+}
+function tzRepintar(foco = '') {
+  try { if (view === 'temporizador') tzRender(foco || undefined, true); } catch (e) { console.warn('Temporizador', e); }
+  try { iniRepintar(); } catch {}
+  try { if (agEnVista()) renderAg(); } catch {}
+}
+// Con el temporizador en marcha, la cabecera se reduce al título (como Descanso cognitivo).
+function tzCabeza() { try { document.body.classList.toggle('tz-en-curso', view === 'temporizador' && tzActivo(tzRun())); } catch {} }
+function tzVista() {
+  if (!tzHost) return;
+  tzHost.hidden = view !== 'temporizador'; tzCabeza();
+  if (view === 'temporizador') { tzRender(); if (tzRun()) tzSync(); }
+}
+renderAll = (f => function () { const x = f.apply(this, arguments); try { tzVista(); } catch (e) { console.warn('Temporizador', e); } return x; })(renderAll);
+if (tzHost) {
+  tzHost.addEventListener('click', e => {
+    const t = e.target;
+    const it = t.closest?.('[data-tz-it]');
+    if (it) { const id = it.dataset.tzIt, x = tzPend().find(y => y.id === id) || null; tzElegir(x && tzFocoIt()?.id === id ? null : x); return; }
+    const pm = t.closest?.('[data-tz-pm]');
+    if (pm) { const k = pm.dataset.tzPm, v0 = tzD()[k], up = +pm.dataset.d > 0, de5 = k === 'accion' || k === 'largo';   // de 5 en 5 desde 10 min
+      const v = !de5 ? v0 + (up ? 1 : -1) : up ? (v0 < 10 ? v0 + 1 : Math.floor(v0 / 5) * 5 + 5) : (v0 <= 10 ? v0 - 1 : Math.ceil(v0 / 5) * 5 - 5);
+      tzAjustar(k, v); setTimeout(() => tzBody.querySelector(`[data-tz-pm="${k}"][data-d="${pm.dataset.d}"]:not([disabled])`)?.focus({ preventScroll: true }), 0); return; }
+    const a = t.closest?.('[data-tz-acc]'); if (!a) return;
+    const k = a.dataset.tzAcc;
+    if (k === 'empezar') tzEmpezar();
+    else if (k === 'pausa') tzPausa();
+    else if (k === 'seguir') tzSeguir();
+    else if (k === 'saltar') tzSaltar();
+    else if (k === 'terminar') tzTerminar();
+    else if (k === 'hecho') tzHecho();
+    else if (k === 'agenda') irA('agenda');
+  });
+  tzHost.addEventListener('change', e => {
+    const i = e.target;
+    if (i?.id === 'tz-auto') { const D = tzD(); D.auto = !!i.checked; D.mod = Date.now(); guardar(); tzDecir(i.checked ? 'La siguiente fase empieza sola.' : 'La siguiente fase espera a que la empieces.'); return; }
+    if (i?.dataset?.tzIn && !tzPintando) tzAjustar(i.dataset.tzIn, i.value);
+  });
+  tzHost.addEventListener('input', e => { const i = e.target; if (!i?.dataset?.tzIn) return; const v = i.value.replace(/\D/g, '').slice(0, 3); if (v !== i.value) i.value = v; });
+  tzHost.addEventListener('keydown', e => { const i = e.target; if (i?.dataset?.tzIn && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const k = i.dataset.tzIn; tzAjustar(k, i.value); } });
+  tzHost.addEventListener('toggle', e => { if (e.target.classList?.contains('tz-aj')) tzAjAbierto = e.target.open; }, true);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && tzRun()) tzSync(); else if (document.visibilityState !== 'visible') tzWake(false); });
+addEventListener('pageshow', () => { if (tzRun()) tzSync(); });
+// ---------- La Agenda: la fila de la cosa elegida muestra la cuenta atrás en su botón (el mismo data-tm-go: los gestos de siempre)
+function tzEnCosa(it, ok) { if (!it || ok) return null; const r = tzRun(), f = tzFase(r); return (f === 'corre' || f === 'pausa') && r.fase === 'accion' && r.segId === it.id && !tempDe(it.id) ? r : null; }
+agAccionBtnHtml = (f => function (it, ok) {
+  const r = tzEnCosa(it, ok); if (!r) return f.apply(this, arguments);
+  return `<button type="button" class="ag-pil ag-acc on tz-pil" data-tm-go="${esc(it.id)}" aria-label="Temporizador en marcha de «${esc(it.t)}». Toca para verlo"><span class="ag-pil-i">${tzFase(r) === 'pausa' ? '⏸' : '⏱'} <span class="ag-temp" data-tz-left>${fmtClock(tzResta(r) / 1000)}</span> · Ver</span></button>`;
+})(agAccionBtnHtml);
+agPildoraHtml = (f => function (it, ok) {
+  const r = tzEnCosa(it, ok); if (!r) return f.apply(this, arguments);
+  return ` · <button type="button" class="ag-pil on tz-pil" data-tm-go="${esc(it.id)}" aria-label="Temporizador en marcha de «${esc(it.t)}». Toca para verlo"><span class="ag-pil-i">${tzFase(r) === 'pausa' ? '⏸' : '⏱'} <span class="ag-temp" data-tz-left>${fmtClock(tzResta(r) / 1000)}</span></span></button>`;
+})(agPildoraHtml);
+window.tzEnCosaId = id => { try { return !!tzEnCosa(agPorId(id), false); } catch { return false; } };   // la fila plegada de la Agenda: su línea muestra la cuenta atrás
+// «Empezar acción» de la cosa que ya lleva el Temporizador: lleva a él. Otra cosa: el de la Agenda, como siempre (este queda en pausa).
+tempEmpezar = (f => function (it0) { if (it0 && tzEnCosa(agPorId(it0.id) || it0, false)) { closeSheet(); irA('temporizador'); return; } return f.apply(this, arguments); })(tempEmpezar);
+tempIniciar = (f => function () { const x = f.apply(this, arguments); try { const T = tempAct(); if (T && !T.pausa && tzCeder()) tzDecir('El Temporizador quedó en pausa.'); } catch {} return x; })(tempIniciar);
+tempAvisoCambiar = (f => function (msg, deshacer) { if (tzCedioT && Date.now() - tzCedioT < 2000) { tzCedioT = 0; msg = `${msg} El Temporizador quedó en pausa.`; } return f.call(this, msg, deshacer); })(tempAvisoCambiar);
+agMarcar = (f => function () { const x = f.apply(this, arguments); try { if (view === 'temporizador') setTimeout(() => tzRender(), 0); } catch {} return x; })(agMarcar);
+// El aviso de Android del Temporizador (clave 'tz|…'): abre el Temporizador. Se envuelve tempAccion (window.opTempAccion lo llama).
+tempAccion = (f => function (acc, k) { if (String(k || '').startsWith('tz|')) { setTimeout(() => { closeSheet(); irA('temporizador'); }, 0); return true; } return f.apply(this, arguments); })(tempAccion);
+// La Agenda quita todas sus alarmas nativas con cancelarAviso(''): la del Temporizador vuelve enseguida.
+tempNativo = (f => function () { const x = f.apply(this, arguments); try { if (OP_ANDROID) tzNat(tzRun()); } catch {} return x; })(tempNativo);
+// Uno a la vez también con la sesión de enfoque: al empezar una, el Temporizador queda en pausa (y lo dice).
+startFocus = (f => function () { let cedio = false; try { cedio = tzCeder(); } catch {} const x = f.apply(this, arguments); if (cedio) { tzCedioT = 0; tzDecir('El Temporizador quedó en pausa.'); setTimeout(() => toast('Sesión de enfoque en marcha. El Temporizador quedó en pausa.'), 60); } return x; })(startFocus);
+// «Empezar» del «Ahora» de la Agenda y de las tarjetas del Inicio: con el Temporizador en esa cosa, su cuenta atrás (toca para verlo).
+function tzEmpBtnHtml(r, attr) { return `<button type="button" class="ag-fb-go ag-fb-temp tz-pil" ${attr} aria-label="Temporizador en marcha. Toca para verlo">${tzFase(r) === 'pausa' ? '⏸' : '⏱'} <span data-tz-left>${fmtClock(tzResta(r) / 1000)}</span></button>`; }
+agEmpBtn = (f => function (it) { const r = it ? tzEnCosa(agPorId(it.id) || it, false) : null; return r ? tzEmpBtnHtml(r, 'data-foco="empezar"') : f.apply(this, arguments); })(agEmpBtn);
+icEstHtml0 = (f => function () { const h = f.apply(this, arguments); try { const B = icB('ag-fb-go', 'est-emp', 'Empezar'); if (typeof h === 'string' && h.includes(B)) { const x = icEstudio(icArribaEst()), it = x && x.b ? agParaBloqueIt(x.b) : null, r = it ? tzEnCosa(agPorId(it.id) || it, false) : null; if (r) return h.replace(B, tzEmpBtnHtml(r, 'data-ic="est-emp"')); } } catch {} return h; })(icEstHtml0);
+icHbHtml = (f => function () { const h = f.apply(this, arguments); try { const B = icB('ag-fb-go', 'hb-emp', 'Empezar'); if (typeof h === 'string' && h.includes(B)) { const x = icHabito(), it = x && x.h ? cadHabItem(x.h) : null, r = it ? tzEnCosa(agPorId(it.id) || it, false) : null; if (r) return h.replace(B, tzEmpBtnHtml(r, 'data-ic="hb-emp"')); } } catch {} return h; })(icHbHtml);
+// ---------- El Inicio: la fila (en «Organizar y hacer», después de Agenda y Calendario), su línea y la tarjeta en marcha
+{ const g = INI_GRUPOS.find(x => x[0] === 'Organizar y hacer'); if (g && !g[1].includes('temporizador')) { const i = g[1].indexOf('caldia'), j = i >= 0 ? i : g[1].indexOf('agenda'); g[1].splice(j >= 0 ? j + 1 : g[1].length, 0, 'temporizador'); } }
+INI_ESTADO.temporizador = () => {
+  const r = tzRun(), f = tzFase(r);
+  if (f === 'corre' || f === 'fin') return `${TZ_NOM[r.fase]} en curso`;
+  if (f === 'pausa') return `${TZ_NOM[r.fase]} en pausa`;
+  const H = tzHoy(), D = tzD();
+  return H.n || H.m ? tzHoyTxt() : `Acción ${D.accion} min · descanso ${D.corto} y ${D.largo} min`;
+};
+window.tzInicioHtml = oc => {
+  if (oc && oc.has('temporizador')) return '';
+  const r = tzRun(), f = tzFase(r); if (!r || (f === 'espera' && r.fase === 'accion' && r.n === 0)) return '';
+  const B = (cls, q, t) => `<button type="button" class="${cls}" data-tz="${q}">${t}</button>`, it = r.fase === 'accion' ? tzFocoIt() : null;
+  const m = r.fase === 'accion' && it && f !== 'espera' ? `Ahora: «${esc(it.t)}»` : esc(tzHoyTxt());
+  if (f === 'espera') return icCard('tz', 'Temporizador', 'Temporizador', `Sigue: ${TZ_NOM[r.fase].toLowerCase()} · ${tzMinFase(r.fase)}&nbsp;min`, m, B('ag-fb-go', 'emp', 'Empezar') + B('ag-fb-man', 'ver', 'Ver'));
+  return icCard('tz', 'Temporizador', 'Temporizador', `${TZ_NOM[r.fase]} · ${f === 'pausa' ? 'en pausa · ' : ''}<span data-tz-left>${fmtClock(tzResta(r) / 1000)}</span>`, m,
+    B('ag-fb-go', 'ver', 'Ver') + (f === 'pausa' ? B('ag-fb-man', 'seguir', 'Continuar') : B('ag-fb-man', 'pausa', 'Pausa')));
+};
+iniW.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-tz]'); if (!b || !iniW.contains(b) || b.disabled) return;
+  e.stopPropagation();
+  const q = b.dataset.tz;
+  if (q === 'ver') { irA('temporizador'); return; }
+  if (q === 'emp') { tzEmpezar(); return; }
+  if (q === 'pausa') tzPausa(); else if (q === 'seguir') tzSeguir();
+  iniRepintar(); iniW.querySelector('#ini-c-tz .ag-foco-b button')?.focus({ preventScroll: true });
+});
+{ const st = document.createElement('style'); st.textContent = `
+  #view-temporizador { --tz-soft: color-mix(in srgb, var(--text) 6%, var(--bg)); }
+  #view-temporizador .tz-reloj { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 14px 14px; border: 1.5px solid var(--line); border-radius: 22px; background: var(--tz-soft); }
+  #view-temporizador .tz-reloj.tz-f-corto, #view-temporizador .tz-reloj.tz-f-largo { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); }
+  #view-temporizador .tz-k { margin: 0; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  #view-temporizador .tz-f-corto .tz-k, #view-temporizador .tz-f-largo .tz-k { color: var(--green); }
+  #view-temporizador .tz-left { margin: 4px 0 6px; font-size: clamp(3.2rem, 18vw, 4.6rem); font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -.02em; outline: none; }
+  #view-temporizador .tz-pausa .tz-left { color: var(--muted); }
+  #view-temporizador .tz-dots { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  #view-temporizador .tz-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--muted); box-sizing: border-box; }
+  #view-temporizador .tz-dot.on { background: var(--text); border-color: var(--text); }
+  #view-temporizador .tz-dot.cur { border-color: var(--text); box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 25%, transparent); }
+  #view-temporizador .tz-n { margin-left: 6px; font-size: .88rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #view-temporizador .tz-msg { margin: 0 0 8px; font-size: .95rem; font-weight: 600; overflow-wrap: anywhere; }
+  #view-temporizador .tz-ahora { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 14px; max-width: 100%; }
+  #view-temporizador p.tz-ahora, #view-temporizador .tz-ahora-t { margin: 0; font-size: 1rem; line-height: 1.35; overflow-wrap: anywhere; min-width: 0; }
+  #view-temporizador .tz-ahora-t { font-weight: 600; } #view-temporizador .tz-ahora-t small { display: block; font-weight: 500; color: var(--muted); font-size: .85rem; }
+  #view-temporizador .tz-sin { color: var(--muted); font-size: .93rem; margin-bottom: 14px; }
+  #view-temporizador .tz-ok { flex: none; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--green); color: #fff; font-weight: 700; font-size: .95rem; }
+  #view-temporizador .tz-b { display: flex; gap: 10px; width: 100%; max-width: 380px; }
+  #view-temporizador .tz-b.tz-b-go { flex-direction: column; }
+  #view-temporizador .tz-b button { flex: 1 1 0; min-width: 0; min-height: 52px; border-radius: 999px; font-weight: 600; font-size: 1rem; padding: 0 10px; overflow-wrap: anywhere; }
+  #view-temporizador .tz-go { background: var(--text); color: var(--bg); font-weight: 700 !important; font-size: 1.05rem !important; }
+  #view-temporizador .tz-btn { border: 1.5px solid var(--text); color: var(--text); } #view-temporizador .tz-btn.tz-sec { font-weight: 500; }
+  #view-temporizador .tz-b-go .tz-btn.tz-sec { flex: none; min-height: 44px; border: 0; text-decoration: underline; text-underline-offset: 3px; font-size: .95rem; }
+  #view-temporizador .tz-pie { margin: 6px 0 0; }
+  #view-temporizador .tz-link { min-height: 44px; min-width: 44px; padding: 0 12px; color: var(--muted); font-size: .92rem; text-decoration: underline; text-underline-offset: 3px; }
+  #view-temporizador .tz-res { margin: 12px 0 22px; color: var(--muted); font-size: .92rem; text-align: center; overflow-wrap: anywhere; }
+  #view-temporizador .tz-h { margin: 0 0 8px; }
+  #view-temporizador .tz-list { border-top: 1px solid var(--line); margin: 0 0 18px; }
+  #view-temporizador .tz-it { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; color: var(--text); background: none; border-radius: 0; }
+  #view-temporizador .tz-it.on { background: var(--tz-soft); box-shadow: inset 3px 0 0 var(--text); }
+  #view-temporizador .tz-it-h { flex: none; width: 4.9em; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #view-temporizador .tz-it-t { flex: 1 1 auto; min-width: 0; font-size: .97rem; line-height: 1.3; overflow-wrap: anywhere; }
+  #view-temporizador .tz-it-t small { display: block; color: var(--muted); font-size: .82rem; }
+  #view-temporizador .tz-it.on .tz-it-t { font-weight: 600; }
+  #view-temporizador .tz-vacio { color: var(--muted); font-size: .93rem; margin: 0 0 18px; }
+  #view-temporizador .tz-vacio .tz-link { padding: 0 4px; color: var(--text); }
+  #view-temporizador .tz-aj { border-top: 1px solid var(--line); padding: 4px 0 8px; }
+  #view-temporizador .tz-aj summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+  #view-temporizador .tz-aj-f { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; }
+  #view-temporizador .tz-aj-l { flex: 1 1 auto; min-width: 0; font-size: .95rem; font-weight: 600; overflow-wrap: anywhere; }
+  #view-temporizador .tz-aj-l small { display: block; font-weight: 500; font-size: .8rem; color: var(--muted); }
+  #view-temporizador .tz-aj-c { flex: none; display: flex; align-items: center; gap: 6px; }
+  #view-temporizador .tz-pm { width: 44px; height: 44px; border-radius: 999px; border: 1.5px solid var(--line); font-size: 1.3rem; font-weight: 700; line-height: 1; color: var(--text); }
+  #view-temporizador .tz-pm:disabled { opacity: .4; }
+  #view-temporizador .tz-aj-c input { width: 3.6em; min-height: 44px; box-sizing: border-box; margin: 0; padding: 0 4px; border: 1.5px solid var(--line); border-radius: 12px; text-align: center; font: inherit; font-size: 1.05rem; font-variant-numeric: tabular-nums; background: transparent; color: var(--text); }
+  #view-temporizador .tz-aj-c input:focus { border-color: var(--text); outline: none; }
+  #view-temporizador .tz-auto { display: flex; align-items: center; gap: 10px; min-height: 48px; font-size: .95rem; cursor: pointer; }
+  #view-temporizador .tz-auto input { flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--text); }
+  #view-temporizador .tz-aj-n { margin: 2px 0 0; color: var(--muted); font-size: .85rem; }
+  #view-temporizador .tz-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  #view-temporizador button:focus-visible, #view-temporizador input:focus-visible, #view-temporizador summary:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  body.tz-en-curso header.top .date, body.tz-en-curso #xp-chip, body.tz-en-curso #global { display: none !important; }
+  body.tz-en-curso header.top { margin-bottom: 14px; } body.tz-en-curso header.top h1 { font-size: 1.5rem; }
+  @media (max-height: 640px) { #view-temporizador .tz-reloj { padding-top: 12px; } #view-temporizador .tz-left { font-size: clamp(2.8rem, 15vw, 3.6rem); } }`;
+  document.head.append(st); }
+{ const st = document.createElement('style'); st.textContent = '.tz-pil .ag-temp { font-variant-numeric: tabular-nums; }'; try { agR.appendChild(st); } catch {} }
+tzTickOn(); try { const r0 = tzRun(); if (r0 && tzFase(r0) === 'fin') tzFin(r0); else if (r0) tzNat(r0); } catch {}
+window.tzApi = { run: () => tzRun(), fase: () => tzFase(tzRun()), resta: () => tzResta(tzRun()), datos: () => JSON.parse(JSON.stringify(tzD())), pend: () => tzPend().map(it => it.id), foco: () => tzFocoIt()?.id || '', wake: () => !!tzWL, hoy: () => tzHoy(), ag: { hecho: id => agFocoHecho(agPorId(id)), marcar: id => agMarcar(agPorId(id), true), item: id => JSON.parse(JSON.stringify(agPorId(id) || null)), nat: por => tempNativo(por), sonido: on => tempSonidoPoner(on) }, sesion: () => !!ES.sesion, minCosa: id => tzMinCosa(id), norm: x => tzNorm(x), fusion: (a, b) => tzFusion(a, b, new Set()) };   // 2.23.0 (T) · para las pruebas
 window.icIniciativa = { lista: () => icIniLista().map(x => ({ k: x.k, t: x.t, mia: !!x.mia, sinXp: !!x.sinXp })), actual: () => { const x = icIniActual(); return x ? { k: x.k, t: x.t } : null; }, sel: () => icIniSel, cat: k => iniNombre(k), catalogo: k => (INI_CAT[k] || []).slice(), ideasHoy: () => agParaIdeas().map(x => ({ k: x.k, t: x.t })) };   // 2.22.5 (C) · para las pruebas
 window.icInicio = { estudio: () => icEstudio(icArribaEst()), habito: () => icHabito(), cons: () => icCons(), rf: () => icRfHecha(), preg: () => rfPregHoy(), rfDraft: () => rfDraft, rfVista: () => rfVista, rfGuardar: txt => { if (!rfDraft) return null; rfDraft.r.txt = txt; const g = rfGuardarDraft(true); rfVista = null; rfDraft = null; return g; } };   // para las pruebas
 function iniMananaHtml() {
