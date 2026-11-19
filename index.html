@@ -558,6 +558,7 @@
   <div id="view-iniciativas" hidden></div>
   <div id="view-consistencia" hidden></div>   <!-- 2.22.3 (M) -->
   <div id="view-descanso" hidden></div>   <!-- 2.22.6 (D) -->
+  <div id="view-caldia" hidden></div>   <!-- 2.22.9 (C) -->
   <div id="view-bloques" hidden></div>
   <div id="view-estudio" hidden></div>
   <div id="view-journal" hidden></div>
@@ -605,6 +606,9 @@
   </button>
   <button class="tab" data-view="agenda">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg>Agenda
+  </button>
+  <button class="tab" data-view="caldia">   <!-- 2.22.9 (C) -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 13.5h4M8 16.5h7"/></svg>Calendario del día
   </button>
   <button class="tab" data-view="iniciativas">   <!-- 2.22.0 (N) -->
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.5 1.1-2.1A6 6 0 0 0 12 3z"/></svg>Iniciativas
@@ -759,7 +763,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.22.9';
+const APP_VERSION = '2.23.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -849,6 +853,7 @@ function normalize(s) {
   if ('logTarde' in s && (!s.logTarde || typeof s.logTarde !== 'object' || Array.isArray(s.logTarde))) delete s.logTarde;   // 2.22.5 (H)
   if ('logMeta' in s && (!s.logMeta || typeof s.logMeta !== 'object' || Array.isArray(s.logMeta))) delete s.logMeta;   // 2.22.5 (W) · lo anotado de los hábitos con meta
   s.nombre = String(s.nombre || '').trim();
+  if (s.calendario !== undefined) s.calendario = cdNorm(s.calendario);   // 2.22.9 (C) · calendario del día
   s.cambiado = +s.cambiado || 0;
   if (!Array.isArray(s.borrados)) s.borrados = [];
   s.tareas ||= { listas: [{ id: 'inbox', nombre: 'Mis tareas' }], items: [] };
@@ -1240,7 +1245,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', caldia: 'Calendario del día', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Calendario', analisis: 'Análisis' }[view];
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -1399,6 +1404,37 @@ function iniFusion(I, J, t) {
   for (const y of L(J.items)) if (y && typeof y.k === 'string' && !items.some(x => x && x.k === y.k)) items.push(y);
   return { ...I, items };
 }
+// 2.22.9 (C) · Calendario del día: dónde va un hábito solo ese día. { dias: { 'AAAA-MM-DD': { 'hab:ID': { h?, min?, m } } } }.
+// Sin h ni min = «volvió a su hora» (queda con su m para que al combinar no vuelva lo de antes). Más de 60 días atrás, se borra.
+function cdNorm(x) {
+  const o = x && typeof x === 'object' && !Array.isArray(x) ? x : {}, D = o.dias && typeof o.dias === 'object' && !Array.isArray(o.dias) ? o.dias : {}, out = {};
+  const c = new Date(); c.setDate(c.getDate() - 60);
+  const corte = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}-${String(c.getDate()).padStart(2, '0')}`;
+  for (const d of Object.keys(D).sort().slice(-400)) {
+    const v = D[d]; if (!/^\d{4}-\d\d-\d\d$/.test(d) || d < corte || !v || typeof v !== 'object' || Array.isArray(v)) continue;
+    const r = {};
+    for (const k of Object.keys(v).slice(0, 300)) {
+      const p = v[k]; if (!/^hab:[^\s]{1,80}$/.test(k) || !p || typeof p !== 'object' || Array.isArray(p)) continue;
+      const n = {}, mi = Math.round(+p.min);
+      if (typeof p.h === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(p.h)) n.h = p.h;
+      if (mi >= 5 && mi <= 720) n.min = mi;
+      n.m = +p.m > 0 ? +p.m : 0;
+      r[k] = n;
+    }
+    if (Object.keys(r).length) out[d] = r;
+  }
+  return { dias: out };
+}
+// Dos copias: por día y por hábito, gana la cambiada más tarde.
+function cdFusion(x, y) {
+  const A = cdNorm(x).dias, B = cdNorm(y).dias, out = {};
+  for (const d of new Set([...Object.keys(B), ...Object.keys(A)])) {
+    const a = A[d] || {}, b = B[d] || {}, r = {};
+    for (const k of new Set([...Object.keys(b), ...Object.keys(a)])) { const p = a[k], q = b[k]; r[k] = !q ? p : !p ? q : (+q.m || 0) > (+p.m || 0) ? q : p; }
+    out[d] = r;
+  }
+  return cdNorm({ dias: out });
+}
 function mergeStates(a, b) {
   a = normalize(a); b = normalize(b);
   const newer = a.cambiado >= b.cambiado ? a : b, older = newer === a ? b : a;
@@ -1412,6 +1448,7 @@ function mergeStates(a, b) {
   out.log = perId(newer.log, older.log); out.razones = perId(newer.razones, older.razones);
   out.motivos = perId(newer.motivos, older.motivos); out.progreso = perId(newer.progreso, older.progreso);
   out.timers = newer.timers;
+  { const c = cdFusion(newer.calendario, older.calendario); if (Object.keys(c.dias).length) out.calendario = c; else delete out.calendario; }   // 2.22.9 (C)
   { const o = x => x && typeof x === 'object' && !Array.isArray(x) ? x : {}, lt = perId(o(newer.logTarde), o(older.logTarde));   // 2.22.5 (H) · cuándo se agregó un día anterior
     if (Object.keys(lt).length) out.logTarde = lt; else delete out.logTarde; }
   { const o = x => x && typeof x === 'object' && !Array.isArray(x) ? x : {}, A = o(newer.logMeta), B = o(older.logMeta), lm = {};   // 2.22.5 (W) · por hábito y día: gana lo anotado más reciente (en); { en } solo = quitado
@@ -20383,7 +20420,7 @@ const INI_CSS = `
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS + AG_YA_BTN_CSS; iniR.append(iniStyle, iniW); }   // 2.21.3 (B) · AG_YA_BTN_CSS
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
-const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'iniciativas', 'bloques', 'hoy', 'consistencia', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar', 'descanso']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
+const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'caldia', 'iniciativas', 'bloques', 'hoy', 'consistencia', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar', 'descanso']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
 // Líneas de estado: se calculan solo al pintar, una llamada a cada helper, sin guardar nada.
 const INI_ESTADO = {
   identidad: () => {
@@ -27464,7 +27501,8 @@ function agcHtml(E, hijo, o = {}) {
 }
 
 // ---------- La Agenda en calendario.
-function agcAgendaHtml(its, A, cadM, org0) {
+// 2.22.9 (C) · Las cosas de la Agenda para el calendario (la Agenda y el Calendario del día usan las mismas).
+function agcAgendaE(its, cadM) {
   const ids = new Set(its.map(it => it.id)), hijo = new Map();
   for (const it of its) { const x = cadM.get(it.id); if (x?.prev && ids.has(x.prev.id)) hijo.set(it.id, x.prev.id); }
   const E = its.map(it => {
@@ -27475,6 +27513,10 @@ function agcAgendaHtml(its, A, cadM, org0) {
     return { id: it.id, t: it.foco ? agbFocoTitulo(it) : agTituloEst(it), h: it.h || '', min: Math.max(5, agMinDe(it)), tk: agcTipoDe(it), ok, lock, rs: true, meta: agcMeta(it),
       open: true, chk: it.tipo !== 'evento', pill: /data-tm-go/.test(pil) ? pil.replace(/^ · /, '') : '', cad: hijo.has(it.id) ? agTrasTxt(cadM.get(it.id)) : prevR ? `«${prevR.nombre}», que hoy no está` : '', etq, rut: agRutNombre(it) };
   });
+  return { E, hijo };
+}
+function agcAgendaHtml(its, A, cadM, org0) {
+  const { E, hijo } = agcAgendaE(its, cadM);
   return `<div class="ag-lista agc-vista">${org0 ? agAhoraLineaHtml() : ''}${E.length ? agcHtml(E, hijo, { ctx: 'ag', ahora: nowMin() }) : '<p class="empty">Nada en la agenda de hoy todavía.</p>'}</div>`;
 }
 function agcBtEditar(it, c) {
@@ -27754,6 +27796,7 @@ window.agCal = { vista: () => agcVista(), poner: v => { agcVistaPoner(v === 'cal
   .agc-org-pie { margin-top: 12px; }
   #agc-org .agc-sc { max-height: min(58vh, 560px); }`;
   const a = document.createElement('style'); a.textContent = css; agR.appendChild(a);
+  agcCssTxt = css;   // 2.22.9 (C) · también para el Calendario del día
   const b = document.createElement('style'); b.textContent = css; ov.appendChild(b);
   // Paleta por tipo (claro y oscuro): contraste de 3:1 o más contra el fondo; la letra distingue aunque dos colores se parezcan.
   const pal = `
@@ -27763,6 +27806,227 @@ window.agCal = { vista: () => agcVista(), poner: v => { agcVistaPoner(v === 'cal
   const c = document.createElement('style'); c.textContent = pal; document.head.appendChild(c);
 }
 
+
+// ====================================================================
+// 2.22.9 (C) · «Agregame un apartado de calendario (plano y arrastrable) donde se incluya todo el día, tanto agenda como hábitos.»
+// #view-caldia (shadow root propio con los estilos del calendario de la Agenda). Un día: lo de la Agenda (agcAgendaE) y los hábitos que
+// tocan (con su cadena). agcWire hace el arrastre; lo de la Agenda se guarda con agcCfgAg; un hábito, solo ese día (state.calendario).
+// ====================================================================
+var agcCssTxt = agcCssTxt || '';
+const cdHost = document.getElementById('view-caldia');
+let cdR = null, cdW = null, cdSel = null, cdSig = '', cdUlt = { d: '', hab: new Map() };
+const CD_AGC_CSS = ".agc-asa { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 3; width: 30px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1rem; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }\n.agc-b:not([data-agc-lock]):not(.agc-estr) .agc-s { padding-right: 26px; } .agc-estr .agc-asa { width: 22px; opacity: .8; }\n.agc-asa-c { position: static; transform: none; width: 26px; height: 44px; margin: 0 -8px 0 -2px; flex: none; }\n.agc-b.agc-rut { overflow: visible; }\n.agc-rut-n { position: absolute; right: 4px; top: 2px; z-index: 2; max-width: 46%; padding: 0 6px; border-radius: 999px; background: var(--bg); color: var(--muted); font-size: .68rem; font-weight: 700; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }\n";   // el asa ⠿ y el nombre de la rutina: viven en otros bloques de estilo de la Agenda
+const CD_CSS = `
+  .cd { padding-bottom: 8px; }
+  .cd-nav { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; }
+  .cd-fl { flex: none; width: 44px; height: 44px; border-radius: 999px; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 1.35rem; line-height: 1; color: var(--text); }
+  .cd-dia { flex: 1 1 auto; min-width: 0; margin: 0; text-align: center; font-weight: 600; font-size: 1rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .cd-dia small { display: block; color: var(--muted); font-weight: 500; font-size: .82rem; }
+  .cd-hoy { flex: none; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--text); font-weight: 600; font-size: .9rem; white-space: nowrap; }
+  .cd-res { margin: 0 0 10px; color: var(--muted); font-size: .86rem; overflow-wrap: anywhere; }
+  .cd .agc-ayuda { overflow-wrap: anywhere; }
+  .cd .empty { color: var(--muted); font-size: .92rem; margin: 6px 0 0; }
+  .cd button:focus-visible, .cd [role="button"]:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .cd .agc-s.cd-salt, .cd .agc-chip.cd-salt { opacity: .55; }
+  ${CD_AGC_CSS}`;
+if (cdHost) {
+  cdR = cdHost.attachShadow({ mode: 'open' });
+  const st = document.createElement('style'); st.textContent = ENFOQUE_CSS + agcCssTxt + CD_CSS;
+  cdW = document.createElement('div'); cdW.className = 'enf cd'; cdR.append(st, cdW);
+}
+const cdDia = () => cdSel && /^\d{4}-\d\d-\d\d$/.test(cdSel) ? cdSel : today();
+function cdDatos() { let C = state.calendario; if (!C || typeof C !== 'object' || Array.isArray(C) || !C.dias || typeof C.dias !== 'object') { C = cdNorm(C); state.calendario = C; } return C; }
+function cdPosRaw(d, id) { const x = cdDatos().dias[d]?.['hab:' + id]; return x && typeof x === 'object' ? x : null; }
+function cdPos(d, id) { const x = cdPosRaw(d, id); return x && (x.h || x.min) ? x : null; }
+// Cambia (o quita con null) la hora o el tiempo de un hábito ese día. Siempre con su m: al combinar, gana el más nuevo.
+function cdPosPoner(d, id, cambio) {
+  const C = cdDatos(), D = C.dias[d] || (C.dias[d] = {}), o = { ...(D['hab:' + id] || {}) };
+  for (const [k, v] of Object.entries(cambio)) { if (v === null || v === undefined || v === '') delete o[k]; else o[k] = v; }
+  o.m = Math.max(Date.now(), (+o.m || 0) + 1); D['hab:' + id] = o; save();
+}
+function cdPosVolver(d, id, antes) { const C = cdDatos(), D = C.dias[d] || (C.dias[d] = {}), m = Math.max(Date.now(), (+D['hab:' + id]?.m || 0) + 1); D['hab:' + id] = antes && (antes.h || antes.min) ? { ...antes, m } : { m }; save(); }
+function cdProt(h, d) { try { return !!window.hbProtegido?.(h, d); } catch { return false; } }
+const cdHab = id => (state.habits || []).find(x => x && x.id === id) || null;
+// Lo de la Agenda de otro día (lo que pasó o lo que ya está organizado): solo para ver.
+function cdAgOtroE(d) {
+  const t = today(); let L = [];
+  try { if (d < t) L = ES.agendaHist?.[d] || []; else { const P = planDia(d); L = P && Array.isArray(P.items) ? P.items : []; } } catch {}
+  return agVisibles(L).filter(it => it && it.t).map((it, i) => ({ id: 'cdo:' + i, t: String(it.t), h: /^\d\d:\d\d$/.test(it.h || '') ? it.h : '', min: Math.max(5, Math.round(+it.min) || agMinDe(it)), tk: agcTipoDe(it), ok: !!it.hecho, lock: true, rs: false, meta: false, open: false, chk: false, pill: '', cad: '', etq: '', rut: '' }));
+}
+// El día entero: E y hijo para agcHtml. Los hábitos llevan id 'cdh:ID'; el primero de una cadena lleva la hora (la de ese día o la suya).
+function cdArmar(d) {
+  const t = today(), hoy = d === t, pasado = d < t, E = [], hijo = new Map(), hab = new Map();
+  let its = [];
+  if (hoy) {
+    try { its = agItems(); const r = agcAgendaE(its, agCadenaMapa(agenda())); for (const e of r.E) E.push({ ...e, pill: '' }); for (const [k, v] of r.hijo) hijo.set(k, v); }
+    catch (e) { console.warn('Calendario del día', e); }
+  } else E.push(...cdAgOtroE(d));
+  const ag = E.length, ya = new Set(its.filter(it => it && it.tipo === 'habito').map(it => it.ref));   // un hábito que siguiera en la Agenda: una sola vez
+  let RK = new Map(); try { RK = hbRangoMapa(); } catch {}
+  // La cadena se arma con todos los que tocan ese día, también los protegidos (como hbCadenaHoy en Hábitos); después se esconden los
+  // protegidos sin hacer. Si el primero de una cadena queda escondido, el siguiente que se ve toma su hora (más lo que dura el escondido).
+  const T = (state.habits || []).filter(h => h && !h.rutina && !ya.has(h.id) && (!h.creado || h.creado <= d) && isSched(h, d))
+    .sort((a, b) => (RK.get(a.id) ?? 1e7) - (RK.get(b.id) ?? 1e7));
+  const H = T.filter(h => isDone(h, d) || !cdProt(h, d)), vis = new Set(H.map(h => h.id));
+  let P = new Map(); try { P = hbCadenaRefs(T.map(h => h.id), hoy ? agQuitHab() : agQuitHabDia(d)); } catch {}
+  const durDe = h => { const pos = cdPos(d, h.id); return pos && pos.min ? pos.min : h.modo === 'tiempo' ? Math.max(5, Math.round(+h.meta) || 15) : 15; };
+  const hmOk = x => /^\d\d:\d\d$/.test(x || ''), mas = (hm, m) => minToHm(Math.min(toMin(hm) + m, 23 * 60 + 55));
+  for (const h of H) {
+    let prev = '', p = P.get(h.id)?.p, suma = 0, oc = null, n = 0; const vistos = new Set([h.id]);
+    while (p && !vistos.has(p) && n++ < 80) { vistos.add(p); if (vis.has(p)) { prev = p; break; } const y = cdHab(p); if (!y) break; suma += durDe(y); oc = y; p = P.get(p)?.p; }
+    const hereda = !prev && oc ? oc : null, pos = cdPos(d, h.id), base = (h.horas || [])[0] || '';
+    let deRaiz = '', siempreH = hmOk(base) ? base : '';
+    if (hereda) { const rp = cdPos(d, hereda.id), rb = rp && rp.h ? rp.h : (hereda.horas || [])[0]; deRaiz = hmOk(rb) ? mas(rb, suma) : ''; const sb = (hereda.horas || [])[0]; siempreH = hmOk(sb) ? mas(sb, suma) : ''; }
+    const hh = prev ? '' : pos && pos.h ? pos.h : hereda ? deRaiz : hmOk(base) ? base : '';
+    const min = durDe(h);
+    const mk = mark(h, d), salt = mk === 'skip' ? 'Hoy no' : mk === 'just' ? 'Justificado' : '';
+    let rut = '', etq = 'Hábito', rel = 0;
+    try { rut = agRutNombre({ tipo: 'habito', ref: h.id }); etq = agEtqRut({ tipo: 'habito', ref: h.id }, 'Hábito'); } catch {}
+    try { rel = hbRelDia(h, d); } catch {}
+    if (prev) hijo.set('cdh:' + h.id, 'cdh:' + prev);
+    hab.set(h.id, { prev, base, min, rut, rel, hora: hh, hereda: !!hereda, siempreH, salt });
+    const etq2 = (rel ? `${etq} · relevancia ${rel}/5` : etq) + (salt ? ` · ${salt}` : '');   // «Hoy no» o justificado: cuenta como marcado, sin casilla
+    E.push({ id: 'cdh:' + h.id, t: String(h.nombre || ''), h: hh, min, tk: 'habito', ok: isDone(h, d), lock: pasado, rs: true, meta: false, open: true, chk: hoy && !salt, pill: '', cad: prev ? String(cdHab(prev)?.nombre || '') : '', etq: etq2, rut });
+  }
+  return { E, hijo, hab, ag, hb: H.length };
+}
+function cdRaiz(d, id) { const I = cdUlt.d === d ? cdUlt.hab : cdArmar(d).hab; let x = id, n = 0; while (I.get(x)?.prev && n++ < 80) x = I.get(x).prev; return x; }
+function cdNavTxt(d) {
+  const t = today(), dd = daysBetween(t, d), f = new Date(d + 'T12:00');
+  const k = dd === 0 ? 'Hoy' : dd === 1 ? 'Mañana' : dd === -1 ? 'Ayer' : cap(f.toLocaleDateString('es', { weekday: 'long' }));
+  return { k, f: f.toLocaleDateString('es', { ...(Math.abs(dd) <= 1 ? { weekday: 'long' } : {}), day: 'numeric', month: 'long' }) };
+}
+function cdRender(forzar = false) {
+  if (!cdW || view !== 'caldia') return;
+  if (agcArr && Date.now() - agcArrT < 20000) { agcPend = true; return; }   // en medio de un arrastre: al soltar
+  const d = cdDia(), t = today(), hoy = d === t, pasado = d < t, R = cdArmar(d), ancho = document.documentElement.clientWidth || innerWidth;
+  const sig = JSON.stringify([d, t, ancho, R.E, [...R.hijo]]);
+  if (!forzar && sig === cdSig && cdW.firstChild) return;
+  cdSig = sig; cdUlt = { d, hab: R.hab };
+  const N = cdNavTxt(d), n = R.E.length;
+  const ayuda = pasado ? 'Ese día ya pasó: solo para ver.'
+    : hoy ? 'Arrastra un bloque desde ⠿ para cambiar la hora; para cambiar el tiempo, mantén pulsado el borde de abajo y estíralo. Mover un hábito aquí cambia solo ese día.'
+    : `Arrastra un hábito desde ⠿ para cambiar su hora ese día.${R.ag ? ' Lo de la agenda de ese día se cambia en la Agenda.' : ''}`;
+  const res = n ? [R.ag ? `${R.ag} en la agenda` : '', R.hb ? `${R.hb} ${R.hb === 1 ? 'hábito' : 'hábitos'}` : ''].filter(Boolean).join(' · ') : '';
+  cdW.innerHTML = `<nav class="cd-nav" aria-label="Elegir día"><button type="button" class="cd-fl" data-cd-ir="-1" aria-label="Día anterior">‹</button><p class="cd-dia" aria-live="polite">${esc(N.k)}<small>${esc(N.f)}</small></p><button type="button" class="cd-fl" data-cd-ir="1" aria-label="Día siguiente">›</button>${hoy ? '' : '<button type="button" class="cd-hoy" data-cd-ir="0">Hoy</button>'}</nav>
+    ${res ? `<p class="cd-res">${esc(res)}</p>` : ''}
+    ${n ? agcHtml(R.E, R.hijo, { ctx: 'cd', ahora: hoy ? nowMin() : null, pie: false }) + `<p class="meta agc-ayuda">${esc(ayuda)}</p>` : '<p class="empty">Nada para este día.</p>'}`;
+  for (const [id, x] of R.hab) if (x.salt) cdW.querySelectorAll(`[data-agc-it="cdh:${CSS.escape(id)}"], .agc-chip[data-open="cdh:${CSS.escape(id)}"]`).forEach(el => el.classList.add('cd-salt'));
+  const S = cdW.querySelector('.agc'); if (S) agcWire(S, cdCfg);
+  cdFecha();
+}
+// La fecha de arriba de la página: la del día elegido (no dos fechas distintas en la misma pantalla).
+function cdFecha(volver = false) {
+  const el = document.getElementById('today'); if (!el || (view !== 'caldia' && !volver)) return;
+  const d = view === 'caldia' ? cdDia() : today();
+  const f = new Date(d + 'T12:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }); el.textContent = f[0].toUpperCase() + f.slice(1);
+}
+// ---------- Arrastrar y estirar: lo de la Agenda, como en su calendario; un hábito, solo ese día.
+function cdHabMover(id, hh) {
+  const d = cdDia(), h = cdHab(id); if (!h || d < today()) return;
+  const antes = cdPosRaw(d, id); cdPosPoner(d, id, { h: hh });
+  agAviso(`«${h.nombre}» pasa a las ${fmtHora(hh)}, solo ${d === today() ? 'hoy' : 'ese día'}.`, () => { cdPosVolver(d, id, antes); cdRender(true); });
+}
+function cdHabDurar(id, m) {
+  const d = cdDia(), h = cdHab(id); if (!h || d < today()) return;
+  const antes = cdPosRaw(d, id); cdPosPoner(d, id, { min: Math.max(5, Math.min(720, Math.round(m))) });
+  agAviso(`«${h.nombre}»: ${fmtMin(m)}, solo ${d === today() ? 'hoy' : 'ese día'}.`, () => { cdPosVolver(d, id, antes); cdRender(true); });
+}
+const cdCfg = {
+  mover(id, hh) {
+    if (String(id).startsWith('cdh:')) { cdHabMover(String(id).slice(4), hh); return; }
+    if (cdDia() !== today()) return;   // otro día: lo de la Agenda, solo para ver
+    agcCfgAg.mover(id, hh);
+  },
+  durar(id, m) {
+    if (String(id).startsWith('cdh:')) { cdHabDurar(String(id).slice(4), m); return; }
+    if (cdDia() !== today()) return;
+    agcCfgAg.durar(id, m);
+  },
+  repintar() { cdRender(true); },
+};
+// ---------- Marcar y la hoja de un hábito
+function cdHabMarcar(id) {
+  const h = cdHab(id), t = today(); if (!h || cdDia() !== t) return;
+  if (mark(h, t)) { cdHabSheet(id); return; }   // ya marcado (hecho, «Hoy no» o justificado): la hoja (con «Desmarcar»), como en Hábitos
+  if (marcaBloq('hb', h.id)) return;
+  marcaPon('hb', h.id);
+  complete(h, 'full');   // lo mismo que en Hábitos: el XP una vez al día, la racha y la celebración
+  cdRender(true); try { iniRepintar(); } catch {}
+}
+function cdHabSheet(id) {
+  const h = cdHab(id); if (!h) return;
+  const d = cdDia(), t = today(), hoy = d === t, pasado = d < t, I = cdUlt.d === d ? cdUlt.hab : cdArmar(d).hab, inf = I.get(id) || { prev: '', base: (h.horas || [])[0] || '', min: 15, rut: '', rel: 0 };
+  const raiz = cdRaiz(d, id), pr = cdPos(d, raiz), po = cdPos(d, id), hecho = !!mark(h, d), hi = cdUlt.d === d ? cdUlt.hab.get(raiz) : null;
+  const hora = inf.prev ? '' : inf.hora !== undefined ? inf.hora : (pr && pr.h) || inf.base || '';
+  const cuando = inf.prev ? `Después de ${cdHab(inf.prev)?.nombre || ''}` : hora ? `A las ${fmtHora(hora)}` : 'Sin hora';
+  const linea = [inf.salt, inf.rut, cuando, fmtMin(inf.min), inf.rel ? `Relevancia ${inf.rel}/5` : ''].filter(Boolean).join(' · ');
+  const movido = !!((pr && pr.h) || (po && po.min)), deSiempre = hi ? hi.siempreH : (cdHab(raiz)?.horas || [])[0] || '';
+  const siempre = !pasado && raiz === id && pr && pr.h && !inf.prev && !inf.hereda;
+  showSheet(`<div id="cd-hs"><h2>${esc(h.nombre)}</h2><p class="note">${esc(linea)}</p>
+    ${movido ? `<p class="meta">Cambiado solo ${hoy ? 'hoy' : 'ese día'}. ${deSiempre ? `Su hora de siempre: ${esc(fmtHora(deSiempre))}.` : 'De siempre, sin hora.'}</p>` : ''}
+    <div class="actions stack">
+      ${hoy ? (hecho ? '<button type="button" class="link" id="cd-hs-des">Desmarcar</button>' : '<button type="button" class="primary" id="cd-hs-ok">✓ Hecho</button>') : ''}
+      ${siempre ? `<button type="button" class="link" id="cd-hs-siempre">Usar siempre esta hora (${esc(fmtHora(pr.h))})</button>` : ''}
+      ${movido && !pasado ? '<button type="button" class="link" id="cd-hs-volver">Volver a su hora</button>' : ''}
+      <button type="button" class="link" data-goview="hoy">Ver en Hábitos</button>
+    </div></div>`);
+  const b = $('#sheet-body'); if (!b) return;
+  b.querySelector('#cd-hs-ok')?.addEventListener('click', () => { closeSheet(); cdHabMarcar(id); });
+  b.querySelector('#cd-hs-des')?.addEventListener('click', () => { closeSheet(); setMark(h, null); cdRender(true); try { iniRepintar(); } catch {} });   // como «Deshacer» en Hábitos: quita su XP
+  b.querySelector('#cd-hs-volver')?.addEventListener('click', () => {
+    if (pr && pr.h) cdPosPoner(d, raiz, { h: null });
+    if (po && po.min) cdPosPoner(d, id, { min: null });
+    closeSheet(); cdRender(true); toast('Vuelve a su hora.');
+  });
+  b.querySelector('#cd-hs-siempre')?.addEventListener('click', () => {
+    const x = cdHab(raiz); if (!x || !pr?.h) return;
+    x.horas = [pr.h, ...(Array.isArray(x.horas) ? x.horas.slice(1) : [])];
+    cdPosPoner(d, raiz, { h: null });
+    closeSheet(); render(); cdRender(true); toast(`Listo: desde ahora, a las ${fmtHora(pr.h)}.`);
+  });
+}
+// ---------- La vista, los toques y la línea de «ahora»
+function cdVista() {
+  if (!cdHost) return;
+  cdHost.hidden = view !== 'caldia';
+  if (view === 'caldia') cdRender(); else { if (cdSel) { cdSel = null; cdFecha(true); } agcScroll.cd = null; }
+}
+render = (f => function () { const x = f.apply(this, arguments); try { cdFecha(); } catch {} return x; })(render);
+renderAll = (f => function () { const x = f.apply(this, arguments); try { cdVista(); } catch (e) { console.warn('Calendario del día', e); } return x; })(renderAll);
+renderAg = (f => function () { const x = f.apply(this, arguments); try { if (view === 'caldia') cdRender(); } catch (e) { console.warn('Calendario del día', e); } return x; })(renderAg);
+if (cdW) {
+  cdW.addEventListener('click', e => {
+    const t = e.target;
+    const nv = t.closest?.('[data-cd-ir]');
+    if (nv) { const k = +nv.dataset.cdIr, d = cdDia(); cdSel = k === 0 ? null : dayKey(addDays(new Date(d + 'T12:00'), k)); if (cdSel === today()) cdSel = null;
+      const lim = (a, b) => Math.abs(daysBetween(a, b)) <= 365; if (cdSel && !lim(today(), cdSel)) cdSel = d;
+      agcScroll.cd = null; cdRender(true); cdW.querySelector(k === 0 ? '[data-cd-ir="-1"]' : `[data-cd-ir="${k}"]`)?.focus({ preventScroll: true }); return; }
+    const c = t.closest?.('[data-chk]');
+    if (c) {
+      const id = c.dataset.chk;
+      if (id.startsWith('cdh:')) { cdHabMarcar(id.slice(4)); return; }
+      if (cdDia() !== today()) return;
+      const it = agItems().find(x => x.id === id); if (!it) return;
+      if (marcaBloq('ag', it.id)) return;
+      if (it.tipo === 'estudio' && !agHecho(it) && exPedirEj(it)) return;
+      if (!agHecho(it)) { c.classList.add('ya', 'on'); c.setAttribute('aria-pressed', 'true'); }
+      agRutCerrarSi(it); agMarcarYa(it, null, false);   // como en la Agenda: el mismo XP, «Deshacer» y lo que sigue
+      return;
+    }
+    const o = t.closest?.('[data-open]');
+    if (o) {
+      const id = o.dataset.open;
+      if (id.startsWith('cdh:')) { cdHabSheet(id.slice(4)); return; }
+      if (cdDia() !== today()) return;
+      const it = agItems().find(x => x.id === id); if (it) agItemSheet(it, false);
+    }
+  });
+  cdW.addEventListener('keydown', e => { const o = e.target.closest?.('[data-open][role="button"]'); if (o && e.target === o && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); o.click(); } });
+}
+try { setInterval(() => { try { if (view !== 'caldia' || !cdW?.isConnected) return; const n = cdW.querySelector('.agc-now'); if (!n) return; const S = n.closest('.agc'), ini = +S.dataset.agcIni || 0, m = nowMin(); n.style.top = (m - ini) * AGC_PPM + 'px'; const sp = n.querySelector('span'); if (sp) sp.textContent = fmtHora(minToHm(m)); } catch {} }, 30000); } catch {}
+INI_ESTADO.caldia = () => { const R = cdArmar(today()); return R.ag || R.hb ? `Hoy: ${R.ag} en la agenda · ${R.hb} ${R.hb === 1 ? 'hábito' : 'hábitos'}` : 'Tu día en una sola vista'; };
+window.cdApi = { dia: () => cdDia(), ir: d => { cdSel = d && d !== today() ? d : null; agcScroll.cd = null; cdRender(true); }, datos: () => JSON.parse(JSON.stringify(cdDatos())), armar: d => { const R = cdArmar(d || cdDia()); return { E: R.E, hijo: [...R.hijo], ag: R.ag, hb: R.hb }; }, norm: x => cdNorm(x), fusion: (a, b) => cdFusion(a, b) };   // 2.22.9 (C) · para las pruebas
 
 // ---------- Arranque
 window.renderEnfoque = () => renderE();
