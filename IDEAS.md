@@ -612,6 +612,13 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.23.3: «+ Agregar» en el Calendario, eligiendo el tipo
+
+- En «Calendario», «+ Agregar» (debajo de las flechas del día) y tocar una hora libre de la cuadrícula abren una hoja corta para agregar algo ese día; desde la cuadrícula la hora viene puesta (redondeada a 15 min). Días pasados: solo para ver. ✅
+- La hoja: nombre, tipo (con el color y la letra del calendario), hora o «Sin hora» y duración. Tipos: Tarea, Evento o plan, Prioridad, Hábito, Estudio, Iniciativa, Bloque de tiempo y Otra cosa; cada uno pide solo lo suyo y recuerda el último usado. ✅
+- Cada cosa se crea por el camino de su propio creador: la tarea va a Tareas (y a la Agenda si es hoy), el hábito abre «Nuevo hábito» con nombre y hora, el plan abre su hoja de invitación y Google Calendar, el bloque se sincroniza como siempre, la prioridad pide verbo + qué, el estudio es una tarea de una ruta. Con «Deshacer», que también devuelve el filtro. ✅
+- Si el filtro ocultaba ese tipo, se enciende para que lo veas. La guarda de horas pasadas que restan XP sigue igual. ✅
+
 ## 2.23.2: «Temporizador» con acción, descanso corto y largo, conectado a la Agenda
 
 - Nuevo apartado «Temporizador» (fila en Inicio, se puede esconder): fases «Acción», «Descanso corto» y «Descanso largo», con minutos a elección y cada cuántas acciones toca el largo (25 / 5 / 15, cada 4). Reloj grande, rondas «2 de 4», Pausa, Saltar y Terminar (con «Deshacer»). Cuenta con hora de fin: sigue aunque cierres la app; pantalla encendida, timbre y vibración al terminar cada fase, alarma nativa en Android. La siguiente fase espera; «Empezar sola la siguiente fase» es opcional. ✅

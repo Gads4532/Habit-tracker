@@ -767,7 +767,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.23.2';
+const APP_VERSION = '2.23.3';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -28404,6 +28404,10 @@ const CD_CSS = `
   .cd-fc[aria-pressed="true"] { border-color: var(--c, var(--text)); background: color-mix(in srgb, var(--c, var(--text)) 16%, transparent); }
   .cd-fc-todo[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); } .cd-fc-todo[aria-pressed="true"] small { color: inherit; opacity: .8; }
   .cd .cd-fvacio .link { min-height: 44px; display: inline-flex; align-items: center; }
+  .cd-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 10px; }   /* 2.23.1 (A) */
+  .cd-bar > .cd-res { flex: 1 1 140px; min-width: 0; margin: 0; }
+  .cd-add { flex: none; margin-left: auto; min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--text); background: transparent; color: var(--text); font-weight: 600; font-size: .9rem; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  .cd .cd-bar ~ .agc .agc-tl, .cd .cd-bar ~ * .agc-tl { cursor: copy; } .cd .agc-tl .agc-b { cursor: auto; }   /* solo de hoy en adelante (con «+ Agregar») */
   ${CD_AGC_CSS}`;
 if (cdHost) {
   cdR = cdHost.attachShadow({ mode: 'open' });
@@ -28434,7 +28438,7 @@ function cdArmar(d) {
   const t = today(), hoy = d === t, pasado = d < t, E = [], hijo = new Map(), hab = new Map();
   let its = [];
   if (hoy) {
-    try { its = agItems(); const r = agcAgendaE(its, agCadenaMapa(agenda())); for (const e of r.E) E.push({ ...e, pill: '' }); for (const [k, v] of r.hijo) hijo.set(k, v); }
+    try { its = agItems(); const r = agcAgendaE(its, agCadenaMapa(agenda())); const eT = cdEstIds(its); for (const e of r.E) E.push({ ...e, pill: '', ...(eT.has(e.id) ? { tk: 'estudio' } : {}) }); for (const [k, v] of r.hijo) hijo.set(k, v); }   // 2.23.1 (A) · la tarea de una ruta, como Estudio
     catch (e) { console.warn('Calendario del día', e); }
   } else E.push(...cdAgOtroE(d));
   const ag = E.length, ya = new Set(its.filter(it => it && it.tipo === 'habito').map(it => it.ref));   // un hábito que siguiera en la Agenda: una sola vez
@@ -28484,10 +28488,11 @@ function cdRender(forzar = false) {
   const ayuda = pasado ? 'Ese día ya pasó: solo para ver.'
     : hoy ? 'Arrastra un bloque desde ⠿ para cambiar la hora; para cambiar el tiempo, mantén pulsado el borde de abajo y estíralo. Mover un hábito aquí cambia solo ese día.'
     : `Arrastra desde ⠿ para cambiar su hora ese día.${R.ag ? ' Lo de la agenda de ese día se cambia en la Agenda.' : ''}`;
+  const ayuda2 = pasado ? ayuda : ayuda + ' Toca una hora libre para agregar algo ahí.';   // 2.23.1 (A)
   const res = n ? [R.ag ? `${R.ag} en la agenda` : '', R.hb ? `${R.hb} ${R.hb === 1 ? 'hábito' : 'hábitos'}` : '', R.xn ? `${R.xn} más` : ''].filter(Boolean).join(' · ') : '';
   cdW.innerHTML = `<nav class="cd-nav" aria-label="Elegir día"><button type="button" class="cd-fl" data-cd-ir="-1" aria-label="Día anterior">‹</button><p class="cd-dia" aria-live="polite">${esc(N.k)}<small>${esc(N.f)}</small></p><button type="button" class="cd-fl" data-cd-ir="1" aria-label="Día siguiente">›</button>${hoy ? '' : '<button type="button" class="cd-hoy" data-cd-ir="0">Hoy</button>'}</nav>
-    ${cdFiltroRes(R, FV) || (res ? `<p class="cd-res">${esc(res)}</p>` : '')}
-    ${n ? cdFiltrosHtml(R) : ''}${!n ? '<p class="empty">Nada para este día.</p>' : FV.E.length ? agcHtml(FV.E, FV.hijo, { ctx: 'cd', ahora: hoy ? nowMin() : null, pie: false }) + `<p class="meta agc-ayuda">${esc(ayuda)}</p>` : '<p class="empty cd-fvacio">Nada de eso este día. <button type="button" class="link" data-cd-todo>Ver todo</button></p>'}`;
+    ${pasado ? (cdFiltroRes(R, FV) || (res ? `<p class="cd-res">${esc(res)}</p>` : '')) : `<div class="cd-bar">${cdFiltroRes(R, FV) || (res ? `<p class="cd-res">${esc(res)}</p>` : '')}<button type="button" class="cd-add" data-cd-add aria-haspopup="dialog">+ Agregar</button></div>`}
+    ${n ? cdFiltrosHtml(R) : ''}${!n ? '<p class="empty">Nada para este día.</p>' : FV.E.length ? agcHtml(FV.E, FV.hijo, { ctx: 'cd', ahora: hoy ? nowMin() : null, pie: false }) + `<p class="meta agc-ayuda">${esc(ayuda2)}</p>` : '<p class="empty cd-fvacio">Nada de eso este día. <button type="button" class="link" data-cd-todo>Ver todo</button></p>'}`;
   for (const [id, x] of R.hab) if (x.salt) cdW.querySelectorAll(`[data-agc-it="cdh:${CSS.escape(id)}"], .agc-chip[data-open="cdh:${CSS.escape(id)}"]`).forEach(el => el.classList.add('cd-salt'));
   const S = cdW.querySelector('.agc'); if (S) agcWire(S, cdCfg);
   cdFilWire();   // 2.23.0 (F)
@@ -28578,6 +28583,7 @@ renderAg = (f => function () { const x = f.apply(this, arguments); try { if (vie
 if (cdW) {
   cdW.addEventListener('click', e => {
     const t = e.target;
+    if (cdAddClick(t, e)) return;   // 2.23.1 (A) · «+ Agregar» y un toque en una hora libre
     if (cdXClick(t)) return;   // 2.23.0 (F) · el filtro y lo demás con fecha
     const nv = t.closest?.('[data-cd-ir]');
     if (nv) { const k = +nv.dataset.cdIr, d = cdDia(); cdSel = k === 0 ? null : dayKey(addDays(new Date(d + 'T12:00'), k)); if (cdSel === today()) cdSel = null;
@@ -28670,7 +28676,8 @@ function cdExtras(d, its) {
   for (const x of T) { try {
     const k = 'tarea:' + x.id; if (fuera(k)) continue;
     const ex = !!(x.est && typeof x.est === 'object' && x.est.examen);
-    pon(k, 'tarea', x.id, ex ? 'fijo' : 'tarea', { t: x.titulo, h: x.hora, min: +x.min || (ex ? 60 : AG_MIN.tarea), tk: ex ? 'estudio' : 'tarea', ok: !!x.hecha, chk: !ex, etq: ex ? 'Examen' : 'Tarea' });
+    const es = !ex && !!(x.est && typeof x.est === 'object' && x.est.ruta);   // 2.23.1 (A) · la tarea de una ruta
+    pon(k, 'tarea', x.id, ex ? 'fijo' : 'tarea', { t: x.titulo, h: x.hora, min: +x.min || (ex ? 60 : AG_MIN.tarea), tk: ex || es ? 'estudio' : 'tarea', ok: !!x.hecha, chk: !ex, etq: ex ? 'Examen' : es ? 'Estudio' : 'Tarea' });
   } catch {} }
   // Estudio: exámenes sin su tarea espejo, bloques de las rutas y entregas sin espejo.
   try { const Es = window.est;
@@ -28840,6 +28847,271 @@ function cdXDurar(id, m) {
   } catch (er) { toast(er?.message || 'No se pudo cambiar.'); }
 }
 try { Object.assign(window.cdApi || (window.cdApi = {}), { filtro: () => cdFiltro(), filtroPoner: L => { cdFiltroPoner(Array.isArray(L) ? L : []); cdRender(true); }, extras: d => cdExtras(d || cdDia(), d && d !== today() ? null : null).map(e => ({ id: e.id, t: e.t, h: e.h, min: e.min, tk: e.tk, ok: e.ok, lock: e.lock, chk: e.chk, own: e.cx.own })), mas: () => JSON.parse(JSON.stringify(cxDatos())), cxNorm: x => cxNorm(x), cxFusion: (a, b) => cxFusion(a, b) }); } catch {}   // 2.23.0 (F) · para las pruebas
+
+// ====================================================================
+// 2.23.1 (A) · «En el calendario puedo agregar más cosas y seleccionar qué tipo de elemento es.»
+// «+ Agregar» y un toque en una hora libre abren una hoja corta; cada tipo se guarda por su propio camino (el de su sección).
+// ====================================================================
+function cdEstIds(its) {   // ítems de la Agenda que son la tarea de una ruta de estudio
+  const o = new Set(); try { const T = HT().tareas.items; for (const it of its || []) if (it && it.tipo === 'tarea') { const x = T.find(y => y && y.id === it.ref); if (x && x.est && typeof x.est === 'object' && x.est.ruta && !x.est.examen) o.add(it.id); } } catch {}
+  return o;
+}
+const CDA_TIPOS = [['tarea', 'Tarea'], ['ev', 'Evento o plan'], ['prio', 'Prioridad'], ['habito', 'Hábito'], ['estudio', 'Estudio'], ['ini', 'Iniciativa'], ['bt', 'Bloque de tiempo'], ['libre', 'Otra cosa']];
+const CDA_MIN = { tarea: 25, ev: 60, prio: 25, habito: 15, estudio: 30, ini: 30, bt: 60, libre: 30 };
+const CDA_K = 'cd-add-tipo';
+const CDA_RESTA = new Set(['tarea', 'prio', 'libre', 'estudio']);   // sin marcar a una hora que pasó, restarían XP
+let cdaEst = null;
+function cdaUlt() { try { const v = localStorage.getItem(CDA_K); return CDA_TIPOS.some(([k]) => k === v) ? v : 'tarea'; } catch { return 'tarea'; } }
+function cdaUltPoner(k) { try { localStorage.setItem(CDA_K, k); } catch {} }
+function cdaRutas() { try { return (window.est?.rutas?.() || []).filter(r => r && !r.archivada && !r.terminada); } catch { return []; } }
+// Por qué un tipo no se puede ese día ('' = sí).
+function cdaNo(k, d) {
+  if ((k === 'libre' || k === 'prio' || k === 'ini') && d > agpMax()) return 'Eso se agenda hasta 60 días por delante.';
+  if (k === 'estudio' && !cdaRutas().length) return 'Primero crea una ruta en Estudio.';
+  return '';
+}
+let cdaF0 = null;
+// «Deshacer» de lo agregado: además, quita del filtro el tipo que se encendió solo (si antes no estaba).
+function cdaFiltroVolver(F0, k) { try { if (F0 && F0.length && !F0.includes(k)) { const F = cdFiltro(); if (F.includes(k)) cdFiltroPoner(F.filter(x => x !== k)); } } catch {} }
+function cdaAviso(k, msg, fn) { const F0 = cdaF0; agAviso(msg, () => { fn(); cdaFiltroVolver(F0, k); try { cdRender(true); } catch {} }); }
+// Tarea y Otra cosa usan el aviso de qaAplicar: a su «Deshacer» se le suma devolver el filtro.
+function cdaQaDeshacer(k) { const F0 = cdaF0; try { const bt = $('#toast')?.querySelector('button'); if (bt && /Deshacer/.test(bt.textContent)) bt.addEventListener('click', () => { cdaFiltroVolver(F0, k); try { cdRender(true); } catch {} }); } catch {} }
+function cdaFiltroIncluir(k) { const F = cdFiltro(); if (F.length && !F.includes(k)) { cdFiltroPoner([...F, k]); return true; } return false; }
+function cdaPintarTodo() { try { qaPintarTodo(); } catch {} try { cdRender(true); } catch {} }
+const cdaCss = `
+  #cda .cda-dia { margin: -6px 0 12px; }
+  #cda .cda-k { margin: 0 0 6px; font-weight: 600; font-size: .9rem; }
+  #cda .cda-tipos { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+  #cda .cda-c { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 12px 0 8px; border-radius: 999px; border: 1.5px solid var(--line); background: transparent; color: var(--text); font: inherit; font-weight: 600; font-size: .86rem; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  #cda .cda-c[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+  #cda .cda-c.cda-no { opacity: .55; border-style: dashed; }
+  #cda .cda-why { font-weight: 500; color: var(--muted, inherit); }
+  #cda .cda-l { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: var(--c); color: var(--agc-fg, #fff); font-size: .72rem; font-weight: 700; }
+  #cda .cda-t-tarea { --c: var(--agc-tarea); } #cda .cda-t-ev { --c: var(--agc-ev); } #cda .cda-t-prio { --c: var(--agc-prio); } #cda .cda-t-habito { --c: var(--agc-habito); }
+  #cda .cda-t-estudio { --c: var(--agc-estudio); } #cda .cda-t-ini { --c: var(--agc-ini); } #cda .cda-t-bt { --c: var(--agc-bt); } #cda .cda-t-libre { --c: var(--agc-libre); }
+  #cda .cda-fila { display: flex; flex-wrap: wrap; gap: 0 12px; }
+  #cda .cda-fila > #cda-hf { flex: 1 1 190px; min-width: 0; } #cda .cda-fila > #cda-mf { flex: 1 1 96px; min-width: 0; }
+  #cda .cda-hr { display: flex; align-items: center; gap: 8px; }
+  #cda .cda-hr input { flex: 1 1 100px; min-width: 0; min-height: 44px; }
+  #cda .cda-hr .chip { flex: none; }
+  #cda #cda-m { width: 100%; min-height: 44px; box-sizing: border-box; }
+  #cda .cda-mas { margin: 0 0 12px; }
+  #cda .cda-mas > summary { min-height: 44px; display: flex; align-items: center; gap: .3em; cursor: pointer; font-weight: 600; font-size: .9rem; list-style: none; }
+  #cda .cda-mas > summary::-webkit-details-marker { display: none; }
+  #cda .cda-mas > summary::after { content: "›"; margin-left: 2px; transition: transform .15s; }
+  #cda .cda-mas[open] > summary::after { transform: rotate(90deg); }
+  #cda .cda-mas .cat-f { margin: 0; } #cda .cda-mas .cat-f > label { display: none; }
+  #cda .cda-pie { position: sticky; bottom: calc(-22px - env(safe-area-inset-bottom, 0px)); z-index: 5; background: var(--bg); margin: 4px calc(-1 * max(20px, env(safe-area-inset-left, 0px))) calc(-22px - env(safe-area-inset-bottom, 0px)); padding: 10px max(20px, env(safe-area-inset-left, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
+  #cda .chip, #cda .actions button { min-height: 44px; }
+  #cda .cda-sub { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  #cda .cda-nota:empty, #cda .cda-err:empty { display: none; }
+  #cda button:focus-visible, #cda input:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }`;
+function cdaCssPoner() { try { const R = $('#sheet-body').getRootNode(); if (R.querySelector?.('#cda-css')) return; const st = document.createElement('style'); st.id = 'cda-css'; st.textContent = cdaCss; (R === document ? document.head : R).appendChild(st); } catch {} }
+function cdaDiaTxt(d) { const t = today(); const f = cap(fechaLarga(d)); return d === t ? `Hoy · ${f}` : d === agpDia(t, 1) ? `Mañana · ${f}` : f; }
+function cdaAbrir(o = {}) {
+  const d = cdDia(); if (d < today()) { toast('Ese día ya pasó: solo para ver.'); return; }
+  const k0 = cdaUlt(), I = d === today() ? ini4Semana().items : [];
+  cdaEst = { d, tipo: k0, minTocado: false, ini: (INI4.find(([k]) => { const x = I[iniIdx(k)]; return x && !x.hecho && !String(x.t || '').trim(); }) || INI4[0])[0], ruta: (cdaRutas()[0] || {}).id || '', foco: o.foco || null, hAuto: '' };
+  const h0 = /^\d\d:\d\d$/.test(o.h || '') ? o.h : '';
+  cdaCssPoner();
+  showSheet(`<div id="cda"><h2 id="cda-tit">Agregar</h2><p class="meta cda-dia">${esc(cdaDiaTxt(d))}</p>
+    <div class="field"><label for="cda-t">Nombre</label><input id="cda-t" maxlength="100" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" placeholder="Por ejemplo, llamar a Ana"></div>
+    <p class="cda-k" id="cda-tl">Tipo</p>
+    <div class="cda-tipos" role="group" aria-labelledby="cda-tl">${CDA_TIPOS.map(([k, n]) => `<button type="button" class="cda-c cda-t-${k}" data-cda-k="${k}" aria-pressed="${k === k0}"><span class="cda-l" aria-hidden="true">${agcLetra(k)}</span>${esc(n)}</button>`).join('')}</div>
+    <div id="cda-extra"></div>
+    <div class="cda-fila"><div class="field" id="cda-hf"><label for="cda-h">Hora</label><div class="cda-hr"><input type="time" id="cda-h" value="${esc(h0)}" step="300"><button type="button" class="chip${h0 ? '' : ' on'}" id="cda-sin" aria-pressed="${!h0}">Sin hora</button></div></div>
+    <div class="field" id="cda-mf"><label for="cda-m">Duración</label><select id="cda-m">${cdaMinOps(CDA_MIN[k0])}</select></div></div>
+    <p class="meta cda-nota" id="cda-nota" aria-live="polite"></p>
+    <p class="meta red cda-err" id="cda-err" role="alert"></p>
+    <div class="actions cda-pie"><button type="button" class="link" id="cda-x">Cancelar</button><button type="button" class="primary" id="cda-ok" data-guarda>Agregar</button></div></div>`);
+  const b = $('#sheet-body'); if (!b) return;
+  try { sheet.setAttribute('aria-labelledby', 'cda-tit'); sheet.addEventListener('close', () => { sheet.removeAttribute('aria-labelledby'); const f = cdaEst?.foco; cdaEst = null; setTimeout(() => { try { if (f && f.isConnected && !sheet.open) f.focus({ preventScroll: true }); else if (!sheet.open && view === 'caldia') cdW?.querySelector('[data-cd-add]')?.focus({ preventScroll: true }); } catch {} }, 0); }, { once: true }); } catch {}
+  b.querySelector('.cda-tipos').addEventListener('click', e => { const c = e.target.closest('[data-cda-k]'); if (!c) return; cdaEst.tipo = c.dataset.cdaK; cdaTipo(); });
+  b.querySelector('#cda-extra').addEventListener('click', e => {
+    const i = e.target.closest('[data-cda-ini]'); if (i) { cdaEst.ini = i.dataset.cdaIni; cdaTipo(); return; }
+    const r = e.target.closest('[data-cda-ruta]'); if (r) { cdaEst.ruta = r.dataset.cdaRuta; cdaTipo(); }
+  });
+  const hIn = b.querySelector('#cda-h'), sin = b.querySelector('#cda-sin');
+  const horaVer = () => { if (cdaEst) cdaEst.hAuto = ''; cdaSinVer(); cdaGuarda(); };
+  hIn.addEventListener('input', horaVer); hIn.addEventListener('change', horaVer);
+  sin.onclick = () => { hIn.value = ''; horaVer(); };
+  b.querySelector('#cda-m').addEventListener('change', () => { cdaEst.minTocado = true; });
+  b.querySelector('#cda-extra').addEventListener('click', () => setTimeout(cdaCatSum, 0));
+  b.querySelector('#cda-t').addEventListener('input', () => setTimeout(cdaCatSum, 0));
+  b.querySelector('#cda-x').onclick = closeSheet;
+  b.querySelector('#cda-ok').onclick = () => cdaGuardar();
+  b.querySelector('#cda-t').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); cdaGuardar(); } });
+  b.querySelector('#cda-t').addEventListener('input', () => { const er = b.querySelector('#cda-err'); if (er) er.textContent = ''; });
+  cdaTipo(true);
+  setTimeout(() => { try { b.querySelector('#cda-t')?.focus({ preventScroll: true }); } catch {} }, 60);
+}
+function cdaMinOps(v) { const L = [10, 15, 25, 30, 45, 60, 90, 120, 180]; if (!L.includes(v)) L.push(v); return L.sort((a, b) => a - b).map(m => `<option value="${m}"${m === v ? ' selected' : ''}>${m < 60 || m % 60 ? m + ' min' : m / 60 + ' h'}</option>`).join(''); }
+function cdaHoraSug(d, k) { if (d !== today()) return k === 'ev' ? '18:00' : '09:00'; const m = (Math.floor(nowMin() / 60) + 1) * 60; return m <= 23 * 60 ? minToHm(m) : ''; }
+function cdaSinVer() { const b = $('#sheet-body'), E = cdaEst; if (!b || !E) return; const hIn = b.querySelector('#cda-h'), sin = b.querySelector('#cda-sin'); if (!hIn || !sin) return; const v = !!hIn.value, fija = E.tipo === 'ev' || E.tipo === 'bt'; sin.hidden = fija; sin.classList.toggle('on', !v); sin.setAttribute('aria-pressed', String(!v)); hIn.required = fija; }
+function cdaCatSum() { const b = $('#sheet-body'); const sp = b?.querySelector('#cda-cats'), box = b?.querySelector('[data-cat-pref="cda-cat"]'); if (!sp || !box) return; const k = box.dataset.sel || ''; sp.textContent = k ? ((typeof CAT_N === 'object' && CAT_N[k]) || k) : 'Ninguna'; }
+// Lo que cambia con el tipo: los chips, lo de más (categoría, ruta), la duración, la nota y el botón.
+function cdaTipo(primera = false) {
+  const b = $('#sheet-body'), E = cdaEst; if (!b || !E || !b.querySelector('#cda')) return;
+  const k = E.tipo, d = E.d;
+  b.querySelectorAll('[data-cda-k]').forEach(c => {
+    const no = cdaNo(c.dataset.cdaK, d), w = c.querySelector('.cda-why');
+    c.setAttribute('aria-pressed', String(c.dataset.cdaK === k)); c.classList.toggle('cda-no', !!no);
+    if (no) { c.setAttribute('aria-disabled', 'true'); c.title = no; if (!w) c.insertAdjacentHTML('beforeend', `<span class="cda-why"> · ${c.dataset.cdaK === 'estudio' ? 'sin rutas' : 'muy lejos'}</span>`); }
+    else { c.removeAttribute('aria-disabled'); c.removeAttribute('title'); w?.remove(); }
+  });
+  let ex = '';
+  if (k === 'ini') { const I = d === today() ? ini4Semana().items : [];
+    ex = `<p class="cda-k" id="cda-il">Categoría</p><div class="cda-sub" role="group" aria-labelledby="cda-il">${INI4.map(([c, n]) => { const x = I[iniIdx(c)]; return `<button type="button" class="chip${c === E.ini ? ' on' : ''}" data-cda-ini="${c}" aria-pressed="${c === E.ini}">${esc(n)}${x && x.hecho ? ' · hecha' : ''}</button>`; }).join('')}</div>`; }
+  else if (k === 'estudio') { const R = cdaRutas(); if (R.length > 1) ex = `<p class="cda-k" id="cda-rl">Ruta</p><div class="cda-sub" role="group" aria-labelledby="cda-rl">${R.map(r => `<button type="button" class="chip${r.id === E.ruta ? ' on' : ''}" data-cda-ruta="${esc(r.id)}" aria-pressed="${r.id === E.ruta}">${esc(r.nombre)}</button>`).join('')}</div>`; else if (R.length === 1) ex = `<p class="meta" style="margin:0 0 12px">Ruta: ${esc(R[0].nombre)}</p>`; }
+  else if (k === 'tarea') { const prev = b.querySelector('[data-cat-pref="cda-cat"]'); if (prev) return cdaTipoResto(b, k, d, primera); let c = ''; try { c = window.cat?.chips?.('cda-cat', '', { from: '#cda-t', jd: '' }) || ''; } catch { c = ''; }
+    if (c) ex = `<details class="cda-mas" id="cda-catd"><summary>Categoría: <span id="cda-cats">Ninguna</span></summary>${c}</details>`; }   // plegada: la hoja queda corta
+  b.querySelector('#cda-extra').innerHTML = ex;
+  cdaCatSum();
+  cdaTipoResto(b, k, d, primera);
+}
+function cdaTipoResto(b, k, d, primera) {
+  const E = cdaEst;
+  b.querySelector('#cda-mf').hidden = k === 'habito' || k === 'ev';
+  if (!E.minTocado && !primera) b.querySelector('#cda-m').value = String(CDA_MIN[k]);
+  // Evento o plan y Bloque de tiempo van a una hora: sin «Sin hora»; si no había, la siguiente en punto (se quita si cambias de tipo sin tocarla).
+  const hIn = b.querySelector('#cda-h'), fija = k === 'ev' || k === 'bt';
+  if (fija && !hIn.value) { const h = cdaHoraSug(d, k); if (h) { hIn.value = h; E.hAuto = h; } }
+  else if (!fija && E.hAuto && hIn.value === E.hAuto) { hIn.value = ''; E.hAuto = ''; }
+  cdaSinVer();
+  b.querySelector('#cda-ok').textContent = k === 'habito' ? 'Seguir' : 'Agregar';
+  const no = cdaNo(k, d);
+  const nota = no || (k === 'habito' ? 'Luego eliges los días en el editor de hábitos.' : k === 'ev' ? 'Un plan va a una hora.' : k === 'bt' ? 'Un bloque va a una hora; luego le metes cosas dentro.' : k === 'ini' && d === today() ? (ini4Semana().items[iniIdx(E.ini)]?.t ? 'Esa categoría ya tiene una hoy: esta entra como extra.' : '') : '');
+  b.querySelector('#cda-nota').textContent = nota;
+  b.querySelector('#cda-err').textContent = '';
+  cdaGuarda();
+}
+// La hora pasada (hoy): lo dice antes de guardar.
+function cdaGuarda() {
+  const b = $('#sheet-body'), E = cdaEst; if (!b || !E) return;
+  const h = b.querySelector('#cda-h')?.value || '', ok = b.querySelector('#cda-ok'), no = cdaNo(E.tipo, E.d);
+  const pasada = E.d === today() && h && CDA_RESTA.has(E.tipo) && agcPasada(h);
+  if (ok) { ok.disabled = !!no; ok.setAttribute('aria-disabled', String(!!no)); }
+  const er = b.querySelector('#cda-err'); if (er) er.textContent = pasada ? agcPasadaTxt() : '';
+}
+function cdaGuardar() {
+  const b = $('#sheet-body'), E = cdaEst; if (!b || !E || !b.querySelector('#cda')) return;
+  const er = m => { const x = b.querySelector('#cda-err'); if (x) x.textContent = m; };
+  const t = (b.querySelector('#cda-t').value || '').replace(/\s+/g, ' ').trim().slice(0, 100), k = E.tipo, d = E.d, h = b.querySelector('#cda-h').value || '';
+  const min = durMin(b.querySelector('#cda-m')?.value) || CDA_MIN[k];
+  if (!t) { er('Escribe qué es.'); b.querySelector('#cda-t').focus(); return; }
+  if (d < today()) { er('Ese día ya pasó: solo para ver.'); return; }
+  const no = cdaNo(k, d); if (no) { er(no); return; }
+  if (k === 'prio' && t.split(' ').filter(Boolean).length < 2) { er('Escribe verbo + qué: «Enviar la propuesta a Luis».'); b.querySelector('#cda-t').focus(); return; }   // como «Prioridades de hoy»
+  if ((k === 'ev' || k === 'bt') && !h) { er(k === 'ev' ? 'Elige una hora: un plan va a una hora.' : 'Elige una hora: un bloque va a una hora.'); b.querySelector('#cda-h').focus(); return; }
+  if (d === today() && h && CDA_RESTA.has(k) && agcPasada(h)) { er(agcPasadaTxt()); b.querySelector('#cda-h').focus(); return; }
+  if (k === 'bt' && d === today() && toMin(h) + 15 <= nowMin()) { er('Esa hora ya pasó: elige una de ahora en adelante.'); b.querySelector('#cda-h').focus(); return; }
+  cdaUltPoner(k);
+  if (k === 'habito') { cdaHabito(t, h); return; }
+  let cat; try { if (k === 'tarea') cat = catLeerOpt(b, 'cda-cat'); } catch {}
+  const ruta = E.ruta, ini = E.ini;
+  cdaF0 = cdFiltro().slice();   // el filtro de antes: «Deshacer» lo devuelve
+  try {
+    if (k === 'tarea' || k === 'libre') {
+      closeSheet();
+      qaAplicar({ t, tipo: k, fecha: d, h, min, cands: [], ...(cat ? { cat } : {}) }); cdaQaDeshacer(k);
+    } else if (k === 'prio') { closeSheet(); cdaPrio(d, t, h, min); }
+    else if (k === 'ev') { closeSheet(); cdaPlan(d, t, h); }
+    else if (k === 'ini') { closeSheet(); cdaIni(d, ini, t, h, min); }
+    else if (k === 'estudio') { const p = window.est.pendienteCrear(ruta || cdaRutas()[0].id, { t, clase: 'tarea', fecha: d, hora: h, min }); closeSheet(); cdaEstudio(d, p); }
+    else if (k === 'bt') { const x = btCrear({ t, fecha: d, h, min: Math.max(15, min), items: [] }); closeSheet(); cdaBt(d, x); }
+  } catch (e) { cdaF0 = null; if (sheet.open && b.querySelector('#cda')) er(e?.message || 'No se pudo agregar.'); else toast(e?.message || 'No se pudo agregar.'); return; }
+  cdaFiltroIncluir(k);   // solo si se creó: si el filtro lo escondía, se enciende ese tipo
+  cdaF0 = null;
+  cdRender(true);
+}
+// Prioridad: hoy, como prioForm (y a la Agenda con su hora, como al organizar); otro día, en las prioridades de su plan.
+function cdaPrio(d, t, h, min) {
+  const hoy = d === today(), foto = agFoto({ tipo: 'prio', ref: '', id: '' }), id = crypto.randomUUID(), m = min || AG_MIN.prio;
+  if (hoy) {
+    prioHoy().items.push({ id, hecho: false, t, origen: 'Prioridad', iden: '' });
+    agenda().items.push({ id: crypto.randomUUID(), tipo: 'prio', ref: id, t, h: h || '', min: m, hecho: false, alta: Date.now() });
+  } else {
+    const P = agPlanDe(d), L = prioPlanLista(P); if (!L.length) P.rana = { id, t };
+    P.prios = [...L, { id, t }].slice(0, 30);
+    P.items.push({ id: crypto.randomUUID(), tipo: 'prio', ref: id, t, h: h || '', min: m, hecho: false, alta: Date.now(), ord: Math.max(0, ...P.items.map(x => +x.ord || 0)) + 1 });
+  }
+  guardar(); try { renderPrio(); } catch {} cdaPintarTodo();
+  cdaAviso('prio', `Prioridad para ${agpCuando(d)}${h ? ` a las ${fmtHora(h)}` : ''}.`, () => { foto(); forget(id); guardar(); try { renderPrio(); } catch {} cdaPintarTodo(); });
+}
+// Evento o plan: igual que planForm (ES.planes, +25 XP de «Plan propuesto», y su hoja: invitación y Google Calendar). Esa hoja trae «Eliminar»,
+// como al proponer un plan desde Enfoque (allí tampoco hay «Deshacer»).
+function cdaPlan(d, t, h) {
+  const pl = { id: crypto.randomUUID(), titulo: t, con: '', fecha: d, hora: h, hecho: false };
+  ES.planes.push(pl); xpGanar(25, 'Plan propuesto', '', { cat: 'social' });
+  bump('iniciativas'); guardar(); try { renderE(); } catch {}
+  cdaPintarTodo();
+  planSheet(pl, true);
+}
+// Iniciativa: hoy, como «Añadir a la agenda» (la de esa categoría o, si ya tiene una, un extra); otro día, en su plan (P.ini).
+function cdaIni(d, k, t, h, min) {
+  const hoy = d === today(), foto = agFoto({ tipo: 'ini', ref: k, id: '' }), ex = EXITO_DEF[k] || '', m = min || AG_MIN.ini; let antes = null;
+  if (hoy) {
+    const A = agenda(), it = ini4Semana().items[iniIdx(k)];
+    if (it && !it.hecho && !String(it.t || '').trim()) {
+      antes = { ...it };
+      Object.assign(it, { t, exito: ex, hora: h || '', por: '', paso: '', min: m, obj: '', iden: '' });
+      const ya = A.items.find(i => i && i.tipo === 'ini' && i.ref === k);
+      if (ya) { Object.assign(ya, { t, h: h || '', min: m }); delete ya.ha; }
+      else A.items.push({ id: crypto.randomUUID(), tipo: 'ini', ref: k, t, h: h || '', min: m, hecho: false, alta: Date.now() });
+      if (agQuitado(A, 'ini:' + k)) agQuitMarcar(A, 'ini:' + k, false);
+    } else A.items.push({ id: crypto.randomUUID(), tipo: 'libre', ref: '', t, h: h || '', min: m, hecho: false, alta: Date.now(), exito: ex, cat: k, extraIni: true });
+    iniCambio();
+  } else {
+    const P = agPlanDe(d), ord = Math.max(0, ...P.items.map(x => +x.ord || 0)) + 1;
+    if (!P.ini[k]) { P.ini[k] = { t, exito: ex, h: h || '', min: m, por: '', paso: '', obj: '', iden: '', est: '' }; P.items.push({ id: crypto.randomUUID(), tipo: 'ini', ref: k, t, h: h || '', min: m, hecho: false, alta: Date.now(), ord }); }
+    else P.items.push({ id: crypto.randomUUID(), tipo: 'libre', ref: '', t, h: h || '', min: m, hecho: false, alta: Date.now(), ord, exito: ex, cat: k, extraIni: true });
+    guardar();
+  }
+  cdaPintarTodo();
+  cdaAviso('ini', `Iniciativa de ${iniNombre(k).toLowerCase()} para ${agpCuando(d)}.`, () => {
+    foto();
+    if (antes) { const x = ini4Semana().items.find(y => y.k === k); if (x) { for (const c of Object.keys(x)) if (!(c in antes) && c !== 'mod') delete x[c]; Object.assign(x, antes); } }   // vuelve tal cual: sin exito, min, obj... sobrantes
+    guardar(); try { iniCambio(); } catch {} cdaPintarTodo(); });
+}
+// Estudio: una tarea de la ruta (est.pendienteCrear); su tarea espejo la crea Estudio, como siempre.
+function cdaEstudio(d, p) {
+  cdaPintarTodo();
+  cdaAviso('estudio', `Estudio para ${agpCuando(d)}${p.hora ? ` a las ${fmtHora(p.hora)}` : ''}.`, () => { try { window.est.pendienteBorrar(p.id); } catch {} try { const T = HT().tareas; const x = T.items.find(y => y && y.est && typeof y.est === 'object' && y.est.id === p.id); if (x) { T.items = T.items.filter(y => y !== x); forget(x.id); if (x.gid) forget('g:' + x.gid); save(); } } catch {} guardar(); cdaPintarTodo(); });
+}
+function cdaBt(d, x) {
+  cdaPintarTodo();
+  cdaAviso('bt', `Bloque de tiempo para ${agpCuando(d)} a las ${fmtHora(x.h)}.`, () => { try { btBorrar(x.id); } catch {} cdaPintarTodo(); });
+}
+// Hábito: «Nuevo hábito» como desde Hábitos (openForm, con la pausa del día corto), con solo el nombre y la hora; al guardarlo, el filtro lo deja ver.
+function cdaHabito(t, h) {
+  const ids = new Set(HT().habits.map(x => x && x.id)), f = document.getElementById('form'), dlg = document.getElementById('form-dialog');
+  const fin = () => { try { f?.removeEventListener('submit', alGuardar); } catch {} };
+  const alGuardar = e => { if (e.defaultPrevented) return; fin(); setTimeout(() => { if (HT().habits.some(x => x && !ids.has(x.id) && !x.rutina)) { cdaFiltroIncluir('habito'); cdRender(true); } }, 40); };
+  f?.addEventListener('submit', alGuardar); dlg?.addEventListener('close', () => setTimeout(fin, 120), { once: true });
+  closeSheet();
+  const abrir = () => {
+    openForm(null);
+    const fo = document.getElementById('form'); if (!fo) return;
+    fo.elements.nombre.value = t;
+    if (h) { formHoras = [h]; try { renderHoras(); h2Op('hora', true); } catch {} }
+    try { h2FormPistas(); } catch {}
+  };
+  if (!window.enfNoEstrenar?.(abrir, t)) abrir();
+}
+// Un toque en «+ Agregar» o en una hora libre de la línea del día (no en un bloque, ni en lo que se mueve al arrastrar).
+function cdAddClick(t, e) {
+  if (t.closest?.('[data-cd-add]')) { cdaAbrir({ foco: t.closest('[data-cd-add]') }); return true; }
+  const sc = t.closest?.('.agc-sc'); if (!sc || !cdW || !cdW.contains(sc)) return false;
+  if (t.closest('[data-agc-u], .agc-lb, .agc-gh, button, [role="button"], a, input')) return false;
+  if (agcArr) return true;
+  const d = cdDia(); if (d < today()) return true;   // un día que pasó: solo para ver
+  const tl = sc.querySelector('.agc-tl'), S = sc.closest('.agc'); if (!tl || !S || !Number.isFinite(e?.clientY)) return false;
+  const ini = +S.dataset.agcIni || 0, m = ini + (e.clientY - tl.getBoundingClientRect().top) / AGC_PPM;
+  const q = Math.max(0, Math.min(23 * 60 + 45, Math.floor(m / 15) * 15));
+  cdaAbrir({ h: minToHm(q) });
+  return true;
+}
+try { Object.assign(window.cdApi || (window.cdApi = {}), { agregar: o => cdaAbrir(o || {}), agregarTipo: () => cdaUlt() }); } catch {}   // 2.23.1 (A) · para las pruebas
 
 // ---------- Arranque
 window.renderEnfoque = () => renderE();
