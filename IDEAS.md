@@ -612,6 +612,14 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.23.0: «Calendario del día», todo el día en un calendario arrastrable
+
+- Nuevo apartado «Calendario del día», con su fila en Inicio (debajo de Agenda) y su pestaña. Se llama así porque «Calendario» ya es el mes de hábitos. ✅
+- Una sola cuadrícula de horas, plana, con todo lo del día: lo de la agenda (lo mismo que su vista Calendario) y todos los hábitos que tocan ese día. Las rutinas van como un bloque con su cadena «después de»; lo que no tiene hora queda en «Sin hora». Nada sale dos veces. ‹ › cambian de día y «Hoy» vuelve. ✅
+- Se arrastra igual que en la Agenda: desde ⠿ cambia la hora y estirando el borde cambia el tiempo. Lo de la agenda se guarda como en la Agenda. Un hábito movido cambia solo ese día (`state.calendario.dias`, se une por fecha de cambio y se borra a los 60 días); su hora y la de su rutina no cambian, y los hábitos no vuelven a la Agenda. Cada movimiento tiene «Deshacer». ✅
+- Tocar un hábito abre una hoja corta: «✓ Hecho» o «Desmarcar», su relevancia, «Volver a su hora», «Usar siempre esta hora» y «Ver en Hábitos». Marcar da el mismo XP una sola vez; «Hoy no» y «Justificado» se ven en gris. ✅
+- Días pasados, solo para ver. La vista Calendario de la Agenda queda igual. ✅
+
 ## 2.22.9: relevancia en los hábitos y en las rutinas
 
 - Cada hábito tiene su relevancia «n/5», con el mismo control que en «Organizar mi día»: se elige en la fila de la lista de Hábitos o en «Nuevo hábito» / «Editar hábito» (opcional, se puede quitar). ✅
