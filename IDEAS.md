@@ -612,6 +612,15 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.24.0: apartado «Sueño» con ciclos, diario y semana
+
+- Nuevo apartado «Sueño» (pestaña con luna y fila en Inicio): «Esta noche», «Anoche», calculadora de ciclos, «Tu semana», «Diario», Ajustes y «Por qué». ✅
+- Calculadora en los dos sentidos: «Despertar a las…» sugiere a qué hora acostarte y «Me acuesto ahora…» a qué hora despertar. Cuenta el tiempo para dormirte (15 min, ajustable) y el largo del ciclo (90 min, de 80 a 110), y da ventanas, no horas exactas. 5 y 6 ciclos van como recomendados; 4, como «de vez en cuando». Los ciclos varían entre personas y noches (mediana 96 min en 6064 ciclos; Cajochen et al. 2024, Sleep Health), y la app lo dice. ✅
+- Diario de la mañana («¿Cómo dormiste?»): a qué hora te acostaste y te levantaste, cuánto tardaste, despertares y cómo te sentiste. Calcula horas dormidas, eficiencia y ciclos aproximados (Consensus Sleep Diary, Carney et al. 2012). «+ Anotar otra noche» para días atrás. +5 XP solo por anotar (una vez por noche), nunca por dormir más, para no caer en la ortosomnia (Baron et al. 2017). ✅
+- «Tu semana»: barras de cada noche, promedio, regularidad y diferencia entre semana y fin de semana (jet lag social, Wittmann et al. 2006). En universitarios, la regularidad se asocia con mejores notas (Phillips et al. 2017). ✅
+- Una sola hora de dormir, la de Ajustes. Aviso para bajar el ritmo y alarma opcional al final de un ciclo en Android (claves propias, no tocan las del Temporizador). «Bajar el ritmo para dormir» en la Agenda, sin XP ni castigo. La noche aparece en el Calendario como tipo «Sueño» (con filtro), también la parte después de medianoche. ✅
+- Asistente: `sueno_ver` y `sueno_registrar`, que completa sin borrar lo ya anotado. Señales suaves («quizás te está faltando sueño») y «Cuándo consultar» con señales de alarma, sin diagnosticar. Datos en `state.enfoque.sueno`. ✅
+
 ## 2.23.3: «+ Agregar» en el Calendario, eligiendo el tipo
 
 - En «Calendario», «+ Agregar» (debajo de las flechas del día) y tocar una hora libre de la cuadrícula abren una hoja corta para agregar algo ese día; desde la cuadrícula la hora viene puesta (redondeada a 15 min). Días pasados: solo para ver. ✅

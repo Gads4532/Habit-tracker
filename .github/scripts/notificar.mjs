@@ -503,7 +503,7 @@ function candidatos(C, fecha) {
       return !!x && !x.rutina && !(x.creado && x.creado > fecha) && programado(x, fecha) && horasDe(x).includes(h); };
     for (const it of A.items) {
       const h = horaDe(it), hb = it.tipo === 'habito' && !it.hist ? fuente(it) : null, borrada = it.enFuente && !fuente(it);
-      if (!hmOk(h) || ['evento', 'plan', 'cons', 'examen'].includes(it.tipo) || (borrada && !(borradoEn(it) > inicio)) || (hb && (hb.sinAviso || hb.graduado || protegido(hb, fecha))) || gobiernaHabito(it, h) || !menos(h, 10)) continue;
+      if (!hmOk(h) || ['evento', 'plan', 'cons', 'examen', 'sueno'].includes(it.tipo) || (borrada && !(borradoEn(it) > inicio)) || (hb && (hb.sinAviso || hb.graduado || protegido(hb, fecha))) || gobiernaHabito(it, h) || !menos(h, 10)) continue;
       const org = +it.org || 0, min = +it.min || 0, fant = +it.fantasma || 0;
       // Un bloque protegido (F25) recuerda, además, que la app calla mientras dura.
       out.push({ t: en(menos(h, 10)), clase: 1, tag: 'ag-' + it.id, franja: 'ag-' + it.id, title: `${texto(it)}${min ? ` · ${min} min` : ''}`, body: `Si ${sonlas(h)}, entonces empiezo: No molestar y el teléfono lejos.${it.foco ? ' Los avisos de la app callan en este bloque.' : ''}`,
