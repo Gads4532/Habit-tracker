@@ -612,6 +612,14 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.24.2: mover tareas al día siguiente o a otro día
+
+- Lo agendado se queda en su día; si no se hace ni se mueve, ese día lo sigue mostrando «Sin hacer».
+- Al tocar una fila (hoy, días que vienen con › o días pasados): «Mover al día siguiente» o «Mover a otro día…» con botones rápidos y fecha (hasta 60 días). «Mover lo pendiente a…» para todo lo de un día. Funciona también desde el Calendario de la Agenda.
+- La tarea sale del día de origen y aparece una vez en el destino con su hora; si es una tarea con fecha, cambia en Tareas, Calendario, avisos y Google Tasks. «Deshacer» siempre. Mover no da ni quita XP.
+- El día de origen muestra «Movida al 22 nov» (campo opcional `mov` en agendaHist y `ES.agendaMov`, ignorados por 2.24.1 y conservados al unir).
+- Asistente: herramienta `agenda_mover` (texto y fecha).
+
 ## 2.24.1: ver la agenda de días anteriores
 
 - En la Agenda, ‹ junto a la fecha lleva al día anterior; en un día pasado hay ‹ día ›, «Hoy» y el aviso «Ese día ya pasó: solo para ver.».
