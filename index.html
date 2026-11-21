@@ -547,6 +547,7 @@
     <div class="global" id="global"></div>
   </header>
   <div id="view-inicio" hidden></div>
+  <div id="view-todo" hidden></div>   <!-- 2.25.0 (T) -->
   <div id="view-identidad" hidden></div>
   <div id="view-metas" hidden></div>
   <div id="view-espiritu" hidden></div>
@@ -593,6 +594,9 @@
 <nav class="tabs">
   <button class="tab" data-view="inicio">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-6h4v6"/></svg>Inicio
+  </button>
+  <button class="tab" data-view="todo">   <!-- 2.25.0 (T) · Rápido y Apartados -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Todo
   </button>
   <button class="tab" data-view="identidad">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-4 3.4-7 7.5-7s7.5 3 7.5 7"/><path d="M15.5 4.5a4 4 0 0 1 0 7"/></svg>Identidad
@@ -771,7 +775,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.24.2';
+const APP_VERSION = '2.25.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1336,7 +1340,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', temporizador: 'Temporizador', sueno: 'Sueño', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis' }[view];
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', temporizador: 'Temporizador', sueno: 'Sueño', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis', todo: window.tdTitulo?.() || 'Todo' }[view];   // 2.25.0 (T)
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -1565,6 +1569,27 @@ function cxFusion(x, y) {
   }
   return cxNorm({ dias: out });
 }
+// 2.25.0 (T) · «Quiero desarrollar y hacer» (ES.quiero) con dos teléfonos: unión por id; gana la entrada cambiada más tarde (mod), sin
+// perder la página de Notion que ya tenía la otra copia (así no se envía dos veces). Lo borrado (state.borrados) no vuelve.
+function qdNt(x) { return x && x.nt && typeof x.nt === 'object' && typeof x.nt.id === 'string' && x.nt.id ? x.nt : null; }
+function qdFusion(a, b, dead) {
+  const ok = x => x && typeof x === 'object' && !Array.isArray(x) && typeof x.id === 'string' && x.id, m = new Map();
+  for (const x of Array.isArray(b) ? b : []) if (ok(x)) m.set(x.id, x);
+  for (const x of Array.isArray(a) ? a : []) {
+    if (!ok(x)) continue;
+    const o = m.get(x.id); if (!o) { m.set(x.id, x); continue; }
+    const g = (+x.mod || 0) >= (+o.mod || 0) ? x : o, w = g === x ? o : x, ng = qdNt(g), nw = qdNt(w);
+    if (nw && (!ng || (+nw.en || 0) > (+ng.en || 0))) { const y = { ...g, nt: nw }; delete y.ntErr; m.set(x.id, y); } else m.set(x.id, g);
+  }
+  return [...m.values()].filter(x => !(dead && dead.has(x.id))).slice(-500);
+}
+// 2.25.0 (C) · Lo traído de Notion o Google (ES.cxImp = { clave: { d, en } | { x: 1, en } }): unión por clave, gana el más reciente;
+// así dos teléfonos no traen lo mismo dos veces. Como mucho 1500 claves (las más recientes).
+function cxImpFusion(a, b) {
+  const ok = v => v && typeof v === 'object' && !Array.isArray(v), m = {};
+  for (const o of [b, a]) if (ok(o)) for (const [k, v] of Object.entries(o)) { if (!ok(v) || k.length > 240) continue; const p = m[k]; if (!p || (+v.en || 0) >= (+p.en || 0)) m[k] = v; }
+  return Object.fromEntries(Object.entries(m).sort((x, y) => (+y[1].en || 0) - (+x[1].en || 0)).slice(0, 1500));
+}
 function mergeStates(a, b) {
   a = normalize(a); b = normalize(b);
   const newer = a.cambiado >= b.cambiado ? a : b, older = newer === a ? b : a;
@@ -1629,6 +1654,8 @@ function mergeStates(a, b) {
       const Q = agQuitFusion(x.quit, y.quit), out2 = out.filter(it => { const k = agQuitClave(it); return !(k && Q[k] > 0 && !(+it.alta > Q[k])); });   // 2.21 (N) · lo quitado en un teléfono no vuelve desde el otro (aunque allí tenga otro id)
       return { ...y, ...x, items: out2, ...(Object.keys(Q).length ? { quit: Q } : {}), ocultos: agQuitOcultos([...new Set([...(x.ocultos || []), ...(y.ocultos || [])])], Q), ...(Array.isArray(x.vistos) || Array.isArray(y.vistos) ? { vistos: [...new Set([...(Array.isArray(x.vistos) ? x.vistos : []), ...(Array.isArray(y.vistos) ? y.vistos : [])])].slice(-800) } : {}), ...(x.estPremiados || y.estPremiados ? { estPremiados: [...new Set([...(Array.isArray(x.estPremiados) ? x.estPremiados : []), ...(Array.isArray(y.estPremiados) ? y.estPremiados : [])])] } : {}), organizado: Math.max(+x.organizado || 0, +y.organizado || 0) }; })(eN.agendaHoy, eO.agendaHoy),
     ...(eN.agendaMov || eO.agendaMov ? { agendaMov: agmFusion(eN.agendaMov, eO.agendaMov) } : {}),   // 2.24.2 (M) · lo que salió de cada día hacia otro
+    ...(eN.quiero || eO.quiero ? { quiero: qdFusion(eN.quiero, eO.quiero, dead) } : {}),
+    ...(eN.cxImp || eO.cxImp ? { cxImp: cxImpFusion(eN.cxImp, eO.cxImp) } : {}),   // 2.25.0 (C) · lo traído de Notion y Google   // 2.25.0 (T) · Quiero desarrollar y hacer
     agendaPlanes: agpFusion(eN.agendaPlanes, eO.agendaPlanes),   // 2.17 (O) · por día, el plan organizado más tarde
     agendaPlan: ((x, y) => !x ? (y || null) : !y ? x : x.fecha !== y.fecha ? (x.fecha > y.fecha ? x : y) : ((+x.organizado || 0) >= (+y.organizado || 0) ? x : y))(eN.agendaPlan, eO.agendaPlan) });
   // 2.12 · Lo que la regla de arriba no combinaba: cada hábito con lo del otro (unirHabito), los registros de la puerta y del teléfono,
@@ -5150,7 +5177,7 @@ const gCalOk = () => gValid() && !!gCfg().cal;
 // 2.22.2 (G) · En la app Android, el permiso lo da el teléfono (servicios de Google Play) por el puente: Google no deja iniciar sesión
 // dentro de un WebView. La respuesta llega en window.opGToken(reqId, json): { ok, token, scopes } o { ok: false, error, msg }.
 const gNat = () => { try { return OP_ANDROID && typeof window.OrgAndroid?.googleToken === 'function'; } catch { return false; } };
-const G_NAT_ERR = { no_registrada: 'Falta registrar la app en Google Cloud (paso 2 de las instrucciones).', cancelado: 'Cancelaste el permiso de Google.',
+const G_NAT_ERR = { no_registrada: 'Esta versión de la app no está registrada en Google. Actualiza la app de Android.', cancelado: 'Cancelaste el permiso de Google.',
   sin_play: 'Este teléfono no tiene los servicios de Google.', ocupado: 'La ventana de Google ya está abierta.', tiempo: 'Google no respondió. Prueba otra vez.' };
 const gNatPend = new Map();
 const gNatTarde = new Set();   // ventanas que pasaron la espera: si al final dan permiso, se guarda igual
@@ -5247,7 +5274,7 @@ const CAL_API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events
 async function gCalFetch(url, opt = {}) {
   const r = await fetch(url, { ...opt, headers: { Authorization: 'Bearer ' + gCfg().token, 'Content-Type': 'application/json' } });
   if (r.status === 401) { gNatCaduco(); gSetCfg({ ...gCfg(), token: '', exp: 0 }); throw new Error('El permiso de Google caducó. Toca «Conectar Google Calendar».'); }
-  if (r.status === 403) { gSetCfg({ ...gCfg(), cal: false }); throw new Error('Google Calendar no está activado: activa la API de Google Calendar en tu proyecto de Google Cloud y vuelve a conectar.'); }
+  if (r.status === 403) { gSetCfg({ ...gCfg(), cal: false }); throw new Error('Falta el permiso de Calendar. Toca «Conectar Google» y acepta Calendar.'); }
   if (!r.ok) throw new Error(`Google Calendar respondió ${r.status}.`);
   return r.json();
 }
@@ -8194,9 +8221,9 @@ function settings() {
       : `<div class="set-row"><span>Notificaciones<small>${avCfg().on ? 'Activadas' : 'Para no tener que abrir la app'}</small></span><button class="link" id="s-av">Configurar</button></div>`}
     ${OP_CHROME_ANDROID ? `<div class="set-row" id="s-apk-row" style="border-bottom:0;padding-bottom:4px${opApkSi() ? '' : ';display:none'}"><span>App para Android<small>Cuenta tu tiempo de uso en el teléfono</small></span><a class="link" id="s-apk" href="${OP_APK}" target="_blank" rel="noopener" style="min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:flex-end;flex:none">Descargar</a></div>
     <p class="meta" id="s-apk-nota" style="margin:0 0 12px${opApkSi() ? '' : ';display:none'}">Al abrir el archivo, si Android lo pide, permite instalar apps de Chrome.</p>` : ''}
-    <div class="set-row"><span>Notion<small>${ntCfg().token ? 'Conectado' : 'Journaling, estudio e ideas, directo a tu Notion'}</small></span><button class="link" id="s-nt">${ntCfg().token ? 'Ver' : 'Conectar'}</button></div>
+    ${(() => { try { return cxAjustesHtml(); } catch (e) { console.warn('Conexiones', e); return `<div class="set-row"><span>Notion<small>${ntCfg().token ? 'Conectado' : 'Journaling, estudio, tareas e ideas'}</small></span><button class="link" id="s-nt">${ntCfg().token ? 'Ver' : 'Conectar'}</button></div>`; } })()}   <!-- 2.25.0 (C) · Conexiones -->
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
-      <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia'].includes(localStorage.getItem('habit-inicio')) ? localStorage.getItem('habit-inicio') : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia'], ['todo', 'Todo']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'todo'].includes(localStorage.getItem('habit-inicio')) ? localStorage.getItem('habit-inicio') : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
     <div class="actions"><button class="primary" id="s-ok">Listo</button></div>`);
   const body = $('#sheet-body');
@@ -8226,6 +8253,7 @@ function settings() {
     const sDormir = $('#s-dormir')?.value || ''; ES.horaDormir = /^\d\d:\d\d$/.test(sDormir) ? sDormir : (ES.horaDormir || '23:00');
     guardar();
   };
+  try { cxAjustesWire(aplicarAjustes); } catch (e) { console.warn('Conexiones', e); }   // 2.25.0 (C)
   $('#s-ok').onclick = () => { aplicarAjustes(); closeSheet(); renderE(); window.xmBono?.(); };   // 2.13 · F14: con la meta más baja, el quinto día puede quedar cumplido
 }
 $('#open-settings').onclick = settings;
@@ -11215,6 +11243,7 @@ function agendaAhora() {
 }
 // Eventos de Google Calendar de hoy, como ítems de la agenda (se renuevan con cada carga; los que quitaste no vuelven).
 function agSyncEventos(evs) {
+  try { const S = window.cxGevSet?.(); if (S && S.size) evs = (evs || []).filter(ev => !(ev && S.has(ev.id))); } catch {}   // 2.25.0 (C) · ya es una tarea
   const A = agenda(), prev = A.items.filter(it => it.tipo === 'evento'), antes = JSON.stringify(prev), ocultos = new Set(A.ocultos);
   const nuevos = (evs || []).filter(ev => !ocultos.has(ev.id || ev.titulo + ev.inicio)).filter(ev => !btEsEventoDeBloque(ev)).slice(0, 12).map(ev => { const ref = ev.id || ev.titulo + ev.inicio, p = prev.find(x => x.ref === ref); const min = ev.todoElDia ? 0 : Math.round((Date.parse(ev.fin) - Date.parse(ev.inicio)) / 60000);
     return { id: p?.id || crypto.randomUUID(), tipo: 'evento', ref, t: ev.titulo, h: ev.todoElDia ? '' : hhmm(new Date(ev.inicio)), min: min > 0 && min <= 720 ? min : 60, hecho: !!p?.hecho, enlace: ev.enlace || '', alta: +p?.alta || Date.now(), ...(p?.rango ? { rango: p.rango } : {}), ...(p?.ord ? { ord: p.ord } : {}) }; });
@@ -24027,6 +24056,7 @@ function atrasPaso() {
   else if (mvFoco()) toast('La sesión sigue: la terminas desde su pantalla');
   else if (view === 'journal' && window.rfAtras?.()) {}   // 2.22.1 (R) · dentro de Reflexiones: un paso atrás
   else if (view === 'agenda' && window.agDiaAtras?.()) {}   // 2.24.0 (H) · de un día anterior, a hoy
+  else if (view === 'todo' && window.tdAtras?.()) {}   // 2.25.0 (T) · de «Quiero desarrollar y hacer» a Apartados; de Apartados a Rápido
   else if (view !== 'inicio') irA('inicio');
 }
 // 2.15.1 · El vigía. Chromium salta una entrada puesta sin un toque desde el último recorrido del historial (al abrir la app fuera de
@@ -31021,11 +31051,1211 @@ window.iniOpc = { ahora: () => { const a = ahoraSugerido(); return a ? { k: a.k,
 window.ivOpc = { cats: () => INI4.map(([k, n]) => [k, n]), linea: () => iniLinea('iniciativas'), hechas: () => window.ivHechasHoy(), ia: () => (IA_TOOLS.find(t => t.name === 'iniciativa_dia') || {}).input_schema?.properties?.tipo?.enum || null,
   sys: () => IA_SYSTEM, tool: a => iaEjecutar('iniciativa_dia', a), marcar: (k, h) => { iniMarcar(iniIdx(k), h); guardar(); }, items: () => ini4Semana().items.map(x => ({ k: x.k, t: x.t, hecho: !!x.hecho })), propia: () => window.ivPropia(),
   destino: t => ivDestino(t), esIdeas: id => ivEsIdeas(agPorId(id)) };   // 2.22.0 (J)
+// ====================================================================
+// 2.25.0 (T) · Pestaña «Todo»: «Rápido» (atajos a un toque, con Hábitos en grande arriba) y «Apartados» (todos los apartados, como en
+// el Inicio). Y el apartado «Quiero desarrollar y hacer»: lo que quieres desarrollar (algo de ti que crece) o hacer (un proyecto o una
+// experiencia) se guarda aquí (ES.quiero, sincronizado y con unión por id) y va directo a la base «🌱 Quiero desarrollar y hacer» de
+// tu Notion. Sin Notion o sin red, espera en cola y se envía en cuanto se pueda (al volver la red o al abrir la app).
+// Nada de la barra cambia salvo el botón nuevo «Todo» (detrás de Inicio); las subpestañas no son botones .tab.
+// ====================================================================
+var TD_SUB_KEY = 'todo-sub';
+var tdSub = (() => { try { return localStorage.getItem(TD_SUB_KEY) === 'apartados' ? 'apartados' : 'rapido'; } catch { return 'rapido'; } })();
+var tdPag = '';   // '' | 'quiero' (la vista completa de «Quiero desarrollar y hacer», dentro de Apartados)
+var tdQTipo = 'desarrollar', tdQTxt = '', tdCssN = -1;
+const tdHost = document.getElementById('view-todo'), tdR = tdHost ? tdHost.attachShadow({ mode: 'open' }) : null;
+const tdW = document.createElement('div'); tdW.className = 'enf ini td';
+const tdSt = document.createElement('style');
+if (tdR) tdR.append(tdSt, tdW);
+const TD_CSS = `
+  .td-seg { display: flex; gap: 4px; padding: 4px; margin: 0 0 18px; border-radius: 999px; background: var(--soft); }
+  .td-seg button { flex: 1 1 0; min-height: 44px; border-radius: 999px; font-weight: 600; font-size: .98rem; color: var(--muted); background: transparent; }
+  .td-seg button[aria-selected="true"] { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .td-hb { margin: 0 0 18px; }
+  .td-hb .ic-c { margin-bottom: 0; border-width: 2.5px; }
+  .td-hb .ic-c .ag-foco-t, .td-hb .ic-c .ag-foco-m { min-height: 0; }
+  .td-hb-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 2px 10px; }
+  .td-big { margin: 0; font-size: 34px; line-height: 1.1; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .td-hb-l { margin: 0; color: var(--muted); font-size: .95rem; }
+  .td-bar { flex: 1 0 100%; height: 8px; border-radius: 4px; background: var(--empty); overflow: hidden; margin: 2px 0 0; }
+  .td-bar > i { display: block; height: 100%; background: var(--green); border-radius: 4px; }
+  .td-cs { margin: 8px 2px 0; color: var(--muted); font-size: .92rem; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .td-cs .link { min-height: 44px; }
+  .td-h { margin: 22px 0 8px; }
+  .td-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @media (min-width: 600px) { .td-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .td-a { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 16px; text-align: left; font-weight: 500; line-height: 1.25; color: var(--text); background: transparent; min-width: 0; }
+  .td-a:active { background: var(--soft); }
+  .td-a svg { flex: none; width: 22px; height: 22px; opacity: .85; }
+  .td-a span { min-width: 0; overflow-wrap: break-word; word-break: normal; hyphens: manual; }
+  @media (max-width: 379px) { .td-a { flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px; font-size: .94rem; } .td-a span { align-self: stretch; } }
+  .td-a small { display: block; color: var(--muted); font-weight: 400; font-size: .8rem; margin-top: 2px; }
+  .td-a.ok small { color: var(--green); }
+  .td-qd { margin: 0 0 18px; }
+  .td-qd input[type="text"] { min-height: 48px; border: 1.5px solid var(--line); border-radius: 14px; padding: 0 14px; font-size: 1rem; margin: 6px 0 10px; }
+  .td-qd input[type="text"]:focus { border-color: var(--text); }
+  .td-tipo { display: flex; gap: 8px; }
+  .td-tipo .chip { flex: 1 1 0; min-height: 44px; font-size: .95rem; }
+  .td-tipo-ay { margin: 6px 2px 10px; color: var(--muted); font-size: .85rem; }
+  .td-qd-ok { width: 100%; min-height: 48px; }
+  .td-qd-st { margin: 10px 2px 0; overflow-wrap: anywhere; }
+  .td-qd-st.err { color: var(--red); }
+  .td-qd-pie { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; }
+  .td-qd-pie .link { min-height: 44px; }
+  .td-back { min-height: 44px; margin: 0 0 4px; }
+  .qd-it { display: block; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .qd-it-t { font-weight: 600; overflow-wrap: anywhere; line-height: 1.35; }
+  .qd-it-m { color: var(--muted); font-size: .85rem; margin-top: 2px; overflow-wrap: anywhere; }
+  .qd-it-m .ok { color: var(--green); } .qd-it-m .err { color: var(--red); }
+  .qd-it-b { display: flex; flex-wrap: wrap; gap: 0 18px; margin-top: 2px; }
+  .qd-it-b .link, .qd-it-b a.link { min-height: 44px; display: inline-flex; align-items: center; }
+  .qd-cx { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0 0 14px; }
+  .qd-cx .link, .qd-cx a.link { min-height: 44px; display: inline-flex; align-items: center; }
+  .qd-vacio { color: var(--muted); padding: 10px 0; }`;
+function tdCss() {
+  if (!tdR || !iniR) return;
+  const L = [...iniR.querySelectorAll('style')];
+  if (L.length === tdCssN) return;
+  tdCssN = L.length; tdSt.textContent = L.map(s => s.textContent).join('\n') + TD_CSS;
+}
+const TD_SVG = {
+  todo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+  mas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  dia: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M5 12h9M5 17h6"/><path d="M16 16l2 2 3-4"/></svg>',
+  hab: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>',
+  rev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>',
+  aj: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+  brote: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21v-9"/><path d="M12 12c0-4 3-7 8-7 0 5-3 8-8 7z"/><path d="M12 14c0-3-2.5-5.5-7-5.5 0 4 2.5 6.5 7 5.5z"/></svg>',
+  nt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="2"/><path d="M9 16V8l6 8V8"/></svg>',
+  g: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  traer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v11"/><path d="M7.5 9.5L12 14l4.5-4.5"/><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>',
+  enviar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></svg>',
+};
+const tdTitulo = () => view === 'todo' && tdPag === 'quiero' ? 'Quiero desarrollar y hacer' : 'Todo';
+window.tdTitulo = tdTitulo;
+
+// ---------- «Quiero desarrollar y hacer»: datos (ES.quiero = [{ id, t, tipo, d, en, mod, nt?: { id, url, db, en, h }, ntErr? }])
+const QD_TIPOS = { desarrollar: 'Desarrollar', hacer: 'Hacer' };
+const QD_AYUDA = { desarrollar: 'Una habilidad o un rasgo que quieres hacer crecer.', hacer: 'Un proyecto o una experiencia que quieres vivir.' };
+function qdL() { const v = ES.quiero; if (Array.isArray(v)) return v; ES.quiero = []; return ES.quiero; }
+const qdItems = () => qdL().filter(x => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.t === 'string' && x.t.trim());
+const qdTipo = x => x && x.tipo === 'hacer' ? 'hacer' : 'desarrollar';
+const qdHash = x => `${qdTipo(x)}|${String(x?.t || '').trim()}`;
+const qdNtDe = x => (typeof qdNt === 'function' ? qdNt : (y => y && y.nt && typeof y.nt === 'object' && typeof y.nt.id === 'string' && y.nt.id ? y.nt : null))(x);
+const qdPend = x => { const n = qdNtDe(x); return !n || (typeof n.h === 'string' && n.h !== qdHash(x)); };
+const qdDe = id => qdItems().find(x => x.id === id) || null;
+const qdEnviando = new Set();
+const qdNtListo = () => !!(auth && ntCfg().token);
+function qdEstado(x) {
+  if (qdEnviando.has(x.id)) return { k: 'trab', t: 'Enviando a Notion…' };
+  const n = qdNtDe(x);
+  if (n && !qdPend(x)) return { k: 'ok', t: 'En Notion' };
+  if (x.ntErr) return { k: 'err', t: n ? 'No se pudo actualizar en Notion' : 'No se pudo enviar' };
+  if (n) return { k: 'pend', t: 'Cambiada, falta actualizar en Notion' };
+  return { k: 'pend', t: ntCfg().token ? 'Pendiente de enviar' : 'Pendiente: va a Notion cuando lo conectes' };
+}
+const qdFecha = x => { const d = /^\d{4}-\d\d-\d\d$/.test(x?.d || '') ? x.d : ''; if (!d) return ''; try { return new Date(d + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'short' }); } catch { return d; } };
+// El destino: la base «🌱 Quiero desarrollar y hacer». Si falta, se reutiliza o se crea dentro de tu página de Notion (la raíz de la guía);
+// sin raíz, debajo de la página elegida. Sin página, no hay destino. Una sola búsqueda o creación a la vez (si no, dos envíos seguidos
+// crearían dos bases con el mismo nombre).
+let qdDestP = null;
+function qdDestino() {
+  const d = ntDest('quiero'); if (d) return Promise.resolve(d);
+  if (!qdDestP) qdDestP = qdDestino0().finally(() => { qdDestP = null; });
+  return qdDestP;
+}
+// La base ya no está en Notion (se borró): se olvida, y el siguiente envío la reutiliza o la crea otra vez.
+function qdOlvidarDestino(id) {
+  const c = ntCfg(); if (!c.quiero || (id && !ntMismo(c.quiero.id, id))) return;
+  const c2 = { ...c }; delete c2.quiero;
+  if (c2.raiz && Array.isArray(c2.raiz.secs)) c2.raiz = { ...c2.raiz, secs: c2.raiz.secs.filter(k => k !== 'quiero') };
+  ntSetCfg(c2);
+}
+async function qdDestino0() {
+  let d = ntDest('quiero'); if (d) return d;
+  const c = ntCfg(), sec = NT_SEC.find(x => x.k === 'quiero');
+  if (c.raiz?.id) {
+    let err = '';
+    await ntPreparar(c.raiz, false, ['quiero'], (k, v) => { if (v?.e === 'err') err = v.txt || ''; });
+    d = ntDest('quiero');
+    if (d) { const c2 = ntCfg(); if (c2.raiz?.id && Array.isArray(c2.raiz.secs) && !c2.raiz.secs.includes('quiero')) ntSetCfg({ ...c2, raiz: { ...c2.raiz, secs: [...c2.raiz.secs, 'quiero'] } }); return d; }
+    if (err) throw new Error(err);
+  }
+  if (!c.pageId || !sec) return null;
+  d = await ntCrearSeccion(sec, c.pageId);
+  ntSetCfg({ ...ntCfg(), quiero: d });
+  return d;
+}
+function qdProps(d, x, nuevo) {
+  const P = d?.props || {}, props = { [P.title || 'Nombre']: { title: ntRt(String(x.t).trim()) } };
+  if (P.tipo) props[P.tipo] = { select: { name: QD_TIPOS[qdTipo(x)] } };
+  if (nuevo && P.fecha) props[P.fecha] = { date: { start: /^\d{4}-\d\d-\d\d$/.test(x.d || '') ? x.d : today() } };
+  if (nuevo && P.estado) props[P.estado] = { select: { name: 'Pendiente' } };
+  return props;
+}
+// Envía (o actualiza) una entrada. Devuelve true si quedó en Notion. Sin Notion o sin red no hace nada: sigue pendiente.
+async function qdEnviar(x0) {
+  const id = x0?.id; if (!id || qdEnviando.has(id) || !qdNtListo() || navigator.onLine === false) return false;
+  let x = qdDe(id); if (!x || !qdPend(x)) return !!x;
+  qdEnviando.add(id); tdRepintar();
+  const h = qdHash(x);
+  try {
+    let n = qdNtDe(x), hecho = false;
+    if (n) {
+      try {
+        const d0 = ntDest('quiero'), d = d0 && (!n.db || ntMismo(d0.id, n.db)) ? d0 : n.db ? await ntLeerBase(n.db) : d0;
+        if (d) { await notion(`pages/${n.id}`, 'PATCH', { properties: qdProps(d, x, false) }, true); hecho = true; }
+      } catch (e) { if (!ntNoExiste(e)) throw e; }   // la página ya no está (se borró en Notion): se crea otra
+    }
+    let pg = null, dd = null;
+    if (!hecho) {
+      const sinPag = () => Object.assign(new Error('Elige una página de Notion en Ajustes › Conexiones.'), { code: 'sin_pagina' });
+      const crear = () => notion('pages', 'POST', { parent: { database_id: dd.id }, properties: qdProps(dd, x, true), children: [ntBloque('paragraph', `${QD_TIPOS[qdTipo(x)]} · desde Organización Personal`)] });
+      dd = await qdDestino(); if (!dd) throw sinPag();
+      try { pg = await crear(); }
+      catch (e) {
+        if (!ntNoExiste(e)) throw e;
+        qdOlvidarDestino(dd.id);   // la base se borró en Notion: se crea (o se reutiliza) otra y se reintenta una vez
+        dd = await qdDestino(); if (!dd) throw sinPag();
+        try { pg = await crear(); }
+        catch (e2) { if (ntNoExiste(e2)) throw Object.assign(new Error('Notion no encuentra la base. Toca «Reintentar» para crearla otra vez.'), { code: 'object_not_found' }); throw e2; }
+      }
+    }
+    x = qdDe(id); if (!x) return false;   // se borró mientras tanto
+    x.nt = pg ? { id: String(pg.id), url: ntUrl(pg.url) || '', db: String(dd.id), en: Date.now(), h } : { ...qdNtDe(x), en: Date.now(), h };
+    delete x.ntErr; x.mod = Date.now();
+    guardar();
+    return true;
+  } catch (e) {
+    const y = qdDe(id); if (y) { y.ntErr = String(e?.message || 'Notion no respondió.').slice(0, 400); guardar(); }
+    return false;
+  } finally { qdEnviando.delete(id); tdRepintar(); }
+}
+let qdCola = Promise.resolve(), qdUltimo = 0, qdLuego = 0;
+function qdEnviarPend(forzar = false) {
+  if (!qdNtListo() || navigator.onLine === false) return qdCola;
+  const falta = 15000 - (Date.now() - qdUltimo);
+  if (!forzar && falta > 0) { if (!qdLuego) qdLuego = setTimeout(() => { qdLuego = 0; qdEnviarPend(); }, falta + 50); return qdCola; }   // como mucho cada 15 s; lo de ahora, al terminar la espera
+  qdUltimo = Date.now();
+  qdCola = qdCola.then(async () => { let ok = 0; for (const x of qdItems().filter(qdPend)) { if (await qdEnviar(x)) ok++; } return ok; }).catch(() => 0);
+  return qdCola;
+}
+addEventListener('online', () => setTimeout(() => qdEnviarPend(true), 1200));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(() => qdEnviarPend(), 1500); });
+setTimeout(() => qdEnviarPend(true), 6000);
+setInterval(() => { if (document.visibilityState !== 'hidden' && qdItems().some(qdPend)) qdEnviarPend(); }, 300000);
+function qdGuardar(t, tipo) {
+  t = String(t || '').replace(/\s+/g, ' ').trim().slice(0, 300); if (!t) return null;
+  const now = Date.now(), x = { id: (crypto.randomUUID ? crypto.randomUUID() : 'qd' + now + Math.random().toString(36).slice(2)), t, tipo: tipo === 'hacer' ? 'hacer' : 'desarrollar', d: today(), en: now, mod: now };
+  qdL().push(x); guardar();
+  qdEnviar(x).then(ok => { if (ok && view === 'todo') tdRender(true); });
+  return x;
+}
+function qdEditar(id) {
+  const x = qdDe(id); if (!x) return;
+  let tipo = qdTipo(x);
+  showSheet(`<h2>Editar</h2>
+    <input type="text" id="qd-e-t" maxlength="300" value="${esc(x.t)}" aria-label="Qué quieres desarrollar o hacer" style="min-height:48px;font-size:1rem">
+    <div class="chips" role="radiogroup" aria-label="Tipo" id="qd-e-tipo" style="margin-top:12px">${Object.entries(QD_TIPOS).map(([k, n]) => `<button type="button" class="chip${k === tipo ? ' on' : ''}" role="radio" aria-checked="${k === tipo}" data-qde="${k}" style="min-height:44px">${n}</button>`).join('')}</div>
+    <p class="meta">${qdNtDe(x) ? 'El cambio se pasa también a Notion.' : 'Va a Notion cuando se pueda.'}</p>
+    <div class="actions"><button class="link" id="qd-e-borrar">Borrar</button><button class="link" id="qd-e-x">Cancelar</button><button class="primary" id="qd-e-ok">Guardar</button></div>`);
+  const B = $('#sheet-body');
+  B.querySelectorAll('[data-qde]').forEach(c => c.onclick = () => { tipo = c.dataset.qde; B.querySelectorAll('[data-qde]').forEach(o => { const on = o === c; o.classList.toggle('on', on); o.setAttribute('aria-checked', String(on)); }); });
+  $('#qd-e-x').onclick = closeSheet;
+  $('#qd-e-borrar').onclick = () => qdBorrar(id);
+  $('#qd-e-ok').onclick = () => {
+    const t = $('#qd-e-t').value.replace(/\s+/g, ' ').trim().slice(0, 300); if (!t) { $('#qd-e-t').focus(); return; }
+    const y = qdDe(id); if (!y) { closeSheet(); return; }
+    if (t !== y.t || tipo !== qdTipo(y)) { y.t = t; y.tipo = tipo; y.mod = Date.now(); delete y.ntErr; guardar(); qdEnviar(y); toast('Guardado.'); }
+    closeSheet(); tdRender(true);
+  };
+}
+function qdBorrar(id) {
+  const x = qdDe(id); if (!x) return;
+  showSheet(`<h2>¿Borrar?</h2><p>«${esc(x.t)}» se borra de la app.${qdNtDe(x) ? ' En Notion se queda.' : ''}</p>
+    <div class="actions"><button class="link" id="qd-b-x">Cancelar</button><button class="primary" id="qd-b-ok">Borrar</button></div>`);
+  $('#qd-b-x').onclick = closeSheet;
+  $('#qd-b-ok').onclick = () => { ES.quiero = qdL().filter(y => !(y && y.id === id)); forget(id); guardar(); closeSheet(); tdRender(true); toast('Borrado.'); };
+}
+
+// ---------- Pintar
+function tdHbHtml() {
+  let x = { vacio: true }; try { x = icHabito(); } catch {}
+  let top = '';
+  const conTop = !x.vacio && x.tot > 0;   // sin hábitos hoy (0 de 0) no sale el número: la tarjeta ya lo dice
+  if (conTop) {
+    const pct = Math.round(x.hechos / x.tot * 100);
+    top = `<div class="td-hb-top"><p class="td-big" aria-label="${x.hechos} de ${x.tot} hábitos hechos hoy">${x.hechos} de ${x.tot}</p><p class="td-hb-l">hábitos hechos hoy</p><div class="h2-bar td-bar" role="progressbar" aria-label="Hábitos de hoy" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
+  }
+  let card = ''; try { card = icHbHtml(); } catch (e) { console.warn('Todo · Hábitos', e); }
+  if (conTop) {   // la cuenta va solo arriba, en grande: en la tarjeta no se repite
+    const cuenta = `${x.hechos} de ${x.tot} hoy`;
+    if (card.includes(` · ${cuenta}</p>`)) card = card.replace(` · ${cuenta}</p>`, '</p>');
+    else card = card.replace(`<p class="ag-foco-m">${cuenta}</p>`, '');
+  }
+  let cs = ''; try { const c = icCons(); if (!c.vacio && !c.nada) cs = `<p class="td-cs">Metas de consistencia: ${c.n} de ${c.tot}${c.hoy ? ' hoy' : ''} <button type="button" class="link" data-ic="cs-ver">Ver</button></p>`; } catch {}
+  return `<div class="td-hb" role="group" aria-label="Hábitos">${top}${card}${cs}</div>`;
+}
+function qdFormHtml() {
+  return `<input type="text" id="td-qd-t" maxlength="300" enterkeyhint="done" autocomplete="off" placeholder="Ej.: aprender a tocar guitarra" aria-label="Qué quieres desarrollar o hacer" value="${esc(tdQTxt)}">
+    <div class="td-tipo" role="radiogroup" aria-label="Tipo">${Object.entries(QD_TIPOS).map(([k, n]) => `<button type="button" class="chip${tdQTipo === k ? ' on' : ''}" role="radio" aria-checked="${tdQTipo === k}" data-qd-tipo="${k}">${n}</button>`).join('')}</div>
+    <p class="td-tipo-ay" id="td-qd-ay">${QD_AYUDA[tdQTipo]}</p>
+    <button type="button" class="primary td-qd-ok" data-td="qd-guardar">Guardar</button>`;
+}
+function qdLineaHtml() {
+  const L = qdItems(), p = L.filter(qdPend).length, err = L.some(x => x.ntErr && qdPend(x));
+  if (!ntCfg().token) return `<p class="meta td-qd-st" role="status">Se guarda aquí y va a Notion cuando lo conectes.</p>`;
+  if (!auth) return `<p class="meta td-qd-st" role="status">Se guarda aquí. Para enviarlo a Notion, entra en tu cuenta.</p>`;
+  if ([...qdEnviando].length) return `<p class="meta td-qd-st" role="status">Enviando a Notion…</p>`;
+  if (p) return `<p class="meta td-qd-st${err ? ' err' : ''}" role="status">${p} ${p === 1 ? 'pendiente' : 'pendientes'} de enviar a Notion${err ? '. Toca «Ver todo» para reintentar.' : '.'}</p>`;
+  const u = L[L.length - 1];
+  return `<p class="meta td-qd-st" role="status">${u ? `«${esc(u.t.length > 60 ? u.t.slice(0, 60) + '…' : u.t)}» está en Notion.` : 'Va directo a tu Notion.'}</p>`;
+}
+function qdCardHtml() {
+  const n = qdItems().length;
+  return `<section class="ag-foco-c td-qd" aria-labelledby="td-qd-k"><p class="ag-foco-k" id="td-qd-k">Quiero desarrollar y hacer</p>${qdFormHtml()}${qdLineaHtml()}
+    <div class="td-qd-pie"><button type="button" class="link" data-td="qd-abrir">Ver todo${n ? ` (${n})` : ''}</button>${ntCfg().token ? '' : '<button type="button" class="link" data-td="cx-notion">Conectar Notion</button>'}</div></section>`;
+}
+// Atajos: [clave, etiqueta, icono (vista de la barra o propio), ¿existe?]
+const TD_ATAJOS = [
+  ['anadir', 'Añadir', 'mas', () => typeof qaSheet === 'function'],
+  ['organizar', 'Organizar mi día', 'dia', () => !!(window.orgPropuesta || window.organizarDia)],
+  ['v:agenda', 'Agenda'], ['v:tareas', 'Tareas'], ['v:metas', 'Metas'],
+  ['cs-nueva', 'Nueva meta de consistencia', 'consistencia', () => typeof csNueva === 'function'],
+  ['hb-nuevo', 'Nuevo hábito', 'hab', () => typeof openForm === 'function'],
+  ['v:estudio', 'Estudio'], ['v:journal', 'Journaling'], ['v:temporizador', 'Temporizador'], ['v:caldia', 'Calendario'], ['v:cal', 'Mes de hábitos'],
+  ['revision', 'Revisión semanal', 'rev', () => typeof revisionSemanal === 'function'],
+  ['ajustes', 'Ajustes', 'aj', () => typeof settings === 'function']];
+function tdAtajosHtml() {
+  const por = new Map(iniBotones().map(x => [x.v, x]));
+  return TD_ATAJOS.map(([k, t, ic, existe]) => {
+    if (k.startsWith('v:')) { const v = k.slice(2), b = por.get(v); if (!b) return ''; return `<button type="button" class="td-a" data-ir="${esc(v)}">${b.svg}<span>${esc(t)}</span></button>`; }
+    try { if (existe && !existe()) return ''; } catch { return ''; }
+    const svg = TD_SVG[ic] || por.get(ic)?.svg || TD_SVG.mas;
+    return `<button type="button" class="td-a" data-td="${esc(k)}">${svg}<span>${esc(t)}</span></button>`;
+  }).join('');
+}
+function tdCxEstado() {
+  const c = ntCfg();
+  const nt = !c.token ? 'Falta conectar' : c.pageId || c.raiz?.id ? 'Conectado' : 'Falta elegir la página';
+  let g = 'Falta conectar';
+  try { const gc = gCfg(); if (gc.ok && gValid()) g = 'Conectado'; else if (gc.ok) g = 'Falta renovar el permiso'; } catch {}
+  return { nt, g };
+}
+function tdCxHtml() {
+  const s = tdCxEstado();
+  const t = (k, nom, ic, st) => `<button type="button" class="td-a${st === 'Conectado' ? ' ok' : ''}" data-td="cx-${k}" aria-label="${esc(`${nom}: ${st}. Abrir en Ajustes, Conexiones`)}">${TD_SVG[ic]}<span>${esc(nom)}<small>${esc(st)}</small></span></button>`;
+  return `<h3 class="td-h">Conexiones</h3><div class="td-grid">${t('notion', 'Notion', 'nt', s.nt)}${t('google', 'Google', 'g', s.g)}</div>`;
+}
+function tdRapidoHtml() {
+  return tdHbHtml() + qdCardHtml() + `<h3 class="td-h">Ir rápido</h3><div class="td-grid">${tdAtajosHtml()}</div>` + tdCxHtml();
+}
+function qdFilaHtml() {
+  const L = qdItems(), p = L.filter(qdPend).length;
+  const l = !L.length ? 'Lo que quieres desarrollar y hacer, directo a Notion' : `${L.length} ${L.length === 1 ? 'entrada' : 'entradas'}${p ? ` · ${p} ${p === 1 ? 'pendiente' : 'pendientes'} de Notion` : ' · todo en Notion'}`;
+  return `<button class="row" data-td="qd-abrir"><span class="ico" aria-hidden="true">${TD_SVG.brote}</span><span class="t"><div>Quiero desarrollar y hacer</div><small>${esc(l)}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+}
+function tdApartadosHtml() {
+  const B = iniBotones().filter(x => x.v !== 'todo'), por = new Map(B.map(x => [x.v, x])), usados = new Set();
+  const fila = x => { const l = iniLinea(x.v);
+    return `<button class="row" data-ir="${esc(x.v)}"><span class="ico" aria-hidden="true">${x.svg}</span><span class="t"><div>${esc(x.t)}</div>${l ? `<small>${esc(l)}</small>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>`; };
+  let html = '', qd = false;
+  for (const [nombre, vs] of INI_GRUPOS) {
+    const L = vs.map(v => por.get(v)).filter(Boolean); L.forEach(x => usados.add(x.v));
+    let filas = L.map(fila);
+    if (nombre === 'Desde la base') { const i = L.findIndex(x => x.v === 'metas'); filas.splice(i >= 0 ? i + 1 : 0, 0, qdFilaHtml()); qd = true; }
+    if (filas.length) html += `<h3>${esc(nombre)}</h3><div class="rows">${filas.join('')}</div>`;
+  }
+  const resto = B.filter(x => !usados.has(x.v));
+  if (resto.length || !qd) html += `<h3>Más</h3><div class="rows">${qd ? '' : qdFilaHtml()}${resto.map(fila).join('')}</div>`;
+  return html;
+}
+function qdVistaHtml() {
+  const c = ntCfg(), L = qdItems().slice().sort((a, b) => (+b.en || 0) - (+a.en || 0)), p = L.filter(qdPend).length, d = ntDest('quiero'), u = d ? ntAbrir(d) : '';
+  const cx = !c.token ? `<p class="meta">Notion sin conectar. Lo que guardes espera aquí y se envía al conectarlo.</p><div class="qd-cx"><button type="button" class="link" data-td="cx-notion">Conectar Notion</button></div>`
+    : !auth ? `<p class="meta">Para enviarlo a Notion, entra en tu cuenta.</p>`
+    : `<div class="qd-cx"><span class="meta">${d ? `Va a «${esc(d.t || '🌱 Quiero desarrollar y hacer')}» en tu Notion.` : 'Va a tu Notion: la base se crea con lo primero que envíes.'}</span>${u ? `<a class="link" href="${esc(u)}" target="_blank" rel="noopener">Abrir la base</a>` : ''}${p ? `<button type="button" class="link" data-td="qd-todas">Enviar ${p === 1 ? 'la pendiente' : `las ${p} pendientes`}</button>` : ''}</div>`;
+  const it = x => {
+    const e = qdEstado(x), n = qdNtDe(x), url = n ? ntAbrir(n) : '', id = esc(x.id);
+    return `<div class="qd-it" data-qd="${id}"><div class="qd-it-t">${esc(x.t)}</div><div class="qd-it-m">${QD_TIPOS[qdTipo(x)]}${qdFecha(x) ? ' · ' + esc(qdFecha(x)) : ''} · <span class="${e.k === 'ok' ? 'ok' : e.k === 'err' ? 'err' : ''}">${esc(e.t)}</span>${e.k === 'err' && x.ntErr ? `<br><span class="err">${esc(x.ntErr)}</span>` : ''}</div>
+      <div class="qd-it-b">${url ? `<a class="link" href="${esc(url)}" target="_blank" rel="noopener">Abrir en Notion</a>` : ''}${qdPend(x) && c.token && auth && e.k !== 'trab' ? `<button type="button" class="link" data-td="qd-reintentar" data-qd-id="${id}">${e.k === 'err' ? 'Reintentar' : n ? 'Actualizar' : 'Enviar'}</button>` : ''}<button type="button" class="link" data-td="qd-editar" data-qd-id="${id}">Editar</button><button type="button" class="link" data-td="qd-borrar" data-qd-id="${id}">Borrar</button></div></div>`;
+  };
+  const grupo = k => { const G = L.filter(x => qdTipo(x) === k); return `<h3>${QD_TIPOS[k]}</h3>${G.length ? G.map(it).join('') : `<p class="qd-vacio">${k === 'hacer' ? 'Nada todavía. ¿Qué proyecto o experiencia quieres vivir?' : 'Nada todavía. ¿Qué quieres hacer crecer en ti?'}</p>`}`; };
+  return `<button type="button" class="link td-back" data-td="qd-volver" id="td-volver">‹ Apartados</button>
+    ${L.length ? '' : '<p class="note">Lo que quieres desarrollar (algo de ti que crece) y lo que quieres hacer (un proyecto o una experiencia). Todo va a tu Notion.</p>'}
+    ${cx}
+    <section class="ag-foco-c td-qd" aria-label="Nueva entrada">${qdFormHtml()}</section>
+    ${grupo('desarrollar')}${grupo('hacer')}`;
+}
+function tdRender(forzar = false) {
+  if (!tdR) return;
+  try { const a = tdR.activeElement; if (!forzar && a && a.matches?.('input, textarea')) return; } catch {}   // escribiendo: no se pierde lo escrito
+  tdCss();
+  const foco = tdR.activeElement?.id === 'td-qd-t' || tdFocoQd;
+  tdFocoQd = false;
+  const tab = (k, n) => `<button type="button" role="tab" id="td-tab-${k}" aria-controls="td-panel" data-td-sub="${k}" aria-selected="${tdSub === k}" tabindex="${tdSub === k ? 0 : -1}">${n}</button>`;
+  const seg = tdPag ? '' : `<div class="td-seg" role="tablist" aria-label="Todo">${tab('rapido', 'Rápido')}${tab('apartados', 'Apartados')}</div>`;
+  let cuerpo = '';
+  try { cuerpo = tdPag === 'quiero' ? qdVistaHtml() : tdSub === 'apartados' ? tdApartadosHtml() : tdRapidoHtml(); } catch (e) { console.warn('Todo', e); cuerpo = '<p class="note">No se pudo mostrar esta parte.</p>'; }
+  tdW.innerHTML = seg + (tdPag ? `<div class="td-cuerpo" id="td-panel">${cuerpo}</div>` : `<div class="td-cuerpo" id="td-panel" role="tabpanel" aria-labelledby="td-tab-${tdSub}">${cuerpo}</div>`);
+  if (foco) { const i = tdW.querySelector('#td-qd-t'); if (i) try { i.focus({ preventScroll: true }); i.setSelectionRange(i.value.length, i.value.length); } catch {} }
+}
+function tdRepintar() { try { if (view === 'todo') tdRender(true); } catch (e) { console.warn('Todo', e); } }
+function tdVista() { if (!tdHost) return; if (view !== 'todo') { tdPag = ''; tdHost.hidden = true; return; } const entra = tdHost.hidden; tdHost.hidden = false; tdRender(); if (entra && qdItems().some(qdPend)) qdEnviarPend(); }
+renderAll = (f => function () { const x = f.apply(this, arguments); try { tdVista(); } catch (e) { console.warn('Todo', e); } return x; })(renderAll);
+render = (f => function () { const x = f.apply(this, arguments); try { if (view === 'todo' && tdHost && !tdHost.hidden) tdRender(); } catch {} return x; })(render);
+var tdFocoQd = false;
+function tdFoco(sel) { try { const e = tdW.querySelector(sel); if (e) e.focus({ preventScroll: true }); } catch {} }
+function tdIrPag(p) { tdPag = p; tdRender(true); try { renderTitle(); } catch {} try { scrollTo(0, 0); } catch {} tdFoco('#td-volver'); }
+// En la vista completa de «Quiero desarrollar y hacer» solo queda un enlace para volver («‹ Apartados»): «‹ Inicio» se oculta.
+renderTitle = (f => function () { const r = f.apply(this, arguments); try { const b = document.getElementById('ir-inicio'); if (b && view === 'todo' && tdPag) b.hidden = true; } catch {} return r; })(renderTitle);
+// El temporizador del mosaico de Hábitos (Rápido) cuenta como el del Inicio y se repinta al cambiar.
+tempRaices = (f => function () { const L = f.apply(this, arguments); return tdR && view === 'todo' ? [...L, tdW] : L; })(tempRaices);
+tempRepintar = (f => function () { const r = f.apply(this, arguments); try { tdRepintar(); } catch {} return r; })(tempRepintar);
+window.tdAtras = () => {
+  if (view !== 'todo') return false;
+  if (tdPag) { tdPag = ''; tdSub = 'apartados'; tdRender(true); try { renderTitle(); } catch {} tdFoco('#td-tab-apartados'); return true; }
+  if (tdSub === 'apartados') { tdSub = 'rapido'; try { localStorage.setItem(TD_SUB_KEY, tdSub); } catch {} tdRender(true); tdFoco('#td-tab-rapido'); return true; }
+  return false;
+};
+window.tdConexiones = k => {   // Ajustes › Conexiones (2.25.0, parte C); si aún no está, la hoja de siempre
+  const f = window.cxAjustes || window.conexionesAbrir;
+  if (typeof f === 'function') return f(k);
+  if (k === 'google') return gtasksSheet();
+  return notionSheet();
+};
+function qdGuardarDesdeForm() {
+  const i = tdW.querySelector('#td-qd-t'), t = (i ? i.value : tdQTxt).trim();
+  if (!t) { i?.focus(); toast('Escribe qué quieres desarrollar o hacer.'); return; }
+  const x = qdGuardar(t, tdQTipo); if (!x) return;
+  tdQTxt = ''; tdFocoQd = true;
+  toast(qdNtListo() && navigator.onLine !== false ? `Guardado: «${x.t.length > 40 ? x.t.slice(0, 40) + '…' : x.t}». Va a Notion.` : 'Guardado. Va a Notion cuando se pueda.');
+  tdRender(true);
+}
+function tdAccion(k, b) {
+  const id = b?.dataset?.qdId || '';
+  switch (k) {
+    case 'anadir': qaSheet(); return;
+    case 'organizar': if (window.orgPropuesta) window.orgPropuesta(today()); else window.organizarDia?.(); return;
+    case 'cs-nueva': csNueva(); return;
+    case 'hb-nuevo': openForm(); return;
+    case 'revision': revisionSemanal(); return;
+    case 'ajustes': settings(); return;
+    case 'cx-notion': window.tdConexiones('notion'); return;
+    case 'cx-google': window.tdConexiones('google'); return;
+    case 'qd-guardar': qdGuardarDesdeForm(); return;
+    case 'qd-abrir': tdSub = 'apartados'; tdIrPag('quiero'); return;
+    case 'qd-volver': window.tdAtras(); return;
+    case 'qd-todas': qdEnviarPend(true).then(() => { tdRepintar(); const p = qdItems().filter(qdPend).length; toast(p ? `Quedan ${p} sin enviar.` : 'Listo: todo está en Notion.'); }); tdRepintar(); return;
+    case 'qd-reintentar': { const x = qdDe(id); if (!x) return; qdEnviar(x).then(ok => { tdRepintar(); toast(ok ? 'En Notion.' : 'No se pudo enviar. Mira el aviso de esa entrada.'); }); return; }
+    case 'qd-editar': qdEditar(id); return;
+    case 'qd-borrar': qdBorrar(id); return;
+  }
+}
+tdW.addEventListener('input', e => { if (e.target?.id === 'td-qd-t') tdQTxt = e.target.value; });
+tdW.addEventListener('keydown', e => {
+  const tb = e.target?.closest?.('[role="tab"][data-td-sub]');
+  if (tb && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+    e.preventDefault();
+    tdSub = e.key === 'Home' ? 'rapido' : e.key === 'End' ? 'apartados' : tdSub === 'rapido' ? 'apartados' : 'rapido';
+    tdPag = ''; try { localStorage.setItem(TD_SUB_KEY, tdSub); } catch {} tdRender(true); tdFoco(`#td-tab-${tdSub}`);
+  }
+});
+tdW.addEventListener('keydown', e => { if (e.target?.id === 'td-qd-t' && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); qdGuardarDesdeForm(); } });
+tdW.addEventListener('click', e => {
+  const t = e.target;
+  const s = t.closest?.('[data-td-sub]');
+  if (s) { tdSub = s.dataset.tdSub === 'apartados' ? 'apartados' : 'rapido'; tdPag = ''; try { localStorage.setItem(TD_SUB_KEY, tdSub); } catch {} tdRender(true); try { tdW.querySelector(`[data-td-sub="${tdSub}"]`)?.focus({ preventScroll: true }); } catch {} return; }
+  const ic = t.closest?.('[data-ic]');
+  if (ic && tdW.contains(ic) && !ic.disabled) {
+    e.stopPropagation();
+    try { icToque(ic.dataset.ic, ic.closest('section')); } catch (err) { console.warn('Todo · Hábitos', err); }
+    tdRepintar();
+    const md = document.querySelector('#msg-dialog'); if (md?.open) md.addEventListener('close', () => setTimeout(tdRepintar, 60), { once: true });
+    return;
+  }
+  const q = t.closest?.('[data-qd-tipo]');
+  if (q) { tdQTipo = q.dataset.qdTipo === 'hacer' ? 'hacer' : 'desarrollar'; tdW.querySelectorAll('[data-qd-tipo]').forEach(o => { const on = o.dataset.qdTipo === tdQTipo; o.classList.toggle('on', on); o.setAttribute('aria-checked', String(on)); }); const ay = tdW.querySelector('#td-qd-ay'); if (ay) ay.textContent = QD_AYUDA[tdQTipo]; return; }
+  const a = t.closest?.('[data-td]');
+  if (a && !a.disabled) { try { tdAccion(a.dataset.td, a); } catch (err) { console.warn('Todo', err); } return; }
+  const ir = t.closest?.('[data-ir]');
+  if (ir) irA(ir.dataset.ir);
+});
+// En el Inicio: la fila «Todo» va primero en «Organizar y hacer» (antes de Agenda) con los hábitos de hoy.
+{ const g = INI_GRUPOS.find(x => x[0] === 'Organizar y hacer'); if (g && !g[1].includes('todo')) g[1].unshift('todo'); }
+INI_ESTADO.todo = () => { const x = icHabito(); return x.vacio || !x.tot ? 'Atajos y todos los apartados' : `Hábitos: ${x.hechos} de ${x.tot} hoy · atajos y apartados`; };
+// Notion: la sección «🌱 Quiero desarrollar y hacer» (base con Nombre, Tipo, Fecha y Estado), en la guía y en «Crear».
+if (!NT_SEC.some(x => x.k === 'quiero')) NT_SEC.push({ k: 'quiero', n: 'Quiero desarrollar y hacer', t: '🌱 Quiero desarrollar y hacer', db: true });
+ntCrearSeccion = (f => async function (sec, parent) {
+  if (sec?.k !== 'quiero') return f.apply(this, arguments);
+  const properties = { Nombre: { title: {} }, Tipo: { select: { options: [{ name: 'Desarrollar' }, { name: 'Hacer' }] } }, Fecha: { date: {} }, Estado: { select: { options: [{ name: 'Pendiente' }, { name: 'En curso' }, { name: 'Hecho' }] } } };
+  const db = await notion('databases', 'POST', { parent: { type: 'page_id', page_id: parent }, title: ntRt(sec.t), properties });
+  return { ...(await ntLeerBase(db.id)), url: ntUrl(db.url) };
+})(ntCrearSeccion);
+// Para las pruebas.
+window.tdOpc = { sub: () => tdSub, pag: () => tdPag, render: () => tdRender(true), items: () => JSON.parse(JSON.stringify(qdItems())), guardar: (t, tipo) => qdGuardar(t, tipo)?.id || null, enviar: () => qdEnviarPend(true), estado: id => { const x = qdDe(id); return x ? qdEstado(x) : null; }, secs: () => NT_SEC.map(x => ({ ...x })) };
+// ====================================================================
+// 2.25.0 (C) · Conexiones: Notion, Google Calendar y Google Tasks en un solo sitio (Ajustes › Conexiones), cada uno con su estado
+// («Conectado» / «Falta conectar» y el paso que sigue) y «Desconectar». «Traer» con un toque (de Notion: líneas de una página o filas de
+// una base; de Google Calendar: los eventos de 7 días; de Google Tasks) a Tareas, Agenda de hoy o Estudio, con casillas, sin repetir lo que
+// ya trajiste (ES.cxImp recuerda el origen) y con «Deshacer». «Enviar» con un toque: una tarea, un ítem de la agenda o una nota, a Notion
+// (base «✅ Tareas», o tu página) o a Google (Calendar o Tasks), desde la ficha de la tarea, la del ítem de la agenda y la nota rápida.
+// Los secretos siguen solo en este teléfono (rumbo-notion, habit-gtasks): nada de esto los escribe en el estado ni en la nube.
+// No cambia gSync, gCalCrear, notion() ni la sincronización de bloques de tiempo (2.16) o de fechas de tareas (2.24.2).
+// ====================================================================
+{ const st = document.createElement('style'); st.id = 'cx-css'; st.textContent = `
+  .cx-intro { margin: 0 0 6px; }
+  .cx-blq { border: 1.5px solid var(--line); border-radius: 16px; padding: 2px 14px 8px; margin: 8px 0 12px; }
+  .cx-blq.cx-foco { border-color: var(--text); }
+  .cx-blq .set-row { border-bottom: 0; }
+  .cx-blq .set-row .link, .cx-blq .set-row button { min-height: 44px; flex: none; }
+  .cx-st { display: block; }
+  .cx-st.ok { color: var(--green); }
+  .cx-paso { margin: 0 0 6px; color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; }
+  .cx-pasos { list-style: none; padding: 0; margin: 2px 0 6px; }
+  .cx-pasos li { display: flex; gap: 10px; align-items: center; min-height: 40px; font-size: .92rem; overflow-wrap: anywhere; }
+  .cx-ic { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); color: var(--muted); font-weight: 700; font-size: .8rem; }
+  .cx-pasos li.ok .cx-ic { background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
+  .cx-pasos li span.t { flex: 1; min-width: 0; }
+  .cx-pasos li .link { min-height: 44px; flex: none; }
+  .cx-puente { margin: 6px 0; padding: 10px 12px; border-radius: 12px; background: var(--soft); font-size: .9rem; overflow-wrap: anywhere; }
+  .cx-det { margin: 0 0 4px; color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; }
+  .cx-acc { display: flex; flex-wrap: wrap; gap: 0 18px; }
+  .cx-acc .link, .cx-acc a.link { min-height: 44px; display: inline-flex; align-items: center; }
+  .cx-big { display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 52px; margin: 8px 0; font-size: 1rem; text-align: center; text-decoration: none; }
+  .cx-big[disabled] { opacity: .45; }
+  .cx-nota { margin: -2px 0 8px; color: var(--muted); font-size: .85rem; }
+  .cx-err { color: var(--red); overflow-wrap: anywhere; }
+  .cx-err p, .cx-err ol { margin: 6px 0; }
+  .cxt-it { display: flex; gap: 12px; align-items: center; min-height: 48px; padding: 6px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .cxt-it input { flex: none; width: 24px; height: 24px; min-height: 0; margin: 0; padding: 0; accent-color: var(--text); }
+  .cxt-it .t { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+  .cxt-it small { display: block; color: var(--muted); font-size: .8rem; }
+  .cxt-it.ya { opacity: .55; cursor: default; }
+  .cxt-dia { margin: 14px 0 2px; font-weight: 600; font-size: .9rem; color: var(--muted); }
+  .cxt-sel { display: flex; flex-wrap: wrap; gap: 0 18px; }
+  .cxt-sel .link { min-height: 44px; }
+  .cx-dest { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+  .cx-dest .chip { min-height: 44px; }
+  .cx-dest .chip[disabled] { opacity: .45; }
+  .cxt-lbl { margin: 14px 0 0; font-weight: 600; }
+  .cxt-ruta { margin: 8px 0 0; min-height: 44px; }
+  .cxt-f { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--line); text-align: left; background: transparent; color: var(--text); }
+  .cxt-f .t { flex: 1; min-width: 0; overflow-wrap: anywhere; } .cxt-f small { display: block; color: var(--muted); font-size: .82rem; }
+  .cxt-f small.ok { color: var(--green); }
+  #cxn-t { min-height: 140px; }
+  #cxt .actions .link, #cxe .actions .link, #cxn .actions .link, #cxt .cxt-sel .link { min-height: 44px; }
+  #sheet-body:has(#s-cx) .times > .field { min-width: 0; }
+  #sheet-body:has(#s-cx) .times input { min-width: 0; width: 100%; box-sizing: border-box; }
+  #sheet-body:has(#s-cx) .set-row select { min-width: 0; max-width: 58%; }`; ov.appendChild(st); }
+
+// ---------- Estados
+// Si Notion rechaza el secreto guardado (401 unauthorized) o el puente falta (sin_funcion), queda una marca en rumbo-notion (solo el tipo y
+// la hora, nunca el secreto); la siguiente llamada que funciona la quita. Así Conexiones no dice «Conectado» cuando nada se puede enviar.
+notion = (f => async function () {
+  try {
+    const r = await f.apply(this, arguments);
+    try { const c = ntCfg(); if (c.malo) { const c2 = { ...c }; delete c2.malo; ntSetCfg(c2); } } catch {}
+    return r;
+  } catch (e) {
+    try { const k = e?.code === 'unauthorized' ? 'secreto' : e?.code === 'sin_funcion' ? 'puente' : ''; const c = ntCfg(); if (k && c.token && c.malo?.k !== k) { ntSetCfg({ ...c, malo: { k, en: Date.now() } }); setTimeout(() => { try { tdRepintar(); } catch {} }, 0); } } catch {}
+    throw e;
+  }
+})(notion);
+const cxNtEstado = () => {
+  const c = ntCfg();
+  if (c.token && c.malo?.k === 'secreto') return { k: 'medio', t: 'Notion no acepta tu secreto', paso: 'Toca «Seguir» y pega el secreto otra vez.', malo: 'secreto' };
+  if (c.token && c.malo?.k === 'puente') return { k: 'medio', t: 'Falta un paso técnico', paso: 'El puente de Notion no responde. Abajo tienes cómo arreglarlo, una sola vez.', malo: 'puente' };
+  if (!c.token) return auth ? { k: 'falta', t: 'Falta conectar', paso: 'Toca «Conectar»: pegas tu secreto y eliges una página.' } : { k: 'falta', t: 'Falta conectar', paso: 'Primero entra en tu cuenta de la app.' };
+  if (!(c.pageId || c.raiz?.id)) return { k: 'medio', t: 'Falta elegir la página', paso: 'Toca «Seguir» y elige la página de Notion donde va todo.' };
+  if (!auth) return { k: 'medio', t: 'Conectado, falta tu cuenta', paso: 'Entra en tu cuenta de la app para enviar a Notion.' };
+  return { k: 'ok', t: 'Conectado' };
+};
+const cxNtListo = () => cxNtEstado().k === 'ok';
+const cxGViejo = () => OP_ANDROID && !gNat();   // la APK vieja, sin el puente de Google
+function cxGEstado() {
+  const c = gCfg();
+  if (!c.ok) { const f = { k: 'falta', t: 'Falta conectar', paso: cxGViejo() ? OP_G_MSG : 'Toca «Conectar»: Google te pide permiso una vez.' }; return { tasks: f, cal: f }; }
+  if (!gValid() || c.renovar) { const f = { k: 'medio', t: 'Falta renovar el permiso', paso: 'Toca «Renovar»: es un toque.' }; return { tasks: f, cal: f }; }
+  return { tasks: { k: 'ok', t: 'Conectado' }, cal: c.cal ? { k: 'ok', t: 'Conectado' } : { k: 'medio', t: 'Falta el permiso de Calendar', paso: 'Toca «Dar permiso» y acepta Calendar.' } };
+}
+const cxGListo = () => !!gCfg().ok && gValid();
+
+// ---------- Google: conectar, la cuenta y desconectar (lo mismo que hace Google Tasks, en un solo sitio)
+async function cxGConectar() {
+  if (cxGViejo()) { toast(OP_G_MSG); return false; }
+  try { if (!OP_ANDROID) await gLoad().catch(() => {}); await gToken(true, true); }
+  catch (e) { toast(e?.message || 'Google no respondió. Prueba otra vez.'); return false; }
+  try { gSync(false); } catch {}
+  try { cargarAgenda(true); } catch {}
+  cxGCuenta();
+  return gValid();
+}
+// La cuenta: el nombre del calendario principal es tu correo (sale en la respuesta de los eventos; no hace falta otro permiso).
+let cxGCuentaYa = false;
+async function cxGCuenta() {
+  if (!gCalOk() || cxGCuentaYa) return gCfg().cuenta || '';
+  cxGCuentaYa = true;
+  try {
+    const r = await gCalFetch(`${CAL_API}?maxResults=1&timeMin=${encodeURIComponent(new Date().toISOString())}`);
+    const s = String(r?.summary || '').slice(0, 120);
+    if (s) { gSetCfg({ ...gCfg(), cuenta: s }); return s; }
+  } catch {}
+  return '';
+}
+function cxGOff() {
+  const c = gCfg();
+  if (OP_ANDROID) {
+    try { if (c.token) { window.OrgAndroid?.googleOlvidar?.(c.token); fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(c.token), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }).catch(() => {}); } } catch {}
+    try { gNatFallo = 0; gNatRech = ''; gNatTarde.clear(); } catch {}
+  } else { try { google?.accounts?.oauth2?.revoke?.(c.token, () => {}); } catch {} }
+  try { localStorage.removeItem('habit-gtasks'); } catch {}
+  cxGCuentaYa = false;
+  try { if (view === 'tareas') renderTareas(); } catch {}
+  try { tdRepintar(); } catch {}
+}
+
+// ---------- Ajustes › Conexiones
+function cxAjustesHtml() {
+  const c = ntCfg(), n = cxNtEstado(), g = cxGEstado(), gc = gCfg();
+  const st = e => `<small class="cx-st${e.k === 'ok' ? ' ok' : ''}">${esc(e.t)}</small>`;
+  // Notion
+  let ntCuerpo = '';
+  if (n.k === 'ok') {
+    const raiz = c.raiz?.id ? { id: c.raiz.id, t: c.raiz.t || '' } : c.pageId ? { id: c.pageId, t: c.pageTitle || '', url: c.pageUrl || '' } : null, u = ntAbrir(raiz);
+    const secs = NT_SEC.filter(x => ntDest(x.k, c)).map(x => x.t);
+    ntCuerpo = `${c.ws ? `<p class="cx-det">Espacio: ${esc(c.ws)}</p>` : ''}${raiz ? `<p class="cx-det">Página: «${esc(raiz.t || 'sin título')}»${u ? ` · <a class="link" href="${esc(u)}" target="_blank" rel="noopener">Abrir</a>` : ''}</p>` : ''}
+      ${secs.length ? `<p class="cx-det">Va a: ${esc(secs.join(', '))}</p>` : ''}
+      <div class="cx-acc"><button class="link" id="s-nt-traer">Traer de Notion</button><button class="link red" id="s-nt-off">Desconectar</button></div>`;
+  } else {
+    const paso = (ok, t, acc = '') => `<li class="${ok ? 'ok' : ''}"><span class="cx-ic" aria-hidden="true">${ok ? '✓' : '○'}</span><span class="t">${t}</span>${acc}</li>`;
+    ntCuerpo = `<p class="cx-paso">${esc(n.paso)}</p>
+      <ol class="cx-pasos" aria-label="Pasos para conectar Notion">${paso(!!auth, 'Tu cuenta de la app', auth ? '' : '<button class="link" id="s-cx-cuenta">Entrar</button>')}${paso(!!c.token && n.malo !== 'secreto', n.malo === 'secreto' ? 'Tu secreto de Notion: Notion no lo acepta' : 'Tu secreto de Notion (se valida al pegarlo)')}${paso(!!(c.pageId || c.raiz?.id), 'La página donde va todo')}</ol>
+      <div class="cx-puente" id="cx-puente"${n.malo === 'puente' ? `><b>Falta un paso técnico, una sola vez.</b> ${NT_PUENTE_PASOS}` : ' hidden>'}</div>
+      ${c.token ? '<div class="cx-acc"><button class="link red" id="s-nt-off">Desconectar</button></div>' : ''}`;
+  }
+  const btnNt = n.k === 'ok' ? 'Ver' : !c.token ? 'Conectar' : 'Seguir';
+  // Google
+  const gBtn = (e, id, okTxt) => `<button class="link" id="${id}">${e.k === 'ok' ? okTxt : e.t === 'Falta renovar el permiso' ? 'Renovar' : e.t === 'Falta el permiso de Calendar' ? 'Dar permiso' : 'Conectar'}</button>`;
+  const viejo = !gc.ok && cxGViejo();
+  const gPie = viejo ? `<p class="cx-det">${esc(OP_G_MSG)} <a class="link" href="${OP_APK}" rel="noopener">Descargar la app</a></p>`
+    : gc.ok ? `<p class="cx-det" id="cx-g-cuenta">${gc.cuenta ? `Cuenta: ${esc(gc.cuenta)}` : 'Cuenta de Google conectada en este teléfono'}${gc.ultima ? ` · Tasks al día: ${esc(new Date(gc.ultima).toLocaleString('es', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}` : ''}</p>
+      <div class="cx-acc"><button class="link red" id="s-g-off">Desconectar Google</button></div>` : '';
+  return `<h3 id="s-cx">Conexiones</h3>
+    <p class="meta cx-intro">Notion y Google en un solo sitio. Lo que conectas se queda en este teléfono.</p>
+    <div class="cx-blq" id="cx-nt" data-cxk="notion"><div class="set-row"><span>Notion${st(n)}</span><button class="link" id="s-nt">${btnNt}</button></div>${ntCuerpo}</div>
+    <div class="cx-blq" id="cx-g" data-cxk="google">
+      <div class="set-row"><span>Google Calendar${st(g.cal)}</span>${viejo ? '' : gBtn(g.cal, 's-gcal', 'Traer')}</div>
+      ${g.cal.k !== 'ok' && g.cal.paso && !viejo ? `<p class="cx-paso">${esc(g.cal.paso)}</p>` : ''}
+      <div class="set-row"><span>Google Tasks${st(g.tasks)}</span>${viejo ? '' : gBtn(g.tasks, 's-gt', 'Ver')}</div>
+      ${gPie}</div>`;
+}
+function cxAjustesWire(aplicar) {
+  const B = $('#sheet-body'); if (!B || !B.querySelector('#s-cx')) return;
+  const ap = () => { try { aplicar?.(); } catch {} };
+  B.querySelector('#s-nt-traer')?.addEventListener('click', () => { ap(); cxTraerSheet('notion'); });
+  B.querySelector('#s-nt-off')?.addEventListener('click', () => { if (!confirm('¿Desconectar Notion en este teléfono?')) return; ap(); ntSetCfg({}); try { renderPizarras(); renderJournal(); } catch {} try { tdRepintar(); } catch {} cxAjustes('notion'); toast('Notion desconectado en este teléfono.'); });
+  B.querySelector('#s-cx-cuenta')?.addEventListener('click', () => { ap(); closeSheet(); accountForm('in'); });
+  { const sn = B.querySelector('#s-nt'); if (sn && cxNtEstado().malo === 'secreto') sn.onclick = () => { ap(); try { renderE(); } catch {} ntGuia('', false, 1); }; }   // a pegar el secreto otra vez
+  const g = cxGEstado();
+  const gAcc = async (e, que) => {
+    ap();
+    if (e.k === 'ok') { if (que === 'cal') cxTraerSheet('gcal'); else gtasksSheet(); return; }
+    if (await cxGConectar()) { cxAjustes('google'); toast('Google conectado.'); } else if (sheet.open && $('#s-cx')) cxAjustes('google');
+  };
+  B.querySelector('#s-gcal')?.addEventListener('click', () => gAcc(g.cal, 'cal'));
+  B.querySelector('#s-gt')?.addEventListener('click', () => gAcc(g.tasks, 'tasks'));
+  B.querySelector('#s-g-off')?.addEventListener('click', () => { if (!confirm('¿Desconectar Google en este teléfono? Se dejan de sincronizar Tasks y Calendar.')) return; ap(); cxGOff(); cxAjustes('google'); toast('Google desconectado en este teléfono.'); });
+  // El puente de Notion: solo se explica si falta.
+  if (!ntCfg().token && auth) ntPuenteVivo().then(p => { const el = $('#cx-puente'); if (el && !p.ok && p.puente) { el.innerHTML = `<b>Falta un paso técnico, una sola vez.</b> ${NT_PUENTE_PASOS}`; el.hidden = false; } }).catch(() => {});
+  if (gCalOk() && !gCfg().cuenta) cxGCuenta().then(s => { const el = $('#cx-g-cuenta'); if (el && s && !/^Cuenta:/.test(el.textContent)) el.textContent = `Cuenta: ${s}`; });
+}
+// Abre Ajustes en «Conexiones» (k: 'notion' | 'google'): la entrada única desde cualquier sitio.
+function cxAjustes(k = '') {
+  try { settings(); } catch (e) { console.warn('Conexiones', e); return; }
+  const B = $('#sheet-body'); if (!B) return;
+  const blq = B.querySelector(k === 'google' ? '#cx-g' : k === 'notion' ? '#cx-nt' : '#s-cx');
+  if (blq && k) { blq.classList.add('cx-foco'); blq.setAttribute('tabindex', '-1'); }
+  setTimeout(() => { try { (B.querySelector('#s-cx') || blq)?.scrollIntoView({ block: 'start' }); } catch {} try { if (blq && k) blq.focus({ preventScroll: true }); } catch {} }, 60);
+}
+window.cxAjustes = cxAjustes;
+
+// ---------- Registro de lo traído (ES.cxImp): { [clave]: { d: destino, en: ms } } o { x: 1, en } si se deshizo. Unión por clave (cxImpFusion).
+function cxImpL() { const v = ES.cxImp; if (v && typeof v === 'object' && !Array.isArray(v)) return v; ES.cxImp = {}; return ES.cxImp; }
+const cxImpTiene = k => { const v = cxImpL()[k]; return !!(v && typeof v === 'object' && !v.x); };
+const cxImpPon = (k, d) => { cxImpL()[k] = { d, en: Date.now() }; };
+const cxImpQuitar = k => { cxImpL()[k] = { x: 1, en: Date.now() }; };
+const cxGevSet = () => {
+  const S = new Set();
+  try { for (const x of HT().tareas.items) if (x && typeof x.gev === 'string' && x.gev) S.add(x.gev); } catch {}
+  try { for (const a of ES.agendaHoy?.items || []) if (a && a.tipo !== 'evento' && typeof a.gev === 'string' && a.gev) S.add(a.gev); } catch {}   // un ítem de la agenda enviado a Calendar
+  return S;
+};
+window.cxGevSet = cxGevSet;   // agSyncEventos: un evento que ya es una tarea (traído o enviado) no sale dos veces en la agenda de hoy
+const cxTarea = id => HT().tareas.items.find(x => x && x.id === id) || null;
+const cxNombreF = { notion: 'Notion', gcal: 'Google Calendar', gtasks: 'Google Tasks' };
+
+// ---------- Traer
+let cxT = null;
+const cxRutas = () => { try { return (window.est?.rutas?.() || estRutas()).filter(r => r && !r.archivada); } catch { return []; } };
+function cxTraerSheet(fuente = '') {
+  cxT = { fuente, paso: fuente === 'notion' ? 'lista' : fuente ? 'items' : 'fuente', lista: [], items: [], sel: new Set(), dest: 'tareas', ruta: '', err: null, cargando: false, nt: null, aviso: '' };
+  cxTPintar();
+  if (fuente) cxTCargar();
+}
+window.cxTraerSheet = cxTraerSheet;
+function cxYa(it, dest) {
+  if (it.gt) {
+    const x = cxTarea(it.gt); if (!x) return true;
+    if (dest === 'tareas') return x.fecha === today();
+    if (dest === 'agenda') return agenda().items.some(a => a.tipo === 'tarea' && a.ref === x.id);
+    return cxImpTiene(it.key + ':e');
+  }
+  if (cxImpTiene(it.key)) return true;
+  const id = it.id;
+  return HT().tareas.items.some(x => x && ((x.imp && typeof x.imp === 'object' && x.imp.id === id) || (typeof x.gev === 'string' && x.gev === id)));
+}
+function cxTItemsHtml() {
+  const T = cxT, f = T.fuente;
+  if (T.cargando) return '<p class="meta" role="status">Buscando…</p>';
+  if (T.err) return `<div class="cx-err" role="alert">${T.err}</div>`;
+  if (!T.items.length) return `<p class="meta">${f === 'gcal' ? 'No hay eventos en los próximos 7 días.' : f === 'gtasks' ? 'No hay tareas de Google sin hacer.' : 'No hay nada que traer de aquí.'}</p>`;
+  let html = '', dia = '';
+  for (const it of T.items) {
+    if (f === 'gcal' && it.fecha !== dia) { dia = it.fecha; html += `<p class="cxt-dia">${esc(it.fecha === today() ? 'Hoy' : it.fecha === agpDia(today(), 1) ? 'Mañana' : cap(new Date(it.fecha + 'T12:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'short' })))}</p>`; }
+    const ya = cxYa(it, T.dest), on = !ya && T.sel.has(it.key);
+    html += `<label class="cxt-it${ya ? ' ya' : ''}"><input type="checkbox" data-cxt-k="${esc(it.key)}"${on ? ' checked' : ''}${ya ? ' disabled' : ''}><span class="t">${esc(it.t)}<small>${ya ? 'Ya está' : esc(it.sub || '')}</small></span></label>`;
+  }
+  return html;
+}
+function cxTPintar() {
+  const T = cxT; if (!T) return;
+  const f = T.fuente, back = '<button class="link" data-cxt="atras">Atrás</button>';
+  let cuerpo = '';
+  if (T.paso === 'fuente') {
+    const n = cxNtEstado(), g = cxGEstado();
+    const fila = (k, nom, e) => `<button type="button" class="cxt-f" data-cxt-f="${k}"><span class="t">${nom}<small class="${e.k === 'ok' ? 'ok' : ''}">${esc(e.k === 'ok' ? (k === 'gtasks' ? 'Conectado: ponlas para hoy o en Estudio' : 'Conectado') : `${e.t} · toca para conectar`)}</small></span><span aria-hidden="true">›</span></button>`;
+    cuerpo = `<p class="meta">¿De dónde?</p>${fila('notion', 'Notion', n)}${fila('gcal', 'Google Calendar', g.cal)}${fila('gtasks', 'Google Tasks', g.tasks)}
+      <div class="actions"><button class="link" data-cxt="cerrar">Cerrar</button></div>`;
+  } else if (T.paso === 'lista') {
+    const L = T.cargando ? '<p class="meta" role="status">Buscando…</p>' : T.err ? `<div class="cx-err" role="alert">${T.err}</div>`
+      : T.lista.length ? `<div class="rows">${T.lista.map((p, i) => `<button class="row" data-cxt-nt="${i}"><span class="dot" style="--c:${p.db ? 'var(--accent)' : 'var(--empty)'}"></span><span class="t"><div>${esc((p.ic ? p.ic + ' ' : p.db ? '🗂️ ' : '📄 ') + p.t)}</div><small>${p.db ? 'Base: trae sus filas' : 'Página: trae sus líneas'}</small></span><span class="tag">›</span></button>`).join('')}</div>`
+      : '<p class="meta">La integración no ve nada. En Notion: «···» › Conexiones › Organización Personal.</p>';
+    cuerpo = `<p class="meta">Elige una página o una base de tu Notion.</p>${L}<div class="actions">${back}<button class="link" data-cxt="cerrar">Cerrar</button></div>`;
+  } else {
+    const rutas = cxRutas(), n = T.items.filter(it => T.sel.has(it.key) && !cxYa(it, T.dest)).length;
+    const chip = (k, nom, dis = false) => `<button type="button" class="chip${T.dest === k ? ' on' : ''}" role="radio" aria-checked="${T.dest === k}" data-cxt-d="${k}"${dis ? ' aria-disabled="true" aria-describedby="cxt-sin-ruta"' : ''}>${nom}</button>`;
+    const libres = T.items.filter(it => !cxYa(it, T.dest)).length;
+    cuerpo = `${T.nt ? `<p class="meta">${esc((T.nt.db ? '🗂️ ' : '📄 ') + T.nt.t)}</p>` : ''}
+      ${T.items.length && !T.cargando && !T.err ? `<div class="cxt-sel"><button class="link" data-cxt="todo"${libres ? '' : ' disabled'}>Elegir todo</button><button class="link" data-cxt="nada">Ninguno</button></div>` : ''}
+      <div id="cxt-l">${cxTItemsHtml()}</div>
+      <p class="cxt-lbl">¿A dónde?</p>
+      <div class="cx-dest" role="radiogroup" aria-label="Destino">${chip('tareas', f === 'gtasks' ? 'Tareas para hoy' : 'Tareas')}${chip('agenda', f === 'gcal' ? 'Agenda' : 'Agenda de hoy')}${chip('estudio', 'Estudio', !rutas.length)}</div>
+      ${!rutas.length ? `<p class="cx-nota" id="cxt-sin-ruta" aria-live="polite"${T.sinRuta ? '' : ' hidden'}>Crea antes una ruta de estudio para traer aquí.</p>` : T.dest === 'estudio' ? `<select class="cxt-ruta" id="cxt-ruta" aria-label="Ruta de estudio">${rutas.map(r => `<option value="${esc(r.id)}"${r.id === T.ruta ? ' selected' : ''}>${esc(r.nombre || 'Ruta')}</option>`).join('')}</select>` : ''}
+      <p class="cx-nota">${f === 'gcal' && T.dest === 'agenda' ? 'Lo de hoy entra en tu agenda de hoy; lo de otros días, en su día.' : f === 'gtasks' && T.dest !== 'estudio' ? 'Ya están en Tareas: se ponen para hoy.' : f === 'gcal' && T.dest !== 'estudio' && cxGListo() ? 'También irá a Google Tasks.' : ''}</p>
+      ${T.aviso ? `<p class="cx-err" role="alert">${esc(T.aviso)}</p>` : ''}
+      <button class="primary cx-big" data-cxt="traer"${n ? '' : ' disabled'}>${n ? `Traer ${n}` : 'Elige qué traer'}</button>
+      <div class="actions">${f === 'notion' ? back : ''}<button class="link" data-cxt="cerrar">Cerrar</button></div>`;
+  }
+  showSheet(`<h2 data-sin-hecho>Traer${f ? ` de ${cxNombreF[f]}` : ''}</h2><div id="cxt">${cuerpo}</div>`);
+  const box = $('#cxt'); if (!box) return;
+  box.addEventListener('click', cxTClick);
+  box.addEventListener('change', e => {
+    const k = e.target?.dataset?.cxtK;
+    if (k) { if (e.target.checked) T.sel.add(k); else T.sel.delete(k); cxTBoton(); return; }
+    if (e.target?.id === 'cxt-ruta') { T.ruta = e.target.value; cxTItemsRefrescar(); }
+  });
+}
+function cxTBoton() {
+  const T = cxT, b = $('#cxt')?.querySelector('[data-cxt="traer"]'); if (!b) return;
+  const n = T.items.filter(it => T.sel.has(it.key) && !cxYa(it, T.dest)).length;
+  b.disabled = !n; b.textContent = n ? `Traer ${n}` : 'Elige qué traer';
+}
+function cxTItemsRefrescar() { const l = $('#cxt-l'); if (l) l.innerHTML = cxTItemsHtml(); cxTBoton(); }
+function cxTClick(e) {
+  const T = cxT, t = e.target;
+  const fb = t.closest?.('[data-cxt-f]');
+  if (fb) {
+    const k = fb.dataset.cxtF, listo = k === 'notion' ? cxNtListo() : k === 'gcal' ? gCalOk() : cxGListo();
+    if (!listo) return cxAjustes(k === 'notion' ? 'notion' : 'google');
+    return cxTraerSheet(k);
+  }
+  const nb = t.closest?.('[data-cxt-nt]');
+  if (nb) { const p = T.lista[+nb.dataset.cxtNt]; if (!p) return; T.nt = p; T.paso = 'items'; T.items = []; T.sel = new Set(); cxTPintar(); cxTCargar(); return; }
+  const d = t.closest?.('[data-cxt-d]');
+  if (d && d.getAttribute('aria-disabled') === 'true') { T.sinRuta = true; const n = $('#cxt-sin-ruta'); if (n) n.hidden = false; return; }   // Estudio sin rutas: solo se explica
+  if (d && !d.disabled) {
+    T.dest = d.dataset.cxtD; if (T.dest === 'estudio' && !T.ruta) T.ruta = cxRutas()[0]?.id || '';
+    T.aviso = ''; cxTPintar();
+    try { $('#cxt')?.querySelector(`[data-cxt-d="${T.dest}"]`)?.focus({ preventScroll: true }); } catch {}   // el foco sigue en el destino elegido
+    return;
+  }
+  const a = t.closest?.('[data-cxt]'); if (!a || a.disabled) return;
+  const k = a.dataset.cxt;
+  if (k === 'cerrar') closeSheet();
+  else if (k === 'atras') { if (T.fuente === 'notion' && T.paso === 'items') { T.paso = 'lista'; T.nt = null; T.err = null; cxTPintar(); if (!T.lista.length) cxTCargar(); } else cxTraerSheet(''); }
+  else if (k === 'todo') { for (const it of T.items) if (!cxYa(it, T.dest)) T.sel.add(it.key); cxTItemsRefrescar(); }
+  else if (k === 'nada') { T.sel.clear(); cxTItemsRefrescar(); }
+  else if (k === 'traer') cxTraer();
+}
+const cxNtTexto = rt => (Array.isArray(rt) ? rt : []).map(x => x?.plain_text || x?.text?.content || '').join('').replace(/\s+/g, ' ').trim();
+const CX_TIPOS_BLOQUE = ['to_do', 'bulleted_list_item', 'numbered_list_item', 'paragraph', 'heading_1', 'heading_2', 'heading_3', 'toggle', 'callout', 'quote'];
+function cxErrHtml(e) { try { return ntErrHtml(e); } catch { return `<p>${esc(e?.message || 'No se pudo.')}</p>`; } }
+async function cxTCargar() {
+  const T = cxT; if (!T) return;
+  const yo = T; T.cargando = true; T.err = null; cxTPintar();
+  try {
+    if (T.fuente === 'notion' && T.paso === 'lista') {
+      const r = await notion('search', 'POST', { page_size: 50, sort: { direction: 'descending', timestamp: 'last_edited_time' } });
+      T.lista = (r?.results || []).filter(p => p && p.id && !p.archived && !p.in_trash && (p.object === 'database' || p.parent?.type !== 'database_id'))
+        .map(p => ({ id: String(p.id).slice(0, 80), t: ntTituloDe(p).slice(0, 200), db: p.object === 'database', ic: p.icon?.type === 'emoji' ? String(p.icon.emoji || '').slice(0, 8) : '' })).slice(0, 50);
+    } else if (T.fuente === 'notion') {
+      const p = T.nt, out = [];
+      if (p.db) {
+        const d = await ntLeerBase(p.id); let cursor = '';
+        do {
+          const q = await notion(`databases/${p.id}/query`, 'POST', { page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }, true);
+          for (const row of q?.results || []) {
+            if (!row?.id || row.archived || row.in_trash) continue;
+            const pr = row.properties || {}, t = cxNtTexto(pr[d.props.title]?.title).slice(0, 160); if (!t) continue;
+            const st = d.props.fecha ? String(pr[d.props.fecha]?.date?.start || '') : '', fecha = /^\d{4}-\d\d-\d\d/.test(st) ? st.slice(0, 10) : '';
+            const hora = /T\d\d:\d\d/.test(st) ? (() => { try { return hhmm(new Date(st)); } catch { return st.slice(11, 16); } })() : '';
+            out.push({ key: 'n:' + row.id, id: String(row.id), t, fecha, hora, min: 0, pre: true, sub: fecha ? (fmtFecha(fecha) + (hora ? ' · ' + fmtHora(hora) : '')) : 'Sin fecha' });
+          }
+          cursor = q?.has_more ? q.next_cursor : '';
+        } while (cursor && out.length < 300);
+      } else {
+        let cursor = '', n = 0;
+        do {
+          const q = await notion(`blocks/${p.id}/children?page_size=100${cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''}`);
+          for (const b of q?.results || []) {
+            n++; if (!b || !CX_TIPOS_BLOQUE.includes(b.type)) continue;
+            const t = cxNtTexto(b[b.type]?.rich_text); if (!t || t.length > 160) continue;
+            const hecho = b.type === 'to_do' && !!b.to_do?.checked;
+            out.push({ key: 'n:' + b.id, id: String(b.id), t, fecha: '', hora: '', min: 0, pre: b.type === 'to_do' && !hecho, sub: b.type === 'to_do' ? (hecho ? 'Casilla marcada' : 'Casilla') : /^heading/.test(b.type) ? 'Título' : 'Línea' });
+          }
+          cursor = q?.has_more ? q.next_cursor : '';
+        } while (cursor && n < 300);
+      }
+      T.items = out.slice(0, 300);
+    } else if (T.fuente === 'gcal') {
+      if (!gCalOk()) { T.err = `<p>Falta el permiso de Calendar.</p><p><button class="link" id="cxt-perm">Dar permiso</button></p>`; T.items = []; }
+      else {
+        const desde = new Date(); desde.setHours(0, 0, 0, 0); const hasta = new Date(desde); hasta.setDate(hasta.getDate() + 7);
+        const evs = (await gCalEventos(desde, hasta)).filter(ev => ev && ev.id && !btEsEventoDeBloque(ev));
+        T.items = evs.map(ev => {
+          const fecha = ev.todoElDia ? String(ev.inicio || '').slice(0, 10) : dayKey(new Date(ev.inicio)), hora = ev.todoElDia ? '' : hhmm(new Date(ev.inicio));
+          const m = ev.todoElDia ? 0 : Math.round((Date.parse(ev.fin) - Date.parse(ev.inicio)) / 60000);
+          return { key: 'c:' + ev.id, id: String(ev.id).slice(0, 200), t: String(ev.titulo || '(Sin título)').slice(0, 160), fecha, hora, min: m >= 5 && m <= 720 ? m : 0, url: ntUrl(ev.enlace), pre: false, sub: ev.todoElDia ? 'Todo el día' : `${fmtHora(hora)}${m > 0 ? ' · ' + fmtMin(Math.min(m, 720)) : ''}` };
+        }).filter(it => /^\d{4}-\d\d-\d\d$/.test(it.fecha));
+      }
+    } else if (T.fuente === 'gtasks') {
+      if (cxGListo()) { try { await gSync(false); } catch {} }
+      T.items = HT().tareas.items.filter(x => x && x.gid && !x.hecha && String(x.titulo || '').trim())
+        .sort((a, b) => (a.fecha || '0') < (b.fecha || '0') ? -1 : (a.fecha || '0') > (b.fecha || '0') ? 1 : 0).slice(0, 60)
+        .map(x => ({ key: 'gt:' + x.id, id: x.id, gt: x.id, t: String(x.titulo).slice(0, 160), fecha: x.fecha || '', hora: x.hora || '', min: +x.min || 0, pre: !x.fecha, sub: x.fecha ? fmtFecha(x.fecha) : 'Sin fecha' }));
+    }
+    if (T.paso === 'items') for (const it of T.items) if (it.pre && !cxYa(it, T.dest)) T.sel.add(it.key);
+  } catch (e) { T.err = cxErrHtml(e); }
+  if (cxT !== yo) return;
+  T.cargando = false; cxTPintar();
+  $('#cxt-perm')?.addEventListener('click', async () => { if (await cxGConectar() && cxT === yo) cxTCargar(); });
+}
+function cxAgendaPoner(x) {
+  const A = agenda();
+  if (A.items.some(a => a.tipo === 'tarea' && a.ref === x.id)) return '';
+  const iid = crypto.randomUUID();
+  A.items.push({ id: iid, tipo: 'tarea', ref: x.id, t: x.titulo, h: x.hora || '', min: x.min || AG_MIN.tarea, hecho: false, alta: Date.now() });
+  A.vistos = [...new Set([...(Array.isArray(A.vistos) ? A.vistos : []), 'tarea:' + x.id])];
+  return iid;
+}
+function cxQuitarTarea(x) {
+  const T = HT().tareas; T.items = T.items.filter(y => y.id !== x.id); forget(x.id); if (x.gid) forget('g:' + x.gid);
+}
+function cxTraer() {
+  const T = cxT; if (!T) return;
+  const L = T.items.filter(it => T.sel.has(it.key) && !cxYa(it, T.dest)); if (!L.length) return;
+  const f = T.fuente, dest = T.dest, hoy = today(), deshacer = [], errs = [];
+  if (dest === 'estudio' && !window.est?.pendienteCrear) { T.aviso = 'Estudio no está listo. Prueba otra vez.'; cxTPintar(); return; }
+  const ruta = dest === 'estudio' ? (T.ruta || cxRutas()[0]?.id || '') : '';
+  let ok = 0;
+  for (const it of L) {
+    try {
+      if (dest === 'estudio') {
+        const p = window.est.pendienteCrear(ruta, { t: it.t, clase: 'tarea', fecha: it.fecha || '', hora: it.hora || '', min: it.min || 0 });
+        const k = it.gt ? it.key + ':e' : it.key; cxImpPon(k, 'estudio');
+        deshacer.push(() => { try { window.est.pendienteBorrar(p.id); } catch {} cxImpQuitar(k); });
+        ok++; continue;
+      }
+      if (it.gt) {
+        const x = cxTarea(it.gt); if (!x) continue;
+        const f0 = x.fecha, m0 = x.mod;
+        if (x.fecha !== hoy) { x.fecha = hoy; x.mod = Date.now(); }
+        const iid = dest === 'agenda' ? cxAgendaPoner(x) : '';
+        deshacer.push(() => { const y = cxTarea(x.id); if (y && y.fecha === hoy && f0 !== hoy) { y.fecha = f0; y.mod = Date.now(); } if (iid) { const A = agenda(); A.items = A.items.filter(a => a.id !== iid); forget(iid); } void m0; });
+        ok++; continue;
+      }
+      const fecha = dest === 'agenda' ? (f === 'gcal' ? (it.fecha || hoy) : hoy) : (it.fecha || '');
+      const x = agCrearTarea({ titulo: it.t, fecha, hora: it.hora || '', min: it.min || 0 });
+      x.imp = { f: f === 'gcal' ? 'gcal' : 'notion', id: it.id };
+      if (f === 'gcal') { x.gev = it.id; if (it.url) x.gevUrl = it.url; }
+      x.mod = Date.now();
+      let iid = '', evQuitado = null;
+      if (dest === 'agenda' && fecha === hoy) {
+        iid = cxAgendaPoner(x);
+        if (f === 'gcal') { const A = agenda(); evQuitado = A.items.filter(a => a.tipo === 'evento' && a.ref === it.id); A.items = A.items.filter(a => !(a.tipo === 'evento' && a.ref === it.id)); }
+      }
+      cxImpPon(it.key, dest);
+      deshacer.push(() => { cxQuitarTarea(x); if (iid) { const A = agenda(); A.items = A.items.filter(a => a.id !== iid); forget(iid); } if (evQuitado?.length) { const A = agenda(); A.items.push(...evQuitado); } cxImpQuitar(it.key); });
+      ok++;
+    } catch (e) { errs.push(e?.message || 'No se pudo.'); }
+  }
+  save(); guardar();
+  try { gAuto(); } catch {}
+  try { qaPintarTodo(); } catch {}
+  try { tdRepintar(); } catch {}
+  if (!ok) { T.aviso = errs[0] || 'No se pudo traer.'; cxTPintar(); return; }
+  closeSheet();
+  const nom = f === 'notion' ? 'Notion' : 'Google';
+  toast(`${ok} ${ok === 1 ? 'traída' : 'traídas'} de ${nom}${errs.length ? `. ${errs.length} ${errs.length === 1 ? 'no se pudo traer' : 'no se pudieron traer'}` : ''}.`, { deshacer: () => {
+    for (const fn of deshacer.reverse()) { try { fn(); } catch (e) { console.warn('Conexiones', e); } }
+    save(); guardar(); try { gAuto(); } catch {} try { qaPintarTodo(); } catch {} try { tdRepintar(); } catch {}
+  } });
+}
+
+// ---------- Enviar
+// El destino de las tareas en Notion: la base «✅ Tareas» (se reutiliza o se crea dentro de tu página; sin ella, debajo de la página elegida).
+// Una sola búsqueda o creación a la vez (dos envíos seguidos no crean dos bases).
+let cxNtDestP = null;
+function cxNtDestino() {
+  const d = ntDest('tareas'); if (d) return Promise.resolve(d);
+  if (!cxNtDestP) cxNtDestP = cxNtDestino0().finally(() => { cxNtDestP = null; });
+  return cxNtDestP;
+}
+function cxNtOlvidarDestino(id) {   // la base «✅ Tareas» se borró en Notion: se olvida y se reutiliza o se crea otra
+  const c = ntCfg(); if (!c.tareas || (id && !ntMismo(c.tareas.id, id))) return;
+  const c2 = { ...c }; delete c2.tareas;
+  if (c2.raiz && Array.isArray(c2.raiz.secs)) c2.raiz = { ...c2.raiz, secs: c2.raiz.secs.filter(k => k !== 'tareas') };
+  ntSetCfg(c2);
+}
+// Una base reutilizada (otro teléfono, o tras desconectar) no trae la casilla «Hecha» en props: se busca una vez y se recuerda.
+async function cxNtHecha(dd) {
+  if (!dd || dd.props?.hecha !== undefined) return dd;
+  let hecha = '';
+  try { const db = await notion(`databases/${dd.id}`); const P = Object.entries(db?.properties || {}).filter(([, p]) => p?.type === 'checkbox'); hecha = (P.find(([n]) => /hech|done|complet/i.test(n)) || P[0] || [''])[0] || ''; } catch (e) { if (ntNoExiste(e)) throw e; return dd; }
+  const d2 = { ...dd, props: { ...(dd.props || {}), hecha } }, c = ntCfg();
+  if (c.tareas && ntMismo(c.tareas.id, dd.id)) ntSetCfg({ ...c, tareas: d2 });
+  return d2;
+}
+async function cxNtDestino0() {
+  let d = ntDest('tareas'); if (d) return d;
+  const c = ntCfg(), sec = NT_SEC.find(x => x.k === 'tareas');
+  if (c.raiz?.id) {
+    let err = '';
+    await ntPreparar(c.raiz, false, ['tareas'], (k, v) => { if (v?.e === 'err') err = v.txt || ''; });
+    d = ntDest('tareas');
+    if (d) { const c2 = ntCfg(); if (c2.raiz?.id && Array.isArray(c2.raiz.secs) && !c2.raiz.secs.includes('tareas')) ntSetCfg({ ...c2, raiz: { ...c2.raiz, secs: [...c2.raiz.secs, 'tareas'] } }); return d; }
+    if (err) throw new Error(err);
+  }
+  if (!c.pageId || !sec) return null;
+  d = await ntCrearSeccion(sec, c.pageId);
+  ntSetCfg({ ...ntCfg(), tareas: d });
+  return d;
+}
+const cxTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } };
+function cxSinConexion(k) { return Object.assign(new Error(k === 'notion' ? 'Falta conectar Notion.' : 'Falta conectar Google.'), { code: 'sin_conexion', k }); }
+async function cxANotion(d, tipo) {
+  if (!cxNtListo()) throw cxSinConexion('notion');
+  const c = ntCfg(), bloques = d.detalle ? ntBloquesTexto(d.detalle) : [];
+  if (tipo === 'nota' && c.pageId) { const pg = await ntCrearPagina(d.titulo, bloques); return { id: String(pg.id), url: ntAbrir({ id: pg.id, url: pg.url }) }; }
+  let dd = await cxNtDestino();
+  if (!dd) {
+    if (!c.pageId) throw Object.assign(new Error('Elige una página de Notion en Ajustes › Conexiones.'), { code: 'sin_pagina' });
+    const pg = await ntCrearPagina(d.titulo, [{ object: 'block', type: 'to_do', to_do: { rich_text: ntRt(d.titulo), checked: !!d.hecha } }, ...bloques]);
+    return { id: String(pg.id), url: ntAbrir({ id: pg.id, url: pg.url }) };
+  }
+  const children = tipo === 'nota' ? bloques : [{ object: 'block', type: 'to_do', to_do: { rich_text: ntRt(d.titulo), checked: !!d.hecha } }, ...bloques];
+  const crear = async () => {
+    dd = await cxNtHecha(dd);
+    const P = dd.props || {}, props = { [P.title || 'Nombre']: { title: ntRt(d.titulo) } };
+    if (P.fecha && d.fecha) props[P.fecha] = { date: d.hora ? { start: `${d.fecha}T${d.hora}:00`, ...(cxTz() ? { time_zone: cxTz() } : {}) } : { start: d.fecha } };
+    if (P.tipo) props[P.tipo] = { select: { name: tipo === 'nota' ? 'Nota' : tipo === 'evento' ? 'Evento' : 'Tarea' } };
+    if (P.hecha) props[P.hecha] = { checkbox: !!d.hecha };
+    return notion('pages', 'POST', { parent: { database_id: dd.id }, properties: props, children: children.slice(0, 100) });
+  };
+  let pg;
+  try { pg = await crear(); }
+  catch (e) {
+    if (!ntNoExiste(e)) throw e;
+    cxNtOlvidarDestino(dd.id);   // la base «✅ Tareas» ya no está en Notion: se crea (o se reutiliza) otra y se reintenta una vez
+    dd = await cxNtDestino();
+    if (!dd) throw Object.assign(new Error('Elige una página de Notion en Ajustes › Conexiones.'), { code: 'sin_pagina' });
+    try { pg = await crear(); }
+    catch (e2) { if (ntNoExiste(e2)) throw Object.assign(new Error('No encuentro la base «✅ Tareas» en Notion. Toca otra vez para crearla.'), { code: 'object_not_found' }); throw e2; }
+  }
+  return { id: String(pg.id), url: ntAbrir({ id: pg.id, url: pg.url }) };
+}
+async function cxAGcal(d, ref = '') {
+  if (!/^\d{4}-\d\d-\d\d$/.test(d.fecha || '')) throw new Error('Ponle fecha para enviarla a Calendar.');
+  if (!gCalOk()) {
+    if (cxGViejo()) throw new Error(OP_G_MSG);
+    if (!gCfg().ok) throw cxSinConexion('google');
+    try { await gToken(true, true); } catch (e) { throw e; }
+    if (!gCalOk()) throw new Error('Falta el permiso de Calendar.');
+  }
+  const tz = cxTz(), body = { summary: d.titulo, ...(d.detalle ? { description: d.detalle } : {}), extendedProperties: { private: { opItem: String(ref || '').slice(0, 100) } } };
+  if (d.hora) {
+    const ini = new Date(`${d.fecha}T${d.hora}:00`), fin = new Date(ini.getTime() + Math.max(5, Math.min(720, +d.min || 30)) * 60000);
+    const iso = x => `${dayKey(x)}T${hhmm(x)}:00`;
+    body.start = { dateTime: iso(ini), ...(tz ? { timeZone: tz } : {}) }; body.end = { dateTime: iso(fin), ...(tz ? { timeZone: tz } : {}) };
+  } else { body.start = { date: d.fecha }; body.end = { date: agpDia(d.fecha, 1) }; }
+  const r = await gCalFetch(CAL_API, { method: 'POST', body: JSON.stringify(body) });
+  return { id: String(r?.id || ''), url: ntUrl(r?.htmlLink) };
+}
+// A Google Tasks: una tarea ya va sola (sincronización); un ítem de la agenda o una nota se vuelven tarea y suben.
+async function cxAGtasks(src) {
+  if (!gCfg().ok) { if (cxGViejo()) throw new Error(OP_G_MSG); throw cxSinConexion('google'); }
+  if (!gValid()) { await gToken(true, false); if (!gValid()) throw new Error('Falta renovar el permiso de Google.'); }
+  let x = src.x;
+  if (!x && src.mark && typeof src.mark.gt === 'string') x = cxTarea(src.mark.gt);   // un reintento: la tarea ya se creó la primera vez
+  if (!x && src.hold?.gt) { x = cxTarea(src.hold.gt); if (x && (x.titulo !== src.titulo || (x.detalle || '') !== (src.detalle || ''))) { x.titulo = src.titulo; x.detalle = src.detalle || ''; x.mod = Date.now(); save(); } }
+  if (!x) {
+    x = agCrearTarea({ titulo: src.titulo, detalle: src.detalle || '', fecha: src.tipo === 'nota' ? '' : (src.fecha || today()), hora: src.hora || '', min: src.min || 0 });
+    x.mod = Date.now(); save();
+    if (src.tipo === 'ag' && x.fecha === today()) { const A = agenda(); A.vistos = [...new Set([...(Array.isArray(A.vistos) ? A.vistos : []), 'tarea:' + x.id])]; guardar(); }
+    if (src.mark) { src.mark.gt = x.id; src.mark.mod = Date.now(); guardar(); }
+    if (src.hold) src.hold.gt = x.id;
+  }
+  clearTimeout(gAutoT);
+  try { await gSync(false); } catch {}
+  const y = cxTarea(x.id);
+  if (!y) throw new Error('No encuentro la tarea.');
+  if (!y.gid) { try { gAuto(); } catch {} return { id: '', url: '', pend: true }; }   // ya está en Tareas; sube sola en cuanto Google responda
+  return { id: y.gid, url: '' };
+}
+// De dónde sale lo que se envía: una tarea, un ítem de la agenda (si es una tarea, la tarea) o una nota.
+function cxSrc(s) {
+  if (s?.tareaId) { const x = cxTarea(s.tareaId); if (!x) return null; return { tipo: 'tarea', x, mark: x, titulo: x.titulo, detalle: x.detalle || '', fecha: x.fecha || '', hora: x.hora || '', min: +x.min || 0, hecha: !!x.hecha, ref: 'tar:' + x.id, guarda: save }; }
+  if (s?.agId) {
+    const it = agPorId(s.agId); if (!it) return null;
+    if (it.tipo === 'tarea') { const x = agFuente(it); if (x) return cxSrc({ tareaId: x.id }); }
+    return { tipo: 'ag', it, mark: it, titulo: it.t, detalle: '', fecha: today(), hora: it.h || '', min: +it.min || 0, hecha: !!agHecho(it), ref: 'ag:' + it.id, guarda: guardar, evento: it.tipo === 'plan' };
+  }
+  if (s?.nota) { const t = String(s.nota.titulo || '').trim(); if (!t) return null; return { tipo: 'nota', mark: null, hold: s.hold && typeof s.hold === 'object' ? s.hold : null, titulo: t.slice(0, 200), detalle: String(s.nota.detalle || '').slice(0, 2000), fecha: '', hora: '', min: 0, hecha: false, ref: '', guarda: () => {} }; }
+  return null;
+}
+const cxNtDe = m => m && m.nt && typeof m.nt === 'object' && typeof m.nt.id === 'string' && m.nt.id ? m.nt : null;
+const cxGevDe = m => m && typeof m.gev === 'string' && m.gev ? m.gev : '';
+function cxToast(msg, url) {
+  toast(msg);
+  if (!url) return;
+  const t = $('#toast'); if (!t) return;
+  const a = document.createElement('a'); a.className = 'ag-toast-b qa-toast-b cx-abrir'; a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir';
+  a.addEventListener('click', e => e.stopPropagation());
+  t.append(' ', a); t.style.pointerEvents = 'auto';
+  clearTimeout(toastT); toastT = setTimeout(() => { t.classList.remove('on'); t.style.pointerEvents = ''; }, 6000);
+}
+async function cxEnviarA(destino, s0, onEstado) {
+  const s = cxSrc(s0); if (!s) throw new Error('No encuentro eso.');
+  if (destino === 'notion') {
+    const r = await cxANotion(s, s.tipo === 'nota' ? 'nota' : s.evento ? 'evento' : 'tarea');
+    if (s.mark) { const m = s.tipo === 'tarea' ? cxTarea(s.x.id) : agPorId(s.it.id); if (m) { m.nt = { id: r.id, url: r.url, en: Date.now() }; m.mod = Date.now(); s.guarda(); } }
+    return { msg: 'Enviada a Notion', url: r.url };
+  }
+  if (destino === 'gcal') {
+    const r = await cxAGcal(s, s.ref);
+    if (s.mark) { const m = s.tipo === 'tarea' ? cxTarea(s.x.id) : agPorId(s.it.id); if (m) { m.gev = r.id; if (r.url) m.gevUrl = r.url; m.mod = Date.now(); s.guarda(); } }
+    try { const A = agenda(); const n = A.items.length; A.items = A.items.filter(a => !(a.tipo === 'evento' && a.ref === r.id)); if (A.items.length !== n) guardar(); } catch {}
+    return { msg: 'En Google Calendar', url: r.url };
+  }
+  if (destino === 'gtasks') { onEstado?.('Enviando a Google Tasks…'); const r = await cxAGtasks(s); return { msg: r.pend ? 'Guardada en Tareas. Sube a Google Tasks en cuanto se pueda' : 'En Google Tasks', url: '' }; }
+  throw new Error('Destino desconocido.');
+}
+function cxEnviarSheet(s0) {
+  const s = cxSrc(s0); if (!s) { toast('No encuentro eso.'); return; }
+  const n = cxNtListo(), nt = cxNtDe(s.mark), gev = cxGevDe(s.mark), gok = !!gCfg().ok;
+  const gtYa = s.tipo === 'tarea' ? !!s.x.gid : !!(s.mark && s.mark.gt && cxTarea(s.mark.gt));
+  const ntHtml = nt ? `${nt.url ? `<a class="outline btn cx-big" href="${esc(nt.url)}" target="_blank" rel="noopener">Abrir en Notion</a>` : ''}<p class="cx-nota">Ya está en Notion.</p>`
+    : `<button class="${n ? 'primary' : 'outline'} cx-big" data-cxe="${n ? 'notion' : 'cx-notion'}">${n ? 'Notion' : 'Notion · Falta conectar'}</button>`;
+  const calHtml = s.tipo === 'nota' ? '' : gev ? `${ntUrl(s.mark.gevUrl) ? `<a class="outline btn cx-big" href="${esc(ntUrl(s.mark.gevUrl))}" target="_blank" rel="noopener">Abrir en Google Calendar</a>` : ''}<p class="cx-nota">Ya está en Google Calendar.</p>`
+    : !gok ? `<button class="outline cx-big" data-cxe="cx-google">Google Calendar · Falta conectar</button>`
+    : `<button class="outline cx-big" data-cxe="gcal"${s.fecha ? '' : ' disabled'}>Google Calendar</button>${s.fecha ? '' : '<p class="cx-nota">Ponle fecha para enviarla a Calendar.</p>'}`;
+  const tasksHtml = gtYa ? `<p class="cx-nota">${s.tipo === 'tarea' ? 'Ya está en Google Tasks: se sincroniza sola.' : 'Ya está en Google Tasks.'}</p>`
+    : !gok ? `<button class="outline cx-big" data-cxe="cx-google">Google Tasks · Falta conectar</button>`
+    : `<button class="outline cx-big" data-cxe="gtasks">Google Tasks</button>`;
+  showSheet(`<h2 data-sin-hecho>Enviar a…</h2><p class="meta">«${esc(s.titulo.length > 80 ? s.titulo.slice(0, 80) + '…' : s.titulo)}»</p>
+    <div id="cxe">${ntHtml}${calHtml}${tasksHtml}<div class="cx-err" id="cxe-st" role="status"></div>
+    <div class="actions"><button class="link" data-cxe="cerrar">Cerrar</button></div></div>`);
+  const box = $('#cxe'); if (!box) return;
+  box.addEventListener('click', async e => {
+    const b = e.target.closest?.('[data-cxe]'); if (!b || b.disabled) return;
+    const k = b.dataset.cxe;
+    if (k === 'cerrar') return closeSheet();
+    if (k === 'cx-notion') return cxAjustes('notion');
+    if (k === 'cx-google') return cxAjustes('google');
+    const stEl = $('#cxe-st'), botones = [...box.querySelectorAll('[data-cxe]')];
+    botones.forEach(x => { if (x.dataset.cxe !== 'cerrar') x.disabled = true; });
+    if (stEl) { stEl.className = 'meta'; stEl.textContent = k === 'notion' ? 'Enviando a Notion…' : k === 'gcal' ? 'Enviando a Google Calendar…' : 'Enviando a Google Tasks…'; }
+    try {
+      const r = await cxEnviarA(k, s0, t => { if (stEl) stEl.textContent = t; });
+      closeSheet(); cxToast(r.msg + '.', r.url);
+      try { qaPintarTodo(); } catch {} try { if (view === 'tareas') renderTareas(); } catch {}
+    } catch (err) {
+      botones.forEach(x => { x.disabled = false; });
+      if (!stEl) return;
+      stEl.className = 'cx-err';
+      if (err?.code === 'sin_conexion') { stEl.innerHTML = `<p>${esc(err.message)}</p><p><button class="link" data-cxe="cx-${err.k}">Conectar</button></p>`; return; }
+      stEl.innerHTML = cxErrHtml(err);
+    }
+  });
+}
+window.cxEnviarSheet = cxEnviarSheet;
+// La nota rápida: la primera línea es el título; el resto, el cuerpo. A Notion (una página dentro de tu página) o a Google Tasks.
+function cxNotaSheet(texto = '') {
+  const n = cxNtListo(), g = !!gCfg().ok, hold = {};   // hold.gt: la tarea creada en el primer intento (un reintento no crea otra)
+  showSheet(`<h2 data-sin-hecho>Nota rápida</h2>
+    <textarea id="cxn-t" maxlength="2000" placeholder="Escribe tu nota" aria-label="Tu nota">${esc(texto)}</textarea>
+    <p class="cx-nota">La primera línea es el título.</p>
+    <div id="cxn"><button class="${n ? 'primary' : 'outline'} cx-big" data-cxn="${n ? 'notion' : 'cx-notion'}">${n ? 'Enviar a Notion' : 'Notion · Falta conectar'}</button>
+    <button class="outline cx-big" data-cxn="${g ? 'gtasks' : 'cx-google'}">${g ? 'Enviar a Google Tasks' : 'Google Tasks · Falta conectar'}</button>
+    <div class="cx-err" id="cxn-st" role="status"></div>
+    <div class="actions"><button class="link" data-cxn="cerrar">Cerrar</button></div></div>`);
+  const box = $('#cxn'); if (!box) return;
+  setTimeout(() => { try { $('#cxn-t')?.focus(); } catch {} }, 60);
+  box.addEventListener('click', async e => {
+    const b = e.target.closest?.('[data-cxn]'); if (!b || b.disabled) return;
+    const k = b.dataset.cxn;
+    if (k === 'cerrar') return closeSheet();
+    if (k === 'cx-notion') return cxAjustes('notion');
+    if (k === 'cx-google') return cxAjustes('google');
+    const v = String($('#cxn-t')?.value || '').trim(), stEl = $('#cxn-st');
+    if (!v) { $('#cxn-t')?.focus(); if (stEl) { stEl.className = 'meta'; stEl.textContent = 'Escribe tu nota.'; } return; }
+    const [l1, ...resto] = v.split('\n'), nota = { titulo: l1.trim().slice(0, 200) || 'Nota', detalle: resto.join('\n').trim() };
+    const botones = [...box.querySelectorAll('[data-cxn]')]; botones.forEach(x => { if (x.dataset.cxn !== 'cerrar') x.disabled = true; });
+    if (stEl) { stEl.className = 'meta'; stEl.textContent = k === 'notion' ? 'Enviando a Notion…' : 'Enviando a Google Tasks…'; }
+    try { const r = await cxEnviarA(k, { nota, hold }); closeSheet(); cxToast(r.msg + '.', r.url); try { qaPintarTodo(); } catch {} }
+    catch (err) {
+      botones.forEach(x => { x.disabled = false; }); if (!stEl) return; stEl.className = 'cx-err';
+      if (err?.code === 'sin_conexion') { stEl.innerHTML = `<p>${esc(err.message)}</p><p><button class="link" data-cxn="cx-${err.k}">Conectar</button></p>`; return; }
+      stEl.innerHTML = cxErrHtml(err);
+    }
+  });
+}
+window.cxNotaSheet = cxNotaSheet;
+// Un evento de la agenda de hoy, como tarea editable (sin repetirse en la agenda).
+function cxEventoATarea(it) {
+  if (!it || it.tipo !== 'evento') return;
+  const ref = String(it.ref || ''), x = agCrearTarea({ titulo: it.t, fecha: today(), hora: it.h || '', min: +it.min || 0 });
+  x.imp = { f: 'gcal', id: ref }; x.gev = ref; if (ntUrl(it.enlace)) x.gevUrl = ntUrl(it.enlace); x.mod = Date.now(); save();
+  const A = agenda(), ev = A.items.find(a => a.id === it.id);
+  A.items = A.items.filter(a => a.id !== it.id);
+  const iid = cxAgendaPoner(x); cxImpPon('c:' + ref, 'agenda'); guardar();
+  closeSheet(); try { qaPintarTodo(); } catch {}
+  toast('Traída a Tareas.', { deshacer: () => { cxQuitarTarea(x); const B = agenda(); B.items = B.items.filter(a => a.id !== iid); forget(iid); if (ev) B.items.push(ev); cxImpQuitar('c:' + ref); save(); guardar(); try { qaPintarTodo(); } catch {} } });
+}
+
+// ---------- Enganches en lo que ya existe (sin cambiar lo que hacía)
+// Ficha de la tarea: «Enviar a Notion o Google» guarda lo escrito (como «Guardar») y abre «Enviar a…».
+taskForm = (f => function (x) {
+  const r = f.apply(this, arguments);
+  try {
+    const dlg = document.querySelector('#msg-dialog'), acts = dlg?.querySelector('.dialog-actions');
+    if (x && x.id && HT().tareas.items.includes(x) && acts && !dlg.querySelector('#t-enviar')) {
+      const p = document.createElement('p'); p.style.margin = '14px 0 0';
+      p.innerHTML = '<button class="link" id="t-enviar" type="button" style="min-height:44px">Enviar a Notion o Google</button>';
+      acts.before(p);
+      p.querySelector('#t-enviar').onclick = () => { document.querySelector('#t-go')?.click(); if (!document.querySelector('#msg-dialog')?.open) cxEnviarSheet({ tareaId: x.id }); };
+    }
+  } catch (e) { console.warn('Conexiones', e); }
+  return r;
+})(taskForm);
+// Ficha de un ítem de la agenda: «Enviar a…» (tarea, libre, prioridad, iniciativa, plan); en un evento, «Traer a Tareas».
+agItemSheet = (f => function (it0) {
+  const r = f.apply(this, arguments);
+  try {
+    const B = $('#sheet-body'), cerrar = B?.querySelector('#ai-close');
+    const it = it0 && (agPorId(it0.id) || it0);
+    if (cerrar && it && !B.querySelector('#ai-enviar, #ai-traer')) {
+      if (['tarea', 'libre', 'prio', 'ini', 'plan'].includes(it.tipo)) {
+        const b = document.createElement('button'); b.className = 'link'; b.id = 'ai-enviar'; b.type = 'button'; b.textContent = 'Enviar a…'; b.style.minHeight = '44px';
+        cerrar.before(b); b.onclick = () => cxEnviarSheet({ agId: it.id });
+      } else if (it.tipo === 'evento') {
+        const b = document.createElement('button'); b.className = 'link'; b.id = 'ai-traer'; b.type = 'button'; b.textContent = 'Traer a Tareas'; b.style.minHeight = '44px';
+        cerrar.before(b); b.onclick = () => cxEventoATarea(agPorId(it.id) || it);
+      }
+    }
+  } catch (e) { console.warn('Conexiones', e); }
+  return r;
+})(agItemSheet);
+// «Añadir»: «Enviar como nota» lleva lo escrito a la nota rápida.
+qaSheet = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    const B = $('#sheet-body'), hab = B?.querySelector('#qa-form-hab');
+    if (hab && !B.querySelector('#qa-nota')) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'link'; b.id = 'qa-nota'; b.textContent = 'Enviar como nota a Notion o Google';
+      hab.after(b); b.onclick = () => cxNotaSheet(String(B.querySelector('#qa-in')?.value || ''));
+    }
+  } catch (e) { console.warn('Conexiones', e); }
+  return r;
+})(qaSheet);
+// Las entradas de siempre (Ajustes, Pizarras, Journaling, Estudio, Iniciativas, Tareas) siguen igual y llevan a «Todas las conexiones».
+notionSheet = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    const B = $('#sheet-body'), acts = B ? [...B.querySelectorAll(':scope > .actions')].pop() : null;
+    if (acts && !B.querySelector('#nt-cx') && !B.querySelector('#s-cx')) {
+      const p = document.createElement('p'); p.className = 'cx-acc'; p.style.margin = '6px 0 0';
+      p.innerHTML = '<button class="link" id="nt-cx" type="button">Todas las conexiones</button>';
+      acts.before(p); p.querySelector('#nt-cx').onclick = () => cxAjustes('notion');
+    }
+  } catch (e) { console.warn('Conexiones', e); }
+  return r;
+})(notionSheet);
+window.notionSheet = notionSheet;
+gtasksSheet = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    const dlg = document.querySelector('#msg-dialog'), acts = dlg?.open ? dlg.querySelector('.dialog-actions') : null;
+    if (acts && !dlg.querySelector('#g-cx')) {
+      const p = document.createElement('p'); p.style.margin = '8px 0 0';
+      p.innerHTML = '<button class="link" id="g-cx" type="button" style="min-height:44px">Todas las conexiones</button>';
+      acts.before(p); p.querySelector('#g-cx').onclick = () => { dlg.close(); cxAjustes('google'); };
+    }
+  } catch (e) { console.warn('Conexiones', e); }
+  return r;
+})(gtasksSheet);
+// Notion: la sección «✅ Tareas» (base con Nombre, Fecha, Tipo y Hecha), en la guía y en «Crear».
+if (!NT_SEC.some(x => x.k === 'tareas')) NT_SEC.push({ k: 'tareas', n: 'Tareas', t: '✅ Tareas', db: true });
+ntCrearSeccion = (f => async function (sec, parent) {
+  if (sec?.k !== 'tareas') return f.apply(this, arguments);
+  const properties = { Nombre: { title: {} }, Fecha: { date: {} }, Tipo: { select: { options: [{ name: 'Tarea' }, { name: 'Evento' }, { name: 'Nota' }] } }, Hecha: { checkbox: {} } };
+  const db = await notion('databases', 'POST', { parent: { type: 'page_id', page_id: parent }, title: ntRt(sec.t), properties });
+  const d = await ntLeerBase(db.id);
+  return { ...d, props: { ...d.props, hecha: 'Hecha' }, url: ntUrl(db.url) };
+})(ntCrearSeccion);
+// Rápido: debajo de los mosaicos de Notion y Google, «Traer a la app» y «Enviar una nota».
+tdCxHtml = (f => function () {
+  return f.apply(this, arguments) + `<div class="td-grid td-cx2" style="margin-top:10px"><button type="button" class="td-a" data-cx="traer">${TD_SVG.traer || TD_SVG.rev}<span>Traer a la app<small>De Notion o Google</small></span></button><button type="button" class="td-a" data-cx="nota">${TD_SVG.enviar || TD_SVG.nt}<span>Enviar una nota<small>A Notion o Google</small></span></button></div>`;
+})(tdCxHtml);
+// Los mosaicos «Notion» y «Google» de Rápido dicen lo mismo que Ajustes › Conexiones («Conectado» solo si no falta nada).
+tdCxEstado = (f => function () {
+  try {
+    const n = cxNtEstado(), g = cxGEstado();
+    const gt = g.tasks.k === 'ok' && g.cal.k === 'ok' ? 'Conectado' : g.tasks.k === 'ok' ? 'Falta un paso' : g.tasks.t;
+    return { nt: n.k === 'ok' ? 'Conectado' : n.t, g: gt };
+  } catch { return f.apply(this, arguments); }
+})(tdCxEstado);
+tdW.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-cx]'); if (!b || !tdW.contains(b)) return;
+  try { if (b.dataset.cx === 'traer') cxTraerSheet(''); else if (b.dataset.cx === 'nota') cxNotaSheet(''); } catch (err) { console.warn('Conexiones', err); }
+});
+// Para las pruebas.
+window.cxOpc = { ajustes: cxAjustes, traer: cxTraerSheet, enviar: cxEnviarSheet, nota: cxNotaSheet, imp: () => JSON.parse(JSON.stringify(cxImpL())), gev: () => [...cxGevSet()], nt: () => cxNtEstado(), g: () => cxGEstado(), enviarA: (d, s) => cxEnviarA(d, s).then(r => r, e => ({ err: e?.message || String(e), code: e?.code || '' })), agenda: () => cargarAgenda(true), agItem: id => agItemSheet(agPorId(id)) };
 })();
 
 render();
 // 2.13 · La app abre en Identidad (la base), salvo que en este teléfono se elija Enfoque o Hábitos.
-{ const ini = localStorage.getItem('habit-inicio'); document.querySelector(`.tabs .tab[data-view="${['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia'].includes(ini) ? ini : 'inicio'}"]`).click(); }   // 2.22.3 (M)   // 2.22.0 (N)
+{ const ini = localStorage.getItem('habit-inicio'); document.querySelector(`.tabs .tab[data-view="${['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'todo'].includes(ini) ? ini : 'inicio'}"]`).click(); }   // 2.22.3 (M)   // 2.22.0 (N)
 window.enfoqueArranque();
 // Al tocar una notificación se abre la pestaña que indica (?v=...).
 const abrirVista = url => { const v = new URL(url, location.href).searchParams.get('v'); if (v) document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click(); };
