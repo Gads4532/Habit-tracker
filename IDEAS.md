@@ -612,6 +612,16 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.25.0: pestaña «Todo», «Quiero desarrollar y hacer» y conexiones fáciles con Notion y Google
+
+- **Pestaña «Todo»** junto a Inicio, con dos partes:
+  - **Rápido:** tarjeta grande de Hábitos (N de M, barra, siguiente hábito con ✓ Hecho), captura de «Quiero desarrollar y hacer», atajos de un toque, y Notion y Google con su estado.
+  - **Apartados:** todas las secciones agrupadas, también las ocultas en Inicio.
+- **«Quiero desarrollar y hacer»:** escribe, elige Desarrollar o Hacer y guarda. Se envía directo a la base de Notion «🌱 Quiero desarrollar y hacer» (Nombre, Tipo, Fecha, Estado), que se crea sola la primera vez. Sin conexión queda en cola y se envía después. La vista completa tiene estado, «Abrir en Notion», «Reintentar», editar y borrar. Se sincroniza entre dispositivos.
+- **Ajustes › Conexiones:** Notion, Google Calendar y Google Tasks en un solo sitio, cada uno con su estado, el siguiente paso y «Desconectar». Los demás accesos llevan aquí.
+- **Traer:** páginas, filas o tareas de Notion, eventos de Google Calendar y tareas de Google Tasks, a Tareas, la Agenda o Estudio, sin duplicados y con «Deshacer».
+- **Enviar:** una tarea, un ítem de la agenda o una nota a Notion («✅ Tareas»), Google Calendar o Google Tasks en un toque, sin duplicar al reintentar.
+
 ## 2.24.2: mover tareas al día siguiente o a otro día
 
 - Lo agendado se queda en su día; si no se hace ni se mueve, ese día lo sigue mostrando «Sin hacer».
