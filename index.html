@@ -771,7 +771,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.24.0';
+const APP_VERSION = '2.24.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1441,7 +1441,7 @@ function unirAgendaHist(eN, eO, out) {
       : it.tipo === 'tarea' ? out.tareas.items.some(x => x.id === it.ref && x.hecha && !(+x.hechaEn && dayKey(new Date(+x.hechaEn)) > k))
       : it.tipo === 'ini' ? [eN, eO].some(e => lista(e.iniHist?.[k]).includes(it.ref) || (e.iniciativas4?.dia === k && lista(e.iniciativas4.items).some(x => x?.k === it.ref && x.hecho)))
       : it.tipo === 'plan' ? pl.some(x => x?.id === it.ref && x.hecho) : false);
-    if (lista(v.items).length) H[k] = unir(lista(v.items).filter(it => it && typeof it === 'object').map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: hecho(it), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.esp ? { esp: it.esp } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })), H[k]);   // 2.13 · con su iden (voto)
+    if (lista(v.items).length) H[k] = unir(lista(v.items).filter(it => it && typeof it === 'object').map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: hecho(it), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.esp ? { esp: it.esp } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}), ...(it.oc ? { oc: 1 } : {}) })), H[k]);   // 2.13 · con su iden (voto)
   }
   return H;
 }
@@ -10948,8 +10948,9 @@ window.cons = { lista: () => JSON.parse(JSON.stringify(consL())), aplica: (id, d
 function agenda() {
   if (ES.agendaHoy.fecha !== today()) {
     const A = ES.agendaHoy;
+    const ocA = new Set(A.fecha ? (A.items || []).filter(it => agdOcultoEn(it, A.fecha)) : []);   // 2.24.0 (H) · antes de vaciar las iniciativas
     ini4Semana();   // primero se archivan las iniciativas de ayer (para el historial)
-    if (A.fecha && A.items.length) { const H = { ...(ES.agendaHist || {}) }; H[A.fecha] = A.items.map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: agHecho(it, A.fecha), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.esp ? { esp: it.esp } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}) })); ES.agendaHist = H; }
+    if (A.fecha && A.items.length) { const H = { ...(ES.agendaHist || {}) }; H[A.fecha] = A.items.map(it => ({ tipo: it.tipo, ref: it.ref, t: it.t, h: it.h, min: it.min, hecho: agHecho(it, A.fecha), ...(it.iden ? { iden: it.iden } : {}), ...(it.foco ? { foco: true } : {}), ...(it.esp ? { esp: it.esp } : {}), ...(it.tipo === 'prio' ? { pv: 1 } : {}), ...(ocA.has(it) ? { oc: 1 } : {}) })); ES.agendaHist = H; }   // 2.24.0 (H) · oc
     if (A.fecha && A.quit) ES.agQuitHist = agQuitHistUnir({ agQuitHist: ES.agQuitHist, agendaHoy: A }, null);   // 2.21 (N6) · lo quitado ese día queda para el XP
     ES.agendaHoy = { fecha: today(), items: [], organizado: 0, completa: false, ocultos: [] };
   }
@@ -11129,7 +11130,7 @@ function agSync(A) {
   if (agCadena(A)) cambio = true;   // 2.20.2 · después del hábito previo
   return cambio;
 }
-const agItems = () => { const A = agenda(); if (agSync(A)) guardarAlPintar(guardar); return A.items.filter(agVivo); };
+const agItems = () => { const A = agenda(); if (agSync(A)) guardarAlPintar(guardar); agdMarcarOc(A); return A.items.filter(agVivo); };   // 2.24.0 (H) · oc
 const agPorId = id => agenda().items.find(x => x.id === id);
 // 2.21 (M) · 2.21.7 (R) · Tu orden a mano (ord; la jerarquía de antes, rango, ya no ordena); sin él, como estaba en la lista.
 const agRkN = it => +it?.ord >= 1 ? +it.ord : 1e9;
@@ -12153,6 +12154,7 @@ function renderAg() {
   agcArr = false;
   cargarAgenda();
   const iniV = view === 'iniciativas';   // 2.22.0 (N) · la sección Iniciativas: la misma lista, solo con las iniciativas
+  if (!iniV && agdVer()) { agdRender(agDia); return; }   // 2.24.0 (H) · un día que ya pasó: solo para ver
   const A = agenda(), its = iniV ? agItems().filter(ivEs) : agItems(), sinEv = its.filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt'), U0 = agUniCuenta(sinEv), hechas = U0.h, org0 = !!A.organizado, now = nowMin();
   const pest = its.length && !iniV ? agPestActual(its) : 'todo', vis = pest === 'todo' ? its : its.filter(it => agPestDe(it) === pest), pestHtml = iniV ? '' : agPestHtml(its, pest);   // 2.19 (P)
   const cadM = agCadenaMapa(A), ordV = agOrdenDia(vis, cadM), conH = ordV.filter(i => /^\d\d:\d\d$/.test(i.h || '')), sinH = ordV.filter(i => !/^\d\d:\d\d$/.test(i.h || ''));   // 2.20.2 · 2.21 (M) · 2.21.2 (H) · por hora; el número, donde la hora no
@@ -12179,8 +12181,8 @@ function renderAg() {
   const mananaCard = P ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Mañana ya está organizado</div><small>${agVisibles(P.items).length} ${agVisibles(P.items).length === 1 ? 'cosa' : 'cosas'}${P.rana?.t ? ` · tu prioridad 1: ${esc(P.rana.t)}` : ''}${(P.items || []).some(i => i.foco) ? ' · con bloque protegido' : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`
     : tarde ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Deja mañana organizado · 2 min</div><small>Al despertar ya sabrás qué hacer y a qué hora: decidirlo la víspera, en frío, ayuda a cumplirlo.</small></span><span class="tag">›</span></button>` : '';
   const agcOn = !iniV && agcVista() === 'cal';   // 2.21 (K) · 2.22.0 (N) · Iniciativas, siempre en lista
-  agW.innerHTML = `<div class="ag-top"><p class="paso">${esc(cap(fechaLarga(today())))}${A.anoche ? ' · organizada anoche' : ''}</p>${agcSegHtml()}
-    ${org0 || iniV ? '' : agAlertaHtml('ag-org', hayAyer)}${iniV ? '' : estSesAgHtml()}
+  agW.innerHTML = `<div class="ag-top">${(p => iniV ? p : agdHoyNavHtml(p))(`<p class="paso">${esc(cap(fechaLarga(today())))}${A.anoche ? ' · organizada anoche' : ''}</p>`)}${agcSegHtml()}
+    ${iniV ? '' : agdMadrugadaHtml()}${org0 || iniV ? '' : agAlertaHtml('ag-org', hayAyer)}${iniV ? '' : estSesAgHtml()}
     ${its.length ? `<div class="ag-av"><div class="ag-av-m"><div class="meter"><span>${iniV ? 'Iniciativas de hoy' : org0 ? 'Día organizado' : 'Agenda de hoy'}</span><b class="${U0.n && hechas === U0.n ? 'green' : ''}">${hechas} de ${U0.n} hechas · ${xpHoy()} XP hoy</b></div><div class="meter-bar"><i style="width:${U0.n ? hechas / U0.n * 100 : 0}%"></i></div></div>
       ${agMenuHtml(org0, its, hayAyer)}</div>${cadDiaHtml(pest)}`
     : `${org0 ? '<p class="note ag-libre">Tu agenda de hoy está libre. Tus hábitos siguen en Hábitos.</p><div class="actions ag-libre-a" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-libre-org">Organizar mi día</button><button class="link" data-goview="hoy">Ver mis hábitos</button><button class="link" id="ag-add">Añadir una cosa</button></div>' : '<div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-add">Añadir una cosa</button></div>'}${agMenuHtml(org0, its, hayAyer, true)}`}</div>
@@ -12217,7 +12219,7 @@ function renderAg() {
     if (b.getAttribute('role') === 'button') b.onkeydown = e => { if (e.target === b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); b.click(); } }; });
   agW.querySelectorAll('[data-obj]').forEach(b => b.onclick = () => objetivoSheet(ES.objetivos.find(o => o.id === b.dataset.obj)));
   agbMananasWire();
-  agpWire(); agW.querySelector('#ag-rk')?.addEventListener('click', agReordenar);   // 2.17 (O)
+  agpWire(); agdWireHoy(); agW.querySelector('#ag-rk')?.addEventListener('click', agReordenar);   // 2.24.0 (H)   // 2.17 (O)
   agNumerar();   // 2.21.7 (R)
   agAWire(pTodo);   // 2.21 (A) · tarjeta, «Más ▾», «⋯», deslizar y mantener pulsada
   agcAgWire();   // 2.21 (K) · «Lista | Calendario» y el calendario
@@ -12226,6 +12228,271 @@ function renderAg() {
   try { ivIrWire(agW); } catch (e) { console.warn('Ideas y journaling', e); }   // 2.22.0 (J)
 }
 window.renderAgendaTab = () => renderAg();
+// 2.24.0 (H)
+// ====================================================================
+// 2.24.0 (H) · «No me deja ver las agendas de los días anteriores.» La Agenda de un día que ya pasó, solo para ver: ‹ día › y «Hoy»
+// arriba (como el Calendario), «Días anteriores» junto a «Agendar otros días» y en «Más ▾», y de madrugada «Ver la agenda de ayer».
+// Lo que se ve sale de ES.agendaHist[día] (la foto que agenda() guarda al cambiar de día: tipo, ref, texto, hora, minutos y si quedó
+// hecho; 35 días enteros, hasta 120 solo lo hecho que vota por una identidad). Lista y Calendario muestran ese día; sin casillas, sin
+// deslizar ni arrastrar, sin «Ahora» ni la alerta de hoy: nada cambia el XP ni el historial. Lo pendiente puede pasar a hoy (una o
+// todas, con «Deshacer») por el mismo camino de «Para hoy» (contParaHoyCore), sin repetir lo que ya está en tu día. Atrás vuelve a hoy.
+// (var y function: renderAg puede llamarse antes de que este bloque se ejecute.)
+// ====================================================================
+var agDia = null;   // el día que se ve (solo días que ya pasaron); null = hoy
+var agdMasDias = false;
+function agdVer() { if (agDia && (!/^\d{4}-\d\d-\d\d$/.test(agDia) || agDia >= today())) agDia = null; return agDia; }
+function agdHist() { return ES.agendaHist && typeof ES.agendaHist === 'object' && !Array.isArray(ES.agendaHist) ? ES.agendaHist : {}; }
+// Lo que ese día no se veía en la Agenda (su fuente ya no estaba o estaba vacía): la foto lo guarda con oc: 1 (lo sigue leyendo el XP).
+function agdOculto(it) { try { return agVisible(it) && (!!it.oc || !agVivo(it)); } catch { return false; } }
+// Mientras el día está vivo: lo que la Agenda de hoy deja fuera queda marcado (y se desmarca si vuelve).
+function agdMarcarOc(A) {
+  let cambio = false;
+  for (const it of A && Array.isArray(A.items) ? A.items : []) {
+    if (!it || !agVisible(it)) continue;
+    let v = true; try { v = agVivo(it); } catch {}
+    if (!v && !it.oc) { it.oc = 1; cambio = true; } else if (v && it.oc) { delete it.oc; cambio = true; }
+  }
+  if (cambio) try { guardarAlPintar(guardar); } catch {}
+}
+// Al archivar (fecha = el día que termina): lo marcado y lo que todavía se puede saber sin mirar el día nuevo.
+function agdOcultoEn(it, fecha) {
+  try {
+    if (!it || !agVisible(it)) return false;
+    if (it.oc) return true;
+    if (it.tipo === 'ini') { const I = ES.iniciativas4; if (!I || I.dia !== fecha) return false; const x = (I.items || []).find(y => y && y.k === it.ref); return !x || !String(x.t || '').trim(); }
+    if (it.tipo === 'prio') { const P = ES.prioridades; return !!P && P.fecha === fecha && !(P.items || []).some(y => y && y.id === it.ref); }
+    if (it.tipo === 'estudio' && !window.est?.bloque) return false;
+    if (['tarea', 'plan', 'cons', 'estudio'].includes(it.tipo)) return !agVivo(it);
+    return false;
+  } catch { return false; }
+}
+function agdItems(d) {
+  let L = agdHist()[d], vivo = false;
+  if ((!Array.isArray(L) || !L.length) && ES.agendaHoy?.fecha === d && Array.isArray(ES.agendaHoy.items)) { L = ES.agendaHoy.items; vivo = true; }   // aún sin archivar
+  return agVisibles(Array.isArray(L) ? L : []).filter(it => it && typeof it === 'object' && !it.oc && String(it.t || '').trim() && !(vivo && agdOculto(it)));
+}
+// Lo que cuenta para «N de M hechas»: como hoy, sin eventos ni bloques de tiempo.
+function agdCuenta(d) { const L = agdItems(d).filter(it => it.tipo !== 'evento' && it.tipo !== 'bt'); return { n: L.length, h: L.filter(it => !!it.hecho).length }; }
+function agdXp(d) { const x = ES.dias && typeof ES.dias === 'object' ? ES.dias[d] : null; return Math.max(0, Math.round(+(x && x.xp) || 0)); }
+function agdResumen(d) { const c = agdCuenta(d), xp = agdXp(d); return [c.n ? `${c.h} de ${c.n} ${c.n === 1 ? 'hecha' : 'hechas'}` : '', xp ? `${xp} XP` : ''].filter(Boolean).join(' · '); }
+// Hasta dónde se puede ir atrás: 35 días (lo que se guarda entero) o el día más viejo que quede guardado.
+function agdMin() { const t = today(), c = dayKey(addDays(new Date(t + 'T12:00'), -35)), ks = Object.keys(agdHist()).filter(k => /^\d{4}-\d\d-\d\d$/.test(k) && k < t).sort(); return ks.length && ks[0] < c ? ks[0] : c; }
+// Los días anteriores con algo guardado, del más reciente al más viejo.
+function agdDias() { const t = today(), H = agdHist(); return Object.keys(H).filter(k => /^\d{4}-\d\d-\d\d$/.test(k) && k < t && agdItems(k).length).sort().reverse(); }
+function agdNom(d) { try { return cdNavTxt(d); } catch { return { k: cap(fechaLarga(d)), f: '' }; } }
+function agdNomLargo(d) { const f = fechaLarga(d).replace(',', ''); return d === dayKey(addDays(new Date(), -1)) ? `Ayer, ${f}` : cap(f); }
+function agdIr(d) {
+  const t = today();
+  agDia = d && /^\d{4}-\d\d-\d\d$/.test(d) && d < t ? (d < agdMin() ? agdMin() : d) : null;
+  agcScroll.agp = null;
+  if (!agDia && agdDicho) { agdDicho = null; agdCabecera(false); agdDecir('Agenda de hoy.'); }
+  renderAg();
+}
+window.agDiaIr = d => agdIr(d);
+window.agDiaVer = () => agdVer();
+// Para las pruebas y la consola.
+window.agd = { dias: () => agdDias(), items: d => JSON.parse(JSON.stringify(agdItems(d))), resumen: d => agdResumen(d), _t: { guardar: () => guardar() } };
+// Atrás desde un día anterior: primero a hoy.
+window.agDiaAtras = () => { if (!agdVer()) return false; agdIr(null); setTimeout(() => agW.querySelector('[data-agd="-1"]')?.focus({ preventScroll: true }), 0); return true; };
+// Al salir de la Agenda, la próxima vez abre en hoy.
+document.addEventListener('click', e => { const b = e.target?.closest?.('.tabs .tab[data-view]'); if (b && b.dataset.view !== 'agenda' && agDia) { agDia = null; agdDicho = null; agdCabecera(false); } }, true);
+
+// ---------- Pasar a hoy: lo pendiente de ese día, por el camino de «Para hoy».
+function agdHoyClaves() {
+  const A = agenda(), its = A.items.filter(agVivo);
+  return { K: new Set(its.map(it => it.tipo + ':' + it.ref)), T: new Set(its.map(it => contNorm(it.tipo === 'estudio' ? agTituloEst(it) : it.t))) };
+}
+// Cómo pasaría a hoy (la x de contParaHoyCore), o por qué no: { x } | { no: 'texto corto' }.
+function agdPasable(it, C) {
+  if (!it || it.hecho) return { no: '' };
+  const n = contNorm(it.t);
+  if (['evento', 'bt', 'plan', 'examen', 'cons', 'sueno', 'habito'].includes(it.tipo) || it.esp || it.foco) return { no: '' };   // fijo o se repite
+  if (it.tipo === 'tarea') {
+    let f = null; try { f = tareaViva(it.ref, today()); } catch {}
+    if (!f) return { no: '' };
+    if (f.hecha) return { no: 'Hecha después' };
+    if (C.K.has('tarea:' + f.id)) return { no: 'Ya está en hoy' };
+    return { x: { src: 'tarea', ref: f.id, t: f.titulo || it.t, min: +it.min || AG_MIN.tarea } };
+  }
+  if (it.tipo === 'estudio') {
+    let b = null; try { b = window.est?.bloque?.(it.ref) || null; } catch {}
+    if (!b || b.hecho) return { no: b && b.hecho ? 'Hecha después' : '' };
+    if (C.K.has('estudio:' + it.ref)) return { no: 'Ya está en hoy' };
+    return { x: { src: 'estudio', ref: it.ref, t: it.t, min: +it.min || AG_MIN.ini } };
+  }
+  if (C.T.has(n)) return { no: 'Ya está en hoy' };
+  const k = it.tipo === 'ini' ? it.ref : it.tipo === 'libre' && it.extraIni ? it.cat : '';
+  if (k && iniIdx(k) >= 0) return { x: { src: 'ini', k, t: it.t, min: +it.min || AG_MIN.ini, iden: it.iden || '' } };
+  return { x: { src: 'agenda', t: it.t, min: +it.min || AG_MIN.libre, iden: it.iden || '', ...(it.proy ? { proy: it.proy } : {}) } };
+}
+// Tras repintar, el foco vuelve a la misma fila (o a la siguiente que se pueda pasar; si no, a «Hoy»).
+function agdFoco(i) {
+  setTimeout(() => {
+    const rows = [...agW.querySelectorAll('.agd-it')];
+    const b = rows.slice(Math.max(0, i)).map(r => r.querySelector('[data-agd-pasar]')).find(Boolean) || agW.querySelector('[data-agd-pasar]');
+    const r = rows[i];
+    const el = b || (r ? (r.setAttribute('tabindex', '-1'), r) : null) || agW.querySelector('[data-agd="0"]');
+    el?.focus({ preventScroll: true });
+  }, 0);
+}
+function agdPasar(d, idxs) {
+  const L = agdOrden(agdItems(d)), unds = [], ts = [];
+  for (const i of idxs) {
+    const it = L[i]; if (!it) continue;
+    const P = agdPasable(it, agdHoyClaves()); if (!P.x) continue;   // las claves de hoy, de nuevo: lo recién pasado ya cuenta
+    let R = null; try { R = contParaHoyCore(P.x); } catch (e) { console.warn('Pasar a hoy', e); }
+    if (R) { unds.push(R.und); ts.push(P.x.t); }
+  }
+  const i0 = idxs.length === 1 ? idxs[0] : 0;
+  if (!ts.length) { toast('Ya está todo en hoy.'); renderAg(); agdFoco(i0); return; }
+  guardar(); try { renderE(); } catch {} renderAg(); agdFoco(i0);
+  const msg = ts.length === 1 ? `«${ts[0]}» pasa a hoy.` : `${ts.length} cosas pasan a hoy.`;
+  toast(msg, { deshacer: () => { for (const u of unds.slice().reverse()) { try { u && u(); } catch (e) { console.warn('Deshacer', e); } } guardar(); try { renderE(); } catch {} renderAg(); agdFoco(i0); } });
+}
+
+// ---------- La vista de un día que pasó
+function agdOrden(L) {
+  const hm = x => /^\d\d:\d\d$/.test(x.h || '');
+  return L.map((it, i) => ({ it, i })).sort((a, b) => (hm(a.it) ? 0 : 1) - (hm(b.it) ? 0 : 1) || (hm(a.it) && hm(b.it) ? toMin(a.it.h) - toMin(b.it.h) : 0) || a.i - b.i).map(x => x.it);
+}
+function agdEtq(it) { try { return it.tipo === 'prio' ? 'Prioridad' : agEtiqueta(it); } catch { try { return agcNombre(agcTipoDe(it)); } catch { return ''; } } }
+function agdLbl(d) { const n = agdNomLargo(d); return d >= today() ? 'hoy' : n.charAt(0).toLowerCase() + n.slice(1); }
+function agdNavHtml(d) {
+  const N = agdNom(d), min = d <= agdMin(), ant = dayKey(addDays(new Date(d + 'T12:00'), -1)), sig = dayKey(addDays(new Date(d + 'T12:00'), 1));
+  return `<nav class="agd-nav" aria-label="Elegir día de la agenda"><button type="button" class="agd-fl" data-agd="-1" aria-label="Día anterior${min ? '' : `: ${esc(agdLbl(ant))}`}"${min ? ' disabled' : ''}>‹</button><p class="agd-dia" tabindex="-1">${esc(N.k)}<small>${esc(N.f)}</small></p><button type="button" class="agd-fl" data-agd="1" aria-label="Día siguiente: ${esc(agdLbl(sig))}">›</button><button type="button" class="agd-hoy" data-agd="0">Hoy</button></nav>`;
+}
+function agdListaDiasHtml(id) {
+  const D = agdDias(); if (!D.length) return '<p class="meta">Aún no hay días anteriores guardados.</p>';
+  const ver = agdMasDias ? D : D.slice(0, 7);
+  return `<div class="rows agd-dias" id="${id}">${ver.map(d => { const r = agdResumen(d); const yo = d === agDia; return `<button type="button" class="row${yo ? ' agd-yo' : ''}" data-agd-ir="${esc(d)}"${yo ? ' aria-current="date"' : ''}><span class="dot" style="--c:${yo ? 'var(--text)' : 'var(--muted)'}"></span><span class="t"><div>${esc(agdNomLargo(d))}${yo ? ' <span class="agd-yo-t">· estás aquí</span>' : ''}</div>${r ? `<small>${esc(r)}</small>` : ''}</span>${yo ? '' : '<span class="tag" aria-hidden="true">›</span>'}</button>`; }).join('')}</div>${D.length > ver.length ? `<p class="more"><button type="button" class="link" data-agd-mas>Ver los ${D.length} días</button></p>` : ''}`;
+}
+function agdPasadoHtml(d) {
+  const L = agdOrden(agdItems(d)), C = agdHoyClaves(), c = agdCuenta(d), xp = agdXp(d), t = today();
+  const compacto = d < dayKey(addDays(new Date(t + 'T12:00'), -35));
+  const cal = agcVista() === 'cal';
+  const pas = L.map(it => agdPasable(it, C)), nP = pas.filter(p => p.x).length, nom = agdNomLargo(d);
+  const fila = (it, i) => {
+    const ok = !!it.hecho, P = pas[i], hora = /^\d\d:\d\d$/.test(it.h || '') ? fmtHora(it.h) : 'Sin hora', etq = agdEtq(it);
+    const fijo = it.tipo === 'evento' || it.tipo === 'bt';   // no cuentan en «N de M»: sin estado
+    const estado = fijo ? '' : ok ? 'Hecha' : P.no || 'Sin hacer';
+    const der = ok && !fijo ? '<span class="agd-ok" aria-hidden="true">✓</span>'
+      : P.x ? `<button type="button" class="agd-pasar" data-agd-pasar="${i}" aria-label="Pasar a hoy: ${esc(it.t)}">Pasar a hoy</button>` : '';
+    return `<div class="row agd-it${ok && !fijo ? ' ok' : ''}" role="listitem" aria-label="${esc(`${it.t}. ${hora}.${estado ? ` ${estado}` : ''}`)}"><span class="dot" style="--c:${ok && !fijo ? 'var(--green)' : fijo ? 'var(--muted)' : 'var(--line)'}" aria-hidden="true"></span><span class="t" aria-hidden="true"><div>${esc(it.tipo === 'estudio' ? (() => { try { return agTituloEst(it); } catch { return it.t; } })() : it.t)}</div><small><b>${esc(hora)}</b>${etq ? ` · ${esc(etq)}` : ''}${estado ? ` · ${esc(estado)}` : ''}</small></span>${der}</div>`;
+  };
+  let cuerpo;
+  if (!L.length) cuerpo = `<p class="empty agd-vacio">No hay agenda guardada de este día.</p>`;
+  else if (cal) {
+    let E = [], hijo = new Map();
+    try { const R = cdArmar(d); E = R.E; hijo = R.hijo; } catch (e) { try { E = cdAgOtroE(d); } catch {} }
+    E = E.map(e => ({ ...e, open: false, chk: false, lock: true, rs: false, pill: '' }));
+    cuerpo = E.length ? agcHtml(E, hijo, { ctx: 'agp', ahora: null, pie: false }) : '<p class="empty agd-vacio">No hay agenda guardada de este día.</p>';
+  } else cuerpo = `<div class="rows agd-rows" role="list" aria-label="${esc(`Agenda de ${nom}`)}">${L.map(fila).join('')}</div>`;
+  return `<section class="agd" aria-label="${esc(`Agenda de ${nom}, solo para ver`)}"><div class="ag-top agd-top">${agdNavHtml(d)}
+    <p class="agd-solo" role="status">Ese día ya pasó: solo para ver.</p>
+    ${c.n || xp ? `<div class="agd-res"><div class="meter"><span>Ese día</span><b class="${c.n && c.h === c.n ? 'green' : ''}">${esc(agdResumen(d))}</b></div>${c.n ? `<div class="meter-bar"><i style="width:${c.h / c.n * 100}%"></i></div>` : ''}</div>` : ''}
+    ${L.length ? agcSegHtml() : ''}</div>
+    ${compacto && L.length ? '<p class="meta">De ese día solo queda lo hecho que votó por una identidad.</p>' : ''}
+    ${cuerpo}
+    ${nP && !cal ? `<div class="actions agd-acc">${nP > 1 ? `<button type="button" class="link agd-todo" data-agd-todo>Pasar lo pendiente a hoy (${nP})</button>` : ''}</div>` : ''}
+    ${nP && cal ? `<p class="more"><button type="button" class="link agd-todo" data-agd-todo>Pasar lo pendiente a hoy (${nP})</button></p>` : ''}
+    <details class="ag-mas agd-otros"><summary>Días anteriores</summary>${agdListaDiasHtml('agd-lista')}</details></section>`;
+}
+// Un único aviso para el lector de pantalla, fuera de lo que se repinta: así sí se anuncia el día nuevo.
+function agdDecir(t) {
+  let n = document.getElementById('agd-vivo');
+  if (!n) { n = document.createElement('div'); n.id = 'agd-vivo'; n.setAttribute('role', 'status'); n.setAttribute('aria-live', 'polite'); n.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0'; document.body.appendChild(n); }
+  n.textContent = ''; setTimeout(() => { n.textContent = t; }, 60);
+}
+var agdDicho = null;
+function agdCabecera(on) { try { document.body.classList.toggle('agd-on', !!on); } catch {} }
+function agdRender(d) {
+  agenda();   // archiva el día que terminó, si hace falta
+  agdCabecera(true);
+  if (agdDicho !== d) { agdDicho = d; const r = agdResumen(d); agdDecir(`${cap(agdLbl(d))}. Solo para ver.${r ? ` ${r}.` : ''}`); }
+  agW.innerHTML = agdPasadoHtml(d);
+  agdWire(agW);
+  agW.querySelectorAll('[data-agc-vista]').forEach(b => b.onclick = () => { const v = b.dataset.agcVista; if (v === agcVista()) return; agcVistaPoner(v); agcScroll.agp = null; renderAg(); });   // «Lista | Calendario», el mismo de hoy
+  const S = agW.querySelector('.agc'); if (S) agcWire(S, agdCfg);   // el calendario, sin nada que mover
+}
+const agdCfg = { mover() { toast('Ese día ya pasó: solo para ver.'); }, durar() { toast('Ese día ya pasó: solo para ver.'); }, repintar() { renderAg(); } };
+function agdWire(R) {
+  R.querySelectorAll('[data-agd]').forEach(b => b.onclick = () => {
+    const k = +b.dataset.agd, d = agdVer() || today();
+    if (k === 0) { agdIr(null); setTimeout(() => agW.querySelector('[data-agd="-1"]')?.focus({ preventScroll: true }), 0); return; }
+    const n = dayKey(addDays(new Date(d + 'T12:00'), k)); agdIr(n);
+    setTimeout(() => { const f = agW.querySelector(`[data-agd="${k}"]`); (f && !f.disabled ? f : agW.querySelector('[data-agd="0"], [data-agd="-1"]'))?.focus({ preventScroll: true }); }, 0);
+  });
+  R.querySelectorAll('[data-agd-ir]').forEach(b => b.onclick = () => { agdIr(b.dataset.agdIr); try { scrollTo({ top: 0 }); } catch {} setTimeout(() => agW.querySelector('[data-agd="0"]')?.focus({ preventScroll: true }), 0); });
+  R.querySelectorAll('[data-agd-mas]').forEach(b => b.onclick = () => { agdMasDias = true; const box = b.closest('details, .agp-antes') || R; const l = box.querySelector('.agd-dias'); if (l) { const w = document.createElement('div'); w.innerHTML = agdListaDiasHtml(l.id || 'agd-lista'); b.closest('.more')?.remove(); l.replaceWith(...w.childNodes); agdWire(box); } });
+  R.querySelectorAll('[data-agd-pasar]').forEach(b => b.onclick = () => { const d = agdVer(); if (d) agdPasar(d, [+b.dataset.agdPasar]); });
+  R.querySelectorAll('[data-agd-todo]').forEach(b => b.onclick = () => { const d = agdVer(); if (!d) return; const L = agdOrden(agdItems(d)); agdPasar(d, L.map((_, i) => i)); });
+}
+// En la Agenda de hoy: ‹ (ayer), «Días anteriores» (en «Agendar otros días» y en «Más ▾») y, de madrugada, «Ver la agenda de ayer».
+function agdHoyNavHtml(paso) {
+  agdCabecera(false); agdDicho = null;   // hoy: la cabecera, como siempre
+  return `<nav class="agd-hnav" aria-label="Elegir día de la agenda"><button type="button" class="agd-fl agd-fl-s" data-agd="-1" aria-label="Día anterior: ayer">‹</button>${paso}</nav>`;
+}
+function agdMadrugadaHtml() {
+  if (new Date().getHours() >= 5) return '';
+  const a = dayKey(addDays(new Date(), -1)); if (!agdItems(a).length) return '';
+  const r = agdResumen(a);
+  return `<button type="button" class="row agd-ayer" data-agd-ir="${a}"><span class="dot" style="--c:var(--accent)" aria-hidden="true"></span><span class="t"><div>Ver la agenda de ayer</div>${r ? `<small>${esc(r)}</small>` : ''}</span><span class="tag" aria-hidden="true">›</span></button>`;
+}
+function agdAntesHtml() {
+  return `<button class="link" id="agp-antes" aria-expanded="false" aria-controls="agp-antes-l">Días anteriores</button>`;
+}
+function agdWireHoy() {
+  const R = agW; if (!R) return;
+  agdWire(R);
+  const b = R.querySelector('#agp-antes'), sec = R.querySelector('#ag-dias');
+  if (b && sec) b.onclick = () => {
+    let box = R.querySelector('#agp-antes-l');
+    if (!box) { box = document.createElement('div'); box.id = 'agp-antes-l'; box.className = 'agp-antes'; box.hidden = true; box.innerHTML = `<p class="paso" style="margin:10px 0 0">Días anteriores</p>${agdListaDiasHtml('agd-lista-h')}`; sec.querySelector('.agp-bs')?.after(box); agdWire(box); }
+    box.hidden = !box.hidden; b.setAttribute('aria-expanded', String(!box.hidden));
+    if (!box.hidden) box.querySelector('button')?.focus({ preventScroll: true });
+  };
+  R.querySelector('[data-agd-antes]')?.addEventListener('click', () => {   // la misma lista que «Días anteriores» en «Agendar otros días»
+    R.querySelector('.ag-menu')?.removeAttribute('open');
+    const ab = R.querySelector('#agp-antes');
+    if (ab) { const dt = ab.closest('details'); if (dt) dt.open = true; if (ab.getAttribute('aria-expanded') !== 'true') ab.click(); setTimeout(() => { try { R.querySelector('#agp-antes-l')?.scrollIntoView({ block: 'center' }); } catch {} R.querySelector('#agp-antes-l [data-agd-ir]')?.focus({ preventScroll: true }); }, 0); return; }
+    const D = agdDias(); agdIr(D[0] || dayKey(addDays(new Date(), -1)));
+  });
+}
+agStyle.textContent += `
+  /* 2.24.0 (H) · días anteriores */
+  .agd-hnav { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; min-width: 0; }
+  .agd-hnav .paso { margin: 0; min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+  .agd-nav { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; min-width: 0; }
+  .agd-fl { flex: none; width: 44px; height: 44px; border-radius: 999px; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 1.35rem; line-height: 1; color: var(--text); background: none; }
+  .agd-fl:disabled { opacity: .35; }
+  .agd-dia { flex: 1 1 auto; min-width: 0; margin: 0; text-align: center; font-weight: 600; font-size: 1rem; line-height: 1.25; overflow-wrap: anywhere; }
+  .agd-dia small { display: block; color: var(--muted); font-weight: 500; font-size: .82rem; }
+  .agd-hoy { flex: none; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--text); font-weight: 600; font-size: .9rem; white-space: nowrap; color: var(--text); background: none; }
+  .agd-solo { margin: 0 0 10px; color: var(--muted); font-size: .86rem; text-align: center; }
+  .agd-res { margin: 0 0 12px; }
+  .agd-it { align-items: center; gap: 10px; min-height: 52px; }
+  .agd-it .t { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+  .agd-it .t small, .agd-it .t > div { white-space: normal; overflow: visible; text-overflow: clip; }
+  .agd-it .t small b { font-weight: 600; color: var(--text); }
+  .agd-it.ok .t > div { color: var(--muted); }
+  .agd-ok { flex: none; width: 44px; text-align: center; color: var(--green); font-weight: 700; font-size: 1.1rem; }
+  .agd-pasar { flex: none; min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--line); font-size: .85rem; font-weight: 600; white-space: nowrap; color: var(--text); background: none; }
+  .agd-acc { justify-content: flex-start; margin: 10px 0 0; }
+  .agd-todo, .agd button.link, #agp-antes, .agp-antes button.link { min-height: 44px; }
+  .agd-otros { margin-top: 22px; }
+  .agd-ayer { margin: 0 0 12px; border: 1.5px solid var(--line); border-radius: 14px; padding-left: 12px; padding-right: 12px; }
+  .agd-dias .row, .agd-ayer { min-height: 52px; }
+  .agd .empty { color: var(--muted); }
+  .agd button:focus-visible, .agd-hnav button:focus-visible, .agd-ayer:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .agc-t-desc { --c: var(--agc-desc, #2a6f97); } .agc-t-meta { --c: var(--agc-meta, #a12a5e); } .agc-t-proy { --c: var(--agc-proy, #9a4a1c); }
+  .agd-dias .agd-yo { background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 12px; }
+  .agd-dias .t { min-width: 0; } .agd-dias .t > div, .agd-dias .t small { white-space: normal; overflow-wrap: anywhere; }
+  .agd-yo-t { color: var(--muted); font-weight: 500; font-size: .85em; }
+  .agd-dia:focus { outline: none; } .agd-dia:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 8px; }
+  @media (max-width: 359px) { .agd-hoy { padding: 0 10px; } .agd-pasar { padding: 0 9px; font-size: .8rem; } }
+`;
+// 2.24.0 (H) · Mientras ves un día anterior, la fecha y el XP de hoy de la cabecera quedan en segundo plano.
+(() => { try { const st = document.createElement('style'); st.textContent = 'body.agd-on header.top .date, body.agd-on #xp-chip { opacity: .4; }'; document.head.appendChild(st); } catch {} })();
 
 // ====================================================================
 // 2.22.0 (N) · «Agrega en el menú principal abajo de agenda un apartado idéntico pero de iniciativas. Debe decir te sientes aburrido? Haz
@@ -12491,6 +12758,12 @@ function contParaHoy(x) {
   if (!x) return;
   if (x.src === 'hoy') { const it = agPorId(x.it.id); if (it) agFocoEmpezar(it); contRepintar(); return; }
   if (x.src === 'habito') { irA('hoy'); setTimeout(() => { try { document.querySelector(`.habit[data-id="${CSS.escape(x.ref)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 150); return; }
+  const R = contParaHoyCore(x); if (!R) return;
+  guardar(); renderE(); contRepintar();
+  toast(R.msg, { deshacer: () => { try { R.und && R.und(); } catch (e) { console.warn('Deshacer', e); } guardar(); renderE(); contRepintar(); } });
+}
+// 2.24.0 (H) · El cambio de «Para hoy», sin guardar ni avisar: { und, msg } (o nada si no se pudo). Lo usa también «Pasar a hoy».
+function contParaHoyCore(x) {
   const A = agenda(); let und = null, msg = `En tu día: «${x.t}». Toca la fila para ponerle hora.`;
   if (x.src === 'tarea') {
     const f = (HT().tareas?.items || []).find(y => y && y.id === x.ref); if (!f || f.hecha) return;
@@ -12527,8 +12800,7 @@ function contParaHoy(x) {
     const it = contLibreHoy(x);
     und = () => { const y = agPorId(it.id); if (y && !agHecho(y)) contSacar(it.id); };
   }
-  guardar(); renderE(); contRepintar();
-  toast(msg, { deshacer: () => { try { und && und(); } catch (e) { console.warn('Deshacer', e); } guardar(); renderE(); contRepintar(); } });
+  return { und, msg };
 }
 // «Ya no»: fuera de esta lista (la cosa original no cambia).
 function contYaNo(x) {
@@ -13114,7 +13386,7 @@ function agMenuHtml(org0, its, hayAyer, vacio = false) {
   const it = (id, t, a = '') => `<button type="button" class="ag-menu-i" ${id ? `id="${id}"` : ''} ${a}>${t}</button>`;
   return `<details class="ag-menu"><summary aria-label="Más opciones de la agenda">Más ▾</summary><div class="ag-menu-l">
     ${org0 ? it('ag-org', 'Reorganizar el día') : ''}${vacio ? '' : it('ag-add', '+ Añadir')}${its.length > 1 ? it('ag-rk', 'Reordenar el día') : ''}${hayAyer && org0 ? it('ag-copy2', 'Copiar la de ayer') : ''}
-    ${it('ag-horas', agHorasOcultas() ? 'Mostrar horas' : 'Ocultar horas', `aria-pressed="${agHorasOcultas()}"`)}${it('', 'Agendar otros días', 'data-ag-ir="ag-dias"')}${it('', 'Acciones constantes', 'data-ag-cons')}${it('', 'Objetivos SMART', 'data-ag-ir="ag-objs"')}${it('', 'Metas', 'data-ag-metas')}${it('', 'Mañanas protegidas', 'data-ag-ir="ag-mp-sec"')}${it('', 'La brecha', 'data-ag-ir="ag-gap"')}
+    ${it('ag-horas', agHorasOcultas() ? 'Mostrar horas' : 'Ocultar horas', `aria-pressed="${agHorasOcultas()}"`)}${it('', 'Agendar otros días', 'data-ag-ir="ag-dias"')}${it('', 'Días anteriores', 'data-agd-antes')}${it('', 'Acciones constantes', 'data-ag-cons')}${it('', 'Objetivos SMART', 'data-ag-ir="ag-objs"')}${it('', 'Metas', 'data-ag-metas')}${it('', 'Mañanas protegidas', 'data-ag-ir="ag-mp-sec"')}${it('', 'La brecha', 'data-ag-ir="ag-gap"')}
   </div></details>`;
 }
 function agIrA(id) {
@@ -23369,6 +23641,7 @@ function atrasPaso() {
   else if (x?.k === 'cuanto') exCuantoQuitar();   // 2.21.7 (E)
   else if (mvFoco()) toast('La sesión sigue: la terminas desde su pantalla');
   else if (view === 'journal' && window.rfAtras?.()) {}   // 2.22.1 (R) · dentro de Reflexiones: un paso atrás
+  else if (view === 'agenda' && window.agDiaAtras?.()) {}   // 2.24.0 (H) · de un día anterior, a hoy
   else if (view !== 'inicio') irA('inicio');
 }
 // 2.15.1 · El vigía. Chromium salta una entrada puesta sin un toque desde el último recorrido del historial (al abrir la app fuera de
@@ -25445,7 +25718,7 @@ function agpAbrir(d, paso = 1) {
 function agpHtml() {
   const t = today(), D = agpDias(), m = agpDia(t, 1);
   return `<section id="ag-dias" style="margin-top:24px"><h3>Agendar otros días</h3>
-    <div class="actions agp-bs"><button class="link" data-agp="${m}">Agendar para mañana</button><button class="link" data-agp="${agpDia(t, 2)}">Agendar para pasado mañana</button><button class="link" id="agp-otro" aria-expanded="false">Agendar otro día…</button></div>
+    <div class="actions agp-bs"><button class="link" data-agp="${m}">Agendar para mañana</button><button class="link" data-agp="${agpDia(t, 2)}">Agendar para pasado mañana</button><button class="link" id="agp-otro" aria-expanded="false">Agendar otro día…</button>${agdAntesHtml()}</div>
     <div class="agp-elige" id="agp-elige" hidden><input type="date" id="agp-fecha" min="${m}" max="${agpMax()}" value="${agpDia(t, 3)}" aria-label="Día que quieres agendar"><button class="primary" id="agp-ir">Agendar ese día</button></div>
     ${D.length ? `<div id="agp-card"><p class="paso" style="margin:10px 0 0">Días ya agendados</p><div class="rows" id="agp-lista">${D.map(([d, p]) => { const n = agVisibles(p.items).length, p1 = (prioPlanLista(p)[0] || {}).t;
       return `<button class="row" data-agp-ver="${esc(d)}"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>${esc(cap(agpFecha(d)))}</div><small>${n} ${n === 1 ? 'cosa' : 'cosas'}${p1 ? ` · tu prioridad 1: ${esc(p1)}` : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`; }).join('')}</div></div>` : ''}</section>`;

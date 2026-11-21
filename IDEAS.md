@@ -612,6 +612,14 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.24.1: ver la agenda de días anteriores
+
+- En la Agenda, ‹ junto a la fecha lleva al día anterior; en un día pasado hay ‹ día ›, «Hoy» y el aviso «Ese día ya pasó: solo para ver.».
+- Lista y Calendario muestran el día elegido: horas, ✓ o «Sin hacer», y un resumen como «6 de 8 hechas · 40 XP». Nada de lo que toques ahí cambia XP ni el historial.
+- «Días anteriores» junto a «Agendar otro día…» y en «Más ▾». De 0:00 a 5:00, «Ver la agenda de ayer» a un toque.
+- «Pasar a hoy» trae lo pendiente (una cosa o todo) con «Deshacer», sin duplicar.
+- Se usa el historial ya guardado (agendaHist, 35 días completos); los elementos que la Agenda ocultaba ese día se marcan `oc: 1` y no se cuentan. Atrás vuelve primero a hoy.
+
 ## 2.24.0: apartado «Sueño» con ciclos, diario y semana
 
 - Nuevo apartado «Sueño» (pestaña con luna y fila en Inicio): «Esta noche», «Anoche», calculadora de ciclos, «Tu semana», «Diario», Ajustes y «Por qué». ✅
