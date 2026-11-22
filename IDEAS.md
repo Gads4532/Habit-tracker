@@ -612,6 +612,11 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.25.1: engranaje de Ajustes y «Ejecutar bloque» en las rutas de Estudio
+
+- **Engranaje ⚙ siempre visible** arriba, en todas las pestañas, que abre Ajustes. «Conexiones» (Notion, Google Calendar, Google Tasks) es lo primero de Ajustes. El enlace de Enfoque ahora dice «Ajustes».
+- **Ejecutar bloques de una ruta:** cada tarjeta de ruta muestra los siguientes bloques con «Ejecutar bloque N» y «Ver todos los bloques». Al ejecutar, cuenta atrás con «Pausar»/«Reanudar», «Terminar bloque» (cuenta los minutos reales) y «Cancelar» (no cuenta). La pausa aguanta cerrar la app. Al terminar, el bloque queda hecho con el flujo de siempre (contadores, XP, Agenda, Notion/Google, sin contar dos veces), con «Deshacer» y el siguiente bloque ofrecido. Uno a la vez; aviso arriba desde otras pestañas; alarma nativa en Android.
+
 ## 2.25.0: pestaña «Todo», «Quiero desarrollar y hacer» y conexiones fáciles con Notion y Google
 
 - **Pestaña «Todo»** junto a Inicio, con dos partes:
