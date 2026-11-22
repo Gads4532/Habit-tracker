@@ -113,7 +113,7 @@ const acota = (x, n) => Array.isArray(x) ? x.filter(y => y && typeof y === 'obje
 function tasaBaja(st, h, fecha) {
   let n = 0, hechos = 0;
   for (let i = 0, k = masDias(fecha, -1); i < 120 && n < 14 && (!h.creado || k >= h.creado); i++, k = masDias(k, -1)) {
-    if (!programado(h, k) || protegidoSem(h, k)) continue;   // 2.22.5 (W) · un «No» de días anteriores sí cuenta
+    if (!programado(h, k) || protegidoSem(h, k) || vacDiaSrv(st, k)) continue;   // 2.22.5 (W) · un «No» de días anteriores sí cuenta · 2.25.3 (VAC)
     const m = st.log?.[h.id]?.[k]; if (m === 'just') continue;
     n++; if (m === 'full' || m === 'min') hechos++;
   }
@@ -145,7 +145,7 @@ function pausado(C, h, hm, fecha) {
   let n = 0;
   for (let i = 1, e = masDias(fecha, -1); i <= 21; i++, e = masDias(e, -1)) {
     if (e < desdeAv || (h.avisoReinicio && e < h.avisoReinicio) || (h.creado && e < h.creado)) break;
-    if (!tocaAviso(st, h, hm, e)) continue;
+    if (vacDiaSrv(st, e) || !tocaAviso(st, h, hm, e)) continue;   // 2.25.3 (VAC)
     const m = st.log?.[h.id]?.[e];
     if (m === 'skip' || m === 'just') continue;
     const slot = aMs(e, hm, tz);
@@ -174,6 +174,7 @@ function pausaFija(C, fecha, franja, tags, tipos, util) {
   let n = 0;
   for (let i = 1, e = masDias(fecha, -1); i <= 21; i++, e = masDias(e, -1)) {
     if (e < desdeAv || e < desdeF || e < reinicio) break;
+    if (vacDiaSrv(C.st, e)) continue;   // 2.25.3 (VAC)
     if (tags.some(t => abiertosDe(C, t, e).length) || util?.(e)) return false;
     if (!salio(C, e, franja)) continue;
     if (++n >= 3) return true;
@@ -632,6 +633,7 @@ function candidatos(C, fecha) {
   if (hayTipo('agenda') && E.agendaRegla && typeof E.agendaRegla === 'object' && fechaOk(E.agendaRegla.desde)) sueltos.push({ nominal: '20:00', tags: ['agmanana'], tipo: 'agenda', parte: at => {
     if (!tipoOn('agenda', at)) return null;
     const m = masDias(fecha, 1); if (m < E.agendaRegla.desde) return null;
+    if (vacVuelta(E, m)) return null;   // 2.25.3 (VAC) · el día de volver y el siguiente no piden agenda de la víspera
     const r = E.agendaDia && typeof E.agendaDia === 'object' ? E.agendaDia[m] : null;
     if (actual(at) ? hayEn(m) || !!(r && r.on) : !!(r && r.on && +r.a > 0 && +r.a <= at)) return null;
     return { tag: 'agmanana', duda: sim && !r, corto: 'mañana aún sin agendar', title: 'Mañana aún no está agendado', body: 'Con una sola cosa en su agenda, mañana queda agendado.' };
@@ -700,6 +702,7 @@ function planDia(C, fecha) {
     while (n++ < 12 && (s = S.find(x => x.a <= t && t < x.b && x.propio !== c.tag && (!x.ag || c.t > C.desde || (x.org && x.org <= c.t))))) t = s.b;
     // Lo que espera al silencio sale al terminar; lo que tiene hora, solo si aún llega a tiempo.
     if (t >= fin || (t !== c.t && (c.hasta ? t > c.hasta : c.limite ? t - c.t > c.limite * 60000 : false))) continue;
+    if (enVacaciones(C.st, t, C.tz)) continue;   // 2.25.3 (VAC) · callado: no gasta sitio del tope
     // Lo que sale en esta pasada llega ahora: si ya no llega a tiempo (c.llega), no sale.
     const ahoraSale = t > C.desde && t <= C.ahora;
     if (c.llega && ahoraSale && C.ahora > c.llega) continue;
@@ -732,11 +735,42 @@ function iniUnir(st) {
     const mas = M.items.filter(x => x && typeof x === 'object' && typeof x.k === 'string' && !I.items.some(y => y && y.k === x.k));
     return mas.length ? { ...st, enfoque: { ...E, iniciativas4: { ...I, items: [...I.items, ...mas] } } } : st; } catch { return st; }
 }
+// 2.25.3 (VAC) · Modo vacaciones (enfoque.vacaciones): mientras está activo (desde su hora t hasta el final de su último día, si lo tiene;
+// sin último día, hasta que la persona vuelve) no sale ningún aviso de esa cuenta, y vuelven solos al pasar su último día. En la simulación
+// de un día pasado, los tramos ya terminados (hist: de t a f) también callan. El día de volver y el siguiente no piden agenda de la víspera.
+function enVacaciones(st, ms, tz) {
+  try {
+    const V = st?.enfoque?.vacaciones; if (!V || typeof V !== 'object') return false;
+    const a = V.act, f = fechaEn(ms, tz);
+    if (a && typeof a === 'object' && fechaOk(a.desde) && ms >= (+a.t || 0) && f >= a.desde && (!fechaOk(a.hasta) || f <= a.hasta)) return true;
+    for (const h of acota(V.hist, 200)) if (h && typeof h === 'object' && +h.t > 0 && ms >= +h.t && ms < (+h.f || 0)) return true;
+  } catch {}
+  return false;
+}
+function vacVuelta(E, d) {
+  try {
+    const V = E?.vacaciones; if (!V || typeof V !== 'object' || !fechaOk(d)) return false;
+    const es = v => fechaOk(v) && (d === v || d === masDias(v, 1));
+    if (V.act && typeof V.act === 'object' && fechaOk(V.act.hasta) && (es(masDias(V.act.hasta, 1)) || (d >= V.act.desde && d <= V.act.hasta))) return true;
+    for (const h of acota(V.hist, 200)) if (h && typeof h === 'object' && (es(fechaOk(h.vuelta) ? h.vuelta : h.hasta) || (fechaOk(h.desde) && fechaOk(h.hasta) && d >= h.desde && d <= h.hasta))) return true;
+  } catch {}
+  return false;
+}
+// Un día de vacaciones (de desde a la vuelta; las de ahora, de desde en adelante): en los días pasados no cuenta como aviso ignorado
+// (pausado, pausaFija) ni para el 70 % de los últimos 14 días (tasaBaja).
+function vacDiaSrv(st, d) {
+  try {
+    const V = st?.enfoque?.vacaciones; if (!V || typeof V !== 'object' || !fechaOk(d)) return false;
+    const a = V.act; if (a && typeof a === 'object' && fechaOk(a.desde) && d >= a.desde && (!fechaOk(a.hasta) || d <= masDias(a.hasta, 1))) return true;
+    for (const h of acota(V.hist, 200)) if (fechaOk(h.desde) && fechaOk(h.hasta) && d >= h.desde && d <= [h.hasta, fechaOk(h.vuelta) ? h.vuelta : h.hasta].sort().pop()) return true;
+  } catch {}
+  return false;
+}
 function avisos(st, tz, prefs, desde, hasta) {
   st = iniUnir(st);
   const C = { st: st && typeof st === 'object' ? st : {}, tz, prefs: prefs && typeof prefs === 'object' ? prefs : {}, desde, ahora: hasta, t0: performance.now() }, out = [];
   for (const fecha of [...new Set([fechaEn(desde, tz), fechaEn(hasta, tz)])])
-    for (const a of planDia(C, fecha)) if (a.t > desde && a.t <= hasta) { const { t, franja, seguro, ...x } = a; out.push(x); }
+    for (const a of planDia(C, fecha)) if (a.t > desde && a.t <= hasta && !enVacaciones(C.st, a.t, tz)) { const { t, franja, seguro, ...x } = a; out.push(x); }   // 2.25.3 (VAC)
   return out;
 }
 

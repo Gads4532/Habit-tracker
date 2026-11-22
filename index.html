@@ -802,7 +802,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.25.2';
+const APP_VERSION = '2.25.3';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1659,6 +1659,35 @@ function adReglaFusion(a, b) {
   }
   return { ...(ds[0] ? { desde: ds[0] } : {}), ev: Object.fromEntries(Object.entries(ev).sort(([x], [y]) => x < y ? 1 : -1).slice(0, 150)) };
 }
+// 2.25.3 (VAC) · Modo vacaciones. ES.vacaciones = { act, hist, u }: act (las de ahora) es la del cambio más reciente (u); el historial
+// se une por t (la hora de empezar), sin duplicados, con el final más tardío. Si la copia que pierde tenía otras vacaciones en curso que la
+// otra no conoce, no se pierden: pasan al historial, terminadas al hacerse el cambio que ganó.
+function vacFusion(a, b) {
+  const ok = v => v && typeof v === 'object' && !Array.isArray(v), dia = d => /^\d{4}-\d\d-\d\d$/.test(d || '');
+  const A = ok(a) ? a : {}, B = ok(b) ? b : {}, ua = Math.max(0, +A.u || 0), ub = Math.max(0, +B.u || 0);
+  const nAct = x => ok(x) && dia(x.desde) ? { desde: x.desde, hasta: dia(x.hasta) ? x.hasta : '', t: Math.max(0, +x.t || 0) } : null;
+  let W = ua >= ub ? A : B;
+  // Empate (el mismo cambio en las dos copias): si una ya las terminó solas (su último día pasó; terminar solas no cambia u), gana esa.
+  if (ua === ub) {
+    const n = new Date(), hoy = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+    const xa = nAct(A.act), xb = nAct(B.act), fin = x => !!(x && x.hasta && x.hasta < hoy);
+    if (xa && !xb && fin(xa)) W = B; else if (xb && !xa && fin(xb)) W = A;
+  }
+  const L = W === A ? B : A, uw = Math.max(ua, ub), m = new Map();
+  for (const x of [...(Array.isArray(B.hist) ? B.hist : []), ...(Array.isArray(A.hist) ? A.hist : [])]) {
+    if (!ok(x) || !dia(x.desde) || !dia(x.hasta) || !(+x.t > 0)) continue;
+    const h = { desde: x.desde, hasta: x.hasta, vuelta: dia(x.vuelta) ? x.vuelta : x.hasta, t: +x.t, f: Math.max(+x.f || 0, +x.t), ...(x.auto ? { auto: 1 } : {}) }, p = m.get(h.t);
+    if (!p || (!!p.auto !== !!h.auto ? p.auto : h.f > p.f || (h.f === p.f && h.hasta > p.hasta))) m.set(h.t, h);   // una vuelta real gana a un final automático
+  }
+  const act = nAct(W.act), otra = nAct(L.act);
+  if (act) m.delete(act.t);   // gana el cambio más reciente: siguen en curso
+  if (otra && (!act || otra.t !== act.t) && !m.has(otra.t) && otra.t > 0) {
+    const d = new Date(Math.max(uw, otra.t)), fin = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const hasta = otra.hasta && otra.hasta < fin ? otra.hasta : fin;
+    m.set(otra.t, { desde: otra.desde, hasta: hasta < otra.desde ? otra.desde : hasta, vuelta: hasta < otra.desde ? otra.desde : hasta, t: otra.t, f: Math.max(uw, otra.t) });
+  }
+  return { act, hist: [...m.values()].sort((x, y) => y.t - x.t).slice(0, 200), u: uw };
+}
 function mergeStates(a, b) {
   a = normalize(a); b = normalize(b);
   const newer = a.cambiado >= b.cambiado ? a : b, older = newer === a ? b : a;
@@ -1727,6 +1756,7 @@ function mergeStates(a, b) {
     ...(eN.cxImp || eO.cxImp ? { cxImp: cxImpFusion(eN.cxImp, eO.cxImp) } : {}),   // 2.25.0 (C) · lo traído de Notion y Google   // 2.25.0 (T) · Quiero desarrollar y hacer
     ...(eN.agendaDia || eO.agendaDia ? { agendaDia: adDiaFusion(eN.agendaDia, eO.agendaDia) } : {}),   // 2.25.2 (D) · agendado desde la víspera
     ...(eN.agendaRegla || eO.agendaRegla ? { agendaRegla: adReglaFusion(eN.agendaRegla, eO.agendaRegla) } : {}),   // 2.25.2 (D) · día libre y lo restado
+    ...(eN.vacaciones || eO.vacaciones ? { vacaciones: vacFusion(eN.vacaciones, eO.vacaciones) } : {}),   // 2.25.3 (VAC) · modo vacaciones
     ...(eN.ntAuto || eO.ntAuto ? { ntAuto: ntaFusion(eN.ntAuto, eO.ntAuto) } : {}),   // 2.25.1 (A) · lo enviado a Notion solo
     agendaPlanes: agpFusion(eN.agendaPlanes, eO.agendaPlanes),   // 2.17 (O) · por día, el plan organizado más tarde
     agendaPlan: ((x, y) => !x ? (y || null) : !y ? x : x.fecha !== y.fecha ? (x.fecha > y.fecha ? x : y) : ((+x.organizado || 0) >= (+y.organizado || 0) ? x : y))(eN.agendaPlan, eO.agendaPlan) });
@@ -16428,7 +16458,7 @@ const avHoras = h => [...new Set((h.horas || []).filter(avHm))].sort();
 const avSlot = (e, hm) => new Date(`${e}T${hm}:00`).getTime();
 const avDia = (e, n) => dayKey(addDays(new Date(e + 'T12:00'), n));
 const avProg = (h, e) => (h.dias?.length ? h.dias : ALL_DAYS).includes(wd(e));
-const avProt = (h, e) => Array.isArray(h.protegidos) && h.protegidos.includes(e);
+const avProt = (h, e) => (Array.isArray(h.protegidos) && h.protegidos.includes(e)) || (e < today() && vacDia(e));   // 2.25.3 (VAC)
 // «de las 7:00 AM», «de la 1:00 PM».
 const avDe = hm => `de ${/^1:/.test(fmtHora(hm)) ? 'la' : 'las'} ${fmtHora(hm)}`;
 
@@ -18524,7 +18554,7 @@ function estEjInfo(x) {
   const tipo = estMetaTipo(r), on = estEjOn(r), meta = estMetaEjN(r), hechos = estEjHechos(r), faltan = Math.max(0, meta - hechos);
   if (!on) return { on: false, tipo, meta, hechos, faltan: 0, esperado: 0, deuda: 0, alDia: true, por: 0, ses: 0, horasOk: true };
   const pl = estEjPlan(r), hoy = today(), dias = new Set();
-  for (const b of r.plan || []) if (estSesTipo(b) && b.d && (!r.fecha || b.d < r.fecha)) dias.add(b.d);
+  for (const b of r.plan || []) if (estSesTipo(b) && b.d && (!r.fecha || b.d < r.fecha) && !(b.d < hoy && vacDia(b.d))) dias.add(b.d);   // 2.25.3 (VAC)
   const tot = dias.size, pas = [...dias].filter(d => d < hoy).length, vivo = !r.archivada && !r.terminada;
   const esperado = tot ? Math.floor(meta * pas / tot) : 0, deuda = vivo ? Math.max(0, esperado - hechos) : 0;
   let horasOk = true; if (tipo === 'ambas') { try { const m = estMetaInfo(r); horasOk = !(m && m.on && m.deuda); } catch {} }
@@ -18533,7 +18563,7 @@ function estEjInfo(x) {
 // Con meta de ejercicios: «Meta 300 ejercicios · Hechos 40 · Faltan 260 · Al día» (texto; la interfaz lo pinta con colores).
 function estEjT(x) {
   const i = x && typeof x === 'object' && 'on' in x ? x : estEjInfo(x); if (!i || !i.on) return '';
-  const st = !i.faltan ? 'Meta cumplida' : i.deuda ? `Deuda ${i.deuda}` : i.horasOk ? 'Al día' : 'Ejercicios al día';
+  const st = !i.faltan ? 'Meta cumplida' : i.deuda ? `${vacCalma() ? 'Por repartir' : 'Deuda'} ${i.deuda}` : i.horasOk ? 'Al día' : 'Ejercicios al día';
   return `Meta ${i.meta} ${i.meta === 1 ? 'ejercicio' : 'ejercicios'} · Hechos ${i.hechos} · Faltan ${i.faltan} · ${st}`;
 }
 const EST_MT_T = { horas: 'horas', ej: 'ejercicios', ambas: 'horas y ejercicios' };
@@ -18926,7 +18956,7 @@ function estFechasSync() {
   return n;
 }
 window.estFechasSync = estFechasSync;
-const estBalT = x => !x || !x.on ? '' : `Meta ${fmtMin(x.min)} · Plan ${fmtMin(x.implicita)} · ${x.deuda ? `Deuda ${fmtMin(x.deuda)}` : x.superavit ? `Superávit ${fmtMin(x.superavit)}` : 'Al día'}`;
+const estBalT = x => !x || !x.on ? '' : `Meta ${fmtMin(x.min)} · Plan ${fmtMin(x.implicita)} · ${x.deuda ? `${vacCalma() ? 'Por repartir' : 'Deuda'} ${fmtMin(x.deuda)}` : x.superavit ? `Superávit ${fmtMin(x.superavit)}` : 'Al día'}`;
 function estBalIA(r) {
   const x = estMetaInfo(r); if (!x || !x.on) return {};
   const hoy = today(), B = (r.meta && r.meta.base) || {};
@@ -19308,7 +19338,7 @@ function euEjLinea(r, ficha = false) {
   const vivo = !r.archivada && !r.terminada && !!euF(r.fecha) && r.fecha >= today();
   let st = '';
   if (!x.faltan) st = ' · <b class="green">Meta cumplida</b>';
-  else if (vivo) st = x.deuda ? ` · <b class="amber">Deuda ${x.deuda}</b>` : !x.horasOk ? ' · <b class="green">Ejercicios al día</b>' : ' · <b class="green">Al día</b>';   // solo los ejercicios: las sesiones sin agendar ya tienen su aviso con «Reacomodar»
+  else if (vivo) st = x.deuda ? (vacCalma() ? ` · <b>Por repartir ${x.deuda}</b>` : ` · <b class="amber">Deuda ${x.deuda}</b>`) : !x.horasOk ? ' · <b class="green">Ejercicios al día</b>' : ' · <b class="green">Al día</b>';   // solo los ejercicios: las sesiones sin agendar ya tienen su aviso con «Reacomodar»
   const por = ficha && vivo && x.faltan && x.ses ? `<p class="meta eu-ej-ses"${ficha ? ' id="eu-f-ejses"' : ''}>Unos ${x.por} por sesión en ${euPl(x.ses, 'sesión', 'sesiones')}</p>` : '';
   return `<p class="meta eu-ej-prog"${ficha ? ' id="eu-f-ej"' : ''}>Meta ${esc(euEjT(x.meta))} · Hechos ${x.hechos} · Faltan ${x.faltan}${st}</p>${por}`;
 }
@@ -19625,8 +19655,8 @@ document.addEventListener('click', e => { if (rcTragar && Date.now() - rcTragar 
 const rcDiaT = f => { const d = new Date(f + 'T12:00'); return `${RC_WD[d.getDay()]} ${d.getDate()}`; };
 const rcDiaL = f => { const d = new Date(f + 'T12:00'); return `${RC_WDL[d.getDay()]} ${d.getDate()} de ${RC_MES[d.getMonth()]}`; };
 const rcDelta = (m, largo = false) => { const sg = m < 0 ? '−' : '+', a = Math.abs(Math.round(m)); if (largo) return sg + fmtMin(a); return a >= 60 ? `${sg}${Math.floor(a / 60)} h${a % 60 ? ' ' + (a % 60) : ''}` : `${sg}${a}`; };
-const euBalT = x => !x || !x.on ? '' : `Meta ${fmtMin(x.min)} · Plan ${fmtMin(x.implicita)} · ${x.deuda ? `Deuda ${fmtMin(x.deuda)}` : x.superavit ? `Superávit ${fmtMin(x.superavit)}` : 'Al día'}`;
-const euBalHtml = x => !x || !x.on ? '' : `Meta ${esc(fmtMin(x.min))} · Plan ${esc(fmtMin(x.implicita))} · ${x.deuda ? `<b class="amber">Deuda ${esc(fmtMin(x.deuda))}</b>` : x.superavit ? `<b class="green">Superávit ${esc(fmtMin(x.superavit))}</b>` : '<b class="green">Al día</b>'}`;
+const euBalT = x => !x || !x.on ? '' : `Meta ${fmtMin(x.min)} · Plan ${fmtMin(x.implicita)} · ${x.deuda ? `${vacCalma() ? 'Por repartir' : 'Deuda'} ${fmtMin(x.deuda)}` : x.superavit ? `Superávit ${fmtMin(x.superavit)}` : 'Al día'}`;
+const euBalHtml = x => !x || !x.on ? '' : `Meta ${esc(fmtMin(x.min))} · Plan ${esc(fmtMin(x.implicita))} · ${x.deuda ? (vacCalma() ? `<b>Por repartir ${esc(fmtMin(x.deuda))}</b>` : `<b class="amber">Deuda ${esc(fmtMin(x.deuda))}</b>`) : x.superavit ? `<b class="green">Superávit ${esc(fmtMin(x.superavit))}</b>` : '<b class="green">Al día</b>'}`;
 const euCambiosT = x => [x && x.quitado ? `Quitaste ${fmtMin(x.quitado)}` : '', x && x.agregado ? `Agregaste ${fmtMin(x.agregado)}` : ''].filter(Boolean).join(' · ');
 const rcCur = d => d.quitado ? 0 : (d.obj ?? d.plan ?? 0), rcResto = d => Math.max(0, rcCur(d) - (d.real || 0));   // lo que el día lleva y lo que le queda (sin lo ya estudiado)
 const euFxAct = r => !!(r && r.fechas && Object.values(r.fechas).some(o => o && +o.min >= 0));
@@ -23041,7 +23071,10 @@ function suPonerHD(h, deshacer = true) {
 // ---------- Avisos de Android: bajar el ritmo y despertar (sus propias claves; nunca cancelarAviso(''))
 function suProx(hm, now = Date.now()) { const d = new Date(now), [h, m] = hm.split(':').map(Number); d.setHours(h, m, 0, 0); if (d.getTime() <= now) d.setDate(d.getDate() + 1); return d.getTime(); }
 function suPushNoche() { try { const c = avCfg(); return !!c.on && (c.prefs || {}).noche !== false; } catch { return false; } }
-function suAvisos(D = suD()) {
+// 2.25.3 (VAC) · De vacaciones, sin el aviso de «bajar el ritmo» (la alarma de despertar, que pusiste tú, sigue); al volver, suNat lo pone.
+function suVacPausa() { try { const a = ES.vacaciones?.act, ok = d => /^\d{4}-\d\d-\d\d$/.test(d || ''); return !!a && typeof a === 'object' && ok(a.desde) && (!ok(a.hasta) || today() <= a.hasta); } catch { return false; } }
+function suAvisos(D = suD()) { const L = suAvisos0(D); return suVacPausa() ? L.filter(x => x && x.k !== 'su|bajar') : L; }
+function suAvisos0(D = suD()) {
   const hd = suHD(), out = [];
   if (D.avisoOn && !(D.avisoMin === 30 && suPushNoche())) out.push({ k: 'su|bajar', at: suProx(suDeMin(suMin(hd) - D.avisoMin)), titulo: 'Es hora de ir bajando el ritmo', texto: `A las ${suH(hd)} a dormir. Luz tenue y el teléfono lejos.`, son: false });
   if (D.alarmaOn && suHM(D.alarmaH)) { const c = Math.round(Math.max(0, suD0(hd, D.alarmaH) - (+D.latencia || 15)) / (+D.ciclo || 90) * 2) / 2;
@@ -34228,6 +34261,451 @@ document.addEventListener('visibilitychange', () => {
 });
 // Para las pruebas y la consola.
 window.adOpc = { fresco: () => adFresco, puede: () => adPuede(), conciliar: () => { const R = adRegla(), c = adConciliar(R, today()); if (c) guardar(); return c; }, revisar: () => adRevisar(), foto: () => adFoto(), estado: () => adEstado(), agendado: d => adAgendado(d), semana: d => adSemana(d), regla: () => JSON.parse(JSON.stringify(adRegla())), mapa: () => JSON.parse(JSON.stringify(adMapa())), info: () => adInfo(), noche: () => adNoche(), guardar: () => guardar(), repintar: () => adRepintar() };
+// 2.25.3 (VAC) · Modo vacaciones: nada se pierde
+// ====================================================================
+// 2.25.3 (VAC) · «Agrega una opción de vacaciones, donde no se pierda nada y es ilimitado. Me siento algo burnouteado de la app.»
+// - ES.vacaciones = { act: { desde, hasta, t } | null, hist: [{ desde, hasta, vuelta, t, f }], u }. act: las vacaciones en curso (desde = el
+//   día en que empezaron, hasta = su último día o '' = hasta que vuelvas, t = la hora de empezar). hist: las ya terminadas (hasta = su
+//   último día, vuelta = el día de volver, f = la hora de terminar). u = la hora del último cambio (empezar, cambiar la fecha o volver): al
+//   combinar dos teléfonos gana el cambio más reciente; el historial se une sin duplicados (por t). Sin límite de veces ni de días.
+// - Un día de vacaciones (desde hasta su último día y el día de volver, nunca más allá de hoy) no pierde nada: ningún XP restado (hábitos, tareas de la agenda,
+//   tareas vencidas, una hora sin marcar, tarea movida, la regla de agendar), las rachas ni se rompen ni bajan (cuenta como un día
+//   protegido: congelado), no gasta el día libre de la semana y lo que ya había restado ese día vuelve. El día siguiente al de volver
+//   tampoco necesita agenda de la víspera (la regla lo da por agendado) y las tareas vencidas de antes no restan ese día.
+// - Calma: sin avisos push (notificar.mjs), sin recordatorios ni sugerencias dentro de la app, sin el aviso de Android de «bajar el ritmo»
+//   (vuelve al volver). Lo que haga en la app suma XP como siempre; los temporizadores que él pone siguen sonando.
+// - Se ve: una banda pequeña abajo («De vacaciones · nada se pierde» + «Volver»), la hoja para empezar, la bienvenida al volver, en Ajustes
+//   (arriba, después de Conexiones) y un mosaico en «Rápido» (llena el hueco junto a «Ajustes»: no añade filas).
+// Reglas: tuteo, corto, «», sin rayas largas. 2.25.2 guarda ES.vacaciones tal cual (no lo conoce) y no lo pierde al combinar.
+// ====================================================================
+var vacCache = { k: '', dias: null, vu: null }, vacUltDia = '';
+const vacOkDia = d => /^\d{4}-\d\d-\d\d$/.test(d || '');
+const vacFC = d => { try { return new Date(d + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'short' }).replace('.', ''); } catch { return d; } };
+const vacFL = d => { try { return fechaLarga(d).replace(',', ''); } catch { return d; } };
+// Lectura sin crear nada (un teléfono que nunca usó las vacaciones no guarda el campo).
+function vacLeer() { const V = ES.vacaciones; return V && typeof V === 'object' && !Array.isArray(V) ? V : null; }
+function vacD() {
+  let V = vacLeer(); if (!V) { ES.vacaciones = { act: null, hist: [], u: 0 }; V = ES.vacaciones; }
+  if (!Array.isArray(V.hist)) V.hist = [];
+  if (!V.act || typeof V.act !== 'object' || !vacOkDia(V.act.desde)) V.act = null;
+  return V;
+}
+// Los días de vacaciones (hasta hoy) y los días de volver (vuelta y el siguiente → su vuelta). Con caché: lo piden mucho las rachas.
+function vacSet() {
+  const V = vacLeer(); if (!V) return null;
+  const H = Array.isArray(V.hist) ? V.hist : [], a = V.act && typeof V.act === 'object' && vacOkDia(V.act.desde) ? V.act : null;
+  if (!a && !H.length) return null;
+  const hk = h => h && typeof h === 'object' ? `${h.t}/${h.desde}/${h.hasta}/${h.vuelta}` : '', t = today(), k = `${t}|${+V.u || 0}|${H.length}|${hk(H[0])}|${hk(H[H.length - 1])}|${a ? `${a.t}|${a.desde}|${a.hasta}` : ''}`;
+  if (vacCache.k === k) return vacCache;
+  const dias = new Set(), vu = new Map();
+  const rango = (d0, d1) => { for (let d = d0, i = 0; d <= d1 && i < 800; d = agpDia(d, 1), i++) dias.add(d); };
+  const vuelta = v => { if (!vu.has(v)) vu.set(v, v); const s = agpDia(v, 1); if (!vu.has(s)) vu.set(s, v); };
+  // El día de volver también es tranquilo (con «Volver» ya es el último día; si terminaron solas, el día siguiente al último).
+  for (const h of H) if (h && vacOkDia(h.desde) && vacOkDia(h.hasta)) { const v = vacOkDia(h.vuelta) ? h.vuelta : agpDia(h.hasta, 1), fin = v > h.hasta ? v : h.hasta; rango(h.desde, fin < t ? fin : t); vuelta(v); }
+  if (a) { const fin = vacOkDia(a.hasta) ? agpDia(a.hasta, 1) : t; rango(a.desde, fin < t ? fin : t); if (vacOkDia(a.hasta)) vuelta(agpDia(a.hasta, 1)); }
+  vacCache = { k, dias, vu };
+  return vacCache;
+}
+function vacDia(d) { try { const S = vacSet(); return !!S && S.dias.has(d); } catch { return false; } }
+function vacVueltaDe(d) { try { const S = vacSet(); return S ? S.vu.get(d) || '' : ''; } catch { return ''; } }
+function vacActiva() { const V = vacLeer(), a = V && V.act; return !!(a && typeof a === 'object' && vacOkDia(a.desde) && (!vacOkDia(a.hasta) || today() <= a.hasta)); }
+// La regla de agendar: un día de vacaciones, el de volver y el siguiente cuentan como agendados.
+function vacAgendaLibre(d) { return vacDia(d) || !!vacVueltaDe(d); }
+// ¿No resta esta pérdida? Todo en un día de vacaciones; el día de volver y el siguiente, la regla de agendar y las tareas vencidas de antes.
+function vacPenExenta(d, ref) {
+  if (vacDia(d)) return true;
+  const v = vacVueltaDe(d); if (!v || typeof ref !== 'string') return false;
+  if (ref.startsWith('pg:agenda:')) return true;
+  if (ref.startsWith('pt:')) {
+    const id = ref.slice(3, ref.length - 11);
+    let x = null; try { x = (HT().tareas?.items || []).find(y => y && y.id === id); } catch {}
+    return !x || !vacOkDia(x.fecha) || x.fecha < v;
+  }
+  return false;
+}
+// Lo que ya restó un día que resulta de vacaciones vuelve (n = 0, o = 0: xpPenLevantar no lo vuelve a restar; hora nueva: gana al combinar).
+function vacDevolver() {
+  let c = false;
+  try {
+    if (!vacSet()) return false;
+    const P = ES.xpPen; if (!P || typeof P !== 'object') return false;
+    const ahora = Date.now();
+    for (const [d, m] of Object.entries(P)) for (const [ref, v] of Object.entries(m || {})) {
+      if (!v || typeof v !== 'object' || !(+v.n > 0 || +v.o > 0) || !vacPenExenta(d, ref)) continue;
+      v.n = 0; v.o = 0; v.t = ahora; c = true;
+    }
+  } catch (e) { console.warn('Vacaciones', e); }
+  return c;
+}
+// Termina solas al pasar su último día (lo mismo en los dos teléfonos: la hora de terminar es el inicio del día siguiente).
+function vacRevisar() {
+  const V = vacLeer(); if (!V || !V.act || typeof V.act !== 'object') return false;
+  const a = V.act; if (!vacOkDia(a.desde)) { V.act = null; return true; }
+  if (!vacOkDia(a.hasta) || today() <= a.hasta) return false;
+  const vuelta = agpDia(a.hasta, 1), f = Math.max(+a.t || 0, new Date(vuelta + 'T00:00:00').getTime());
+  vacD().hist = vacHistUnir([{ desde: a.desde, hasta: a.hasta < a.desde ? a.desde : a.hasta, vuelta, t: +a.t || f, f, auto: 1 }], V.hist);
+  V.act = null;   // u no cambia: terminar solas sale de los datos, no es un cambio; así una extensión hecha en el otro teléfono gana al combinar
+  return true;
+}
+function vacHistUnir(L1, L2) {
+  const m = new Map();
+  for (const h of [...(Array.isArray(L2) ? L2 : []), ...(Array.isArray(L1) ? L1 : [])]) {
+    if (!h || typeof h !== 'object' || !vacOkDia(h.desde) || !vacOkDia(h.hasta) || !(+h.t > 0)) continue;
+    const p = m.get(+h.t); if (!p || (!!p.auto !== !!h.auto ? p.auto : (+h.f || 0) > (+p.f || 0))) m.set(+h.t, h);   // una vuelta real gana a un final automático
+  }
+  return [...m.values()].sort((x, y) => +y.t - +x.t).slice(0, 200);
+}
+// ---------- Empezar, cambiar la fecha y volver
+function vacTrasCambio() {
+  vacCache.k = '';
+  try { vacDevolver(); } catch {}
+  try { const R = adRegla(); adConciliar(R, today()); } catch (e) { console.warn('Vacaciones', e); }
+  guardar();
+  try { renderXp(); } catch {}
+  try { renderAll(); } catch {}
+  try { adRepintar(); } catch {}
+  try { suNat(); } catch {}
+  try { tdRepintar(); } catch {}
+  vacPintar();
+}
+function vacEmpezar(hasta) {
+  const V = vacD(), ahora = Date.now(), t = today();
+  const h = vacOkDia(hasta) && hasta >= t ? hasta : '';
+  if (vacActiva()) { V.act = { ...V.act, hasta: h }; }
+  else { vacRevisar(); V.act = { desde: t, hasta: h, t: ahora }; }
+  V.u = Math.max(ahora, (+V.u || 0) + 1);
+  vacTrasCambio();
+}
+function vacVolver() {
+  const V = vacD(); if (!V.act) { vacPintar(); return; }
+  const a = V.act, ahora = Date.now(), t = today();
+  V.hist = vacHistUnir([{ desde: a.desde, hasta: t < a.desde ? a.desde : t, vuelta: t, t: +a.t || ahora, f: ahora }], V.hist);
+  V.act = null; V.u = Math.max(ahora, (+V.u || 0) + 1);
+  try { localStorage.setItem('vac-bienv', String(+a.t || 0)); } catch {}
+  vacTrasCambio();
+  vacBienvenida({ ...a });
+}
+// «Seguir de vacaciones» (en la bienvenida): deshace la vuelta. Con las de antes (Volver) o, si terminaron solas, sin fecha.
+function vacSeguir(t, a) {
+  const V = vacD(), h = V.hist.find(x => x && +x.t === +t); if (!h && !a) return;
+  V.hist = V.hist.filter(x => !(x && +x.t === +t));
+  const hasta = a && vacOkDia(a.hasta) && a.hasta >= today() ? a.hasta : '';
+  V.act = { desde: (a && a.desde) || h.desde, hasta, t: +t || Date.now() };
+  V.u = Math.max(Date.now(), (+V.u || 0) + 1);
+  vacTrasCambio();
+  toast('Listo: sigues de vacaciones.');
+}
+function vacHastaTxt(a) { return vacOkDia(a?.hasta) ? `hasta el ${vacFL(a.hasta)}` : 'hasta que vuelvas'; }
+function vacRangoTxt(h) { return h.desde === h.hasta ? vacFC(h.desde) : `${vacFC(h.desde)} al ${vacFC(h.hasta)}`; }
+// La hoja para empezar (o, de vacaciones, para cambiar la fecha o volver).
+function vacSheet() {
+  const V = vacLeer(), a = vacActiva() ? V.act : null, t = today(), conF = !!(a && vacOkDia(a.hasta));
+  showSheet(`<div class="vac-h">
+    <h2>${a ? 'Estás de vacaciones' : 'Vacaciones'}</h2>
+    <p class="note" id="vac-txt">Tómate el tiempo que necesites. Mientras estés de vacaciones no se pierde XP ni rachas y los avisos se pausan.</p>
+    ${a ? `<p class="meta" id="vac-desde">Desde el ${esc(vacFL(a.desde))}, ${esc(vacHastaTxt(a))}.</p>` : ''}
+    <p class="vac-k" id="vac-k">Hasta cuándo</p>
+    <div class="vac-op" role="radiogroup" aria-labelledby="vac-k">
+      <button type="button" class="chip${conF ? '' : ' on'}" role="radio" aria-checked="${!conF}" data-vac-h="" data-sin-hecho>Hasta que vuelva</button>
+      <button type="button" class="chip${conF ? ' on' : ''}" role="radio" aria-checked="${conF}" data-vac-h="fecha" data-sin-hecho>Hasta una fecha</button>
+    </div>
+    <div class="field" id="vac-f"${conF ? '' : ' hidden'}><label for="vac-d">Último día de vacaciones</label><input type="date" id="vac-d" min="${t}" value="${esc(conF ? a.hasta : agpDia(t, 6))}" data-sin-hecho></div>
+    <p class="meta">La app sigue a tu alcance: si haces algo, su XP cuenta como siempre. Puedes tomarlas las veces que quieras.</p>
+    <div class="actions"><button class="link" id="vac-no">${a ? 'Seguir así' : 'Ahora no'}</button><button class="primary" id="vac-si">${a ? 'Guardar' : 'Empezar ahora'}</button></div>
+    ${a ? '<div class="actions"><button class="outline" id="vac-volver-s">Volver de vacaciones</button></div>' : ''}</div>`);
+  const B = $('#sheet-body'); let modo = conF ? 'fecha' : '';
+  B.querySelectorAll('[data-vac-h]').forEach(b => b.addEventListener('click', () => {
+    modo = b.dataset.vacH;
+    B.querySelectorAll('[data-vac-h]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(on)); });
+    const f = B.querySelector('#vac-f'); if (f) f.hidden = modo !== 'fecha';
+    if (modo === 'fecha') setTimeout(() => { try { B.querySelector('#vac-d')?.focus(); } catch {} }, 50);
+  }));
+  $('#vac-no').onclick = closeSheet;
+  $('#vac-si').onclick = () => {
+    let h = '';
+    if (modo === 'fecha') { h = B.querySelector('#vac-d')?.value || ''; if (!vacOkDia(h) || h < today()) { B.querySelector('#vac-d')?.focus(); toast('Elige un día de hoy en adelante.'); return; } }
+    const era = vacActiva();
+    closeSheet(); vacEmpezar(h);
+    toast(era ? `Listo: de vacaciones ${vacHastaTxt(vacLeer()?.act)}.` : 'Felices vacaciones. Aquí estará todo cuando vuelvas.');
+  };
+  $('#vac-volver-s')?.addEventListener('click', () => { closeSheet(); vacVolver(); });
+}
+function vacBienvenida(a) {
+  const t = a ? +a.t : +(vacLeer()?.hist?.[0]?.t || 0);
+  const ver = () => {
+    showSheet(`<div class="vac-h" id="vac-bienv"><h2>Qué bueno tenerte de vuelta</h2>
+      <p class="note">Todo sigue como lo dejaste: tu XP y tus rachas, igual. Ve a tu ritmo.</p>
+      <div class="actions"><button class="link" id="vac-seguir">Seguir de vacaciones</button><button class="primary" id="vac-ok">Gracias</button></div></div>`);
+    $('#vac-ok').onclick = closeSheet;
+    $('#vac-seguir').onclick = () => { closeSheet(); if (!vacActiva()) vacSeguir(t, a); };
+  };
+  try { if (sheet.open) { setTimeout(() => { try { if (!sheet.open) ver(); } catch {} }, 600); return; } } catch {}
+  ver();
+}
+// Al abrir después de unas vacaciones que terminaron solas: la bienvenida, una vez en este teléfono.
+function vacBienvenidaAuto() {
+  try {
+    if (vacActiva()) return;
+    const V = vacLeer(); const h = V && Array.isArray(V.hist) ? V.hist.find(x => x && x.auto) : null;
+    if (!h || V.hist[0] !== h || today() > agpDia(h.vuelta || h.hasta, 1)) return;
+    let ya = ''; try { ya = localStorage.getItem('vac-bienv') || ''; } catch {}
+    if (ya === String(+h.t)) return;
+    try { localStorage.setItem('vac-bienv', String(+h.t)); } catch {}
+    try { if (sheet.open) return; } catch {}
+    vacBienvenida(null);
+  } catch (e) { console.warn('Vacaciones', e); }
+}
+function vacAbrir() { try { vacRevisar(); } catch {} vacSheet(); }
+// ---------- La banda de abajo (fija: no cambia el alto de «Rápido» ni «Apartados»)
+const VAC_CSS = `
+  #vac-banda { position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 15; display: flex; align-items: center; gap: 6px;
+    max-width: calc(100vw - 32px); width: max-content; box-sizing: border-box; padding: 4px 4px 4px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--text);
+    box-shadow: 0 6px 20px rgba(0,0,0,.10); font: 500 .9rem/1.25 var(--font); }
+  #vac-banda .vac-bt { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  #vac-banda .vac-bt i { font-style: normal; color: var(--muted); }
+  #vac-banda button { flex: none; min-height: 44px; min-width: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--text); color: var(--bg); font: 600 .9rem var(--font); cursor: pointer; }
+  body.vac-pad { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  /* Con el «+» flotante (abajo a la derecha), la banda se pega a la izquierda y le deja su sitio. */
+  body.qa-fab-on #vac-banda { left: max(16px, env(safe-area-inset-left, 0px)); transform: none; max-width: calc(100vw - 104px); }
+  @media (max-width: 359px) { #vac-banda { font-size: .84rem; padding-left: 12px; } #vac-banda button { padding: 0 12px; } }
+  @media print { #vac-banda { display: none; } }`;
+const VAC_CSS_OV = `
+  :host(.vac-on) #toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  :host(.vac-on.qa-fab-on) #toast { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  #s-vac-top { float: right; min-height: 44px; margin: 0 0 0 8px; padding: 0 2px; }
+  .vac-h .vac-k { margin: 14px 0 6px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+  .vac-op { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vac-op .chip, #s-vac .link, #s-vac-cambiar, .vac-h .actions button { min-height: 44px; }
+  .vac-h #vac-f { margin-top: 10px; }
+  .vac-h #vac-f input { min-height: 44px; box-sizing: border-box; max-width: 100%; }
+  #s-vac small { overflow-wrap: anywhere; }
+  #s-vac-hist { margin: 4px 0 10px; } #s-vac-hist summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--muted); font-size: .9rem; }
+  #s-vac-hist ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: .9rem; }`;
+function vacCss() {
+  try { if (!document.getElementById('vac-css')) { const st = document.createElement('style'); st.id = 'vac-css'; st.textContent = VAC_CSS; document.head.appendChild(st); } } catch {}
+  try { if (ov && !ov.querySelector?.('#vac-css-ov')) { const st = document.createElement('style'); st.id = 'vac-css-ov'; st.textContent = VAC_CSS_OV; ov.appendChild(st); } } catch {}
+}
+function vacPad() {
+  try {
+    const b = document.body; if (!b) return;
+    const on = !!document.getElementById('vac-banda');
+    if (!on) { b.classList.remove('vac-pad'); return; }
+    // El hueco abajo solo si hace falta: si la página ya se desplaza, o si lo de la pantalla llega hasta donde está la banda (una
+    // computadora de poca altura). Así la banda nunca tapa nada y, donde hay sitio, no crea desplazamiento.
+    b.classList.remove('vac-pad');
+    const el = document.getElementById('vac-banda'), top = el.getBoundingClientRect().top + scrollY;
+    let fin = 0;
+    for (const x of document.querySelectorAll('main > *')) {
+      if (x.hidden || x === el) continue;
+      const s = getComputedStyle(x); if (s.display === 'none' || s.position === 'fixed') continue;
+      const r = x.getBoundingClientRect(); if (r.height) fin = Math.max(fin, r.bottom + scrollY);
+    }
+    if (document.documentElement.scrollHeight > innerHeight + 1 || fin > top - 6) b.classList.add('vac-pad');
+  } catch {}
+}
+function vacPintar() {
+  try {
+    vacCss();
+    let el = document.getElementById('vac-banda');
+    try { ov?.host?.classList.toggle('vac-on', vacActiva()); } catch {}
+    if (!vacActiva()) { if (el) el.remove(); vacPad(); return; }
+    if (!el) {
+      el = document.createElement('div'); el.id = 'vac-banda'; el.setAttribute('role', 'status'); el.setAttribute('aria-label', 'Modo vacaciones');
+      el.innerHTML = '<span class="vac-bt">De vacaciones <i>·</i> nada se pierde</span><button type="button" id="vac-volver" aria-label="Volver de vacaciones">Volver</button>';
+      el.querySelector('#vac-volver').addEventListener('click', () => vacVolver());
+      document.body.appendChild(el);
+    }
+    vacPad();
+  } catch (e) { console.warn('Vacaciones', e); }
+}
+// ---------- Ajustes: arriba, la segunda sección (después de Conexiones, que va lo primero desde 2.25.1)
+function vacAjustesHtml() {
+  const V = vacLeer(), a = vacActiva() ? V.act : null, H = V && Array.isArray(V.hist) ? V.hist.filter(h => h && vacOkDia(h.desde) && vacOkDia(h.hasta)) : [];
+  return `<h3 id="s-vac-t">Vacaciones</h3>
+    <div class="set-row" id="s-vac"><span>Modo vacaciones<small>${a ? esc(`Activo desde el ${vacFL(a.desde)}, ${vacHastaTxt(a)}`) : 'Sin perder XP ni rachas, y con los avisos en pausa'}</small></span><button class="link" id="s-vac-b">${a ? 'Volver de vacaciones' : 'Tomar vacaciones'}</button></div>
+    ${a ? '<div class="set-row"><span>Hasta cuándo<small>Sin fecha o con un último día</small></span><button class="link" id="s-vac-cambiar">Cambiar</button></div>' : ''}
+    ${H.length ? `<details id="s-vac-hist"><summary>Vacaciones anteriores (${H.length})</summary><ul>${H.slice(0, 12).map(h => `<li>${esc(vacRangoTxt(h))}</li>`).join('')}</ul></details>` : ''}`;
+}
+function vacAjustes() {
+  try {
+    const B = $('#sheet-body'); if (!B || B.querySelector('#s-vac')) return;
+    vacCss();
+    // Justo después de Conexiones (2.25.1: Conexiones va lo primero), antes de Enfoque.
+    const ref = B.querySelector('#s-enf');
+    const box = document.createElement('div'); box.id = 's-vac-box'; box.innerHTML = vacAjustesHtml();
+    if (ref) ref.before(box); else { const h = B.querySelector('h2'); if (h) h.after(box); else B.append(box); }
+    box.querySelector('#s-vac-b')?.addEventListener('click', () => { if (vacActiva()) { closeSheet(); vacVolver(); } else vacSheet(); });
+    box.querySelector('#s-vac-cambiar')?.addEventListener('click', () => vacSheet());
+    // En el teléfono la sección queda debajo de Conexiones: un acceso a la altura del título, que se ve sin desplazar la hoja.
+    // Va antes del título (flota a la derecha): Conexiones sigue siendo lo primero debajo de «Ajustes».
+    const h2 = B.querySelector('h2');
+    if (h2 && !B.querySelector('#s-vac-top')) {
+      const t = document.createElement('button'); t.type = 'button'; t.className = 'link'; t.id = 's-vac-top';
+      t.textContent = vacActiva() ? 'De vacaciones' : 'Vacaciones'; t.setAttribute('aria-label', vacActiva() ? 'Estás de vacaciones: cambiar o volver' : 'Tomar vacaciones');
+      t.addEventListener('click', () => vacSheet());
+      h2.before(t);
+    }
+  } catch (e) { console.warn('Vacaciones', e); }
+}
+// ---------- Ganchos
+// Las pérdidas: nada en un día de vacaciones (y lo dicho del día de volver). Se anota con 0 (sin restar) para que un teléfono con 2.25.2
+// no lo reste después; lo de «una hora sin marcar» no se anota (si se anotara, ya no daría su XP al marcarlo).
+xpPenPoner = (f => function (dia, ref, n, c, m) {
+  try {
+    if (vacPenExenta(dia, ref)) {
+      if (typeof ref === 'string' && ref.startsWith('pa:')) return 0;
+      const P = (ES.xpPen && typeof ES.xpPen === 'object') ? ES.xpPen : (ES.xpPen = {});
+      if (!P[dia]?.[ref]) (P[dia] ||= {})[ref] = { n: 0, o: 0, t: Date.now(), c: '', m: String(m || '').slice(0, 80) };
+      return 0;
+    }
+  } catch (e) { console.warn('Vacaciones', e); }
+  return f.apply(this, arguments);
+})(xpPenPoner);
+// El aviso de «Lo que quedó sin hacer»: sin lo de los días de vacaciones (no restó nada).
+xpAvisoPerdido = (f => function (P, L0, L1) {
+  let L = P;
+  try { L = (Array.isArray(P) ? P : []).filter(x => !(x && !(+x.n > 0) && (vacDia(x.d) || (vacVueltaDe(x.d) && /^Tarea/.test(x.tipo || ''))))); } catch {}
+  if (!L.length) return;
+  return f.call(this, L, L0, L1);
+})(xpAvisoPerdido);
+xpTardeRevisar = (f => function () { try { if (vacActiva() || vacDia(today())) return; } catch {} return f.apply(this, arguments); })(xpTardeRevisar);
+window.xpTardeBloquea = (f => function (ref) { try { if (vacDia(today())) return false; } catch {} return f.apply(this, arguments); })(window.xpTardeBloquea);
+// Lo que ya restó (también lo que restó un teléfono con 2.25.2) vuelve, cada vez que se revisa lo perdido.
+window.xpPenLevantar = (f => function () { const a = f.apply(this, arguments); let b = false; try { if (vacRevisar()) b = true; if (vacDevolver()) b = true; } catch {} return a || b; })(window.xpPenLevantar);
+// Las rachas: un día de vacaciones es como un día protegido (ni rompe ni suma). Hábitos (diarios y por semana) y la racha general.
+h2Prot = (f => function (h, k) { try { if (vacDia(k)) return true; } catch {} return f.apply(this, arguments); })(h2Prot);
+// Hábitos por semana: un día de vacaciones no cuenta como hecho (si lo hiciste, sí). Una semana con días de vacaciones pide la parte
+// proporcional de los días fuera de vacaciones (redondeada hacia arriba); una semana entera de vacaciones no pide nada y la racha de
+// semanas la salta (ni suma ni se rompe).
+function vacSemPide(h, k, N) {
+  try {
+    if (!(N > 0) || !vacSet()) return N;
+    const D = hbSemDias(k).filter(d => !h.creado || d >= h.creado); if (!D.length) return N;
+    const fuera = D.filter(d => !vacDia(d)).length; if (fuera === D.length) return N;
+    return Math.min(N, fuera, Math.ceil(N * fuera / D.length));
+  } catch { return N; }
+}
+hbSemMeta = (f => function (h, k) { return vacSemPide(h, k, f.apply(this, arguments)); })(hbSemMeta);
+const vacSemFria = (h, k) => { try { return !!vacSet() && hbSemNd(h, k) > 0 && hbSemMeta(h, k) === 0; } catch { return false; } };
+hbSemRacha = function (h) {
+  const t = today(); let r = hbSemOk(h, t) ? 1 : 0, l = new Date(hbSemLunes(t) + 'T12:00');
+  for (let i = 0; i < 520; i++) { l = addDays(l, -7); if (h.creado && dayKey(addDays(l, 6)) < h.creado) break; const k = dayKey(l); if (hbSemOk(h, k)) r++; else if (vacSemFria(h, k)) continue; else break; }
+  return r;
+};
+hbSemMejor = function (h) {
+  const t = today(), fin = hbSemLunes(t); let best = 0, cur = 0, l = new Date(hbSemLunes(h.creado && /^\d{4}-\d\d-\d\d$/.test(h.creado) ? h.creado : t) + 'T12:00');
+  for (let i = 0; i < 520 && dayKey(l) <= fin; i++, l = addDays(l, 7)) { const k = dayKey(l); if (hbSemOk(h, k)) best = Math.max(best, ++cur); else if (vacSemFria(h, k)) continue; else if (k !== fin) cur = 0; }
+  return best;
+};
+hbSemTxt = (f => function (h, d = today()) { try { if (vacSemFria(h, d)) return 'Semana de vacaciones'; } catch {} return f.apply(this, arguments); })(hbSemTxt);
+hbSemCalTxt = (f => function (h, d) { try { if (vacSemFria(h, d)) return 'Semana de vacaciones: no cuenta.'; } catch {} return f.apply(this, arguments); })(hbSemCalTxt);
+// La semana con tu meta (+30/+40/+50): una semana con 3 o más días de vacaciones pide los días fuera de vacaciones (como mucho 5) y,
+// si no tuvo bono, la cadena la salta (queda congelada: ni suma ni se rompe). Una semana entera de vacaciones pide 5 días con tu meta.
+function vacSemXm(L) { let v = 0; try { if (vacSet()) for (let i = 0; i < 7; i++) if (vacDia(dayKey(addDays(new Date(L + 'T12:00'), i)))) v++; } catch {} return v; }
+function xmNecesita(L) { const v = vacSemXm(L); return v < 7 ? Math.min(5, 7 - v) : 5; }
+xmBono = function () {
+  const antes = k => dayKey(addDays(new Date(k + 'T12:00'), -7));
+  let dado = 0;
+  for (const L of [antes(xmLunes()), xmLunes()]) {
+    if ((ES.semanasMeta?.[L] && !xpDeshecho('b:sem:' + L)) || xmSemanaDias(L) < xmNecesita(L)) continue;
+    let r = 1; for (let k = antes(L), i = 0; r < 3 && i < 104; k = antes(k), i++) { if (ES.semanasMeta?.[k]) r++; else if (vacSemXm(k) >= 3) continue; else break; }
+    const b = [30, 40, 50][r - 1];
+    ES.semanasMeta = { ...(ES.semanasMeta || {}), [L]: b }; guardar();
+    const n = xmSemanasN();
+    buzz([40, 60, 40]);
+    xpGanar(b, `Semana ${n} con tu meta`, 'b:sem:' + L);
+    dado = b;
+  }
+  return dado;
+};
+window.xmBono = xmBono;
+xmSemanaLinea = function () {
+  const n = xmSemanasN(), d = xmSemanaDias(), pide = xmNecesita(xmLunes()), f = pide - d, quedan = 6 - wd(today()) + (xpHoy() >= metaHoy() ? 0 : 1);
+  return `Semanas con tu meta: ${n} · esta: ${d} de 7 días${d >= pide ? ' (cumplida)' : vacActiva() ? '' : f <= quedan ? ` (te ${f === 1 ? 'falta' : 'faltan'} ${f})` : ''}`;
+};
+// Las demás rachas de días seguidos: un día de vacaciones sin nada se salta (si hiciste algo, suma).
+rachaXp = function () { let n = 0; for (let i = 0; i < 800; i++) { const k = dayKey(addDays(new Date(), -i)); if (xpHoy(k) >= metaHoy(k)) n++; else if (vacDia(k)) continue; else if (i) break; } return n; };
+rachaEsp = function () { let n = espHoy() ? 1 : 0; for (let i = 1; i < 800; i++) { const k = dayKey(addDays(new Date(), -i)); if ((dayOf(k).ini_esp || 0) > 0) n++; else if (vacDia(k)) continue; else break; } return n; };
+rachaIni = function () { let n = iniHechasHoy() >= 1 ? 1 : 0; for (let i = 1; i < 800; i++) { const k = dayKey(addDays(new Date(), -i)); if ((ES.iniHist?.[k] || (dayOf(k).ini4 ? [1] : [])).length >= 1 || (dayOf(k).ini4 || 0) >= 1) n++; else if (vacDia(k)) continue; else break; } return n; };
+rachaMente = function () { let n = practicasHoy().some(x => x.tipo === 'mente') ? 1 : 0; for (let i = 1; i < 800; i++) { const k = dayKey(addDays(new Date(), -i)); if ((dayOf(k).mente || 0) > 0) n++; else if (vacDia(k)) continue; else break; } return n; };
+dcRacha = function () { const S = new Set(dcSes().map(z => z.d)); let d = new Date(today() + 'T12:00'), n = 0; if (!S.has(dayKey(d))) d = addDays(d, -1); for (let i = 0; i < 800 && n < 400; i++, d = addDays(d, -1)) { const k = dayKey(d); if (S.has(k)) n++; else if (!vacDia(k)) break; } return n; };
+csMejorRacha = function (c) {
+  const L = csLog(), dias = Object.keys(L).filter(d => L[d]?.[c.id]).sort(), t = today();
+  let d = [c.creado, dias[0]].filter(Boolean).sort()[0] || t, run = 0, mejor = 0, k = 0;
+  for (; d <= t && k < 400; d = csDiaMas(d, 1), k++) {
+    if (!csToca(c, d)) continue;
+    const r = csReg(c, d);
+    if (r?.ok) { run++; mejor = Math.max(mejor, run); } else if (!r && vacDia(d)) continue; else if (r || d < t) run = 0;
+  }
+  return mejor;
+};
+// La regla de agendar: días de vacaciones, el de volver y el siguiente, agendados (no restan ni gastan el día libre).
+adAgendado = (f => function (d) { try { if (vacAgendaLibre(d)) return true; } catch {} return f.apply(this, arguments); })(adAgendado);
+adEstado = (f => function () {
+  const E = f.apply(this, arguments);
+  try { if (E && E.k !== 'ok' && vacAgendaLibre(E.m)) return { k: 'ok', m: E.m, txt: 'Mañana no necesita agenda: vas volviendo con calma' }; } catch {}
+  return E;
+})(adEstado);
+adSemana = (f => function () { const S = f.apply(this, arguments); try { for (const x of S) if (vacDia(x.d)) { x.k = 'vac'; x.s = 'vacaciones'; } } catch {} return S; })(adSemana);
+adSemanaHtml = (f => function () {
+  let h = f.apply(this, arguments);
+  try { h = h.replace(/(<span class="ad-d ad-vac[^"]*"[^>]*><small>[^<]*<\/small><b>)[^<]*(<\/b>)/g, '$1Vac$2'); } catch {}
+  return h;
+})(adSemanaHtml);
+adHtml = (f => function () { try { if (vacActiva()) return ''; } catch {} return f.apply(this, arguments); })(adHtml);
+adNoche = (f => function () { try { if (vacActiva() || vacAgendaLibre(agpDia(today(), 1))) return; } catch {} return f.apply(this, arguments); })(adNoche);
+// Calma dentro de la app: sin la sugerencia del momento ni el recordatorio de la puerta de Enfoque.
+intervenciones = (f => function () { try { if (vacActiva()) return []; } catch {} return f.apply(this, arguments); })(intervenciones);
+recordatorio = (f => function () { try { if (vacActiva()) return ''; } catch {} return f.apply(this, arguments); })(recordatorio);
+// La pregunta de la mañana de las metas de consistencia: no sale de vacaciones ni sobre una noche de vacaciones.
+csPregunta = (f => function () { try { if (vacActiva() || vacDia(csDiaMas(today(), -1))) return null; } catch {} return f.apply(this, arguments); })(csPregunta);
+// «Ahora» no propone una tarea vencida (ni de hoy) mientras estás de vacaciones, y «Tareas» no cuenta las vencidas.
+ahoraSugerido = (f => function () {
+  const a = f.apply(this, arguments);
+  try { if (a && vacActiva() && /^Tarea (vencida|de hoy)$/.test(a.k || '')) return { k: 'De vacaciones', t: 'Descansa con propósito', p: 'Siesta, caminar, respirar, no hacer nada sin pantalla. Elige cuál y cuánto.', b: 'Descansar', a: () => descansoForm(), descanso: true }; } catch {}
+  return a;
+})(ahoraSugerido);
+try { const f0 = INI_ESTADO.tareas; if (typeof f0 === 'function') INI_ESTADO.tareas = function () { const x = f0.apply(this, arguments); try { if (vacActiva()) return String(x).replace(/ · \d+ vencidas?$/, ''); } catch {} return x; }; } catch (e) { console.warn('Vacaciones', e); }
+// «Continuar lo pendiente»: de vacaciones no se muestra; al volver, sin lo que quedó de los días de vacaciones (la agenda, las sesiones de
+// estudio, los hábitos de ayer). Las tareas con fecha siguen: son tuyas y no restan esos días.
+contCalcular = (f => function () {
+  const L = f.apply(this, arguments);
+  try { if (vacActiva()) return []; if (vacSet()) return L.filter(x => !(x && x.src !== 'hoy' && x.src !== 'tarea' && vacOkDia(x.d) && vacDia(x.d))); } catch {}
+  return L;
+})(contCalcular);
+// Estudio: de vacaciones, el día de volver y el siguiente, lo que falta se lee «Por repartir», sin ámbar (lo usa el código de Estudio).
+function vacCalma() { try { return vacActiva() || vacDia(today()) || !!vacVueltaDe(today()); } catch { return false; } }
+// Android: el aviso de «bajar el ritmo» se pausa en suAvisos (suVacPausa, en el código de Sueño: corre ya al cargar). Al volver, suNat lo pone.
+// Ajustes y «Rápido»
+settings = (f => function () { const x = f.apply(this, arguments); vacAjustes(); return x; })(settings);
+try {
+  TD_SVG.vac = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0z"/><path d="M12 4v15a2 2 0 0 1-4 0"/></svg>';
+  if (!TD_ATAJOS.some(x => x[0] === 'vacaciones')) { const i = TD_ATAJOS.findIndex(x => x[0] === 'ajustes'); TD_ATAJOS.splice(i < 0 ? TD_ATAJOS.length : i, 0, ['vacaciones', 'Vacaciones', 'vac', () => true]); }
+} catch (e) { console.warn('Vacaciones', e); }
+tdAccion = (f => function (k) { if (k === 'vacaciones') { vacAbrir(); return; } return f.apply(this, arguments); })(tdAccion);
+// Después de combinar con la nube: lo que llegó del otro teléfono (empezó, volvió o cambió la fecha).
+nubeCombinada = (f => function () { const x = f.apply(this, arguments); try { vacCache.k = ''; if (vacRevisar() | vacDevolver()) guardar(); vacPintar(); } catch {} return x; })(nubeCombinada);
+// Una vez al minuto: terminar solas al pasar su último día, la banda y el hueco de abajo.
+setInterval(() => {
+  try {
+    const t = today();
+    if (vacRevisar()) { vacTrasCambio(); vacBienvenidaAuto(); }
+    else if (t !== vacUltDia) { vacUltDia = t; vacPintar(); }
+    else vacPad();
+  } catch (e) { console.warn('Vacaciones', e); }
+}, 60000);
+setTimeout(() => {
+  try {
+    vacUltDia = today();
+    const c = vacRevisar(); if (vacDevolver() || c) { guardar(); try { renderXp(); } catch {} try { adRepintar(); } catch {} try { suNat(); } catch {} }
+    vacPintar(); vacBienvenidaAuto();
+  } catch (e) { console.warn('Vacaciones', e); }
+}, 900);
+addEventListener('resize', () => vacPad());
+document.addEventListener('click', () => setTimeout(vacPad, 420), true);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { try { if (vacRevisar()) { vacTrasCambio(); vacBienvenidaAuto(); } else vacPintar(); } catch {} } });
+// Para las pruebas y la consola.
+window.vacOpc = { activa: () => vacActiva(), dia: d => vacDia(d), vuelta: d => vacVueltaDe(d), libreAgenda: d => vacAgendaLibre(d), exenta: (d, r) => vacPenExenta(d, r), empezar: h => vacEmpezar(h), volver: () => vacVolver(), abrir: () => vacAbrir(), revisar: () => vacRevisar(), devolver: () => vacDevolver(), pintar: () => vacPintar(), datos: () => JSON.parse(JSON.stringify(vacLeer())) };
 })();
 
 render();
