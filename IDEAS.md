@@ -612,6 +612,14 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.25.3: modo vacaciones
+
+- Vacaciones sin límite de veces ni de duración: desde el mosaico «Vacaciones» de «Rápido» o el botón junto al título de Ajustes. «Hasta que vuelva» o hasta una fecha; terminan solas.
+- Mientras duran no se pierde nada: ninguna resta de XP (hábitos, agenda, tareas vencidas, regla de agendar), las rachas quedan congeladas, el bono semanal no se corta y no se gasta el día libre. Lo que ya se hubiera restado en esos días se devuelve.
+- Calma: se pausan los avisos push y los de la app, la pregunta de consistencia y los empujones de tareas vencidas; la alarma de «bajar el ritmo» se pausa y vuelve sola. El despertador y los temporizadores que pones tú siguen.
+- El día que vuelves y el siguiente no necesitan agenda de la víspera. Bienvenida corta sin cuentas de lo que pasó, con «Seguir de vacaciones» por si «Volver» fue sin querer.
+- Banda pequeña «De vacaciones · nada se pierde» con «Volver». Historial de vacaciones en Ajustes, sincronizado entre dispositivos.
+
 ## 2.25.2: pestañas «Rápido» y «Apartados», Notion automático y regla de agendar
 
 - «Rápido» y «Apartados» son ahora dos pestañas separadas en la barra, cada una con su formato y pensadas para no tener que bajar.
