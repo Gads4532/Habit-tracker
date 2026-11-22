@@ -612,6 +612,14 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.25.2: pestañas «Rápido» y «Apartados», Notion automático y regla de agendar
+
+- «Rápido» y «Apartados» son ahora dos pestañas separadas en la barra, cada una con su formato y pensadas para no tener que bajar.
+- Al conectar Notion, agradecimiento, reflexión, journaling, ideas de la pizarra y «Quiero desarrollar y hacer» se envían solos, sin botón. En Conexiones hay un historial de conexiones y envíos.
+- Google Tasks queda siempre conectado: se renueva en silencio y, si Google pide confirmar, un aviso «Toca para seguir conectado». Ya no hay «Desconectar».
+- Simetría: «Siguiente» alineado con «Elegir iniciativa» y el «+» con el mismo margen a la derecha y abajo.
+- Regla nueva: cada día se agenda desde la víspera (al menos una cosa antes de las 23:59 del día anterior). Un día sin agendar por semana (lunes a domingo) es libre; desde el segundo se restan 20 XP, una vez por día y sin duplicar entre dispositivos. Estado de mañana con «Agendar mañana» en la Agenda y en «Tu día», franja de la semana, aviso y recordatorio a las 20:00. Cuenta desde el día siguiente a instalar esta versión.
+
 ## 2.25.1: engranaje de Ajustes y «Ejecutar bloque» en las rutas de Estudio
 
 - **Engranaje ⚙ siempre visible** arriba, en todas las pestañas, que abre Ajustes. «Conexiones» (Notion, Google Calendar, Google Tasks) es lo primero de Ajustes. El enlace de Enfoque ahora dice «Ajustes».

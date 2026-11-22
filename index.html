@@ -546,6 +546,13 @@
   @media (max-width: 359px) { header.top { gap: 10px; } }
   @media (prefers-reduced-motion: no-preference) { .g-ajustes svg { transition: transform .3s ease; } .g-ajustes:active svg { transform: rotate(40deg); } }
 </style>
+<style>   /* 2.25.1 (V) · Simetría: el «+» flotante */
+  #qa-fab.qa-fab { right: max(16px, env(safe-area-inset-right, 0px), calc(50% - 244px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  /* En cuanto cabe fuera de la columna (488 de contenido + 2 × (16 + 56 + 16) = 664 px), va fuera, a 16 px del contenido. */
+  @media (min-width: 664px) { #qa-fab.qa-fab { right: max(16px, calc(50% - 316px)); } }
+  /* «Hecho» del aviso y del formulario de hábito: el mismo borde que el contenido del diálogo (24 px). */
+  .hecho-bar { padding-left: 24px; padding-right: 24px; }
+</style>
 </head>
 <body>
 <main>
@@ -563,7 +570,8 @@
     </div>
   </header>
   <div id="view-inicio" hidden></div>
-  <div id="view-todo" hidden></div>   <!-- 2.25.0 (T) -->
+  <div id="view-rapido" hidden></div>   <!-- 2.25.1 (S) -->
+  <div id="view-apartados" hidden></div>   <!-- 2.25.1 (S) -->
   <div id="view-identidad" hidden></div>
   <div id="view-metas" hidden></div>
   <div id="view-espiritu" hidden></div>
@@ -611,8 +619,11 @@
   <button class="tab" data-view="inicio">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-6h4v6"/></svg>Inicio
   </button>
-  <button class="tab" data-view="todo">   <!-- 2.25.0 (T) · Rápido y Apartados -->
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Todo
+  <button class="tab" data-view="rapido">   <!-- 2.25.1 (S) · Rápido: Hábitos, Quiero y atajos -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></svg>Rápido
+  </button>
+  <button class="tab" data-view="apartados">   <!-- 2.25.1 (S) · todos los apartados -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Apartados
   </button>
   <button class="tab" data-view="identidad">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-4 3.4-7 7.5-7s7.5 3 7.5 7"/><path d="M15.5 4.5a4 4 0 0 1 0 7"/></svg>Identidad
@@ -791,7 +802,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.25.1';
+const APP_VERSION = '2.25.2';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1356,7 +1367,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', temporizador: 'Temporizador', sueno: 'Sueño', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis', todo: window.tdTitulo?.() || 'Todo' }[view];   // 2.25.0 (T)
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', temporizador: 'Temporizador', sueno: 'Sueño', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis', todo: window.tdTitulo?.() || 'Todo', rapido: 'Rápido', apartados: window.tdTitulo?.() || 'Apartados' }[view];   // 2.25.0 (T)   // 2.25.1 (S)
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -1606,6 +1617,48 @@ function cxImpFusion(a, b) {
   for (const o of [b, a]) if (ok(o)) for (const [k, v] of Object.entries(o)) { if (!ok(v) || k.length > 240) continue; const p = m[k]; if (!p || (+v.en || 0) >= (+p.en || 0)) m[k] = v; }
   return Object.fromEntries(Object.entries(m).sort((x, y) => (+y[1].en || 0) - (+x[1].en || 0)).slice(0, 1500));
 }
+// 2.25.1 (A) · Lo enviado a Notion solo (ES.ntAuto = { clave: { id, url, h, en } | { c, ce } }): por clave, la que tiene página gana a una
+// reclamación; entre dos páginas, la más reciente; entre dos reclamaciones, la más antigua (y, a la par, el dispositivo menor). Hasta 4000.
+function ntaFusion(a, b) {
+  const ok = v => v && typeof v === 'object' && !Array.isArray(v), m = {};
+  for (const o of [b, a]) if (ok(o)) for (const [k, v] of Object.entries(o)) {
+    if (!ok(v) || k.length > 200 || k === '__proto__') continue; const p = m[k];
+    if (!p) { m[k] = v; continue; }
+    if (v.id && !p.id) m[k] = v;
+    else if (v.id && p.id) { if ((+v.en || 0) > (+p.en || 0)) m[k] = v; }
+    else if (!v.id && !p.id && ((+v.ce || 0) < (+p.ce || 0) || ((+v.ce || 0) === (+p.ce || 0) && String(v.c || '') < String(p.c || '')))) m[k] = v;
+  }
+  const t = v => +v.en || +v.ce || 0;
+  return Object.fromEntries(Object.entries(m).sort((x, y) => t(y[1]) - t(x[1])).slice(0, 4000));
+}
+// 2.25.2 (D) · Agendar desde la víspera. ES.agendaDia = { día: { a, u, on } }: por día, el cambio más reciente (u); con los dos en 1, la
+// primera vez (a) más antigua. ES.agendaRegla = { desde, ev: { día: { r, t, n, vi } } }: desde, el más antiguo; por día, la primera revisión
+// (t menor), con el aviso visto si lo vio cualquiera de los dos teléfonos.
+function adDiaFusion(a, b) {
+  const ok = v => v && typeof v === 'object' && !Array.isArray(v), m = {}, dia = k => /^\d{4}-\d\d-\d\d$/.test(k);
+  for (const o of [b, a]) if (ok(o)) for (const [k, v] of Object.entries(o)) {
+    if (!dia(k) || !ok(v)) continue;
+    const x = { a: Math.max(0, +v.a || 0), u: Math.max(0, +v.u || 0), on: v.on ? 1 : 0 }, p = m[k];
+    if (!p) { m[k] = x; continue; }
+    if (p.on && x.on) { const as = [p.a, x.a].filter(n => n > 0); m[k] = { a: as.length ? Math.min(...as) : 0, u: Math.max(p.u, x.u), on: 1 }; }
+    else if (x.u > p.u || (x.u === p.u && x.on && !p.on)) m[k] = x;
+  }
+  return Object.fromEntries(Object.entries(m).sort(([x], [y]) => x < y ? 1 : -1).slice(0, 120));
+}
+function adReglaFusion(a, b) {
+  const ok = v => v && typeof v === 'object' && !Array.isArray(v), dia = k => /^\d{4}-\d\d-\d\d$/.test(k || '');
+  const ds = [ok(a) && a.desde, ok(b) && b.desde].filter(dia).sort(), ev = {};
+  for (const o of [ok(b) ? b.ev : null, ok(a) ? a.ev : null]) if (ok(o)) for (const [k, v] of Object.entries(o)) {
+    if (!dia(k) || !ok(v) || !['ok', 'libre', 'pen'].includes(v.r)) continue;
+    const x = { r: v.r, t: Math.max(0, +v.t || 0), ...(+v.n > 0 ? { n: +v.n } : {}), ...(+v.vi > 0 ? { vi: +v.vi } : {}), ...(+v.rv > 0 ? { rv: +v.rv } : {}) }, p = ev[k];
+    if (!p) { ev[k] = x; continue; }
+    const rx = +x.rv || 0, rp = +p.rv || 0;   // una revisión corregida (rv, al conciliar) gana a la primera; entre dos corregidas, la más reciente
+    const g = rx !== rp ? (rx > rp ? { ...x } : { ...p }) : x.t && (!p.t || x.t < p.t) ? { ...x } : { ...p }, vi = Math.max(+p.vi || 0, +x.vi || 0);
+    if (vi > 0) g.vi = vi;
+    ev[k] = g;
+  }
+  return { ...(ds[0] ? { desde: ds[0] } : {}), ev: Object.fromEntries(Object.entries(ev).sort(([x], [y]) => x < y ? 1 : -1).slice(0, 150)) };
+}
 function mergeStates(a, b) {
   a = normalize(a); b = normalize(b);
   const newer = a.cambiado >= b.cambiado ? a : b, older = newer === a ? b : a;
@@ -1672,6 +1725,9 @@ function mergeStates(a, b) {
     ...(eN.agendaMov || eO.agendaMov ? { agendaMov: agmFusion(eN.agendaMov, eO.agendaMov) } : {}),   // 2.24.2 (M) · lo que salió de cada día hacia otro
     ...(eN.quiero || eO.quiero ? { quiero: qdFusion(eN.quiero, eO.quiero, dead) } : {}),
     ...(eN.cxImp || eO.cxImp ? { cxImp: cxImpFusion(eN.cxImp, eO.cxImp) } : {}),   // 2.25.0 (C) · lo traído de Notion y Google   // 2.25.0 (T) · Quiero desarrollar y hacer
+    ...(eN.agendaDia || eO.agendaDia ? { agendaDia: adDiaFusion(eN.agendaDia, eO.agendaDia) } : {}),   // 2.25.2 (D) · agendado desde la víspera
+    ...(eN.agendaRegla || eO.agendaRegla ? { agendaRegla: adReglaFusion(eN.agendaRegla, eO.agendaRegla) } : {}),   // 2.25.2 (D) · día libre y lo restado
+    ...(eN.ntAuto || eO.ntAuto ? { ntAuto: ntaFusion(eN.ntAuto, eO.ntAuto) } : {}),   // 2.25.1 (A) · lo enviado a Notion solo
     agendaPlanes: agpFusion(eN.agendaPlanes, eO.agendaPlanes),   // 2.17 (O) · por día, el plan organizado más tarde
     agendaPlan: ((x, y) => !x ? (y || null) : !y ? x : x.fecha !== y.fecha ? (x.fecha > y.fecha ? x : y) : ((+x.organizado || 0) >= (+y.organizado || 0) ? x : y))(eN.agendaPlan, eO.agendaPlan) });
   // 2.12 · Lo que la regla de arriba no combinaba: cada hábito con lo del otro (unirHabito), los registros de la puerta y del teléfono,
@@ -1875,6 +1931,7 @@ async function connectSupabase() {
     if (remoteChanged) pushCloud(); else setSync('ok');
     nubeCombinada();   // ya combinado: lo que se cambió al pintar se guarda ahora
   };
+  window.nubePull = pull;   // 2.25.1 (A)
   await pull();
   clearInterval(pollTimer);
   pollTimer = setInterval(() => { if (document.visibilityState === 'visible') pull(); }, 30000);
@@ -6211,6 +6268,17 @@ const ENFOQUE_CSS = `
   :host(.mv-quieto:not(#view-overlays)) *, :host(.mv-quieto:not(#view-overlays)) *::before, :host(.mv-quieto:not(#view-overlays)) *::after { animation: none !important; transition: none !important; }
   :host(#view-overlays.mv-quieto) dialog, :host(#view-overlays.mv-quieto) dialog::backdrop, :host(#view-overlays.mv-quieto) #toast { animation: none !important; transition: none !important; }
   .xp .bar i { animation: none; }
+  /* 2.25.1 (V) · Simetría. «Siguiente» se ciñe a su texto, al borde derecho: acaba donde acaba «Elegir iniciativa». */
+  /*   Los tres botones siguen en tercios iguales, como en las tarjetas de al lado (Sigue, Hábito): solo el texto va a la derecha (el mismo relleno total, 12 px, para que el tercio mida igual). */
+  #ini-c-ini .ag-foco-b > .ic-sig { text-align: right; padding-left: 12px; padding-right: 0; }
+  /*   A menos de 360 px, «Siguiente» se ciñe a su texto para que «Ver hábito» no se corte. */
+  @media (max-width: 359px) { #ini-c-ini .ag-foco-b > .ic-sig { flex: 0 0 auto; min-width: 44px; padding: 0; margin-left: 4px; } }
+  /* «✓ Hecho» (verde, sin borde) medía 3 px menos que «Empezar» (con borde) a su lado: el mismo borde, transparente. */
+  .ag-foco-b > .ag-fb-ok, .ag-ahora-b > .ag-fb-ok { border: 1.5px solid transparent; }
+  /* «Hecho» de las hojas acaba en el mismo borde que el contenido (20 px, no 14). */
+  .hecho-bar { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-left, 0px)); }
+  /* Ajustes: un rótulo largo ya no estruja su desplegable (el «2» de «Bono de iniciativas» se cortaba). */
+  .set-row > select { flex-shrink: 0; max-width: 62%; }
 `;
 const ENFOQUE_HTML = `
 
@@ -6319,7 +6387,7 @@ function guardar() {
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {}
   save();
 }
-const irA = v => document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click();
+const irA = v => document.querySelector(`.tabs .tab[data-view="${v === 'todo' ? 'rapido' : v}"]`)?.click();   // 2.25.1 (S) · «Todo» ahora es Rápido
 const irAVista = e => { const b = e.target.closest('[data-goview]'); if (b) { closeSheet(); irA(b.dataset.goview); } };
 root.addEventListener('click', irAVista); ov.addEventListener('click', irAVista);
 const MINUTOS_ENFOQUE = [15, 25, 50, 90];
@@ -8240,7 +8308,7 @@ function settings() {
     ${OP_CHROME_ANDROID ? `<div class="set-row" id="s-apk-row" style="border-bottom:0;padding-bottom:4px${opApkSi() ? '' : ';display:none'}"><span>App para Android<small>Cuenta tu tiempo de uso en el teléfono</small></span><a class="link" id="s-apk" href="${OP_APK}" target="_blank" rel="noopener" style="min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:flex-end;flex:none">Descargar</a></div>
     <p class="meta" id="s-apk-nota" style="margin:0 0 12px${opApkSi() ? '' : ';display:none'}">Al abrir el archivo, si Android lo pide, permite instalar apps de Chrome.</p>` : ''}
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
-      <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia'], ['todo', 'Todo']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'todo'].includes(localStorage.getItem('habit-inicio')) ? localStorage.getItem('habit-inicio') : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia'], ['rapido', 'Rápido'], ['apartados', 'Apartados']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'rapido', 'apartados'].includes((x => x === 'todo' ? 'rapido' : x)(localStorage.getItem('habit-inicio'))) ? (x => x === 'todo' ? 'rapido' : x)(localStorage.getItem('habit-inicio')) : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
     <div class="actions"><button class="primary" id="s-ok">Listo</button></div>`);
   const body = $('#sheet-body');
@@ -8261,7 +8329,7 @@ function settings() {
   // 2.20.1 (N) · lo cambiado en Ajustes se aplica antes de pasar a Notion (si no, se perdía sin aviso).
   $('#s-nt').onclick = () => { aplicarAjustes(); renderE(); window.xmBono?.(); notionSheet(); };
   const aplicarAjustes = () => {   // 2.20.1 (N) · lo de «Listo», también al pasar a Notion
-    try { localStorage.setItem('habit-inicio', $('#s-inicio').value); } catch {}
+    try { const v = $('#s-inicio').value; if (!(v === 'rapido' && localStorage.getItem('habit-inicio') === 'todo')) localStorage.setItem('habit-inicio', v); } catch {}   // 2.25.1 (S)
     ES.limite = +$('#s-lim').value; ES.espera = +$('#s-wait').value;
     ES.presupuesto = +$('#s-bud').value; ES.metaSemanal = +$('#s-meta').value; ES.metaXp = +$('#s-xp').value; ES.minIni = +$('#s-ini').value; ES.minSocial = +$('#s-soc').value; ES.ventanaMin = +$('#s-vmin').value;
     const vs = [$('#s-v1').value, $('#s-v2').value, $('#s-v3').value].filter(Boolean); if (vs.length) ES.ventanas = vs;
@@ -21801,23 +21869,19 @@ iniW.addEventListener('click', e => {
   if (foco) (n.querySelector(`[data-ic="${q}"]:not([disabled])`) || n.querySelector('button:not([disabled])'))?.focus({ preventScroll: true });   // el foco no se va al principio
   if (IC_DECIR[q]) { const tt = n.querySelector('.ag-foco-t')?.textContent.trim(), kk = n.querySelector('.ag-foco-k')?.textContent.trim(), mm = n.querySelector('.ag-foco-m')?.textContent.trim(); if (tt) agParaDecir(q === 'ini-sig' ? `Siguiente: ${tt}. ${mm || ''}` : `${kk ? kk + ': ' : ''}${tt}`); }   // 2.22.5 (C)
 });
-// El «+» flotante no tapa un botón de las tarjetas: si queda encima de uno (en reposo o al terminar de desplazar), sube lo justo para
-// quedar sobre esa fila de botones (sobre texto, no sobre un botón). Sigue a la vista y a un toque. Solo si no hay hueco en la mitad de
-// abajo de la pantalla se aparta hasta que desplaces. Solo en el Inicio; mira solo los botones de las tarjetas (poco trabajo).
+// El «+» flotante no tapa el texto de un botón de las tarjetas. 2.25.1 (V) · ya no sube (quedaba a 68 px de abajo, sobre el texto de
+// una tarjeta): se queda en su esquina, a 16 px a la derecha y abajo. Puede pisar el borde de un botón, no su texto; si fuera a tapar
+// el texto de uno (en reposo o al terminar de desplazar), se aparta hasta que desplaces. Solo en el Inicio; mira solo los botones de las tarjetas (poco trabajo).
 let icFabRaf = 0, icFabT = 0;
 function icFabCede() {
   icFabRaf = 0;
   let dy = 0, tapa = false;
   try {
     if (view === 'inicio' && !qaFab.hidden) {
-      const f0 = qaFab.getBoundingClientRect(), cur = parseFloat(String(qaFab.style.translate || '').split(' ')[1]) || 0, m = 6;
+      const f0 = qaFab.getBoundingClientRect(), cur = parseFloat(String(qaFab.style.translate || '').split(' ')[1]) || 0, m = 4;   // 2.25.1 (V)
       const f = { top: f0.top - cur, bottom: f0.bottom - cur, left: f0.left, right: f0.right };
-      const B = f0.width ? [...iniW.querySelectorAll('.ag-foco-c button, .ini-man button, .ag-alerta button')].map(b => b.getBoundingClientRect()).filter(r => r.width && r.height && r.right > f.left - m && r.left < f.right + m) : [];
-      for (let k = 0; k < 12; k++) {
-        const r = B.find(r => r.bottom > f.top - dy - m && r.top < f.bottom - dy + m); if (!r) break;
-        dy = f.bottom - (r.top - m - 2);
-      }
-      if (dy > innerHeight * 0.45) { dy = 0; tapa = true; }
+      const txt = b => { const q = b.getBoundingClientRect(); if (!q.width || !q.height) return null; let t = null; try { const g = document.createRange(); g.selectNodeContents(b); t = g.getBoundingClientRect(); } catch {} if (!t || !t.width) return q; return { left: Math.max(q.left, t.left), right: Math.min(q.right, t.right), top: Math.max(q.top, t.top), bottom: Math.min(q.bottom, t.bottom) }; };
+      if (f0.width) tapa = [...iniW.querySelectorAll('.ag-foco-c button, .ini-man button, .ag-alerta button')].some(b => { const r = txt(b); return r && r.right > f.left - m && r.left < f.right + m && r.bottom > f.top - m && r.top < f.bottom + m; });
     }
   } catch {}
   const tr = dy > 0 ? `0 ${-Math.round(dy)}px` : '';
@@ -24118,7 +24182,7 @@ function atrasPaso() {
   else if (mvFoco()) toast('La sesión sigue: la terminas desde su pantalla');
   else if (view === 'journal' && window.rfAtras?.()) {}   // 2.22.1 (R) · dentro de Reflexiones: un paso atrás
   else if (view === 'agenda' && window.agDiaAtras?.()) {}   // 2.24.0 (H) · de un día anterior, a hoy
-  else if (view === 'todo' && window.tdAtras?.()) {}   // 2.25.0 (T) · de «Quiero desarrollar y hacer» a Apartados; de Apartados a Rápido
+  else if ((view === 'apartados' || view === 'todo') && window.tdAtras?.()) {}   // 2.25.1 (S) · de la vista completa de Quiero, a Apartados
   else if (view !== 'inicio') irA('inicio');
 }
 // 2.15.1 · El vigía. Chromium salta una entrada puesta sin un toque desde el último recorrido del historial (al abrir la app fuera de
@@ -32314,6 +32378,226 @@ tdW.addEventListener('click', e => {
 });
 // Para las pruebas.
 window.cxOpc = { ajustes: cxAjustes, traer: cxTraerSheet, enviar: cxEnviarSheet, nota: cxNotaSheet, imp: () => JSON.parse(JSON.stringify(cxImpL())), gev: () => [...cxGevSet()], nt: () => cxNtEstado(), g: () => cxGEstado(), enviarA: (d, s) => cxEnviarA(d, s).then(r => r, e => ({ err: e?.message || String(e), code: e?.code || '' })), agenda: () => cargarAgenda(true), agItem: id => agItemSheet(agPorId(id)) };
+// ====================================================================
+// 2.25.1 (S) · «Rápido» y «Apartados», dos pestañas separadas (antes, dos subpestañas dentro de «Todo»). «yo quiero que hayan dos
+// pestañas pero que estén separadas!!! con los distintos formatos» · «Que no tenga que bajar vertical».
+//  · Dos botones en la barra, justo detrás de Inicio (data-view rapido y apartados), cada uno con su contenedor y su shadow root.
+//  · Arriba, debajo del título, la tira «Inicio · Rápido · Apartados»: desde el Inicio se llega a las dos sin bajar.
+//  · Rápido: Hábitos en grande, «Quiero desarrollar y hacer» y los atajos en una cuadrícula compacta (en el ordenador, tres columnas
+//    a lo ancho: todo a la vista sin bajar).
+//  · Apartados: todos los apartados como mosaicos (icono, nombre y estado corto), en varias columnas.
+//  · El contenido de siempre (tdW, sus listeners, Quiero, Conexiones) se reutiliza: tdW pasa a la raíz de la pestaña que se ve.
+//  · Lo guardado como 'todo' (Abrir la app en, ?v=todo) lleva a Rápido. No cambia ningún dato.
+// ====================================================================
+const TD_VISTAS = ['rapido', 'apartados'];
+const tdEn = () => TD_VISTAS.includes(view);
+// Lo guardado como 'todo' se queda así (la 2.25.0 lo sigue entendiendo); el arranque y Ajustes lo tratan como Rápido.
+const tdS = {};
+for (const v of TD_VISTAS) {
+  const h = document.getElementById('view-' + v);
+  if (!h) continue;
+  const r = h.attachShadow({ mode: 'open' }), st = document.createElement('style');
+  r.append(st);
+  tdS[v] = { h, r, st };
+}
+const TD_S_CSS = `
+  .td-cuerpo { min-width: 0; }
+  .td-h { margin: 14px 0 6px; }
+  .rp-hb .td-hb, .rp-qd .td-qd { margin: 0; }
+  .rp > * + * { margin-top: 10px; }
+  .td-hb .ic-c { padding-top: 12px; padding-bottom: 12px; }
+  .td-hb-top { margin-bottom: 8px; }
+  .td-big { font-size: 30px; }
+  .td-qd { padding-top: 12px; padding-bottom: 12px; }
+  .td-qd input[type="text"] { margin: 4px 0 8px; }
+  .td-qd-fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+  .td-qd-fila .td-tipo { flex: 1 1 200px; min-width: 0; }
+  .td-qdv .td-cuerpo { max-width: 640px; }
+  .td-qd-fila .td-tipo .chip { padding-left: 8px; padding-right: 8px; }
+  .td-qd-fila .td-qd-ok { width: auto; flex: 1 0 auto; min-height: 44px; padding: 0 18px; }
+  .td-tipo-ay { margin: 4px 2px 0; font-size: .82rem; }
+  .td-qd-st { margin: 6px 2px 0; font-size: .85rem; }
+  .td-qd-pie { margin-top: 0; }
+  .rp-at .td-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  /* El icono, a la izquierda de la primera línea del nombre (si la palabra no cabe a su lado, baja entera): un renglón menos. */
+  .rp-at .td-a { display: block; min-height: 48px; padding: 7px 8px; border-radius: 14px; font-size: .86rem; line-height: 1.2; }
+  .rp-at .td-a svg { float: left; width: 18px; height: 18px; margin: 0 5px 0 0; }
+  .rp-at .td-a span { display: block; overflow-wrap: normal; word-break: normal; }
+  .rp-at .td-a small { clear: left; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; font-size: .72rem; line-height: 1.25; margin-top: 2px; }
+  .rp-at .td-a span::after { content: ''; display: table; clear: both; }
+  .rp-cx { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 6px; }
+  .rp-cx > .td-h { grid-column: 1 / -1; }
+  .rp-at .rp-cx .td-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp-cx .td-cx2 { margin-top: 0 !important; }
+  @media (max-width: 599px) {
+    .rp-at .td-a { font-size: .8rem; padding: 7px; letter-spacing: -.01em; }
+    .rp-at .td-a svg { width: 16px; height: 16px; margin-right: 4px; }
+    /* La explicación del tipo, en cuanto escribes algo: la tarjeta, más baja. (Con el foco no: movería «Ver todo» al tocarlo.) */
+    .rp-qd .td-qd:not(:has(input:not(:placeholder-shown))) .td-tipo-ay { display: none; }
+    .rp-qd .td-qd-st { margin-top: 4px; }
+    .td-h { margin: 12px 0 6px; }
+  }
+  @media (max-width: 359px) { .rp-at .td-a { font-size: .74rem; padding: 7px 5px; } .rp-at .td-grid { gap: 5px; } .rp-cx { grid-template-columns: minmax(0, 1fr); } .rp-cx .td-cx2 { margin-top: 5px !important; } }
+  @media (min-width: 600px) { .rp-at .td-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 900px) {
+    .rp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr); gap: 20px; align-items: start; }
+    .rp > * + * { margin-top: 0; }
+    .rp-at > .td-h:first-child { margin-top: 0; }
+    .rp-at .td-a { min-height: 54px; font-size: .88rem; }
+    .rp-at .td-a svg { width: 20px; height: 20px; margin-right: 6px; }
+  }
+  @media (min-width: 900px) and (max-width: 1199px) { .rp-at .td-a { font-size: .84rem; } }
+  .td-ap .td-cuerpo { --C: 3; display: flex; flex-wrap: wrap; column-gap: 8px; align-items: flex-start; }
+  .ap-g { flex: 0 0 100%; min-width: 0; }
+  .ap-g.chica { flex: 0 0 calc(var(--n) * (100% + var(--G, 8px)) / var(--C) - var(--G, 8px)); }
+  .ap-g h3 { margin: 10px 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ap-grid { display: grid; grid-template-columns: repeat(var(--C), minmax(0, 1fr)); gap: 8px; }
+  .ap-g.chica .ap-grid { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+  @media (max-width: 599px) { .td-ap .td-cuerpo { --G: 6px; column-gap: 6px; } }
+  @media (max-width: 359px) { .td-ap .td-cuerpo { --C: 2; } }
+  @media (min-width: 600px) { .td-ap .td-cuerpo { --C: 4; } }
+  @media (min-width: 900px) { .td-ap .td-cuerpo { --C: 6; } }
+  /* Mosaico: el icono a la izquierda de la primera línea del nombre; el estado debajo, en dos líneas como mucho. */
+  .ap-grid .row.ap-t { display: block; width: 100%; height: 100%; min-height: 52px; margin: 0; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 14px; text-align: left; color: var(--text); background: transparent; min-width: 0; }
+  .ap-grid .row.ap-t:active { background: var(--soft); }
+  .ap-grid .row.ap-t .ico { float: left; display: inline-flex; width: 20px; height: 20px; margin: 0 6px 0 0; }
+  .ap-grid .row.ap-t .ico svg { width: 20px; height: 20px; opacity: .85; }
+  .ap-grid .row.ap-t .t { display: block; min-width: 0; }
+  .ap-grid .row.ap-t .t div { font-weight: 500; font-size: .92rem; line-height: 1.2; overflow-wrap: normal; word-break: normal; }
+  .ap-grid .row.ap-t .t small { clear: left; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; color: var(--muted); font-size: .75rem; line-height: 1.25; margin-top: 2px; }
+  .ap-grid .row.ap-t .chev { display: none; }
+  @media (max-width: 599px) {
+    .ap-g h3 { margin: 8px 0 5px; }
+    .ap-grid { gap: 6px; }
+    .ap-grid .row.ap-t { padding: 6px 7px; letter-spacing: -.01em; }
+    .ap-grid .row.ap-t .ico, .ap-grid .row.ap-t .ico svg { width: 16px; height: 16px; }
+    .ap-grid .row.ap-t .ico { margin-right: 4px; }
+    .ap-grid .row.ap-t .t div { font-size: .82rem; }
+    .ap-grid .row.ap-t .t small { font-size: .7rem; }
+  }`;
+let tdSCssN = -1;
+tdCss = function () {
+  if (!iniR) return;
+  const L = [...iniR.querySelectorAll('style')];
+  if (L.length === tdSCssN) return;
+  tdSCssN = L.length;
+  const css = L.map(s => s.textContent).join('\n') + TD_CSS + TD_S_CSS;
+  for (const v of TD_VISTAS) if (tdS[v]) tdS[v].st.textContent = css;
+};
+window.tdTitulo = () => view === 'apartados' ? (tdPag === 'quiero' ? 'Quiero desarrollar y hacer' : 'Apartados') : 'Rápido';
+// La tarjeta «Quiero desarrollar y hacer», más corta: el tipo y «Guardar» en una sola fila.
+qdFormHtml = (f => function () {
+  const h = f.apply(this, arguments);
+  const i = h.indexOf('<div class="td-tipo"'), j = h.indexOf('<p class="td-tipo-ay"'), k = h.indexOf('<button type="button" class="primary td-qd-ok"');
+  if (i < 0 || j < 0 || k < 0) return h;
+  return h.slice(0, i) + `<div class="td-qd-fila">${h.slice(i, j).trim()}${h.slice(k).trim()}</div>` + h.slice(j, k).trim();
+})(qdFormHtml);
+function tdRapido2Html() {
+  return `<div class="rp"><div class="rp-hb">${tdHbHtml()}</div><div class="rp-qd">${qdCardHtml()}</div><div class="rp-at"><h3 class="td-h">Ir rápido</h3><div class="td-grid">${tdAtajosHtml()}</div><div class="rp-cx">${tdCxHtml()}</div></div></div>`;
+}
+function tdApGridHtml() {
+  const B = iniBotones().filter(x => !['todo', 'inicio', ...TD_VISTAS].includes(x.v)), por = new Map(B.map(x => [x.v, x])), usados = new Set();
+  // El estado, corto de verdad: lo primero antes de « · » (o la primera frase). Entero, en aria-label y title.
+  const corto = l => { l = String(l || '').split(' · ')[0].trim(); const m = l.match(/^(.{8,}?[?.!])\s/); if (m) l = m[1]; return l.length > 48 ? l.slice(0, 47) + '…' : l; };
+  const tile = x => { const lz = String(iniLinea(x.v) || ''), l = corto(lz);
+    return `<button type="button" class="row ap-t" data-ir="${esc(x.v)}" aria-label="${esc(x.t + (lz ? ': ' + lz : ''))}"${lz && lz !== l ? ` title="${esc(lz)}"` : ''}><span class="ico" aria-hidden="true">${x.svg}</span><span class="t"><div>${esc(x.t)}</div>${l ? `<small>${esc(l)}</small>` : ''}</span></button>`; };
+  const qd = () => { const L = qdItems(), p = L.filter(qdPend).length; const l = !L.length ? 'Directo a Notion' : `${L.length} ${L.length === 1 ? 'entrada' : 'entradas'}${p ? ` · ${p} ${p === 1 ? 'pendiente' : 'pendientes'} de Notion` : ' · todo en Notion'}`;
+    return `<button type="button" class="row ap-t" data-td="qd-abrir" aria-label="${esc('Quiero desarrollar y hacer: ' + l)}"><span class="ico" aria-hidden="true">${TD_SVG.brote}</span><span class="t"><div>Quiero desarrollar y hacer</div><small>${esc(l)}</small></span></button>`; };
+  let html = '', hayQd = false;
+  const grupo = (n, items) => items.length ? `<section class="ap-g${items.length <= 2 ? ' chica' : ''}" style="--n:${items.length}" aria-label="${esc(n)}"><h3>${esc(n)}</h3><div class="ap-grid">${items.join('')}</div></section>` : '';
+  for (const [nombre, vs] of INI_GRUPOS) {
+    const L = vs.map(v => por.get(v)).filter(Boolean); L.forEach(x => usados.add(x.v));
+    const T = L.map(tile);
+    if (nombre === 'Desde la base') { const i = L.findIndex(x => x.v === 'metas'); T.splice(i >= 0 ? i + 1 : 0, 0, qd()); hayQd = true; }
+    html += grupo(nombre, T);
+  }
+  const resto = B.filter(x => !usados.has(x.v));
+  if (resto.length || !hayQd) html += grupo('Más', [...(hayQd ? [] : [qd()]), ...resto.map(tile)]);
+  return html;
+}
+tdRender = function (forzar = false) {
+  const S = tdS[view]; if (!S || !tdEn()) return;
+  try { const a = S.r.activeElement; if (!forzar && a && a.matches?.('input, textarea')) return; } catch {}
+  tdCss();
+  if (tdW.parentNode !== S.r) S.r.append(tdW);
+  const foco = S.r.activeElement?.id === 'td-qd-t' || tdFocoQd;
+  tdFocoQd = false;
+  let cuerpo = '';
+  try { cuerpo = view === 'apartados' ? (tdPag === 'quiero' ? qdVistaHtml() : tdApGridHtml()) : tdRapido2Html(); } catch (e) { console.warn('Todo', e); cuerpo = '<p class="note">No se pudo mostrar esta parte.</p>'; }
+  tdW.className = 'enf ini td ' + (view === 'apartados' ? (tdPag ? 'td-qdv' : 'td-ap') : 'td-rp');
+  tdW.innerHTML = `<div class="td-cuerpo" id="td-panel">${cuerpo}</div>`;
+  if (foco) { const i = tdW.querySelector('#td-qd-t'); if (i) try { i.focus({ preventScroll: true }); i.setSelectionRange(i.value.length, i.value.length); } catch {} }
+};
+tdRepintar = function () { try { if (tdEn()) tdRender(true); } catch (e) { console.warn('Todo', e); } };
+let tdVistaAntes = '';
+tdVista = function () {
+  const antes = tdVistaAntes; tdVistaAntes = view;
+  for (const v of TD_VISTAS) if (tdS[v]) tdS[v].h.hidden = view !== v;
+  if (!tdEn()) { tdPag = ''; return; }
+  if (antes !== view) tdPag = '';
+  tdSub = view;
+  try { localStorage.setItem(TD_SUB_KEY, tdSub); } catch {}
+  tdRender(antes !== view);
+  if (antes !== view && qdItems().some(qdPend)) qdEnviarPend();
+};
+render = (f => function () { const x = f.apply(this, arguments); try { if (tdEn() && tdS[view] && !tdS[view].h.hidden) tdRender(); } catch {} return x; })(render);
+tempRaices = (f => function () { const L = f.apply(this, arguments); return view === 'rapido' && tdW.parentNode ? [...L, tdW] : L; })(tempRaices);
+window.tdAtras = () => {
+  if (view !== 'apartados' || !tdPag) return false;
+  tdPag = ''; tdRender(true); try { renderTitle(); } catch {} try { scrollTo(0, 0); } catch {}
+  tdFoco('[data-td="qd-abrir"]');
+  return true;
+};
+function tdAbrirQuiero() {
+  if (view !== 'apartados') irA('apartados');
+  if (view !== 'apartados') return;
+  tdIrPag('quiero');
+}
+tdAccion = (f => function (k) { if (k === 'qd-abrir') { tdAbrirQuiero(); return; } return f.apply(this, arguments); })(tdAccion);
+
+// ---------- La tira de arriba: Inicio · Rápido · Apartados (se ve en esas tres; ninguna hace falta buscarla bajando)
+const TD_NAV_CSS = `
+  .td-nav { display: flex; gap: 6px; margin: -8px 0 16px; padding: 4px; border-radius: 999px; background: var(--soft); }
+  .td-nav[hidden] { display: none; }
+  .td-nav button { flex: 1 1 0; min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border-radius: 999px; font: inherit; font-size: .95rem; font-weight: 600; color: var(--muted); background: transparent; border: 0; white-space: nowrap; }
+  .td-nav button svg { width: 18px; height: 18px; flex: none; }
+  .td-nav button[aria-current="page"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1.5px var(--line), 0 1px 3px rgba(0,0,0,.14); }
+  @media (max-width: 359px) { .td-nav button { font-size: .88rem; gap: 4px; padding: 0 4px; } .td-nav button svg { width: 16px; height: 16px; } }
+  /* En el ordenador (y en la tableta), solo el contenido de Rápido y Apartados se ensancha: la cabecera y la tira se quedan donde están en el Inicio. */
+  @media (min-width: 600px) { body.td-ancho #view-rapido, body.td-ancho #view-apartados { --tdw: min(1208px, calc(100vw - 64px)); width: var(--tdw); margin-left: calc((100% - var(--tdw)) / 2); } }`;
+{ const st = document.createElement('style'); st.textContent = TD_NAV_CSS; document.head.append(st); }
+const tdNav = document.createElement('nav');
+tdNav.className = 'td-nav'; tdNav.id = 'td-nav'; tdNav.setAttribute('aria-label', 'Inicio, Rápido y Apartados'); tdNav.hidden = true;
+{
+  const ic = v => document.querySelector(`.tabs .tab[data-view="${v}"] svg`)?.outerHTML?.replace('<svg', '<svg aria-hidden="true"') || '';
+  tdNav.innerHTML = [['inicio', 'Inicio'], ['rapido', 'Rápido'], ['apartados', 'Apartados']].map(([v, n]) => `<button type="button" data-tdn="${v}">${ic(v)}<span>${n}</span></button>`).join('');
+  document.querySelector('header.top')?.after(tdNav);
+}
+tdNav.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-tdn]'); if (!b) return;
+  const v = b.dataset.tdn;
+  if (v === view) { if (v === 'apartados' && tdPag) window.tdAtras(); return; }
+  irA(v);
+});
+function tdNavSync() {
+  const ver = view === 'inicio' || tdEn();
+  tdNav.hidden = !ver;
+  for (const b of tdNav.querySelectorAll('[data-tdn]')) { if (b.dataset.tdn === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }
+  document.body.classList.toggle('td-ancho', tdEn());
+}
+// Con la tira a la vista, «‹ Inicio» sobra (Inicio está en la tira).
+renderTitle = (f => function () { const r = f.apply(this, arguments); try { tdNavSync(); const b = document.getElementById('ir-inicio'); if (b && tdEn()) b.hidden = true; } catch (e) { console.warn('Todo', e); } return r; })(renderTitle);
+
+// ---------- Inicio: «Rápido» y «Apartados» en lugar de «Todo», primeras en «Organizar y hacer»
+{ const g = INI_GRUPOS.find(x => x[0] === 'Organizar y hacer'); if (g) { g[1] = g[1].filter(v => !['todo', ...TD_VISTAS].includes(v)); g[1].unshift(...TD_VISTAS); } }
+INI_ESTADO.rapido = () => { const x = icHabito(); return x.vacio || !x.tot ? 'Hábitos y atajos' : `Hábitos: ${x.hechos} de ${x.tot} hoy · atajos`; };
+INI_ESTADO.apartados = () => 'Todos los apartados';
+
+// ---------- Para las pruebas: sub() dice la pestaña; sub('rapido') o sub('apartados') la abre. pag('quiero') abre la vista completa.
+window.tdOpc = { ...window.tdOpc,
+  sub: k => { if (k) { const v = k === 'apartados' ? 'apartados' : 'rapido'; if (view !== v) irA(v); else if (v === 'apartados' && tdPag) window.tdAtras(); } return tdEn() ? view : tdSub; },
+  pag: p => { if (p === 'quiero') tdAbrirQuiero(); else if (p === '') window.tdAtras(); return tdPag; },
+  render: () => tdRender(true), temp: () => { try { return tempRaices().includes(tdW); } catch { return false; } } };
 // 2.25.1 (R) · Ejecutar bloque N
 // ====================================================================
 // 2.25.1 (R) · «Ejecutar bloque N» desde la ruta. Cada tarjeta de «Tus rutas» (y la ficha «Ver ruta») muestra sus bloques: los
@@ -32712,14 +32996,1246 @@ document.querySelector('.tabs')?.addEventListener('click', () => setTimeout(() =
 setTimeout(() => { try { if (erRun()) { erTickOn(); erTick(); if (OP_ANDROID && erCorre(erRun())) erNativo(); } } catch (e) { console.warn('Ejecutar bloque', e); } }, 600);
 // Para las pruebas.
 window.erOpc = { run: () => erRun(), ult: () => erUlt(), ejecutar: erEjecutar, pausa: erPausa, seguir: erSeguir, cancelar: erCancelar, terminar: erTerminar, tick: () => erTick(), sesionPrueba: v => { ES.sesion = v || null; }, bloques: id => { const r = EU()?.ruta(id); return r ? erBloques(r).map(x => ({ id: x.b.id, n: x.n, et: erEtq(x), tipo: x.b.tipo || '', hecho: x.hecho, min: x.b.min, d: x.b.d })) : []; } };
+// 2.25.1 (A) · Todo a Notion solo, historial y Google siempre conectado
+// ====================================================================
+// 2.25.1 (A) · «Elementos como agradecimiento, reflexión, ideas de pizarra, todo eso se debe transferir automáticamente al conectar la
+// cuenta, no tengo que darle a ningún sitio. Eso sí, debo de poder saber el historial de conexiones y transferencias. Además, Tasks no se
+// debe de desconectar, debe estar conectado siempre.»
+//  1 · Enviar a Notion automáticamente (Ajustes › Conexiones, encendido por defecto, con casillas por tipo). En cuanto Notion está listo, y
+//      después al abrir, al volver la red, al volver a la app y con cada cosa nueva, va solo lo que aún no está en Notion (lo de antes también,
+//      de lo más viejo a lo más nuevo, en tandas, unas 3 peticiones por segundo):
+//        Journaling (jrEnviar, la página de siempre), Agradecimiento (ES.buenas, una fila por día en la base «📓 Journaling» con Tipo
+//        «Agradecimiento»), Reflexiones guiadas (una fila con Tipo «Reflexión»; las que ya pasaste al Journaling van por allí; una carta
+//        sellada espera a abrirse), Pizarras (una página por pizarra en «💡 Ideas y pizarras»), Quiero desarrollar y hacer (su cola de
+//        2.25.0, con espera creciente si falla) y Estudio (la ruta, una vez, como «Enviar la ruta a Notion»).
+//      Decisión: Agradecimiento y Reflexiones reutilizan la base del Journaling con su Tipo (una sola base para escribir y releer, con su
+//      vista por Tipo en Notion), en vez de bases nuevas. Con el envío solo del agradecimiento encendido, la página de Journaling del día ya no
+//      repite «Tres cosas buenas»: remite a su fila. Las bases ganan una propiedad «ID app» (la clave de cada cosa): antes de crear se busca esa
+//      clave, así que reintentar o enviar desde dos teléfonos nunca duplica. Si en Notion renombras o borras «ID app», el envío sigue sin ella
+//      y la columna se vuelve a crear. En destinos de tipo página (pizarras), un envío que quedó a medias (app cerrada) se busca por título
+//      antes de crear otro.
+//      Cada envío deja una marca sincronizada por destino (ES.ntAuto: { 'clave@destino': { id, url, h, en } }, o { c, ce } mientras un
+//      teléfono la reclama; h es una huella corta): un teléfono reclama, sube, pide a la nube su copia y solo sigue si la reclamación sigue
+//      siendo suya. Lo editado actualiza la misma página. Al conectar otra página o espacio de Notion, todo va otra vez a su destino nuevo.
+//      Si Notion ya no encuentra la base del Journaling, se crea otra vez bajo tu página y todo vuelve a ir allí.
+//      Durante una tanda, la copia de la nube se sube agrupada (cada 20 s y al terminar), no por cada cosa.
+//      Fallos: reintento con espera creciente (una línea en el historial por motivo); sin red, espera a que vuelva.
+//  2 · Historial (Ajustes › Conexiones › Historial): conexiones (conectado, desconectado, permiso renovado, errores) y envíos (qué, adónde,
+//      cuándo, cuántos, fallos con su motivo y «Abrir en Notion»), lo más nuevo arriba, hasta 300, de este teléfono (localStorage
+//      'rumbo-cx-hist'); con filtro Notion / Google y «Borrar historial». Lo que se repite (renovaciones, el mismo fallo) se junta en una línea.
+//  3 · Google Tasks siempre conectado: el permiso se renueva solo, sin ventana visible: en Android, el puente, en silencio y antes de vencer;
+//      en el navegador, Google solo deja renovar dentro de un toque tuyo, así que se renueva con tu primer toque en la app cuando quedan
+//      menos de 10 minutos (o ya venció). Ningún temporizador abre ventanas de Google. Un 401 renueva (nunca desconecta) y lo cambiado espera.
+//      Si de verdad Google pide tu permiso (lo quitaste o cerraste la ventana), un aviso suave «Toca para seguir conectado» lo renueva con un
+//      toque. Sin red no se intenta ni se avisa. «Desconectar» sale de la vista principal: queda dentro de «Más opciones», con confirmación.
+// Los secretos siguen solo en este teléfono (rumbo-notion, habit-gtasks): nada de esto los escribe en el estado ni en el historial.
+// ====================================================================
+{ const st = document.createElement('style'); st.id = 'nta-css'; st.textContent = `
+  .nta { margin: 4px 0 6px; }
+  .nta-sw { display: flex; align-items: center; gap: 12px; min-height: 48px; cursor: pointer; }
+  .nta-sw input { flex: none; width: 24px; height: 24px; min-height: 0; margin: 0; padding: 0; accent-color: var(--text); }
+  .nta-sw span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .nta-sw small { display: block; color: var(--muted); font-size: .82rem; }
+  .nta-tipos { display: flex; flex-wrap: wrap; gap: 0 16px; padding: 0 0 0 4px; margin: 0; border: 0; min-width: 0; }
+  .nta-tipos legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .nta-tipos .nta-sw { min-height: 44px; font-size: .92rem; }
+  .nta-tipos.off { opacity: .5; }
+  .cx-mas { margin: 4px 0 2px; }
+  .cx-mas > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--muted); font-size: .9rem; }
+  .cx-mas .link, .cx-mas button { min-height: 44px; }
+  #msg .cx-mas { margin: 10px 0 0; }
+  .cxh-f { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+  .cxh-f .chip { min-height: 44px; }
+  .cxh-l { list-style: none; padding: 0; margin: 0; }
+  .cxh-l > li { padding: 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .cxh-l .cxh-t { display: block; color: var(--muted); font-size: .8rem; }
+  .cxh-l .cxh-x { display: block; font-weight: 500; }
+  .cxh-l .cxh-x.err { color: var(--red); }
+  .cxh-l ul { list-style: none; padding: 0; margin: 4px 0 0; }
+  .cxh-l ul li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; min-height: 32px; font-size: .88rem; }
+  .cxh-l ul li .link { min-height: 44px; display: inline-flex; align-items: center; }
+  .cxh-l ul li.err { color: var(--red); }
+  .cxh-acc { display: flex; flex-wrap: wrap; gap: 0 18px; margin-top: 10px; }
+  .cxh-acc .link { min-height: 44px; }
+  .ga-banner { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+    width: min(440px, calc(100vw - 32px)); box-sizing: border-box; min-height: 48px; padding: 10px 16px; border-radius: 14px; border: 1.5px solid var(--line);
+    background: var(--bg); color: var(--text); font: inherit; font-size: .95rem; text-align: left; display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.16); cursor: pointer; overflow-wrap: anywhere; }
+  :host(.qa-fab-on) .ga-banner { bottom: calc(152px + env(safe-area-inset-bottom, 0px)); }
+  .ga-banner[hidden] { display: none; }
+  .ga-banner small { display: block; color: var(--muted); font-size: .8rem; }
+  .ga-banner .ga-ic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); }`; ov.appendChild(st); }
+
+// ---------- Historial (solo en este teléfono). Lo que se repite el mismo día (renovaciones, el mismo fallo) se junta en una línea (n veces).
+const CXH_KEY = 'rumbo-cx-hist';
+function cxhL() { try { const v = JSON.parse(localStorage.getItem(CXH_KEY)); return Array.isArray(v) ? v.filter(x => x && typeof x === 'object') : []; } catch { return []; } }
+const cxhFirma = e => JSON.stringify([e.s, e.k, e.txt, e.fa || null]);
+function cxhPon(e) {
+  const L = cxhL(), ahora = Date.now(), p = L[0];
+  const junta = p && ['ren', 'fal', 'err'].includes(e.k) && cxhFirma(p) === cxhFirma(e) && new Date(+p.t).toDateString() === new Date(ahora).toDateString();
+  if (junta) { p.n = (+p.n || 1) + 1; p.t = ahora; } else L.unshift({ t: ahora, ...e });
+  try { localStorage.setItem(CXH_KEY, JSON.stringify(L.slice(0, 300))); } catch {}
+  try { if (sheet.open && $('#cxh')) cxhPintar(); } catch {}
+}
+const ntaCorto = (t, n = 300) => String(t ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+
+// ---------- Ajustes del envío automático (de este teléfono): { on, tipos: { k: false } }
+const NTA_AJ = 'rumbo-nta-aj', NTA_EST = 'rumbo-nta';
+const NTA_TIPOS = [['diario', 'Journaling'], ['gratitud', 'Agradecimiento'], ['reflexion', 'Reflexiones'], ['pizarras', 'Pizarras'], ['quiero', 'Quiero desarrollar y hacer'], ['estudio', 'Estudio']];
+const ntaTipoN = k => (NTA_TIPOS.find(t => t[0] === k) || [k, k])[1];
+function ntaAj() { let o = {}; try { o = JSON.parse(localStorage.getItem(NTA_AJ)) || {}; } catch {} return { on: o.on !== false, tipos: o.tipos && typeof o.tipos === 'object' ? { ...o.tipos } : {} }; }
+const ntaAjPon = a => { try { localStorage.setItem(NTA_AJ, JSON.stringify(a)); } catch {} };
+const ntaOn = k => { const a = ntaAj(); return a.on && a.tipos[k] !== false; };
+function ntaEst() { let o = {}; try { o = JSON.parse(localStorage.getItem(NTA_EST)) || {}; } catch {} return o && typeof o === 'object' ? o : {}; }
+const ntaEstPon = o => { try { localStorage.setItem(NTA_EST, JSON.stringify(o)); } catch {} };
+const NTA_DEV = (() => { try { let d = localStorage.getItem('rumbo-dev'); if (!d) { d = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + performance.now()).replace(/-/g, '').slice(0, 16); localStorage.setItem('rumbo-dev', d); } return d; } catch { return 'd' + Date.now().toString(36); } })();
+const ntaSinG = id => String(id || '').replace(/-/g, '');
+const ntaEspera = ms => new Promise(r => setTimeout(r, ms));
+// Huella corta del contenido (la marca sincronizada no copia el texto).
+const ntaH = v => { const t = typeof v === 'string' ? v : JSON.stringify(v ?? null); let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + '.' + t.length.toString(36); };
+// Un motivo de fallo, en palabras de la app.
+function ntaMotivo(e) {
+  if (e?.code === 'red' || e?.status === 0 || navigator.onLine === false) return 'Sin conexión.';
+  if (e?.status === 401 || e?.code === 'unauthorized') return 'Notion no acepta tu secreto.';
+  if (e?.status === 429 || e?.code === 'rate_limited') return 'Notion pide esperar un momento.';
+  if (ntaNoEsta(e)) return 'Notion no encuentra el destino.';
+  return ntaCorto(e?.message || 'Notion no respondió.', 240);
+}
+const ntaNoEsta = e => ntNoExiste(e) || /could not find|object_not_found/i.test(e?.message || '');
+
+// ---------- Destinos: cada marca es por destino (otra página u otro espacio de Notion = otra vez a enviar)
+const NTA_JR = ['diario', 'gratitud', 'reflexion'];
+function ntaDestId(tipo) {
+  const c = ntCfg();
+  if (NTA_JR.includes(tipo)) return ntaSinG(c.diario?.id);
+  if (tipo === 'pizarras') return ntaSinG(c.pageId);
+  if (tipo === 'estudio') { try { return ntaSinG(esNtDestino()?.id); } catch { return ''; } }
+  if (tipo === 'quiero') return ntaSinG(ntDest('quiero')?.id);
+  return '';
+}
+function ntaDestT(tipo) {
+  const c = ntCfg();
+  if (NTA_JR.includes(tipo)) return c.diario?.t || '';
+  if (tipo === 'pizarras') return c.pageTitle || '';
+  if (tipo === 'estudio') { try { return esNtDestino()?.t || ''; } catch { return ''; } }
+  if (tipo === 'quiero') return ntDest('quiero')?.t || '';
+  return '';
+}
+const ntaDs = d => String(d || '').slice(-12);
+const ntaK = (base, dest) => base + '@' + ntaDs(dest);
+const ntaBase = k => { const i = String(k).lastIndexOf('@'); return i < 0 ? '' : k.slice(0, i); };
+
+// ---------- Marcas sincronizadas (ES.ntAuto)
+function ntaM() { const v = ES.ntAuto; if (v && typeof v === 'object' && !Array.isArray(v)) return v; ES.ntAuto = {}; return ES.ntAuto; }
+const ntaMarca = k => { const v = ES.ntAuto; const m = v && typeof v === 'object' ? v[k] : null; return m && typeof m === 'object' ? m : null; };
+const ntaMarcar = (k, o) => { ntaM()[k] = { id: String(o.id), url: ntUrl(o.url) || '', h: o.h ?? null, en: Date.now() }; };
+// Por clave base, las marcas de cada destino (para saber si una página es de otro destino).
+function ntaPorBase() {
+  const m = new Map(), v = ES.ntAuto;
+  if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { const b = ntaBase(k); if (!b || !x || !x.id) continue; (m.get(b) || m.set(b, []).get(b)).push({ d: k.slice(b.length + 1), id: ntaSinG(x.id) }); }
+  return m;
+}
+// La página (del enlace de siempre) pertenece a otro destino: hay una marca de otro destino con ese id.
+const ntaAjena = (PB, base, dest, pgId) => (PB.get(base) || []).some(x => x.d !== ntaDs(dest) && x.id === ntaSinG(pgId));
+
+// ---------- La propiedad «ID app» de cada base (el registro vive en este teléfono)
+const NTA_PROP = 'ID app';
+const ntaIdProp = dbId => { const r = (ntaEst().dbs || {})[ntaSinG(dbId)]; return r && r.p ? r.p : ''; };
+function ntaDbReg(dbId, o) { const S = ntaEst(); S.dbs = { ...(S.dbs || {}), [ntaSinG(dbId)]: { ...((S.dbs || {})[ntaSinG(dbId)] || {}), en: Date.now(), ...o } }; ntaEstPon(S); }
+// «ID app» ya no está (la renombraste o la borraste en Notion): se olvida y se mira otra vez la base en la siguiente vuelta (que la vuelve a crear).
+function ntaOlvidarProp(dbId) {
+  const S = ntaEst(), D = S.dbs || {};
+  for (const k of Object.keys(D)) if (!dbId || k === ntaSinG(dbId)) D[k] = { ...D[k], p: '', op: [], en: 0 };
+  S.dbs = D; ntaEstPon(S);
+}
+async function ntaPrepDb(d, tipos = [], forzar = false) {
+  if (!d || !d.db || !d.id) return { p: '' };
+  const reg = (ntaEst().dbs || {})[ntaSinG(d.id)];
+  const fresco = reg && Date.now() - (+reg.en || 0) < (reg.p ? 24 : 6) * 3600e3;
+  if (!forzar && fresco && tipos.every(t => (reg.op || []).includes(t))) return { p: reg.p || '' };
+  let db; try { db = await notion(`databases/${d.id}`); } catch (e) { if (ntNoExiste(e)) return { p: '', gone: true }; return { p: reg?.p || '' }; }
+  if (db?.archived || db?.in_trash) return { p: '', gone: true };
+  const props = db?.properties || {}, patch = {};
+  let p = props[NTA_PROP]?.type === 'rich_text' ? NTA_PROP : '';
+  if (!p && !props[NTA_PROP]) patch[NTA_PROP] = { rich_text: {} };
+  const tn = d.props?.tipo; let ops = [];
+  if (tn && props[tn]?.type === 'select') {
+    ops = (props[tn].select?.options || []).map(o => o.name);
+    const falta = tipos.filter(t => !ops.includes(t));
+    if (falta.length) patch[tn] = { select: { options: [...(props[tn].select?.options || []).map(o => ({ name: o.name, ...(o.color ? { color: o.color } : {}) })), ...falta.map(name => ({ name }))] } };
+  }
+  let ok = true;
+  if (Object.keys(patch).length) { try { await notion(`databases/${d.id}`, 'PATCH', { properties: patch }, true); if (patch[NTA_PROP]) p = NTA_PROP; if (tn && patch[tn]) ops = [...ops, ...tipos.filter(t => !ops.includes(t))]; } catch { ok = false; } }
+  ntaDbReg(d.id, { p, op: ok ? tipos : (reg?.op || []) });
+  if (tn && ops.length) { try { const c = ntCfg(); for (const k of ['diario']) if (c[k] && ntaSinG(c[k].id) === ntaSinG(d.id) && c[k].props) { c[k] = { ...c[k], props: { ...c[k].props, opciones: [...new Set([...(c[k].props.opciones || []), ...ops])] } }; ntSetCfg(c); } } catch {} }
+  return { p };
+}
+
+// ---------- notion(): ritmo (≈3 por segundo), crear sin duplicar (busca «ID app»; en una página, lo que quedó a medias por título) y sin
+// quedarse atascado si «ID app» ya no existe en Notion.
+let ntaActivo = 0, ntaSlot = 0;
+// Un turno por petición (reservado al momento, sin carreras): como mucho unas 3 por segundo, venga de donde venga.
+function ntaTurno() { const ahora = Date.now(), t = Math.max(ahora, ntaSlot); ntaSlot = t + 340; return t > ahora ? ntaEspera(t - ahora) : null; }
+const NTA_SECS_T = () => new Set(NT_SEC.filter(x => x.db).map(x => ntNorm(x.t)));
+const ntaAdoptadas = new Set();
+const ntaTituloDe = props => { try { const v = Object.values(props || {}).find(x => Array.isArray(x?.title)); return (v?.title || []).map(t => t?.text?.content ?? t?.plain_text ?? '').join(''); } catch { return ''; } };
+const ntaPropNoEsta = (e, p) => e?.status === 400 && (String(e?.message || '').includes(p) || /is not a property/i.test(e?.message || ''));
+// Envíos empezados en este teléfono y sin respuesta (la app se cerró a mitad): { 'padre|título': hora }.
+function ntaEnv(sig, v) { const S = ntaEst(), E = S.env && typeof S.env === 'object' ? S.env : {}; for (const k of Object.keys(E)) if (Date.now() - (+E[k] || 0) > 864e5) delete E[k]; if (v === undefined) return E[sig]; if (v) E[sig] = v; else delete E[sig]; S.env = E; ntaEstPon(S); }
+async function ntaBuscarAMedias(f, ctx, parent, tit) {
+  if (!tit) return null;
+  try {
+    if (parent.page_id) {
+      let cursor = '', vistos = 0, hallada = null;
+      do {
+        await ntaTurno();
+        const q = await f.call(ctx, `blocks/${parent.page_id}/children?page_size=100${cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''}`);
+        for (const b of q?.results || []) if (b?.type === 'child_page' && !b.archived && String(b.child_page?.title || '') === tit) hallada = b;
+        vistos += (q?.results || []).length; cursor = q?.has_more ? q.next_cursor : '';
+      } while (cursor && vistos < 1000);
+      return hallada ? { object: 'page', id: hallada.id, url: 'https://www.notion.so/' + ntaSinG(hallada.id) } : null;
+    }
+    if (parent.database_id) return null;   // en una base, «ID app» (o la marca) protege
+  } catch {}
+  return null;
+}
+notion = (f => async function (path, method = 'GET', body) {
+  try {
+    if (path === 'databases' && method === 'POST' && body && body.properties && !body.properties[NTA_PROP] && NTA_SECS_T().has(ntNorm((body.title || []).map(x => x?.text?.content || '').join(''))))
+      body = { ...body, properties: { ...body.properties, [NTA_PROP]: { rich_text: {} } } };
+  } catch {}
+  let sig = '';
+  if (path === 'pages' && method === 'POST' && body?.parent) {
+    const db = body.parent.database_id, p = db ? ntaIdProp(db) : '', k = p && body.properties?.[p]?.rich_text?.[0]?.text?.content;
+    if (k) {
+      try {
+        await ntaTurno();
+        const q = await f.call(this, `databases/${db}/query`, 'POST', { filter: { property: p, rich_text: { equals: k } }, page_size: 5 }, true);
+        const ya = (q?.results || []).find(r => r && !r.archived && !r.in_trash);
+        if (ya) { ntaAdoptadas.add(ntaSinG(ya.id)); return ya; }
+      } catch (e) {
+        if (ntNoExiste(e)) throw e;
+        if (ntaPropNoEsta(e, p)) ntaOlvidarProp(db);
+      }   // sin poder buscar (otro fallo): se crea igual; la marca sincronizada sigue protegiendo
+    } else if (body.parent.page_id) {
+      // En una página no hay «ID app»: si un envío igual quedó a medias (app cerrada antes de la respuesta), se busca por título.
+      const tit = ntaTituloDe(body.properties); sig = ntaSinG(body.parent.page_id) + '|' + tit;
+      if (ntaEnv(sig)) { const ya = await ntaBuscarAMedias(f, this, body.parent, tit); if (ya) { ntaAdoptadas.add(ntaSinG(ya.id)); ntaEnv(sig, null); return ya; } }
+      ntaEnv(sig, Date.now());
+    }
+  }
+  const args = [...arguments]; if (body !== arguments[2]) args[2] = body;
+  await ntaTurno();
+  let r;
+  try { r = await f.apply(this, args); }
+  catch (e) {
+    // «ID app» ya no existe en esa base: se envía sin ella (y la siguiente vuelta la vuelve a crear).
+    if (body?.properties?.[NTA_PROP] && ntaPropNoEsta(e, NTA_PROP)) {
+      ntaOlvidarProp(path === 'pages' ? body.parent?.database_id : '');
+      const props = { ...body.properties }; delete props[NTA_PROP];
+      args[2] = { ...body, properties: props };
+      await ntaTurno();
+      r = await f.apply(this, args);
+    } else { if (sig && !(e?.code === 'red' || e?.status === 0)) ntaEnv(sig, null); throw e; }
+  }
+  if (sig) ntaEnv(sig, null);
+  try { if (path === 'databases' && method === 'POST' && r?.id && body?.properties?.[NTA_PROP]) ntaDbReg(r.id, { p: NTA_PROP }); } catch {}
+  return r;
+})(notion);
+// Las propiedades de siempre, con la clave de la app cuando la base la tiene.
+jrProps = (f => function (x) { const props = f.apply(this, arguments); try { const D = ntCfg().diario, p = D?.db && x && typeof x.id === 'string' && x.id ? ntaIdProp(D.id) : ''; if (p) props[p] = { rich_text: ntRt('j:' + x.id) }; } catch {} return props; })(jrProps);
+qdProps = (f => function (d, x, nuevo) { const props = f.apply(this, arguments); try { const p = nuevo && d?.id && x?.id ? ntaIdProp(d.id) : ''; if (p) props[p] = { rich_text: ntRt('q:' + x.id) }; } catch {} return props; })(qdProps);
+if (typeof esNtProps === 'function') esNtProps = (f => function (r) { const props = f.apply(this, arguments); try { const D = esNtDestino(), p = D?.db && r?.id ? ntaIdProp(D.id) : ''; if (p) props[p] = { rich_text: ntRt('e:' + r.id) }; } catch {} return props; })(esNtProps);
+// Con el agradecimiento enviándose solo (su propia fila), la página del día no lo repite (ni se queda vieja al editarlo): remite a su fila.
+jrBloques = (f => function (x) {
+  const out = f.apply(this, arguments);
+  try {
+    if (!ntaOn('gratitud') || !ntCfg().diario?.id) return out;
+    const i = out.findIndex(b => b?.type === 'heading_3' && (b.heading_3?.rich_text || []).map(t => t?.text?.content || '').join('') === 'Tres cosas buenas');
+    if (i < 0) return out;
+    return [...out.slice(0, i), ...ntBloquesMd('paragraph', `🙏 El agradecimiento de este día está en su fila «Agradecimiento ${jrFechaCorta(x.d)}».`)];
+  } catch { return out; }
+})(jrBloques);
+
+// ---------- Escribir una página: crear (o adoptar) y, si ya existe, actualizar sus propiedades y su contenido (lo nuevo primero, lo viejo se archiva)
+async function ntaReemplazar(id, bloques) {
+  const viejos = []; let cursor = '';
+  do { const q = await notion(`blocks/${id}/children?page_size=100${cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''}`); viejos.push(...(q?.results || []).map(b => b.id)); cursor = q?.has_more ? q.next_cursor : ''; } while (cursor);
+  for (let i = 0; i < bloques.length; i += 100) await notion(`blocks/${id}/children`, 'PATCH', { children: bloques.slice(i, i + 100) });
+  for (const b of viejos) await notion(`blocks/${b}`, 'PATCH', { archived: true }, true);
+}
+const ntaFueraDeUso = e => ntNoExiste(e) || (e?.status === 400 && /archiv/i.test(e?.message || ''));
+async function ntaEscribir(k, s) {
+  const m = ntaMarca(k);
+  if (m && m.id) {
+    try { await notion(`pages/${m.id}`, 'PATCH', { properties: s.props }, true); await ntaReemplazar(m.id, s.bloques); return { id: m.id, url: m.url, nuevo: false }; }
+    catch (e) { if (!ntaFueraDeUso(e)) throw e; }   // la página ya no está en Notion: se crea otra
+  }
+  const pg = await notion('pages', 'POST', { parent: s.parent, properties: s.props, children: s.bloques.slice(0, 100) });
+  const adoptada = ntaAdoptadas.has(ntaSinG(pg.id));
+  ntaMarcar(k, { id: pg.id, url: pg.url, h: null }); guardar();   // si algo falla después, el reintento completa esta misma página
+  if (adoptada) await ntaReemplazar(pg.id, s.bloques);
+  else for (let i = 100; i < s.bloques.length; i += 100) await notion(`blocks/${pg.id}/children`, 'PATCH', { children: s.bloques.slice(i, i + 100) });
+  return { id: String(pg.id), url: ntUrl(pg.url), nuevo: !adoptada };
+}
+const ntaFechaP = d => ({ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', text: { content: `(${jrFechaCorta(d)}, ${new Date(d + 'T12:00').toLocaleDateString('es', { weekday: 'long' })})` }, annotations: { italic: true } }] } });
+function ntaPropsJr(D, kb, titulo, d, tipoN) {
+  if (!D.db) return { title: { title: ntRt(titulo) } };
+  const P = D.props || {}, props = { [P.title || 'Name']: { title: ntRt(titulo) } };
+  if (P.fecha && /^\d{4}-\d\d-\d\d$/.test(d || '')) props[P.fecha] = { date: { start: d } };
+  if (P.tipo) props[P.tipo] = { select: { name: tipoN } };
+  if (P.estado) props[P.estado] = { select: { name: 'Completado' } };
+  const p = ntaIdProp(D.id); if (p) props[p] = { rich_text: ntRt(kb) };
+  return props;
+}
+
+// ---------- Qué hay por enviar (lo más viejo primero). Cada elemento: { k, tipo, tit, orden, estable, nuevo, run }
+const ntaVisto = new Map();   // clave → { h, t }: un contenido se envía cuando lleva un rato sin cambiar
+function ntaEstable(k, h, ms) { const v = ntaVisto.get(k); if (!v || v.h !== h) { ntaVisto.set(k, { h, t: Date.now() }); return ms <= 0 ? 0 : ms; } return Math.max(0, ms - (Date.now() - v.t)); }
+const ntaBuenasPorDia = () => {
+  const m = new Map();
+  for (const b of Array.isArray(ES.buenas) ? ES.buenas : []) {
+    if (!b || !/^\d{4}-\d\d-\d\d$/.test(b.d || '')) continue;
+    const o = m.get(b.d) || { d: b.d, items: [], porque: '' };
+    for (const i of Array.isArray(b.items) ? b.items : []) if (typeof i === 'string' && i.trim() && !o.items.includes(i.trim())) o.items.push(i.trim());
+    if (typeof b.porque === 'string' && b.porque.trim()) o.porque = b.porque.trim();
+    m.set(b.d, o);
+  }
+  return [...m.values()].filter(o => o.items.length);
+};
+const ntaPzTexto = b => (Array.isArray(b?.els) ? b.els : []).some(e => e && ['nota', 'texto', 'zona'].includes(e.t) && String(e.txt || '').trim() && !/^(Idea|Tema central|Zona)$/.test(String(e.txt).trim()));
+let ntaCambio = false;   // marcas adoptadas al revisar: se guardan una vez
+function ntaLista() {
+  const out = [], ahora = Date.now(), c = ntCfg(), D = c.diario && c.diario.id ? c.diario : null, PB = ntaPorBase();
+  const dJ = ntaDestId('diario');
+  // Journaling: la entrada de siempre, con jrEnviar.
+  if (ntaOn('diario') && D) for (const x of Array.isArray(ES.diario) ? ES.diario : []) {
+    if (!x || typeof x.id !== 'string' || jrBorrada(x) || !String(x.txt || '').trim()) continue;
+    const kb = 'j:' + x.id, k = ntaK(kb, dJ), m = ntaMarca(k);
+    if (!x.notion && m && m.id) { x.notion = { id: m.id, url: m.url || '', en: +m.en || ahora, hash: m.h && m.h === ntaH(jrHash(x)) ? jrHash(x) : null }; ntaCambio = true; }   // ya lo envió otro teléfono
+    const ajena = !!(x.notion?.id && !(m && m.id && ntaSinG(m.id) === ntaSinG(x.notion.id)) && ntaAjena(PB, kb, dJ, x.notion.id));   // su página es de otro destino
+    if (x.notion && !jrPendiente(x) && !ajena) { if (!m || !m.id) { ntaMarcar(k, { id: x.notion.id, url: x.notion.url, h: ntaH(x.notion.hash ?? jrHash(x)) }); ntaCambio = true; } continue; }
+    if (jrEnviando.has(x.id) || (jrEdit && jrEdit.id === x.id)) continue;
+    out.push({ k, tipo: 'diario', tit: jrTitulo(x), orden: Date.parse(`${x.d}T${x.h || '00:00'}`) || 0, nuevo: !(m && m.id), estable: Math.max(0, 15000 - (ahora - (+x.cambiado || 0))), run: async () => {
+      const tenia = !!(m && m.id);
+      const ok = await jrEnviar(x, true), cur = (ES.diario || []).find(e => e.id === x.id) || x;
+      if (!ok) { const er = new Error(cur.notionError || 'Notion no respondió.'); throw er; }
+      if (ntaAdoptadas.has(ntaSinG(cur.notion?.id)) && !tenia) { const mm = ntaMarca(k); if (!(mm && mm.h === ntaH(jrHash(cur)))) { cur.notion = { ...cur.notion, hash: null }; } }   // la creó otro teléfono: se pone al día en la vuelta siguiente
+      ntaMarcar(k, { id: cur.notion.id, url: cur.notion.url, h: cur.notion.hash ? ntaH(cur.notion.hash) : null });
+      return { id: cur.notion.id, url: cur.notion.url, nuevo: !tenia && !ntaAdoptadas.has(ntaSinG(cur.notion.id)) };
+    } });
+  }
+  // Agradecimiento: un día, una fila «Agradecimiento dd/mm/aaaa» en la base del Journaling.
+  if (ntaOn('gratitud') && D) for (const o of ntaBuenasPorDia()) {
+    const kb = 'g:' + o.d, k = ntaK(kb, dJ), h = ntaH([o.items, o.porque]), m = ntaMarca(k);
+    if (m && m.id && m.h === h) continue;
+    const tit = `Agradecimiento ${jrFechaCorta(o.d)}`;
+    out.push({ k, tipo: 'gratitud', tit, orden: Date.parse(o.d + 'T21:00') || 0, nuevo: !(m && m.id), estable: ntaEstable(k, h, 8000), run: async () => {
+      const bloques = [ntaFechaP(o.d), ...ntBloquesMd('heading_2', '🙏 Agradezco'), ...o.items.flatMap(i => ntBloquesMd('bulleted_list_item', i)), ...(o.porque ? ntBloquesMd('paragraph', `Por qué pasó: ${o.porque}`) : [])];
+      const r = await ntaEscribir(k, { parent: D.db ? { database_id: D.id } : { page_id: D.id }, props: ntaPropsJr(D, kb, tit, o.d, 'Agradecimiento'), bloques });
+      ntaMarcar(k, { ...r, h }); return r;
+    } });
+  }
+  // Reflexiones guiadas: una fila «Reflexión: …» (las que ya pasaste al Journaling van con su entrada; una carta sellada espera).
+  if (ntaOn('reflexion') && D) for (const it of (typeof rfL === 'function' ? rfL() : [])) {
+    let txt = ''; try { if (!it || rfBorrada(it.id) || it.jr || rfSellada(it) || !RF_TIPOS[it.tipo]) continue; txt = rfComoTexto(it); } catch { continue; }
+    if (!String(txt).trim()) continue;
+    const kb = 'r:' + it.id, k = ntaK(kb, dJ), h = ntaH([txt, !!it.fin]), m = ntaMarca(k);
+    if (m && m.id && m.h === h) continue;
+    const tit = `Reflexión: ${RF_TIPOS[it.tipo].n} ${jrFechaCorta(it.d)}`;
+    out.push({ k, tipo: 'reflexion', tit, orden: +it.creado || Date.parse(it.d + 'T12:00') || 0, nuevo: !(m && m.id), estable: ntaEstable(k, h, it.fin ? 8000 : 600000), run: async () => {
+      const bloques = [ntaFechaP(it.d), ...ntBloquesMd('quote', `Reflexión guiada: ${RF_TIPOS[it.tipo].n}${it.fin ? '' : ' (a medias)'}`), ...ntBloquesPlano(txt)];
+      const r = await ntaEscribir(k, { parent: D.db ? { database_id: D.id } : { page_id: D.id }, props: ntaPropsJr(D, kb, tit, it.d, 'Reflexión'), bloques });
+      ntaMarcar(k, { ...r, h }); return r;
+    } });
+  }
+  // Pizarras: una página por pizarra dentro de «💡 Ideas y pizarras» (la enviada a mano a este destino cuenta como enviada).
+  if (ntaOn('pizarras') && c.pageId) { const dP = ntaDestId('pizarras'); for (const b of Array.isArray(ES.pizarras) ? ES.pizarras : []) {
+    if (!b || typeof b.id !== 'string' || !ntaPzTexto(b)) continue;
+    const kb = 'p:' + b.id, k = ntaK(kb, dP), bloques = pzBloques(b), h = ntaH([b.nombre || '', bloques]); const m = ntaMarca(k);
+    if ((!m || !m.id) && b.notion && b.notion.id && !ntaAjena(PB, kb, dP, b.notion.id)) { ntaMarcar(k, { id: b.notion.id, url: b.notion.url, h }); ntaCambio = true; continue; }
+    if (m && m.id && m.h === h) continue;
+    const tit = String(b.nombre || 'Pizarra').slice(0, 200);
+    out.push({ k, tipo: 'pizarras', tit, orden: +b.creado || +b.cambiado || 0, nuevo: !(m && m.id), estable: ntaEstable(k, h, 20000), run: async () => {
+      const r = await ntaEscribir(k, { parent: { page_id: ntCfg().pageId }, props: { title: { title: ntRt(tit) } }, bloques });
+      ntaMarcar(k, { ...r, h });
+      const bb = (ES.pizarras || []).find(z => z && z.id === b.id); if (bb) bb.notion = { id: r.id, url: r.url };
+      return r;
+    } });
+  } }
+  // Estudio: la ruta, una vez por destino (como «Enviar la ruta a Notion»; «Volver a enviar» sigue en su ficha).
+  if (ntaOn('estudio') && typeof esNtDestino === 'function' && esNtDestino() && typeof esNtCrear === 'function') {
+    const dE = ntaDestId('estudio');
+    let rutas = []; try { rutas = (window.est?.rutas?.() || []).filter(r => r && typeof r.id === 'string' && !r.archivada); } catch {}
+    for (const r of rutas) {
+      const kb = 'e:' + r.id, k = ntaK(kb, dE), m = ntaMarca(k);
+      if (m && m.id) { if (!r.notion?.id) { try { const rr = window.est.ruta(r.id); if (rr) { rr.notion = { id: m.id, url: m.url || '', en: +m.en || ahora }; ntaCambio = true; } } catch {} } continue; }
+      if (r.notion && r.notion.id && !ntaAjena(PB, kb, dE, r.notion.id)) { ntaMarcar(k, { id: r.notion.id, url: r.notion.url, h: 1 }); ntaCambio = true; continue; }
+      out.push({ k, tipo: 'estudio', tit: String(r.nombre || 'Ruta'), orden: +r.creado || 0, nuevo: true, estable: 0, run: async () => {
+        const rr = window.est.ruta(r.id); if (!rr) throw new Error('La ruta ya no está.');
+        const pg = await esNtCrear(rr); rr.notion = { id: String(pg.id), url: ntUrl(pg.url), en: Date.now() };
+        ntaMarcar(k, { id: pg.id, url: pg.url, h: 1 }); return { id: String(pg.id), url: ntUrl(pg.url), nuevo: !ntaAdoptadas.has(ntaSinG(pg.id)) };
+      } });
+    }
+  }
+  return out.sort((a, b) => a.orden - b.orden);
+}
+// Quiero: lo pendiente, o lo que está en una base de otro destino (otra página u otro espacio de Notion).
+const ntaQdAjena = x => { try { const n = qdNtDe(x), d = ntDest('quiero'); return !!(n && n.db && (!d || !ntMismo(n.db, d.id))); } catch { return false; } };   // sin base de Quiero aquí (otra página u otro espacio): también
+const ntaQdLista = () => { try { return ntaOn('quiero') ? qdItems().filter(x => qdPend(x) || ntaQdAjena(x)).sort((a, b) => (+a.en || 0) - (+b.en || 0)) : []; } catch { return []; } };
+const ntaQdPend = () => ntaQdLista().length;
+const ntaQdNuevo = x => !qdNtDe(x) || ntaQdAjena(x);
+const ntaQdK = x => ntaK('q:' + x.id, ntaDestId('quiero') || 'q');
+// La base de Quiero se crea una sola vez aunque dos teléfonos conecten a la vez: la crea quien gana la reclamación; el otro la reutiliza.
+const ntaQdBaseK = () => { const c = ntCfg(); return ntaK('Q:base', ntaSinG(c.raiz?.id || c.pageId) || 'x'); };
+async function ntaQdBase() {
+  if (ntDest('quiero')) return true;
+  const tk = ntaQdBaseK(), mt = ntaMarca(tk);
+  if (mt && mt.id) {
+    try { const d = await ntLeerBase(mt.id); const c = ntCfg(); ntSetCfg({ ...c, quiero: d, ...(c.raiz?.id && Array.isArray(c.raiz.secs) && !c.raiz.secs.includes('quiero') ? { raiz: { ...c.raiz, secs: [...c.raiz.secs, 'quiero'] } } : {}) }); return true; }
+    catch (e) { if (!ntNoExiste(e)) return false; }   // ya no está: se crea (o se reutiliza) otra
+  } else if (mt && mt.c && mt.c !== NTA_DEV && Date.now() - (+mt.ce || 0) < 600000) return false;   // la crea otro teléfono
+  const d = await qdDestino(); if (!d) return false;
+  ntaMarcar(tk, { id: d.id, url: d.url || '', h: 1 }); guardar();
+  return true;
+}
+
+// ---------- La subida a la nube, agrupada durante una tanda (cada 20 s y al terminar), no por cada cosa enviada.
+let ntaDifiere = false, ntaSucio = false, ntaFlushT = 0;
+pushCloud = (f => function () { if (ntaDifiere) { ntaSucio = true; return Promise.resolve(); } return f.apply(this, arguments); })(pushCloud);
+function ntaFlush() { if (!ntaSucio) return; ntaSucio = false; ntaFlushT = Date.now(); const d = ntaDifiere; ntaDifiere = false; try { pushCloud(); } catch {} finally { ntaDifiere = d; } }
+
+// ---------- La cola
+const ntaFallos = new Map();   // clave → { n, next, e }
+let ntaCorriendo = false, ntaOtra = false, ntaT = 0, ntaPausa = 0, ntaLote = null, ntaRevisar = false;
+const ntaInfo = { quedan: 0, ult: 0, err: '' };
+function ntaPronto(ms = 3000) { clearTimeout(ntaT); ntaT = setTimeout(() => { ntaT = 0; ntaCorrer(); }, Math.max(0, ms)); }
+const ntaListo = () => { try { return ntaAj().on && cxNtListo() && navigator.onLine !== false; } catch { return false; } };
+const ntaNube = () => !!(auth && cloudRef);
+// La copia de la nube, pedida directamente (sin eventos del sistema).
+async function ntaPull() { try { for (let i = 0; i < 40 && (writing || dirty); i++) await ntaEspera(100); await window.nubePull?.(); } catch {} }
+const ntaEspFallo = (k, n) => Date.now() + Math.min(1800000, 10000 * 2 ** (n - 1));
+function ntaAnotarFallo(k, e, fila) {
+  const prev = ntaFallos.get(k), msg = ntaMotivo(e), n = (prev?.n || 0) + 1;
+  ntaFallos.set(k, { n, next: ntaEspFallo(k, n), e: msg });
+  ntaInfo.err = msg;
+  return !prev || prev.e !== msg ? { ...fila, e: msg } : null;   // al historial, una vez por motivo
+}
+// Notion ya no encuentra la base del Journaling: se crea (o se reutiliza) otra bajo tu página y todo vuelve a ir allí.
+async function ntaRehacerDiario() {
+  const c = ntCfg(), viejo = c.diario, sec = NT_SEC.find(x => x.k === 'diario');
+  if (!viejo || !sec) return false;
+  if (!(c.raiz?.id || c.pageId)) { cxhPon({ s: 'notion', k: 'err', txt: 'Notion no encuentra tu Journaling. Elígelo otra vez en Conexiones.' }); return false; }
+  cxhPon({ s: 'notion', k: 'err', txt: 'Notion no encuentra tu Journaling: lo creo otra vez.' });
+  try { if (NW && NW.detectado && ntMismo(NW.detectado.id, viejo.id)) NW.detectado = null; } catch {}
+  const c2 = { ...c }; delete c2.diario;
+  if (c2.raiz && Array.isArray(c2.raiz.secs)) c2.raiz = { ...c2.raiz, secs: c2.raiz.secs.filter(k => k !== 'diario') };
+  ntSetCfg(c2);
+  let d = null, dentro = false;
+  try {
+    if (c.raiz?.id) { let err = ''; await ntPreparar(c.raiz, false, ['diario'], (k, v) => { if (v?.e === 'err') err = v.txt || ''; if (v?.e === 'ok') dentro = !!v.dentro; }); d = ntDest('diario'); if (!d && err) throw new Error(err); }
+    if (!d && c.pageId) { d = await ntCrearSeccion(sec, c.pageId); ntSetCfg({ ...ntCfg(), diario: d }); }
+  } catch (e) { d = null; ntaInfo.err = ntaMotivo(e); }
+  if (!d || ntMismo(d.id, viejo.id)) { ntSetCfg({ ...ntCfg(), diario: viejo, ...(c.raiz ? { raiz: c.raiz } : {}) }); cxhPon({ s: 'notion', k: 'err', txt: 'No se pudo crear otra vez tu Journaling. Se reintenta solo.' }); return false; }
+  const c3 = ntCfg(); if (dentro && c3.raiz?.id && Array.isArray(c3.raiz.secs) && !c3.raiz.secs.includes('diario')) ntSetCfg({ ...c3, raiz: { ...c3.raiz, secs: [...c3.raiz.secs, 'diario'] } });
+  cxhPon({ s: 'notion', k: 'con', txt: `Journaling creado otra vez en Notion («${ntaCorto(d.t, 60)}»). Lo tuyo se envía solo.` });
+  return true;
+}
+async function ntaCorrer() {
+  if (ntaCorriendo) { ntaOtra = true; return; }
+  if (!ntaListo() || Date.now() < ntaPausa) { ntaPintarEstado(); return; }
+  ntaCorriendo = true; ntaActivo++; ntaInfo.err = ''; ntaDifiere = true;
+  const lote = ntaLote = { ok: [], mal: [] };
+  let siguiente = 0;
+  const luego = ms => { siguiente = siguiente ? Math.min(siguiente, ms) : ms; };
+  try {
+    // Las bases ganan «ID app» (y el Journaling, los tipos Agradecimiento y Reflexión). Si la del Journaling ya no está, se crea otra vez.
+    const c = ntCfg();
+    if (c.diario?.db && (ntaOn('diario') || ntaOn('gratitud') || ntaOn('reflexion'))) {
+      const r = await ntaPrepDb(c.diario, ['Agradecimiento', 'Reflexión'], ntaRevisar); ntaRevisar = false;
+      if (r.gone && !(await ntaRehacerDiario())) { luego(120000); throw Object.assign(new Error('Notion no encuentra tu Journaling.'), { code: 'nta_sin_diario' }); }
+      if (r.gone) await ntaPrepDb(ntCfg().diario, ['Agradecimiento', 'Reflexión'], true);
+    }
+    if (ntaOn('estudio') && c.estudio?.db) await ntaPrepDb(c.estudio);
+    if (ntaOn('quiero') && c.quiero?.db) await ntaPrepDb(c.quiero);
+    // 1 · Reclamar lo nuevo (para que otro teléfono no lo envíe a la vez) y dejar que la nube combine.
+    let L = ntaLista(); if (ntaCambio) { ntaCambio = false; guardar(); }
+    const ahora = Date.now(), M = ntaM();
+    let reclamo = false;
+    for (const it of L) {
+      if (!it.nuevo || it.estable > 0) continue;
+      const f = ntaFallos.get(it.k); if (f && ahora < f.next) continue;
+      const m = M[it.k];
+      if (m && !m.id && m.c && m.c !== NTA_DEV && ahora - (+m.ce || 0) < 600000) continue;   // lo está enviando otro teléfono
+      if (!(m && m.c === NTA_DEV && ahora - (+m.ce || 0) < 600000)) { M[it.k] = { c: NTA_DEV, ce: ahora }; reclamo = true; }
+    }
+    // Quiero: lo nuevo (y la base, si aún no hay) también se reclama.
+    const reclamar = k => { const m = M[k]; if (m && m.id) return; if (m && !m.id && m.c && m.c !== NTA_DEV && ahora - (+m.ce || 0) < 600000) return; if (!(m && m.c === NTA_DEV && ahora - (+m.ce || 0) < 600000)) { M[k] = { c: NTA_DEV, ce: ahora }; reclamo = true; } };
+    if (ntaOn('quiero')) { const QN = ntaQdLista().filter(x => ntaQdNuevo(x) && !(ntaFallos.get('q:' + x.id) && ahora < ntaFallos.get('q:' + x.id).next)); if (QN.length && !ntDest('quiero')) reclamar(ntaQdBaseK()); if (ntDest('quiero')) for (const x of QN) reclamar(ntaQdK(x)); }
+    // Sube la reclamación, combina con la nube, sube lo combinado y vuelve a mirar: los dos teléfonos ven lo mismo antes de enviar.
+    if (reclamo) { guardar(); ntaSucio = true; ntaFlush(); if (ntaNube()) { await ntaEspera(5000); await ntaPull(); ntaSucio = true; ntaFlush(); await ntaEspera(2500); await ntaPull(); ntaFlush(); } }
+    // 2 · Enviar (con lo de la nube ya combinado).
+    L = ntaLista(); if (ntaCambio) { ntaCambio = false; guardar(); }
+    let hechos = 0;
+    for (const it of L) {
+      if (!ntaListo()) break;
+      if (it.estable > 0) { luego(it.estable + 300); continue; }
+      const m = ntaMarca(it.k);
+      if (it.nuevo && !(m && (m.id || m.c === NTA_DEV))) { if (!(m && m.c)) luego(4000); continue; }   // sin reclamar aún (llegó después) o es de otro teléfono
+      const f = ntaFallos.get(it.k); if (f && Date.now() < f.next) { luego(f.next - Date.now() + 200); continue; }
+      if (hechos >= 30) { luego(1500); break; }
+      hechos++;
+      try {
+        const r = await it.run();
+        ntaFallos.delete(it.k); guardar();
+        lote.ok.push({ t: ntaCorto(it.tit, 120), tipo: it.tipo, d: ntaCorto(ntaDestT(it.tipo), 80), u: ntUrl(r?.url) || ntAbrir(r), a: r?.nuevo ? 'nuevo' : 'act' });
+      } catch (e) {
+        const mal = ntaAnotarFallo(it.k, e, { t: ntaCorto(it.tit, 120), tipo: it.tipo, d: ntaCorto(ntaDestT(it.tipo), 80) });
+        const mm = ntaMarca(it.k); if (mm && !mm.id && mm.c === NTA_DEV) { delete ntaM()[it.k]; guardar(); }   // suelta la reclamación: otro teléfono puede intentarlo
+        if (mal) lote.mal.push(mal);
+        if (ntaNoEsta(e) && NTA_JR.includes(it.tipo)) { ntaRevisar = true; luego(3000); }   // ¿la base sigue ahí? se mira en la vuelta siguiente
+        if (e?.code === 'red' || e?.status === 0) { ntaPausa = Date.now() + 30000; luego(31000); break; }
+        if (e?.code === 'unauthorized' || e?.code === 'sin_funcion' || e?.status === 401) { ntaPausa = Date.now() + 300000; break; }
+      }
+      if (ntaSucio && Date.now() - ntaFlushT > 20000) ntaFlush();
+    }
+    // Quiero desarrollar y hacer: su envío de siempre (2.25.0), una cosa cada vez, con espera creciente si falla.
+    if (ntaOn('quiero') && ntaListo()) {
+      // Conectaste otra página u otro espacio: «🌱 Quiero desarrollar y hacer» se reutiliza o se crea allí, y lo de antes va también.
+      let QL = ntaQdLista(), base = true;
+      if (QL.some(ntaQdNuevo) && !ntDest('quiero')) { try { base = await ntaQdBase(); } catch { base = false; } if (!base) luego(10000); else QL = ntaQdLista(); }
+      for (const x of QL) {
+        if (!ntaListo()) break;
+        const kq = 'q:' + x.id, f = ntaFallos.get(kq); if (f && Date.now() < f.next) { luego(f.next - Date.now() + 200); continue; }
+        const nuevo = ntaQdNuevo(x), kc = nuevo ? ntaQdK(x) : '', mc = kc ? ntaMarca(kc) : null;
+        if (nuevo && (!base || !ntDest('quiero'))) continue;
+        if (nuevo && !(mc && mc.c === NTA_DEV && !mc.id)) { if (!mc) luego(4000); continue; }   // sin reclamar aún, de otro teléfono o ya enviado desde otro
+        if (hechos >= 30) { luego(1500); break; }
+        hechos++;
+        if (!qdPend(x) && ntaQdAjena(x)) { const y = qdDe(x.id); if (y) { delete y.nt; delete y.ntErr; } }   // en otro destino: va otra vez al de ahora
+        let ok = false; try { ok = await qdEnviar(x); } catch {}
+        if (kc) { const y = qdDe(x.id), n = y && qdNtDe(y); if (ok && n) ntaMarcar(kc, { id: n.id, url: n.url, h: 1 }); else { const mm = ntaMarca(kc); if (mm && !mm.id && mm.c === NTA_DEV) delete ntaM()[kc]; } guardar(); }
+        if (ntaSucio && Date.now() - ntaFlushT > 20000) ntaFlush();
+      }
+    }
+  } catch (e) { if (e?.code !== 'nta_sin_diario') { ntaInfo.err = ntaMotivo(e); luego(30000); } else ntaInfo.err = e.message; }
+  finally {
+    ntaActivo = Math.max(0, ntaActivo - 1); ntaCorriendo = false; ntaLote = null;
+    ntaDifiere = false; ntaFlush();
+    ntaInfo.ult = Date.now();
+    ntaLogLote(lote);
+    try { ntaInfo.quedan = ntaListo() ? ntaLista().length + ntaQdPend() : 0; } catch {}
+    if (ntaOtra) { ntaOtra = false; ntaPronto(1200); } else if (siguiente) ntaPronto(siguiente);
+    ntaPintarEstado();
+  }
+}
+function ntaLogLote(l) {
+  if (l.ok.length) {
+    const n = l.ok.length, nuevos = l.ok.filter(x => x.a === 'nuevo').length;
+    cxhPon({ s: 'notion', k: 'env', txt: nuevos === n ? `Enviado${n === 1 ? '' : 's'} ${n} a Notion` : nuevos ? `${n} a Notion: ${nuevos} nuevo${nuevos === 1 ? '' : 's'} y ${n - nuevos} al día` : `${n === 1 ? 'Actualizado' : `Actualizados ${n}`} en Notion`, it: l.ok.slice(0, 60) });
+  }
+  if (l.mal.length) { const n = l.mal.length; cxhPon({ s: 'notion', k: 'fal', txt: `No se ${n === 1 ? 'pudo enviar 1' : `pudieron enviar ${n}`}. Se reintenta solo.`, fa: l.mal.slice(0, 60) }); }
+}
+// Quiero: cada envío entra al historial (en la tanda en curso o solo); un fallo, una vez por motivo, con espera creciente (también para la
+// cola de 2.25.0). Con su casilla apagada, no se envía solo.
+let ntaQdManual = false;
+const ntaQdMios = new Set();   // lo escrito en este teléfono en esta sesión: sale al momento, como en 2.25.0
+let ntaQdDirecto = false;
+if (typeof qdGuardar === 'function') qdGuardar = (f => function () { ntaQdDirecto = true; try { const x = f.apply(this, arguments); try { if (x && x.id) ntaQdMios.add(x.id); } catch {} return x; } finally { ntaQdDirecto = false; } })(qdGuardar);
+qdEnviar = (f => async function (x0) {
+  if (!ntaOn('quiero') && !ntaQdManual) return false;
+  const kq = x0 && x0.id ? 'q:' + x0.id : '';
+  if (ntaQdDirecto && x0 && x0.id) ntaQdMios.add(x0.id);
+  if (kq && !ntaQdManual && !ntaLote) {
+    const fa = ntaFallos.get(kq); if (fa && Date.now() < fa.next) return false;   // espera creciente tras un fallo
+    try { const y = qdDe(x0.id); if (y && !qdNtDe(y) && !ntaQdMios.has(y.id) && ntaListo()) { ntaPronto(1500); return false; } } catch {}   // lo nuevo que no escribiste aquí (lo de antes, lo de otro teléfono) va por el envío automático, reclamado: sin duplicar entre teléfonos
+  }
+  const antes = !!(x0 && qdDe(x0.id) && qdNtDe(qdDe(x0.id))), ok = await f.apply(this, arguments);
+  try {
+    const x = x0 && qdDe(x0.id), n = x && qdNtDe(x);
+    const fila = ok && n ? { t: ntaCorto(x.t, 120), tipo: 'quiero', d: ntaCorto(ntaDestT('quiero'), 80), u: ntUrl(n.url) || ntAbrir(n), a: antes ? 'act' : 'nuevo' } : null;
+    if (ok && kq) ntaFallos.delete(kq);
+    const mal = !ok && x && x.ntErr && kq ? ntaAnotarFallo(kq, new Error(x.ntErr), { t: ntaCorto(x.t, 120), tipo: 'quiero', d: ntaCorto(ntaDestT('quiero'), 80) }) : null;
+    if (ntaLote) { if (fila) ntaLote.ok.push(fila); if (mal) ntaLote.mal.push(mal); }
+    else if (fila || mal) ntaLogLote({ ok: fila ? [fila] : [], mal: mal ? [mal] : [] });
+  } catch {}
+  return ok;
+})(qdEnviar);
+document.addEventListener('click', e => { try { const b = e.target?.closest?.('[data-td="qd-todas"], [data-td="qd-reintentar"]') || e.composedPath?.().find(n => n?.dataset && /^qd-(todas|reintentar)$/.test(n.dataset.td || '')); if (b) { ntaQdManual = true; setTimeout(() => { ntaQdManual = false; }, 30000); } } catch {} }, true);
+
+// Lo nuevo va solo: tras guardar, al volver la red, al volver a la app, cada minuto a la vista y al conectar Notion.
+guardar = (f => function () { const r = f.apply(this, arguments); try { if (ntaCorriendo) ntaOtra = true; else if (ntaListo()) ntaPronto(4000); } catch {} return r; })(guardar);
+addEventListener('online', () => ntaPronto(1500));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') ntaPronto(2500); });
+setInterval(() => { if (document.visibilityState !== 'hidden' && !ntaT && !ntaCorriendo) ntaCorrer(); }, 60000);
+setTimeout(() => { if (!ntaT && !ntaCorriendo) ntaCorrer(); }, 6000);   // al abrir la app
+// «Enviar a Notion» de una reflexión que ya llegó sola: hace lo de siempre (la pasa a tu Journaling como «Reflexión» y la envía), pero sobre
+// su misma página de Notion, sin crear otra fila. El resultado (y su aviso) es el de ese envío.
+if (typeof rfAJournal === 'function') rfAJournal = (f => async function (id) {
+  let orig = null;
+  try {
+    const it = rfDe(id), D = ntCfg().diario, m = it && !it.jr && D?.id ? ntaMarca(ntaK('r:' + id, ntaSinG(D.id))) : null;
+    if (m && m.id && ntDiarioOk()) {
+      orig = jrEnviar;
+      jrEnviar = function (x) { try { const it2 = rfDe(id); if (x && !x.notion && it2 && it2.jr === x.id) x.notion = { id: m.id, url: m.url || '', en: Date.now(), hash: null }; } catch {} return orig.apply(this, arguments); };
+    }
+  } catch {}
+  try { return await f.apply(this, arguments); } finally { if (orig) jrEnviar = orig; }
+})(rfAJournal);
+
+// ---------- Conexiones de Notion en el historial (conectado, desconectado, secreto rechazado, destino nuevo)
+const ntaFirmaDest = () => { const c = ntCfg(); return [ntaDs(ntaSinG(c.diario?.id)), ntaDs(ntaSinG(c.pageId))].join(','); };
+function ntaVigilar() {
+  let e; try { e = cxNtEstado(); } catch { return; }
+  const S = ntaEst(), k = e.k + (e.malo ? ':' + e.malo : ''), antes = S.ntVisto, fd = ntaFirmaDest();
+  if (e.k === 'ok' && S.ntDest !== undefined && S.ntDest !== fd && antes === k) { S.ntDest = fd; ntaEstPon(S); cxhPon({ s: 'notion', k: 'con', txt: 'Notion tiene otro destino. Lo tuyo va allí solo.' }); ntaPronto(2500); return; }
+  if (e.k === 'ok' && S.ntDest !== fd) { S.ntDest = fd; ntaEstPon(S); }
+  if (antes === k) return;
+  S.ntVisto = k; ntaEstPon(S);
+  if (antes === undefined) { if (e.k === 'ok') ntaPronto(5000); return; }   // primera vez en esta versión: sin anotar
+  if (e.k === 'ok') { cxhPon({ s: 'notion', k: 'con', txt: `Notion conectado${ntCfg().ws ? ` (${ntaCorto(ntCfg().ws, 60)})` : ''}. Lo que falta se envía solo.` }); ntaPronto(2500); }
+  else if (e.malo === 'secreto') cxhPon({ s: 'notion', k: 'err', txt: 'Notion no acepta tu secreto. Pégalo otra vez en Conexiones.' });
+  else if (e.malo === 'puente') cxhPon({ s: 'notion', k: 'err', txt: 'El puente de Notion no responde.' });
+  else if (!ntCfg().token && /^ok|medio/.test(antes)) cxhPon({ s: 'notion', k: 'des', txt: 'Notion desconectado en este teléfono.' });
+  ntaPintarEstado();
+}
+setInterval(ntaVigilar, 3000);
+setTimeout(ntaVigilar, 1500);
+
+// ---------- Ajustes › Conexiones: el envío automático, el historial y Google siempre conectado
+// Cuántas cosas hay en Notion (de todos tus dispositivos): las marcas sincronizadas (una por cosa) y lo de Quiero con su página.
+function ntaEnNotion() {
+  const bs = new Set(); const v = ES.ntAuto;
+  if (v && typeof v === 'object') for (const [k, m] of Object.entries(v)) if (m && m.id && !/^[qQ]:/.test(k)) bs.add(ntaBase(k) || k);
+  let q = 0; try { q = qdItems().filter(x => qdNtDe(x)).length; } catch {}
+  return bs.size + q;
+}
+function ntaEstadoTxt() {
+  const a = ntaAj();
+  if (!a.on) return 'Apagado: envías tú, desde cada apartado.';
+  if (navigator.onLine === false) return 'Sin conexión: se envía al volver la red.';
+  const n = (() => { try { return ntaLista().length + ntaQdPend(); } catch { return 0; } })(), en = ntaEnNotion();
+  if (ntaCorriendo) return `Enviando a Notion…${n ? ` Quedan ${n}.` : ''}`;
+  if (n) return `${n} por enviar: van solos en un momento.${ntaInfo.err ? ` Último aviso: ${ntaInfo.err}` : ''}`;
+  return `Al día${en ? `: ${en} en Notion` : ''}.`;
+}
+function ntaPintarEstado() { try { const el = sheet.open ? $('#nta-st') : null; if (el) el.textContent = ntaEstadoTxt(); } catch {} }
+function ntaHtml() {
+  const a = ntaAj();
+  return `<div class="nta" id="nta">
+    <label class="nta-sw"><input type="checkbox" id="nta-on"${a.on ? ' checked' : ''}><span>Enviar a Notion automáticamente<small>Lo nuevo y lo que ya tenías va solo, sin tocar nada.</small></span></label>
+    <fieldset class="nta-tipos${a.on ? '' : ' off'}" id="nta-tipos"><legend>Qué se envía</legend>${NTA_TIPOS.map(([k, n]) => `<label class="nta-sw"><input type="checkbox" data-nta="${k}"${a.tipos[k] !== false ? ' checked' : ''}${a.on ? '' : ' disabled'}><span>${esc(n)}</span></label>`).join('')}</fieldset>
+    <p class="cx-det" id="nta-st" role="status">${esc(ntaEstadoTxt())}</p></div>`;
+}
+cxGEstado = (f => function () {
+  const r = f.apply(this, arguments), c = gCfg();
+  if (!c.ok || cxGViejo()) return r;
+  const toca = !gValid() && (c.tocar || c.renovar);
+  const tk = toca ? { k: 'medio', t: 'Toca para seguir conectado', paso: 'Google pide tu permiso otra vez. Es un toque y lo que cambiaste se sube después.' } : { k: 'ok', t: 'Conectado' };
+  return { tasks: tk, cal: toca ? tk : c.cal ? tk : { k: 'medio', t: 'Falta el permiso de Calendar', paso: 'Toca «Dar permiso» y acepta Calendar.' } };
+})(cxGEstado);
+cxAjustesHtml = (f => function () {
+  let h = f.apply(this, arguments);
+  try {
+    if (cxNtListo()) h = h.replace('<div class="cx-acc"><button class="link" id="s-nt-traer">', ntaHtml() + '<div class="cx-acc"><button class="link" id="s-nt-traer">');
+    else h = h.replace('<ol class="cx-pasos"', '<p class="cx-det">Al conectar, lo que escribes va solo a Notion: Journaling, agradecimiento, reflexiones, pizarras y más.</p><ol class="cx-pasos"');
+    const c = gCfg();
+    if (c.ok) {
+      h = h.replace('<div class="cx-acc"><button class="link red" id="s-g-off">Desconectar Google</button></div>',
+        `<p class="cx-det">Tasks queda conectado: el permiso se renueva solo${OP_ANDROID ? '' : ', con tu primer toque en la app cuando le queda poco'}.</p><details class="cx-mas"><summary>Más opciones</summary><p class="cx-det">Solo si quieres quitarle a la app el permiso de Google:</p><button class="link red" id="s-g-off">Desconectar Google</button></details>`);
+      if (!gValid() && (c.tocar || c.renovar)) h = h.replace(/(<button class="link" id="s-g(?:t|cal)">)(?:Conectar|Renovar)(<\/button>)/g, '$1Seguir conectado$2');
+    }
+    h += `<div class="cx-blq" id="cx-h"><div class="set-row"><span>Historial<small>Conexiones y envíos de este teléfono</small></span><button class="link" id="s-cx-hist">Ver</button></div></div>`;
+  } catch (e) { console.warn('Conexiones', e); }
+  return h;
+})(cxAjustesHtml);
+cxAjustesWire = (f => function (aplicar) {
+  const r = f.apply(this, arguments);
+  try {
+    const B = $('#sheet-body'); if (!B || !B.querySelector('#s-cx')) return r;
+    const ap = () => { try { aplicar?.(); } catch {} };
+    B.querySelector('#nta-on')?.addEventListener('change', e => {
+      const a = ntaAj(); a.on = !!e.target.checked; ntaAjPon(a);
+      const T = B.querySelector('#nta-tipos'); if (T) { T.classList.toggle('off', !a.on); T.querySelectorAll('input').forEach(i => { i.disabled = !a.on; }); }
+      cxhPon({ s: 'notion', k: 'aj', txt: a.on ? 'Envío automático a Notion: encendido.' : 'Envío automático a Notion: apagado.' });
+      if (a.on) ntaPronto(400); ntaPintarEstado();
+    });
+    B.querySelectorAll('[data-nta]').forEach(i => i.addEventListener('change', () => { const a = ntaAj(); a.tipos[i.dataset.nta] = !!i.checked; if (i.checked) delete a.tipos[i.dataset.nta]; ntaAjPon(a); if (i.checked) ntaPronto(400); ntaPintarEstado(); }));
+    B.querySelector('#s-cx-hist')?.addEventListener('click', () => { ap(); cxhAbrir(); });
+  } catch (e) { console.warn('Conexiones', e); }
+  return r;
+})(cxAjustesWire);
+
+// ---------- La hoja del historial
+let cxhFiltro = '';
+const cxhHora = t => new Date(+t).toLocaleString('es', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+function cxhHtml() {
+  const L = cxhL().filter(x => !cxhFiltro || x.s === cxhFiltro);
+  const en = ntaEnNotion();
+  const adonde = i => `${esc(ntaTipoN(i.tipo))}${i.d ? ` → ${esc(i.d)}` : ''} · «${esc(i.t)}»`;
+  const fila = x => {
+    const err = ['err', 'fal'].includes(x.k), veces = +x.n > 1 ? ` · ${x.n} veces hoy` : '';
+    const its = (Array.isArray(x.it) ? x.it : []).map(i => `<li><span>${adonde(i)}${i.a === 'act' ? ' (actualizado)' : ''}</span>${ntUrl(i.u) ? `<a class="link" href="${esc(i.u)}" target="_blank" rel="noopener">Abrir en Notion</a>` : ''}</li>`).join('');
+    const fas = (Array.isArray(x.fa) ? x.fa : []).map(i => `<li class="err"><span>${adonde(i)}: ${esc(i.e)}</span></li>`).join('');
+    return `<li data-cxh="${esc(x.s)}"><span class="cxh-t">${esc(cxhHora(x.t))} · ${x.s === 'google' ? 'Google' : 'Notion'}</span><span class="cxh-x${err ? ' err' : ''}">${esc(x.txt || '')}${esc(veces)}</span>${its || fas ? `<ul>${its}${fas}</ul>` : ''}</li>`;
+  };
+  return `<div id="cxh"><p class="meta" style="margin:0"><button class="link" id="cxh-volver" style="min-height:44px">‹ Conexiones</button></p>
+    <h2 style="margin:6px 0 2px">Historial</h2>
+    <p class="meta" style="margin:0 0 4px">Conexiones y envíos de este teléfono, lo más nuevo arriba.${en ? ` En Notion hay ${en} ${en === 1 ? 'cosa enviada' : 'cosas enviadas'} desde tus dispositivos.` : ''}</p>
+    <div class="cxh-f" role="group" aria-label="Filtrar">${[['', 'Todo'], ['notion', 'Notion'], ['google', 'Google']].map(([k, n]) => `<button type="button" class="chip${cxhFiltro === k ? ' on' : ''}" aria-pressed="${cxhFiltro === k}" data-cxhf="${k}">${n}</button>`).join('')}</div>
+    ${L.length ? `<ul class="cxh-l">${L.map(fila).join('')}</ul>` : '<p class="meta">Aún no hay nada aquí.</p>'}
+    <div class="cxh-acc">${cxhL().length ? '<button class="link red" id="cxh-borrar">Borrar historial</button>' : ''}</div></div>`;
+}
+function cxhPintar() {
+  const B = $('#sheet-body'); if (!B) return;
+  const y = B.scrollTop;
+  showSheet(cxhHtml());
+  B.scrollTop = y;
+  B.querySelector('#cxh-volver')?.addEventListener('click', () => cxAjustes(''));
+  B.querySelectorAll('[data-cxhf]').forEach(b => b.addEventListener('click', () => { cxhFiltro = b.dataset.cxhf; cxhPintar(); }));
+  B.querySelector('#cxh-borrar')?.addEventListener('click', () => { if (!confirm('¿Borrar el historial de este teléfono?')) return; try { localStorage.removeItem(CXH_KEY); } catch {} cxhPintar(); toast('Historial borrado.'); });
+}
+function cxhAbrir(filtro) { if (typeof filtro === 'string') cxhFiltro = filtro; cxhPintar(); }
+
+// ====================================================================
+// Google: siempre conectado
+// En el navegador, Google solo deja pedir el permiso dentro de un toque tuyo (si no, bloquea su ventana): se renueva con tu primer toque en la
+// app cuando quedan menos de 10 minutos, y ningún temporizador abre ventanas de Google. En Android, el puente renueva solo, en silencio.
+// ====================================================================
+const GA_KEY = 'rumbo-ga';
+const gaEst = () => { try { return JSON.parse(localStorage.getItem(GA_KEY)) || {}; } catch { return {}; } };
+const gaEstPon = o => { try { localStorage.setItem(GA_KEY, JSON.stringify(o)); } catch {} };
+let gaP = null, gaInter = null, gaFallos = 0, gaProx = 0, gaYo = 0, gaTrasSync = false, gaUltGesto = 0, gaUltErr = '';
+const gaHint = () => { const c = gCfg(); const s = String(c.hint || c.cuenta || ''); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : ''; };
+// Errores que de verdad piden algo tuyo (no la red ni una espera).
+const GA_DURO = ['interaction_required', 'consent_required', 'login_required', 'access_denied', 'necesita_permiso', 'popup_failed_to_open', 'popup_closed', 'invalid_grant'];
+const gaGestoActivo = () => { try { if (navigator.userActivation) return !!navigator.userActivation.isActive; } catch {} return Date.now() - gaUltGesto < 4000; };
+function gaGuardarTok(r) {
+  const c = gCfg(); let cal = !!c.cal;
+  try { if (google?.accounts?.oauth2?.hasGrantedAllScopes) cal = google.accounts.oauth2.hasGrantedAllScopes(r, G_CAL) || cal; } catch {}
+  const n = { ...c, token: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000, ok: true, cal, renovar: false }; delete n.tocar;
+  gYoExp = n.exp; gSetCfg(n);
+  try { gRenovarIntento = false; } catch {}   // el toque en cualquier sitio de 2.25.0 vuelve a valer para el siguiente vencimiento
+}
+let gYoExp = 0;
+function gaExito(txt) {
+  gaFallos = 0; gaProx = 0; gaYo = Date.now(); gaUltErr = '';
+  const c2 = gCfg(); if (c2.tocar || c2.renovar) { const n = { ...c2, renovar: false }; delete n.tocar; gSetCfg(n); }
+  gaAnotarRenovado(txt);
+  gaDespues();
+}
+// Renueva sin pedir nada (si Google lo permite). gesto: dentro de un toque tuyo (en el navegador, la única forma). Devuelve el token o null.
+function gaSilencio(gesto = false) {
+  if (gaP) return gaP;
+  const c = gCfg(); if (!c.ok) return Promise.resolve(null);
+  if (navigator.onLine === false) return Promise.resolve(null);   // sin red: ni se intenta ni cuenta como fallo
+  if (!OP_ANDROID && !gesto && !gaGestoActivo()) return Promise.resolve(null);   // sin un toque, Google bloquea su ventana: espera al siguiente
+  const conToque = !!c.tocar;
+  gaP = (async () => {
+    if (OP_ANDROID) { if (!gNat()) return null; const t = await gNatToken(false, !!c.cal).catch(() => null); return t || { err: gCfg().renovar ? 'necesita_permiso' : 'sin_respuesta' }; }
+    try { await gLoad(); } catch { return { err: 'sin_script' }; }
+    return await new Promise(res => {
+      let fin = false; const done = v => { if (fin) return; fin = true; clearTimeout(t); res(v); };
+      const t = setTimeout(() => done({ err: 'tiempo' }), gesto ? 180000 : 20000);
+      try {
+        const hint = gaHint(), cal = !!gCfg().cal;   // solo lo ya concedido: sin pantalla de permiso nueva
+        const cl = google.accounts.oauth2.initTokenClient({ client_id: gCfg().clientId, scope: 'https://www.googleapis.com/auth/tasks' + (cal ? ' ' + G_CAL : ''), include_granted_scopes: true, prompt: '', ...(hint ? { login_hint: hint } : {}),
+          callback: r => { if (!r || r.error || !r.access_token) return done({ err: r?.error || 'error' }); gaGuardarTok(r); if (fin) { gaExito('Permiso de Google renovado.'); return; } done(r.access_token); },   // llegó tarde: se guarda igual
+          error_callback: e => done({ err: e?.type || 'error' }) });
+        cl.requestAccessToken({ prompt: '', ...(hint ? { login_hint: hint } : {}) });
+      } catch (e) { done({ err: 'sin_script' }); }
+    });
+  })().then(r => {
+    if (typeof r === 'string') { gaExito(conToque ? 'Permiso de Google renovado con un toque.' : 'Permiso de Google renovado solo.'); return r; }
+    const err = r?.err || ''; gaUltErr = err;
+    gaFallos++; gaProx = Date.now() + Math.min(600000, 30000 * 2 ** (gaFallos - 1));
+    const c2 = gCfg();
+    if (GA_DURO.includes(err) && navigator.onLine !== false && c2.ok && !gValid() && !c2.tocar) { gSetCfg({ ...c2, tocar: true }); cxhPon({ s: 'google', k: 'err', txt: 'Google pide tu permiso otra vez: toca el aviso para seguir conectado. Lo que cambies se sube después.' }); }
+    gaBanner();
+    return null;
+  }).finally(() => { gaP = null; });
+  return gaP;
+}
+function gaAnotarRenovado(txt) { const c = gCfg(); const S = gaEst(); S.exp = c.exp; S.ok = !!c.ok; gaEstPon(S); cxhPon({ s: 'google', k: 'ren', txt }); }
+// Tras renovar: lo que quedó esperando sube (Tasks) y la agenda se pone al día.
+function gaDespues() { gaBanner(); setTimeout(() => { try { if (!gSyncing) gSync(false); else gaTrasSync = true; } catch {} }, 300); }
+const GA_MSG = { popup_closed: 'Cerraste la ventana de Google.', access_denied: 'Google no dio el permiso.', tiempo: 'Google no respondió. Prueba otra vez.' };
+gToken = (f => async function (interactive, cal = false) {
+  const c = gCfg();
+  if (!interactive && c.ok && !gValid() && !OP_ANDROID) { const t = await gaSilencio(false); return typeof t === 'string' && (!cal || gCfg().cal) ? t : null; }
+  // Renovar con un toque (en el navegador): el mismo permiso de antes, sin pantalla de consentimiento (aunque falte Calendar).
+  if (interactive && !OP_ANDROID && c.ok && !gValid() && (!cal || c.cal)) {
+    const t = await gaSilencio(true);
+    if (typeof t === 'string') return t;
+    throw new Error(GA_MSG[gaUltErr] || 'Google no abrió la ventana de permiso.');
+  }
+  if (interactive) {
+    if (gaInter) return gaInter;
+    const eraOk = !!c.ok, eraVal = gValid();
+    gaInter = f.apply(this, arguments).then(t => {
+      if (t) { const c2 = gCfg(); if (c2.tocar) { const n = { ...c2 }; delete n.tocar; gSetCfg(n); } gaFallos = 0; gaProx = 0; if (eraOk && !eraVal) { gaYo = Date.now(); gaAnotarRenovado('Permiso de Google renovado con un toque.'); gaDespues(); } gaBanner(); }
+      return t;
+    }).finally(() => { gaInter = null; });
+    return gaInter;
+  }
+  return f.apply(this, arguments);
+})(gToken);
+// Un 401 en Tasks no desconecta: se renueva (en Android, solo; en el navegador, con tu siguiente toque) y lo cambiado sigue esperando en la app.
+gSync = (f => async function (interactive) {
+  const tok0 = gCfg().token, r = await f.apply(this, arguments);
+  try {
+    const c = gCfg();
+    if (c.ok && tok0 && !c.token) { cxhPon({ s: 'google', k: 'err', txt: 'Google rechazó el permiso: se renueva solo.' }); setTimeout(() => gaSilencio(gaGestoActivo()), 200); }
+    else if (gaTrasSync) { gaTrasSync = false; setTimeout(() => { try { gSync(false); } catch {} }, 500); }
+  } catch {}
+  return r;
+})(gSync);
+gCalFetch = (f => async function (url, opt) {
+  try { return await f.apply(this, arguments); }
+  catch (e) {
+    if (!/caducó/.test(e?.message || '') || !gCfg().ok) throw e;
+    const t = await gaSilencio(gaGestoActivo()); if (typeof t !== 'string') throw new Error('Google se renueva con tu próximo toque en la app.');
+    return f.apply(this, arguments);
+  }
+})(gCalFetch);
+// Renovar antes de que venza: en Android, el puente (al abrir, al volver y cada 20 s si quedan menos de 6 minutos). En el navegador, los
+// temporizadores no abren ventanas: solo miran el estado (el toque renueva).
+function gaTick() {
+  try {
+    gaVigilar();
+    const c = gCfg(); if (!c.ok || cxGViejo()) { gaBanner(); return; }
+    if (navigator.onLine === false) { gaBanner(); return; }
+    const queda = (+c.exp || 0) - Date.now();
+    if (queda > 360000 && c.token) { gaBanner(); return; }
+    if (document.visibilityState === 'hidden' || gaP || gaInter || Date.now() < gaProx) { gaBanner(); return; }
+    if (OP_ANDROID) {   // el puente: en silencio, también antes de vencer
+      if (!gNat()) return;
+      gNatToken(false, !!c.cal).then(t => { if (t && gCfg().exp !== c.exp) { gaExito('Permiso de Google renovado solo.'); } else if (!t) { gaFallos++; gaProx = Date.now() + Math.min(600000, 30000 * 2 ** (gaFallos - 1)); const c2 = gCfg(); if (c2.ok && !gValid() && c2.renovar && !c2.tocar && navigator.onLine !== false) { gSetCfg({ ...c2, tocar: true }); cxhPon({ s: 'google', k: 'err', txt: 'Google pide tu permiso otra vez: toca el aviso para seguir conectado.' }); } gaBanner(); } }).catch(() => {});
+      return;
+    }
+    if (!c.tocar && gaGestoActivo()) gaSilencio(true);
+    else gaBanner();
+  } catch {}
+}
+setInterval(gaTick, 20000);
+setTimeout(gaTick, 3000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(gaTick, 800); });
+addEventListener('focus', () => setTimeout(gaTick, 800));
+addEventListener('online', () => setTimeout(gaTick, 1500));
+// El toque: en el navegador, si al permiso le quedan menos de 10 minutos (o ya venció), se renueva dentro de ese toque (la ventana de Google
+// se abre y se cierra sola). Con el aviso a la vista, solo el aviso. Tras un fallo, espera creciente.
+document.addEventListener('click', e => {
+  gaUltGesto = Date.now();
+  try {
+    if (OP_ANDROID || e.isTrusted === false) return;
+    const c = gCfg(); if (!c.ok || c.tocar || gaP || gaInter || navigator.onLine === false || cxGViejo()) return;
+    if (e.composedPath?.().some(n => n && n.id === 'ga-banner')) return;
+    const queda = (+c.exp || 0) - Date.now();
+    if (c.token && queda > 600000) return;
+    if (Date.now() < gaProx) return;
+    gaSilencio(true);
+  } catch {}
+}, true);
+// Conectado, desconectado o renovado por otro camino (un toque en cualquier sitio, el puente): al historial.
+function gaVigilar() {
+  let c = gCfg(); const S = gaEst();
+  if (c.ok && c.tocar && gValid()) { const n = { ...c }; delete n.tocar; gSetCfg(n); c = gCfg(); }   // renovado (también por el puente): sin aviso
+  if (S.ok === undefined) { gaEstPon({ ok: !!c.ok, exp: +c.exp || 0 }); return; }   // primera vez en esta versión: sin anotar
+  if (c.ok && !S.ok) cxhPon({ s: 'google', k: 'con', txt: 'Google conectado (Tasks y Calendar).' });
+  else if (!c.ok && S.ok) cxhPon({ s: 'google', k: 'des', txt: 'Google desconectado en este teléfono.' });
+  else if (c.ok && c.token && +c.exp && +c.exp !== +S.exp && +c.exp !== gYoExp && Date.now() - gaYo > 5000 && +S.exp) cxhPon({ s: 'google', k: 'ren', txt: 'Permiso de Google renovado.' });
+  if (!!c.ok !== !!S.ok || (+c.exp || 0) !== (+S.exp || 0)) gaEstPon({ ok: !!c.ok, exp: +c.exp || 0 });
+  if (c.ok && c.cuenta && !c.hint && /@/.test(c.cuenta)) gSetCfg({ ...c, hint: String(c.cuenta).slice(0, 120) });
+}
+// El aviso suave: solo cuando de verdad Google pide algo tuyo (quitaste el permiso, cerraste su ventana o Google la pide).
+let gaBtn = null;
+function gaBanner() {
+  try {
+    const c = gCfg(), ver = !!(c.ok && !gValid() && (c.tocar || c.renovar) && !cxGViejo());
+    if (!gaBtn && !ver) return;
+    if (!gaBtn) {
+      gaBtn = document.createElement('button'); gaBtn.type = 'button'; gaBtn.className = 'ga-banner'; gaBtn.id = 'ga-banner'; gaBtn.hidden = true;
+      gaBtn.innerHTML = '<span class="ga-ic" aria-hidden="true">↻</span><span>Toca para seguir conectado<small>Google Tasks: un toque y lo que cambiaste se sube.</small></span>';
+      gaBtn.addEventListener('click', async () => {
+        gaBtn.disabled = true;
+        try { const t = await gToken(true, !!gCfg().cal); if (t) toast('Listo: Google sigue conectado.'); }
+        catch (e) { toast(e?.message || 'Google no respondió. Prueba otra vez.'); }
+        finally { gaBtn.disabled = false; gaBanner(); }
+      });
+      ov.appendChild(gaBtn);
+    }
+    gaBtn.hidden = !ver;
+  } catch {}
+}
+// Google Tasks: «Desconectar» sale de la vista principal (queda en «Más opciones», con confirmación) y el texto ya no habla de una hora.
+gtasksSheet = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    const c = gCfg(); if (!c.ok) return r;
+    const M = document.querySelector('#msg-dialog'), off = M?.querySelector('#g-off'); if (!off) return r;
+    M.querySelectorAll('p.meta').forEach(p => { p.innerHTML = p.innerHTML.replace('Los cambios se sincronizan solos mientras el permiso esté activo (una hora); después, un toque aquí lo renueva.', 'Los cambios se sincronizan solos y la conexión se renueva sola.').replace('Google pide tu permiso otra vez: toca «Sincronizar ahora» para renovarlo.', 'Google pide tu permiso otra vez: toca «Sincronizar ahora» para seguir conectado.'); });
+    const det = document.createElement('details'); det.className = 'cx-mas';
+    det.innerHTML = '<summary>Más opciones</summary><p class="meta">Tasks queda conectado siempre. Desconectar solo sirve para quitarle a la app el permiso de Google.</p>';
+    const f0 = off.onclick; off.onclick = e => { if (!confirm('¿Desconectar Google Tasks en este teléfono? Se deja de sincronizar.')) return; f0?.call(off, e); };
+    det.appendChild(off);
+    const acc = M.querySelector('.dialog-actions'); acc?.parentNode?.insertBefore(det, acc);
+    if (!document.getElementById('nta-msg-css')) { const s = document.createElement('style'); s.id = 'nta-msg-css'; s.textContent = '#msg .cx-mas{margin:10px 0 0}#msg .cx-mas>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--muted)}#msg .cx-mas button{min-height:44px}'; document.head.appendChild(s); }
+  } catch (e) { console.warn('Conexiones', e); }
+  return r;
+})(gtasksSheet);
+window.ntaOpc = { correr: () => ntaCorrer(), guardar: () => guardar(), lista: () => ntaLista().map(({ k, tipo, tit, nuevo, estable }) => ({ k, tipo, tit, nuevo, estable })), marcas: () => JSON.parse(JSON.stringify(ES.ntAuto || {})), aj: () => ntaAj(), hist: () => cxhL(), historial: f => cxhAbrir(f), dev: () => NTA_DEV, info: () => ({ ...ntaInfo, corriendo: ntaCorriendo }), gTick: () => gaTick(), gSilencio: () => gaSilencio(true).then(t => typeof t === 'string'), banner: () => !!(gaBtn && !gaBtn.hidden), enNotion: () => ntaEnNotion(), rfEnviar: id => rfAJournal(id) };
+// 2.25.2 (D) · Agendar desde la víspera: un día libre por semana
+// ====================================================================
+// 2.25.2 (D) · «Regla nueva: solo se puede poner un día no agendado. Si no se agenda un día desde el día anterior se pierde XP.»
+// - Un día D cuenta como agendado si, antes de las 12:00 AM de su víspera (la hora del teléfono), ya tenía al menos una cosa en su agenda.
+//   ES.agendaDia = { D: { a, u, on } }: on = 1 desde que D tuvo su primera cosa (a, la primera vez), 0 si se quedó sin nada antes de llegar;
+//   u = el último cambio (la fusión entre teléfonos se queda con el más reciente; con los dos en 1, la a más antigua). Lo anota adFoto al
+//   guardar (y cada minuto) mirando los días que vienen: lo que se añade el mismo día D no lo toca (ya no es un día futuro), lo que se pasa
+//   a D antes de que llegue (2.24.2) sí cuenta, y quitarlo todo antes de la medianoche lo deja sin agendar.
+// - Cada semana (lunes a domingo) el primer día sin agendar es libre; cada día más sin agendar resta 20 XP al empezar (o al abrir la app
+//   después), con el libro de pérdidas de siempre (ES.xpPen[D]['pg:agenda:D']: una vez por día aunque haya dos teléfonos). La revisión de
+//   cada día queda en ES.agendaRegla.ev[D] = { r: 'ok' | 'libre' | 'pen', t, n, vi } (por día, la primera revisión; vi = aviso ya visto).
+//   ES.agendaRegla.desde = el día siguiente al primer arranque de 2.25.2 (nunca hacia atrás; la fusión, el más antiguo).
+// - Se ve en la Agenda y en el Inicio: cómo está mañana y «Agendar mañana»; la semana con su día libre; un aviso amable, una vez, cuando un
+//   día fue libre o restó; a las 8:00 PM, si mañana sigue sin agendar, un recordatorio (y el aviso push de las 8:00 PM, en notificar.mjs).
+// Reglas: tuteo, corto, «», sin rayas largas. 2.25.1 abre estos datos sin problema (los guarda tal cual; lo restado ya lo suma xpPenSuma).
+// ====================================================================
+var AD_XP = 20, AD_INI = '', adUltDia = '', adRevisando = false, adFresco = '';
+const adRef = d => 'pg:agenda:' + d;
+const adOkDia = d => /^\d{4}-\d\d-\d\d$/.test(d || '');
+// Revisar (restar o gastar el día libre) solo con datos frescos: sin cuenta, siempre; con cuenta, después de una combinación con la nube
+// hecha hoy, con la app a la vista y sin haber pasado a segundo plano desde entonces (adFresco = el día de esa combinación; se borra al
+// ocultarse). Anotar (adFoto) no espera a la nube: son marcas de hora de este teléfono y la fusión por día ya es segura.
+function adCuenta() { try { return !!(auth || window.claude?.use); } catch { return false; } }
+function adPuede() { try { return !adCuenta() || (!!nubeLista && adFresco === today()); } catch { return true; } }
+// Guardar lo anotado sin adelantarse a la nube: con la nube ya combinada, como siempre; si no, solo en este teléfono (sin tocar «cambiado»)
+// y se sube al combinar (guardarTras).
+function adGuardarSuave() {
+  try { if (!adCuenta() || nubeLista) { save(); return; } } catch { save(); return; }
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  try { guardarTras = true; } catch {}
+}
+function adMapa() { const M = ES.agendaDia; if (M && typeof M === 'object' && !Array.isArray(M)) return M; ES.agendaDia = {}; return ES.agendaDia; }
+function adRegla() {
+  let R = ES.agendaRegla; if (!R || typeof R !== 'object' || Array.isArray(R)) { ES.agendaRegla = R = {}; }
+  if (!R.ev || typeof R.ev !== 'object' || Array.isArray(R.ev)) R.ev = {};
+  return R;
+}
+const adIni = d => new Date(d + 'T00:00:00').getTime();
+function adLunes(d) { const x = new Date(d + 'T12:00:00'); return agpDia(d, -((x.getDay() + 6) % 7)); }
+// ¿Tiene el día al menos una cosa en su agenda? Lo mismo que muestra la Agenda de ese día (agmFutItems: su plan, las tareas con esa
+// fecha y los bloques de Estudio), más las prioridades del plan.
+function adTiene(d) {
+  let P = null; try { P = planDia(d); } catch {}
+  if (P && Array.isArray(P.prios) && P.prios.length > 0) return true;
+  try { return agmFutItems(d).length > 0; } catch {}
+  return !!P && Array.isArray(P.items) && P.items.some(it => it && typeof it === 'object' && agVisible(it));
+}
+// El plan de la víspera que ya llegó a la agenda de hoy (aquí o en un teléfono con 2.25.1): la hora más temprana, antes de la medianoche,
+// en que hoy ya tenía algo (organizado la víspera, o una cosa con alta de antes). 0 si no.
+function adHoyDesdeAntes(d) {
+  const t0 = adIni(d); let m = 0;
+  const vis = L => (Array.isArray(L) ? L : []).filter(it => it && typeof it === 'object' && agVisible(it));
+  const fuentes = [];
+  try { const A = ES.agendaHoy; if (A && A.fecha === d) { const L = vis(A.items); if (L.length && A.anoche && +A.organizado > 0 && +A.organizado < t0) m = +A.organizado; fuentes.push(L); } } catch {}
+  try { const P = planDia(d); if (P) fuentes.push(vis(P.items)); } catch {}
+  for (const L of fuentes) for (const it of L) { const a = +it.alta || 0; if (a > 0 && a < t0 && (!m || a < m)) m = a; }
+  return m;
+}
+// Lo anota para los días que vienen (hasta 60) y, para hoy, lo que ya llegó de la víspera. Devuelve si cambió algo.
+function adFoto() {
+  const t = today(), max = agpDia(t, 60), M = adMapa(), ahora = Date.now(); let c = false;
+  const ds = new Set([...Object.keys(ES.agendaPlanes && typeof ES.agendaPlanes === 'object' ? ES.agendaPlanes : {}), ...Object.keys(M)]);
+  if (ES.agendaPlan && adOkDia(ES.agendaPlan.fecha)) ds.add(ES.agendaPlan.fecha);
+  try { for (const x of HT().tareas?.items || []) if (x && !x.hecha && adOkDia(x.fecha) && x.fecha > t && x.fecha <= max) ds.add(x.fecha); } catch {}
+  for (let i = 1; i <= 14; i++) ds.add(agpDia(t, i));   // los bloques de Estudio de las próximas dos semanas
+  try { const h = adHoyDesdeAntes(t), r = M[t]; if (h && (!r || (!r.on && +r.u < h) || (r.on && !(+r.a > 0 && +r.a < adIni(t))))) { M[t] = { a: h, u: h, on: 1 }; c = true; } } catch {}
+  for (const d of ds) {
+    if (!adOkDia(d) || d <= t || d > max) continue;
+    const r = M[d], on = !!(r && r.on), hay = adTiene(d);
+    if (hay && !on) { M[d] = { a: ahora, u: ahora, on: 1 }; c = true; }
+    else if (!hay && on) { M[d] = { a: 0, u: ahora, on: 0 }; c = true; }
+  }
+  const cut = agpDia(t, -70);
+  for (const d of Object.keys(M)) if (!adOkDia(d) || d < cut) { delete M[d]; c = true; }
+  return c;
+}
+// ¿Estaba D agendado antes de empezar? (lo anotado; sin anotación, lo que dejó un teléfono de antes: el plan organizado la víspera o lo movido)
+function adAgendado(d) {
+  const t0 = adIni(d), r = adMapa()[d];
+  if (r && r.on && +r.a > 0 && +r.a < t0) return true;
+  // Sin anotación (o con una «sin nada» anterior): lo que dejó un teléfono de antes, si es más nuevo que esa anotación.
+  const despues = ts => ts > 0 && ts < t0 && !(r && !r.on && +r.u >= ts);
+  try { const P = planDia(d); if (P && Array.isArray(P.items) && P.items.some(it => it && agVisible(it)) && despues(+P.organizado || 0)) return true; } catch {}
+  try { if (despues(adHoyDesdeAntes(d))) return true; } catch {}
+  try { for (const L of Object.values(ES.agendaMov && typeof ES.agendaMov === 'object' ? ES.agendaMov : {})) for (const x of Array.isArray(L) ? L : []) if (x && x.a === d && despues(+x.en || 0)) return true; } catch {}
+  return false;
+}
+// El día libre ya usado en la semana de d, antes de d ('' si aún no).
+function adLibreDe(d) { const R = adRegla(); for (let x = adLunes(d), i = 0; x < d && i < 7; x = agpDia(x, 1), i++) if (R.ev[x]?.r === 'libre') return x; return ''; }
+// Una sola verdad entre lo revisado (ev) y lo restado (xpPen), también cuando dos teléfonos revisaron a la vez o llegó tarde lo agendado:
+// - un día que resulta agendado desde la víspera pasa a «ok» y lo restado vuelve (n = 0, con hora nueva para que gane al combinar);
+// - en cada semana, el primer día sin agendar es el libre: si no hay ninguno libre, el primero con resta pasa a libre y su XP vuelve;
+// - un día «ok» o «libre» con una resta que no le toca: si ya hay otro libre antes en su semana, queda como resta; si no, la resta vuelve.
+function adConciliar(R, t) {
+  const P = ES.xpPen && typeof ES.xpPen === 'object' ? ES.xpPen : {}, ahora = Date.now(), desde = agpDia(t, -21), sem = new Set(); let c = false;
+  const pen = d => P[d]?.[adRef(d)] || null;
+  const devolver = d => { const v = pen(d); if (v && +v.n > 0) { v.n = 0; v.t = ahora; c = true; } };
+  const poner = (d, r, n) => { const e = R.ev[d], x = { r, t: +e?.t || ahora, rv: ahora, ...(n > 0 ? { n } : {}), ...(+e?.vi > 0 && r !== 'pen' ? { vi: e.vi } : {}) }; R.ev[d] = x; c = true; };
+  const dias = Object.keys(R.ev).filter(d => adOkDia(d) && d >= desde && d <= t && d >= (R.desde || '')).sort();
+  for (const d of dias) { const e = R.ev[d]; if (e.r !== 'ok' && adAgendado(d)) { devolver(d); poner(d, 'ok', 0); sem.add(adLunes(d)); } }
+  for (const d of dias) {
+    const e = R.ev[d], v = pen(d), n = v ? Math.max(0, +v.n || 0) : 0;
+    if (e.r === 'pen') { if (v && (+e.n || 0) !== n) { e.n = n; if (!n) delete e.n; c = true; } continue; }
+    if (!(n > 0)) continue;
+    if (e.r === 'ok') { devolver(d); continue; }
+    if (adLibreDe(d)) poner(d, 'pen', n); else devolver(d);
+  }
+  for (const d of dias) sem.add(adLunes(d));
+  for (const L of sem) {
+    const ds = []; for (let i = 0; i < 7; i++) { const d = agpDia(L, i); if (R.ev[d] && d <= t) ds.push(d); }
+    if (ds.some(d => R.ev[d].r === 'libre')) continue;
+    const p = ds.find(d => R.ev[d].r === 'pen'); if (!p) continue;
+    devolver(p); poner(p, 'libre', 0);
+  }
+  return c;
+}
+// Revisa cada día desde el último revisado hasta hoy (una sola vez cada uno; con la nube ya combinada en esta visita).
+function adRevisar() {
+  if (adRevisando || !adPuede()) return [];
+  adRevisando = true;
+  try {
+    const t = today(), R = adRegla(); let c = false;
+    if (!adOkDia(R.desde)) { R.desde = agpDia(t, 1); c = true; }
+    if (adFoto()) c = true;
+    const out = [];
+    let d = R.desde > agpDia(t, -21) ? R.desde : agpDia(t, -21);
+    for (let i = 0; d <= t && i < 30; d = agpDia(d, 1), i++) {
+      if (R.ev[d]) continue;
+      const ya = ES.xpPen?.[d]?.[adRef(d)];
+      let e;
+      if (ya) e = { r: 'pen', t: Date.now(), n: Math.max(0, +ya.n || 0) };   // ya lo restó otro teléfono
+      else if (adAgendado(d)) e = { r: 'ok', t: Date.now() };
+      else if (!adLibreDe(d)) e = { r: 'libre', t: Date.now() };
+      else { let n = 0; try { n = xpPenPoner(d, adRef(d), AD_XP, '', 'Día sin agendar desde la víspera'); } catch (er) { console.warn('Agendar desde la víspera', er); } e = { r: 'pen', t: Date.now(), n }; }
+      if (d < t && e.r !== 'ok' && d < agpDia(t, -6)) e.vi = Date.now();   // lo de hace más de una semana, sin aviso
+      R.ev[d] = e; out.push([d, e]); c = true;
+    }
+    try { if (adConciliar(R, t)) c = true; } catch (er) { console.warn('Agendar desde la víspera', er); }
+    const cut = agpDia(t, -120);
+    for (const k of Object.keys(R.ev)) if (!adOkDia(k) || k < cut) { delete R.ev[k]; c = true; }
+    if (c) {
+      try { if (out.some(([, e]) => e.r === 'pen')) { const L1 = nivelDe(xpTotal()); if (L1 < (+ES.xp?.visto || 1)) ES.xp.visto = L1; } } catch {}
+      guardar(); try { renderXp(); } catch {}
+      adRepintar();
+    }
+    return out;
+  } finally { adRevisando = false; }
+}
+// ---------- Lo que se ve
+function adEstado() {
+  const t = today(), m = agpDia(t, 1);
+  if (adTiene(m)) return { k: 'ok', m, txt: 'Mañana ya está agendado' };
+  if (adLibreDe(m)) return { k: 'pen', m, txt: `Mañana sin agendar · se restan ${AD_XP} XP si no lo agendas hoy` };
+  return { k: 'libre', m, txt: 'Mañana sin agendar · aún tienes tu día libre de la semana' };
+}
+const AD_DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+function adSemana(d = today()) {
+  const L = adLunes(d), R = adRegla(), t = today(), out = [];
+  for (let i = 0; i < 7; i++) {
+    const x = agpDia(L, i), e = R.ev[x], num = +x.slice(8);
+    let k, s;
+    if (e) { k = e.r; s = e.r === 'ok' ? 'agendado' : e.r === 'libre' ? 'día libre' : `sin agendar, −${+e.n || 0} XP`; }
+    else if (x > t) { const on = adTiene(x); k = on ? 'fut-ok' : 'fut'; s = on ? 'ya agendado' : 'aún sin agendar'; }
+    else { k = 'antes'; s = 'antes de la regla'; }
+    out.push({ d: x, k, num, n: AD_DIAS[i], s, hoy: x === t });
+  }
+  return out;
+}
+function adSemanaHtml(d) {
+  const S = adSemana(d);
+  const ico = k => k === 'ok' || k === 'fut-ok' ? '✓' : k === 'libre' ? 'Libre' : k === 'pen' ? '−' + AD_XP : '·';
+  return `<div class="ad-sem" role="list" aria-label="Tu semana">${S.map(x => `<span class="ad-d ad-${x.k}${x.hoy ? ' ad-hoy' : ''}" role="listitem" aria-label="${esc(`${x.n} ${x.num}: ${x.s}`)}"><small>${x.n.slice(0, 2)}</small><b>${ico(x.k)}</b></span>`).join('')}</div>`;
+}
+// El aviso, una vez: el último día libre o lo restado (de esta semana y la anterior) que aún no se vio.
+function adAvisoPend() {
+  const R = adRegla(), t = today(), desde = agpDia(t, -6);
+  return Object.entries(R.ev).filter(([d, e]) => adOkDia(d) && d >= desde && d <= t && e && (e.r === 'libre' || e.r === 'pen') && !(+e.vi > 0)).sort(([a], [b]) => a < b ? -1 : 1);
+}
+function adQuien(d) { const t = today(); return d === t ? 'Hoy' : d === agpDia(t, -1) ? 'Ayer' : 'El ' + fechaLarga(d).replace(',', ''); }
+function adOtroLibre() { const t = today(), L = agpDia(adLunes(t), 7); return L === agpDia(t, 1) ? 'Mañana, lunes, tienes otro.' : 'El próximo lunes tienes otro.'; }
+function adAvisoTxt(L) {
+  const pen = L.filter(([, e]) => e.r === 'pen'), lib = L.filter(([, e]) => e.r === 'libre'), t = today(), libHoy = lib.some(([d]) => d === t);
+  if (pen.length) {
+    const n = pen.reduce((s, [, e]) => s + (+e.n || 0), 0), ult = pen[pen.length - 1][0];
+    const quien = pen.length === 1 ? adQuien(ult) + ' no quedó agendado desde la víspera' : `${pen.length} días no quedaron agendados desde la víspera`;
+    const m = libHoy ? 'Hoy es tu día libre de la semana: no resta XP.' : adLunes(ult) === adLunes(t) ? 'Ya usaste tu día libre de esta semana.' : 'Esta semana tienes otra vez tu día libre.';
+    return { t: `${quien}${n > 0 ? `: −${n} XP` : ''}.`, m: m + (n > 0 ? '' : ' Con tu XP en 0, no restó nada.') };
+  }
+  const d = lib[lib.length - 1][0];
+  return { t: d === t ? 'Hoy es tu día libre de la semana' : `${adQuien(d)} fue tu día libre de la semana`, m: 'No quedó agendado desde la víspera y no restó XP. ' + adOtroLibre() };
+}
+function adHtml(donde) {
+  const R = adRegla(); if (!adOkDia(R.desde)) return '';
+  const E = adEstado(), L = adAvisoPend(), A = L.length ? adAvisoTxt(L) : null;
+  const av = A ? `<div class="ad-aviso" id="${donde}-ad-aviso" role="status"><p class="ad-at">${esc(A.t)}</p> <p class="ad-am">${esc(A.m)}</p> <button type="button" class="link ad-btn" data-ad="visto">Entendido</button></div>` : '';
+  return `<section class="ad-c ad-${E.k}" id="${donde}-ad" aria-label="Mañana">${av}<div class="ad-l"><span class="dot" aria-hidden="true"></span><span class="ad-t">${esc(E.txt)}</span></div>
+    ${donde === 'ag' ? adSemanaHtml() : ''}<div class="ad-b">${E.k === 'ok' ? '' : '<button type="button" class="primary ad-btn" data-ad="ir">Agendar mañana</button>'}<button type="button" class="link ad-btn" data-ad="info">Cómo funciona</button></div></section>`;
+}
+function adPoner(W, donde, despues) {
+  if (!W) return;
+  W.querySelector(`#${donde}-ad`)?.remove();
+  const h = adHtml(donde); if (!h) return;
+  const tmp = document.createElement('div'); tmp.innerHTML = h; const el = tmp.firstElementChild; if (!el) return;
+  if (despues) despues.after(el); else W.prepend(el);
+}
+function adPintarAg() {
+  try {
+    if (!agW || view === 'iniciativas') return;
+    const top = agW.querySelector(':scope > .ag-top'); if (!top) { agW.querySelector('#ag-ad')?.remove(); return; }   // un día pasado: solo para ver
+    adPoner(agW, 'ag', top);
+  } catch (e) { console.warn('Agendar desde la víspera', e); }
+}
+function adPintarIni() {
+  try {
+    if (!iniW) return;
+    let f = iniW.querySelector('#ini-foco'); if (f && f.nextElementSibling?.classList.contains('ag-alerta')) f = f.nextElementSibling;
+    if (!f) f = iniW.querySelector(':scope > .ag-alerta');
+    adPoner(iniW, 'ini', f || null);
+  } catch (e) { console.warn('Agendar desde la víspera', e); }
+}
+function adRepintar() { try { if (agEnVista()) adPintarAg(); } catch {} try { if (view === 'inicio') adPintarIni(); } catch {} }
+function adAbrirManana() {
+  const m = agpDia(today(), 1);
+  try { if (window.orgPropuesta) { window.orgPropuesta(m); return; } } catch (e) { console.warn('Agendar mañana', e); }
+  try { agpAbrir(m); } catch (e) { console.warn('Agendar mañana', e); }
+}
+function adInfo() {
+  const E = adEstado(), lib = adLibreDe(agpDia(today(), 1)) || adLibreDe(agpDia(today(), 0)) || (adRegla().ev[today()]?.r === 'libre' ? today() : '');
+  showSheet(`<h2>Agendar desde la víspera</h2>
+    <p class="note">Un día cuenta como agendado si la noche antes ya tiene al menos una cosa en su agenda.</p>
+    <p class="note">Cada semana, de lunes a domingo, tienes un día libre: el primer día sin agendar no resta. Desde el segundo, cada día sin agendar resta ${AD_XP} XP al empezar.</p>
+    <p class="meta">Lo que añadas el mismo día no cuenta para ese día. Lo que pases a otro día antes de que llegue, sí. Si quitas todo antes de la medianoche, ese día queda sin agendar.</p>
+    <h3>Tu semana</h3>${adSemanaHtml()}
+    <p class="meta" id="ad-info-lib">${lib ? `Tu día libre de esta semana: ${esc(fechaLarga(lib).replace(',', ''))}.` : 'Esta semana aún tienes tu día libre.'}</p>
+    <div class="actions">${E.k === 'ok' ? '' : '<button class="outline" id="ad-info-ir">Agendar mañana</button>'}<button class="primary" id="ad-info-ok">Entendido</button></div>`);
+  $('#ad-info-ok').onclick = closeSheet;
+  $('#ad-info-ir')?.addEventListener('click', () => { closeSheet(); adAbrirManana(); });
+}
+function adClick(e) {
+  const b = e.target.closest?.('[data-ad]'); if (!b) return;
+  const k = b.dataset.ad;
+  if (k === 'ir') adAbrirManana();
+  else if (k === 'info') adInfo();
+  else if (k === 'visto') { for (const [, x] of adAvisoPend()) x.vi = Date.now(); guardar(); adRepintar(); }
+}
+// A las 8:00 PM (o al abrir después), si mañana sigue sin agendar: un recordatorio, una vez por noche en este teléfono.
+function adNoche() {
+  try {
+    const t = today(), h = new Date().getHours();
+    if (h < 20 || !adOkDia(adRegla().desde)) return;
+    let ya = ''; try { ya = localStorage.getItem('ad-noche') || ''; } catch {}
+    if (ya === t) return;
+    const E = adEstado(); if (E.k === 'ok') return;
+    try { if (sheet.open) return; } catch {}
+    try { localStorage.setItem('ad-noche', t); } catch {}
+    toast(E.k === 'pen' ? `Mañana aún no está agendado. Con una cosa basta para no perder ${AD_XP} XP.` : 'Mañana aún no está agendado. Con una cosa basta.');
+  } catch (e) { console.warn('Agendar desde la víspera', e); }
+}
+// ---------- Estilos (Agenda, Inicio y la hoja)
+const AD_CSS = `
+  .ad-c { margin: 12px 0 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--soft, transparent); }
+  .ad-l { display: flex; align-items: flex-start; gap: 10px; }
+  .ad-l .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--muted); }
+  .ad-ok .ad-l .dot { background: var(--green); } .ad-libre .ad-l .dot { background: var(--accent); } .ad-pen .ad-l .dot { background: var(--amber, #c80); }
+  .ad-t { flex: 1; min-width: 0; font-size: .95rem; line-height: 1.35; overflow-wrap: anywhere; }
+  .ad-b { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; }
+  .ad-b:empty { display: none; }
+  .ad-btn { min-height: 44px; min-width: 44px; }
+  .ad-b .primary { padding-left: 16px; padding-right: 16px; }
+  .ad-sem { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 10px 0 2px; }
+  .ad-d { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 0; border-radius: 10px; min-width: 0; }
+  .ad-d small { font-size: .7rem; color: var(--muted); }
+  .ad-d b { font-size: .78rem; font-weight: 700; line-height: 1.3; white-space: nowrap; }
+  .ad-d.ad-ok b, .ad-d.ad-fut-ok b { color: var(--green); }
+  .ad-d.ad-libre { background: var(--line); } .ad-d.ad-libre b { color: var(--text); font-size: .7rem; }
+  .ad-d.ad-pen b { color: var(--amber, #c80); font-size: .72rem; }
+  .ad-d.ad-hoy { outline: 2px solid var(--line); outline-offset: -2px; }
+  .ad-aviso { margin: 0 0 10px; padding: 0 0 10px; border-bottom: 1px solid var(--line); }
+  .ad-aviso p { margin: 0; } .ad-at { font-weight: 700; } .ad-am { color: var(--muted); font-size: .9rem; margin-top: 2px !important; }
+  .ad-aviso .ad-btn { margin-top: 2px; padding-left: 0; }
+  @media (max-width: 359px) { .ad-c { padding: 10px 12px; } .ad-d b { font-size: .68rem; } .ad-d.ad-libre b, .ad-d.ad-pen b { font-size: .62rem; } }`;
+function adCss(R) { try { if (R && !R.querySelector?.('#ad-css')) { const st = document.createElement('style'); st.id = 'ad-css'; st.textContent = AD_CSS; (R.appendChild ? R : document.head).appendChild(st); } } catch {} }
+try { adCss(agW?.getRootNode?.()); adCss(iniW?.getRootNode?.()); adCss(ov); } catch {}
+try { agW?.addEventListener('click', adClick); iniW?.addEventListener('click', adClick); } catch {}
+// ---------- Ganchos: guardar anota los días que vienen; la Agenda y el Inicio pintan; el arranque del XP revisa.
+guardar = (f => function () { try { adFoto(); } catch (e) { console.warn('Agendar desde la víspera', e); } return f.apply(this, arguments); })(guardar);
+// La combinación con la nube deja revisar hoy (si la app está a la vista); al ocultarse, hasta la próxima.
+nubeCombinada = (f => function () { try { if (document.visibilityState !== 'hidden') adFresco = today(); } catch { adFresco = today(); } return f.apply(this, arguments); })(nubeCombinada);
+// «Agendar mañana» (o cualquier día que viene) sin nada elegido: en vez de «Vuelve atrás…», una línea para escribir una cosa; y si al tocar
+// Listo el día sigue sin nada, se dice.
+orgPropuestaSheet = (f => function (dest) {
+  const x = f.apply(this, arguments);
+  try {
+    const d = dest || today(); if (d <= today() || !adOkDia(adRegla().desde)) return x;
+    const W = $('#sheet-body')?.querySelector('#op-wrap'); if (!W) return x;
+    const cual = d === agpDia(today(), 1) ? 'mañana' : 'ese día';
+    const e = [...W.querySelectorAll('p.empty')].find(p => /^No hay nada elegido/.test(p.textContent || ''));
+    if (e) { e.textContent = `Escribe una cosa para ${cual} y queda agendado.`; e.id = 'op-ad-vacio'; setTimeout(() => { try { W.querySelector('#op-p1')?.focus(); } catch {} }, 60); }
+    W.querySelector('#op-ok')?.addEventListener('click', () => setTimeout(() => { try { if (!adTiene(d)) toast(`${cap(cual)} aún no tiene nada en su agenda. Con una cosa queda agendado.`); } catch {} }, 700));
+  } catch (e) { console.warn('Agendar mañana', e); }
+  return x;
+})(orgPropuestaSheet);
+renderAg = (f => function () { const x = f.apply(this, arguments); adPintarAg(); return x; })(renderAg);
+// El plan que llega hoy (de este teléfono o de uno de antes): si tenía algo y se organizó antes de la medianoche, hoy queda agendado desde la víspera.
+agAplicarPlan = (f => function (A, P) {
+  try { const t = today(), M = adMapa(); if (P && P.fecha === t && !M[t] && Array.isArray(P.items) && P.items.some(it => it && typeof it === 'object') && +P.organizado > 0 && +P.organizado < adIni(t)) M[t] = { a: +P.organizado, u: +P.organizado, on: 1 }; } catch {}
+  return f.apply(this, arguments);
+})(agAplicarPlan);
+renderInicio = (f => function () { const x = f.apply(this, arguments); adPintarIni(); return x; })(renderInicio);
+window.renderInicio = renderInicio;
+xpSheet = (f => function () {
+  const x = f.apply(this, arguments);
+  try {
+    const B = $('#sheet-body'), R = adRegla(); if (!B || !adOkDia(R.desde)) return x;
+    const P = Object.entries(ES.xpPen || {}).flatMap(([d, m]) => m && m[adRef(d)] ? [[d, m[adRef(d)]]] : []).sort(([a], [b]) => a < b ? 1 : -1).slice(0, 8);
+    const lib = adLibreDe(agpDia(today(), 1)) || (R.ev[today()]?.r === 'libre' ? today() : '');
+    const box = document.createElement('div'); box.className = 'xs-caja'; box.id = 'xs-agenda';
+    box.innerHTML = `<b class="k">Agendar desde la víspera</b><p style="margin-top:0">${lib ? `Día libre de esta semana: ${esc(fechaLarga(lib).replace(',', ''))}.` : 'Esta semana aún tienes tu día libre.'} Cada día más sin agendar desde la víspera resta ${AD_XP} XP.</p>${P.length ? `<div class="rows">${P.map(([d, v]) => `<div class="row" style="padding:7px 0"><span class="t"><div style="white-space:normal">${esc(cap(fechaLarga(d)))}</div><small>${esc(v.m || 'Día sin agendar desde la víspera')}</small></span><span class="tag">−${+v.n || 0}</span></div>`).join('')}</div>` : ''}`;
+    const ref = B.querySelector('#xs-sem'); if (ref) ref.before(box); else B.append(box);
+    const tb = B.querySelector('details .rows');
+    if (tb) { const r = document.createElement('div'); r.className = 'row'; r.style.padding = '8px 0'; r.innerHTML = `<span class="t"><div style="font-size:.92rem;white-space:normal">Día sin agendar desde la víspera</div><small style="white-space:normal">El primero de cada semana (lunes a domingo) es libre.</small></span><span class="tag">−${AD_XP}</span>`; tb.append(r); }
+  } catch (e) { console.warn('Agendar desde la víspera', e); }
+  return x;
+})(xpSheet);
+window.xpArranque = (f => function () { const x = f.apply(this, arguments); try { adRevisar(); } catch (e) { console.warn('Agendar desde la víspera', e); } return x; })(window.xpArranque);
+setInterval(() => {
+  try {
+    const t = today();
+    if (t !== adUltDia) { adUltDia = t; adRevisar(); }   // con cuenta, adPuede espera a la combinación de hoy (la siguiente, en 30 s)
+    else if (adFoto()) adGuardarSuave();
+    adNoche();
+  } catch (e) { console.warn('Agendar desde la víspera', e); }
+}, 60000);
+setTimeout(() => { try { adUltDia = today(); adRevisar(); adRepintar(); adNoche(); } catch (e) { console.warn('Agendar desde la víspera', e); } }, 1200);
+document.addEventListener('visibilitychange', () => {
+  try {
+    if (document.visibilityState === 'hidden') { adFresco = ''; if (adFoto()) adGuardarSuave(); return; }
+    if (!adCuenta()) adRevisar();   // con cuenta, después de combinar (nubeCombinada → xpArranque), como en 2.19
+    else if (window.claude?.use && !auth) setTimeout(() => { try { if (document.visibilityState === 'visible' && nubeLista) { adFresco = today(); adRevisar(); } } catch {} }, 5000);   // la nube en vivo no avisa si no hubo cambios
+    adNoche();
+  } catch {}
+});
+// Para las pruebas y la consola.
+window.adOpc = { fresco: () => adFresco, puede: () => adPuede(), conciliar: () => { const R = adRegla(), c = adConciliar(R, today()); if (c) guardar(); return c; }, revisar: () => adRevisar(), foto: () => adFoto(), estado: () => adEstado(), agendado: d => adAgendado(d), semana: d => adSemana(d), regla: () => JSON.parse(JSON.stringify(adRegla())), mapa: () => JSON.parse(JSON.stringify(adMapa())), info: () => adInfo(), noche: () => adNoche(), guardar: () => guardar(), repintar: () => adRepintar() };
 })();
 
 render();
 // 2.13 · La app abre en Identidad (la base), salvo que en este teléfono se elija Enfoque o Hábitos.
-{ const ini = localStorage.getItem('habit-inicio'); document.querySelector(`.tabs .tab[data-view="${['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'todo'].includes(ini) ? ini : 'inicio'}"]`).click(); }   // 2.22.3 (M)   // 2.22.0 (N)
+{ const ini = localStorage.getItem('habit-inicio'); document.querySelector(`.tabs .tab[data-view="${['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'rapido', 'apartados'].includes(ini) ? ini : ini === 'todo' ? 'rapido' : 'inicio'}"]`).click(); }   // 2.22.3 (M)   // 2.22.0 (N)
 window.enfoqueArranque();
 // Al tocar una notificación se abre la pestaña que indica (?v=...).
-const abrirVista = url => { const v = new URL(url, location.href).searchParams.get('v'); if (v) document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click(); };
+const abrirVista = url => { let v = new URL(url, location.href).searchParams.get('v'); if (v === 'todo') v = 'rapido';   /* 2.25.1 (S) */ if (v) document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click(); };
 window.iaDesdeEnlace?.();
 abrirVista(location.href);
 window.avAbierto?.(location.href, false);   // 2.12 · anota el aviso que abriste (y lo apaga si tocaste su botón)
