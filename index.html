@@ -533,6 +533,19 @@
   .cs-arch-r span { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
   .cs-arch-r button { min-height: 44px; }
 </style>
+<style>   /* 2.25.1 (G) · Engranaje de Ajustes en la cabecera */
+  header.top > div:first-child { min-width: 0; }
+  .top-der { display: flex; align-items: flex-start; gap: 2px; flex: none; margin-right: -10px; }
+  .top-der .global { flex: none; }
+  .g-ajustes { width: 44px; height: 44px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    margin-top: -4px; border-radius: 12px; color: var(--text); flex: none; -webkit-tap-highlight-color: transparent; }
+  .g-ajustes svg { width: 24px; height: 24px; display: block; }
+  @media (hover: hover) { .g-ajustes:hover { background: var(--line); } }
+  .g-ajustes:active { background: var(--line); }
+  .g-ajustes:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+  @media (max-width: 359px) { header.top { gap: 10px; } }
+  @media (prefers-reduced-motion: no-preference) { .g-ajustes svg { transition: transform .3s ease; } .g-ajustes:active svg { transform: rotate(40deg); } }
+</style>
 </head>
 <body>
 <main>
@@ -544,7 +557,10 @@
       <p class="date"><span id="today"></span> <span id="sync"></span></p>
       <button class="xp-chip" id="xp-chip" type="button" hidden></button>
     </div>
-    <div class="global" id="global"></div>
+    <div class="top-der">   <!-- 2.25.1 (G) · racha y engranaje -->
+      <div class="global" id="global"></div>
+      <button class="g-ajustes" id="open-ajustes" type="button" aria-label="Ajustes" title="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
   </header>
   <div id="view-inicio" hidden></div>
   <div id="view-todo" hidden></div>   <!-- 2.25.0 (T) -->
@@ -775,7 +791,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.25.0';
+const APP_VERSION = '2.25.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -6256,7 +6272,7 @@ const ENFOQUE_HTML = `
   </section>
 
   <footer>
-    <span><button class="link" id="open-settings">Ajustes de Enfoque</button> · <button class="link" id="open-sci">Por qué funciona</button> · <button class="link" id="open-datos">Tus datos</button></span>
+    <span><button class="link" id="open-settings">Ajustes</button> · <button class="link" id="open-sci">Por qué funciona</button> · <button class="link" id="open-datos">Tus datos</button></span>
     
   </footer>
 
@@ -8188,6 +8204,8 @@ document.addEventListener('visibilitychange', () => {
 // ---------- Ajustes
 function settings() {
   showSheet(`<h2>Ajustes</h2>
+    ${(() => { try { return cxAjustesHtml(); } catch (e) { console.warn('Conexiones', e); return `<div class="set-row"><span>Notion<small>${ntCfg().token ? 'Conectado' : 'Journaling, estudio, tareas e ideas'}</small></span><button class="link" id="s-nt">${ntCfg().token ? 'Ver' : 'Conectar'}</button></div>`; } })()}   <!-- 2.25.0 (C) · Conexiones; 2.25.1 (G) · lo primero -->
+    <h3 id="s-enf">Enfoque</h3>   <!-- 2.25.1 (G) -->
     <div class="set-row"><span>Aperturas al día<small>Después, hay que escribir una frase</small></span>
       <select id="s-lim">${Array.from({ length: 10 }, (_, i) => i + 1).map(n => `<option ${n === ES.limite ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Espera inicial<small>Se duplica con cada apertura del día</small></span>
@@ -8221,7 +8239,6 @@ function settings() {
       : `<div class="set-row"><span>Notificaciones<small>${avCfg().on ? 'Activadas' : 'Para no tener que abrir la app'}</small></span><button class="link" id="s-av">Configurar</button></div>`}
     ${OP_CHROME_ANDROID ? `<div class="set-row" id="s-apk-row" style="border-bottom:0;padding-bottom:4px${opApkSi() ? '' : ';display:none'}"><span>App para Android<small>Cuenta tu tiempo de uso en el teléfono</small></span><a class="link" id="s-apk" href="${OP_APK}" target="_blank" rel="noopener" style="min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:flex-end;flex:none">Descargar</a></div>
     <p class="meta" id="s-apk-nota" style="margin:0 0 12px${opApkSi() ? '' : ';display:none'}">Al abrir el archivo, si Android lo pide, permite instalar apps de Chrome.</p>` : ''}
-    ${(() => { try { return cxAjustesHtml(); } catch (e) { console.warn('Conexiones', e); return `<div class="set-row"><span>Notion<small>${ntCfg().token ? 'Conectado' : 'Journaling, estudio, tareas e ideas'}</small></span><button class="link" id="s-nt">${ntCfg().token ? 'Ver' : 'Conectar'}</button></div>`; } })()}   <!-- 2.25.0 (C) · Conexiones -->
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
       <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia'], ['todo', 'Todo']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'todo'].includes(localStorage.getItem('habit-inicio')) ? localStorage.getItem('habit-inicio') : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
@@ -8257,6 +8274,50 @@ function settings() {
   $('#s-ok').onclick = () => { aplicarAjustes(); closeSheet(); renderE(); window.xmBono?.(); };   // 2.13 · F14: con la meta más baja, el quinto día puede quedar cumplido
 }
 $('#open-settings').onclick = settings;
+// 2.25.1 (G) · El engranaje de la cabecera abre Ajustes desde cualquier pestaña (el mismo settings() de siempre).
+{
+  const b = document.getElementById('open-ajustes');
+  if (b && !b.dataset.g) {
+    b.dataset.g = '1';
+    b.addEventListener('click', () => { try { settings(); } catch (e) { console.warn('Ajustes', e); } });
+  }
+  // Con el engranaje, el título tiene menos ancho: si una palabra larga («consistencia», «Temporizador») no cabe en un teléfono
+  // angosto, la letra baja un poco (hasta 20 px) en vez de partir la palabra.
+  const t = document.getElementById('title');
+  if (t && !t.dataset.g) {
+    t.dataset.g = '1';
+    let enCurso = false;
+    const ajustar = () => {
+      if (enCurso) return; enCurso = true;
+      try {
+        t.style.fontSize = ''; t.style.overflowWrap = '';
+        if (t.clientWidth) {
+          let f = parseFloat(getComputedStyle(t).fontSize) || 32, n = 0;
+          while (t.scrollWidth > t.clientWidth + 1 && f > 20 && n++ < 8) { f -= 2; t.style.fontSize = f + 'px'; }
+          if (t.scrollWidth > t.clientWidth + 1) t.style.overflowWrap = 'anywhere';
+          // En un teléfono angosto (menos de 360 px), un título corto («Buenos días», «Buenos días, Gerardo») que se parte en más
+          // líneas baja un poco la letra (hasta 22 px) para usar menos líneas. Si ni así gana una línea, se queda como estaba.
+          const lineas = () => { const lh = parseFloat(getComputedStyle(t).lineHeight) || f * 1.2; return Math.round(t.offsetHeight / lh); };
+          const n0 = lineas();
+          if (innerWidth < 360 && n0 > 1 && (t.textContent || '').trim().split(/\s+/).length <= 3) {
+            const f0 = f, fs0 = t.style.fontSize; let mejor = { n: n0, f: f0 };
+            for (let x = f0 - 1; x >= 22 && mejor.n > 1; x--) {
+              t.style.fontSize = x + 'px';
+              if (t.scrollWidth > t.clientWidth + 1) continue;
+              const n = lineas(); if (n < mejor.n) mejor = { n, f: x };
+            }
+            if (mejor.n < n0) { f = mejor.f; t.style.fontSize = f + 'px'; } else { f = f0; t.style.fontSize = fs0; }
+          }
+        }
+      } catch {}
+      enCurso = false;
+    };
+    try { new MutationObserver(ajustar).observe(t, { childList: true, characterData: true, subtree: true }); } catch {}
+    try { const g = document.getElementById('global'); if (g) new MutationObserver(ajustar).observe(g, { childList: true, subtree: true }); } catch {}
+    try { new ResizeObserver(ajustar).observe(document.querySelector('header.top') || t); } catch { addEventListener('resize', ajustar); }
+    ajustar();
+  }
+}
 
 // 2.21 (C) · La hoja de primera vez de Enfoque sale después de la primera sesión (no antes de empezar).
 function enfPrimeraHecha() { try { return localStorage.getItem('habit-enf-1') === '1'; } catch { return false; } }
@@ -12041,7 +12102,7 @@ function xpSheet() {
     ${xpCatsHtml()}
     <details style="margin-top:18px"><summary class="link" style="cursor:pointer">Cómo se gana y se pierde XP</summary>
     <div class="rows">${xpTabla().map(([t2, n, nota]) => `<div class="row" style="padding:8px 0"><span class="t"><div style="font-size:.92rem;white-space:normal">${esc(t2)}</div>${nota ? `<small style="white-space:normal">${esc(nota)}</small>` : ''}</span>${n == null ? '' : `<span class="tag">${typeof n === 'number' ? '+' + n : esc(n)}</span>`}</div>`).join('')}</div></details>
-    <p class="meta" id="xs-deshacer">La meta del día (50 a 200 XP) se cambia en Ajustes de Enfoque.</p>
+    <p class="meta" id="xs-deshacer">La meta del día (50 a 200 XP) se cambia en Ajustes.</p>
     <div class="actions"><button class="primary" id="xs-ok">Cerrar</button></div>`);
   $('#xs-ok').onclick = closeSheet;
 }
@@ -18173,13 +18234,13 @@ function estTemaHecho(r, temaId) {
   const bs = r.plan.filter(b => b.tema === temaId && (b.tipo === 'estudio' || b.tipo === 'practica') && (r.hechos[b.id] || b.d >= hoy || b.d >= rd));
   if (bs.length) t.hecho = bs.every(b => !!r.hechos[b.id]);
 }
-function estMarcar(id, hecho = true, { min, ej, nota } = {}) {
+function estMarcar(id, hecho = true, { min, ej, nota, en } = {}) {
   const r = estRutaDeBloque(id, true); if (!r) return null;
   { const cc = hecho && estCompletarCon && estCompletarCon.id === id ? estCompletarCon : null; if (cc) { min = cc.min; ej = cc.ej; nota = cc.nota; } }   // 2.22.6 (E) · lo de la hoja «Completar», por cualquier camino
   const b = r.plan.find(x => x.id === id), antes = !hecho && r.hechos[id] && typeof r.hechos[id] === 'object' ? { ...r.hechos[id] } : null;   // 2.14.1 (X) · lo anotado, para el oyente al deshacer
   if (hecho) {
     const dz = r.deshechos && typeof r.deshechos === 'object' ? r.deshechos : null;   // 2.17.1 (D) · el hecho nuevo va después de la marca de borrado
-    r.hechos[id] = { en: Math.max(Date.now(), dz ? (+dz[id] || 0) + 1 : 0), min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : estEjSug(r, b), nota: String(nota ?? '').trim().slice(0, 200) };
+    r.hechos[id] = { en: Math.max(Number.isFinite(+en) && +en > 0 && +en < Date.now() ? Math.round(+en) : Date.now(), dz ? (+dz[id] || 0) + 1 : 0),   /* 2.25.1 (R) · «en»: solo hacia atrás */ min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : estEjSug(r, b), nota: String(nota ?? '').trim().slice(0, 200) };
     if (dz) delete dz[id];
     const ks = Object.keys(r.hechos); if (ks.length > 1600) for (const k of ks.sort((x, y) => (r.hechos[x].en || 0) - (r.hechos[y].en || 0)).slice(0, ks.length - 1600)) delete r.hechos[k];
   } else {
@@ -20551,8 +20612,9 @@ function exOyente(ev, b, extra) {
   if (it) it.hecho = hecho;   // la foto del día lo conserva aunque la ruta se archive después
   if (hecho) {
     const info = b.hechoInfo || {}, min = Math.max(0, Math.round(+info.min || +b.min || 0)), ej = Math.max(0, Math.round(+info.ej || 0));
-    exBumps.set(b.id, { min, ej, k: hoy });
-    bump('estudioBloques', 1, hoy); if (min) bump('estudioMin', min, hoy); if (ej) bump('estudioEj', ej, hoy);
+    const kd = +info.en > 0 && dayKey(new Date(+info.en)) < hoy ? dayKey(new Date(+info.en)) : hoy;   // 2.25.1 (R) · el día en que se hizo
+    exBumps.set(b.id, { min, ej, k: kd });
+    bump('estudioBloques', 1, kd); if (min) bump('estudioMin', min, kd); if (ej) bump('estudioEj', ej, kd);
     if (b.d === hoy) { exHabito(b); exIniDeBloque(b); }
   } else {
     // 2.14.1 (X) · Lo sumado en esta sesión o, tras recargar, lo que el motor tenía anotado (b.anterior: el día en que se marcó y los minutos y
@@ -27529,6 +27591,7 @@ function xpEstOyente(ev, obj, extra) {
       // 2.17.1 (D) · una vez por hueco en todo el libro; lo deshecho vuelve al día en que se dio (sin XP nuevo ni otro día con actividad).
       // «Legado» (premiado antes del libro) solo si el hueco no tiene ninguna entrada en el libro, de ningún día.
       let dia = ''; for (const k of Object.keys(ES.xpLog || {}).sort().reverse()) if (ES.xpLog[k] && ES.xpLog[k][x.ref]) { dia = k; break; }
+      if (!dia) { const en = +(obj.hechoInfo && obj.hechoInfo.en) || 0; if (en > 0) { const k = dayKey(new Date(en)); if (k < hoy) dia = k; } }   // 2.25.1 (R) · hecho otro día (terminó con la app cerrada)
       const legado = !!(A && exPremiado(A, obj.id) && !dia);
       if (A) { exPremiar(A, obj.id); if (x.k) exPremiar(A, `${x.k}${x.t}>${obj.id}`); }
       if (!legado) xpGanar(10, 'Bloque de estudio', x.ref, { cat: 'estudio', unica: true, ...(dia && dia < hoy ? { dia } : {}) });
@@ -32251,6 +32314,404 @@ tdW.addEventListener('click', e => {
 });
 // Para las pruebas.
 window.cxOpc = { ajustes: cxAjustes, traer: cxTraerSheet, enviar: cxEnviarSheet, nota: cxNotaSheet, imp: () => JSON.parse(JSON.stringify(cxImpL())), gev: () => [...cxGevSet()], nt: () => cxNtEstado(), g: () => cxGEstado(), enviarA: (d, s) => cxEnviarA(d, s).then(r => r, e => ({ err: e?.message || String(e), code: e?.code || '' })), agenda: () => cargarAgenda(true), agItem: id => agItemSheet(agPorId(id)) };
+// 2.25.1 (R) · Ejecutar bloque N
+// ====================================================================
+// 2.25.1 (R) · «Ejecutar bloque N» desde la ruta. Cada tarjeta de «Tus rutas» (y la ficha «Ver ruta») muestra sus bloques: los
+// próximos a la vista y «Ver todos los bloques (N)». «Ejecutar bloque N» arranca una cuenta atrás con los minutos del bloque; se puede
+// pausar, reanudar, terminar antes (cuenta los minutos reales) o cancelar (no cuenta nada). Al cumplirse el tiempo, el bloque queda hecho
+// por el camino de siempre (est.marcar: «Llevas N de M bloques», lo estudiado, XP, Agenda, Notion y Google, sin contar dos veces), con
+// «Deshacer», y se ofrece el siguiente. Uno a la vez.
+// La cuenta atrás es de este teléfono (localStorage «er-run»): guarda marcas de tiempo, así que sobrevive a recargar y a cerrar la app,
+// también en pausa. Lo que se sincroniza es el bloque hecho (r.hechos), que ya se une entre teléfonos; 2.25.0 no ve nada nuevo.
+// ====================================================================
+var ER_K = 'er-run', ER_ULT_K = 'er-ult', ER_AV_K = 'er-avisado', erT = 0, erAbiertos = new Set(), erFinando = false;
+function erRun() { try { const r = JSON.parse(localStorage.getItem(ER_K) || 'null'); return r && typeof r === 'object' && typeof r.id === 'string' && r.id && +r.fin > 0 && +r.min > 0 ? r : null; } catch { return null; } }
+function erRunPoner(r) { try { if (r) localStorage.setItem(ER_K, JSON.stringify(r)); else localStorage.removeItem(ER_K); } catch {} }
+function erUlt() { try { const u = JSON.parse(localStorage.getItem(ER_ULT_K) || 'null'); return u && typeof u === 'object' && typeof u.id === 'string' && Date.now() - (+u.en || 0) < 12 * 3600000 ? u : null; } catch { return null; } }
+function erUltPoner(u) { try { if (u) localStorage.setItem(ER_ULT_K, JSON.stringify(u)); else localStorage.removeItem(ER_ULT_K); } catch {} }
+const erResta = (r, now = Date.now()) => r ? Math.max(0, +r.fin - (+r.pausa > 0 ? +r.pausa : now)) : 0;   // ms; en pausa, congelado
+const erLlevaMin = r => r ? Math.max(0, (+r.min * 60000 - erResta(r)) / 60000) : 0;
+const erVivaR = r => !!r && !r.archivada && !r.terminada && Array.isArray(r.plan);
+const erCorre = r => !!r && !(+r.pausa > 0);
+// Los bloques de la ruta en el orden del plan (lo ya repartido por una replanificación no cuenta). El número es el de la sesión que ya
+// enseñan la Agenda y la ficha («Sesión 13/18» es el «Bloque 13»); los repasos, el simulacro y la víspera ligera van sin número, como allí.
+const erSesT = b => !!b && b.tipo !== 'repaso' && b.tipo !== 'ligero';
+function erBloques(r) {
+  const E = EU(), out = []; if (!E || !r || !Array.isArray(r.plan)) return out;
+  let num = null; try { const i = E.sesInfo(r); num = i && i.num instanceof Map && i.num.size ? i.num : null; } catch {}
+  let k = 0;
+  for (const b of r.plan) {
+    if (!b || typeof b.id !== 'string') continue; let rep = false; try { rep = !!E.repartido?.(r, b); } catch {} if (rep) continue;
+    let n = 0; if (erSesT(b)) { k++; n = num ? (+num.get(b.id) || 0) : k; }   // sin sesiones armadas: en orden, sin contar los repasos
+    out.push({ b, n, hecho: !!(r.hechos && r.hechos[b.id]) });
+  }
+  return out;
+}
+const erMay = t => t ? t[0].toUpperCase() + t.slice(1) : t;
+const erEtq = x => !x ? 'bloque' : x.n ? `bloque ${x.n}` : x.b.tipo === 'ligero' ? 'repaso ligero' : x.b.tipo === 'simulacro' ? 'simulacro' : x.b.tipo === 'repaso' ? 'repaso' : 'bloque';
+const erRunEt = r => (r && typeof r.et === 'string' && r.et) || (r && +r.n > 0 ? `bloque ${r.n}` : 'bloque');
+function erTitulo(r, b) {
+  const E = EU(); let t = ''; try { t = String(E.textoBloque({ ...b, ruta: r.id }) || ''); } catch { t = String(b.t || ''); }
+  const m = E?.materia(r.materia)?.nombre || ''; if (m && t.startsWith(m + ' · ')) t = t.slice(m.length + 3);
+  return t || 'Estudio';
+}
+const erCuando = b => { const c = euCuando(b.d); return `${c === 'Hoy' || c === 'Mañana' || c === 'Ayer' ? c : (euFCorta(b.d) || c)}${b.h ? ` · ${fmtHora(b.h)}` : ''}`; };
+// El bloque de la cuenta atrás: el mismo id o, si una replanificación lo rehízo con otro id, el pendiente del mismo día, ruta y texto.
+function erBloqueVivo(run) {
+  if (!run) return null; const E = EU(); if (!E) return null;
+  const b = euBloqueDe(run.id); if (b) return b;
+  const r = E.ruta(run.ruta); if (!r) return null;
+  const x = r.plan.find(y => y && y.d === run.d && !(r.hechos && r.hechos[y.id]) && erTitulo(r, y) === run.tx); return x ? euBloqueDe(x.id) : null;
+}
+const erInfo = (r, id) => erBloques(r).find(y => y.b.id === id) || null;
+const erEtqDe = (r, id) => { const x = r ? erInfo(r, id) : null; return x ? erEtq(x) : 'bloque'; };
+// Una región viva fija (fuera de lo que se repinta): el siguiente paso y las pausas que nadie tocó se anuncian a los lectores de pantalla.
+function erDecir(t) {
+  try {
+    let el = document.getElementById('er-live');
+    if (!el) { el = document.createElement('div'); el.id = 'er-live'; el.setAttribute('aria-live', 'polite'); el.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap'; document.body.appendChild(el); }
+    el.textContent = ''; setTimeout(() => { el.textContent = t; }, 80);
+  } catch {}
+}
+
+// ---------- Lo que se ve: la sección de bloques de una tarjeta (y de la ficha).
+function erRunHtml(run) {
+  const p = +run.pausa > 0, l = erResta(run) / 1000, et = erMay(erRunEt(run));
+  return `<div class="er-run${p ? ' er-p' : ''}" role="group" aria-label="${esc(et)} ${p ? 'en pausa' : 'en marcha'}">
+      <p class="er-run-k">${p ? 'En pausa' : 'En marcha'} · ${esc(et)}</p><p class="er-run-t">${esc(run.tx || 'Estudio')}</p>
+      <p class="er-clock"><b data-er-clock>${fmtClock(l)}</b> <small>de ${esc(fmtMin(run.min))}</small></p>
+      <div class="er-acc">${p ? '<button type="button" class="primary" data-er="seguir">Reanudar</button>' : '<button type="button" class="primary" data-er="pausa">Pausar</button>'}<button type="button" class="eu-term" data-er="fin">Terminar bloque</button><button type="button" class="link" data-er="cancelar">Cancelar</button></div></div>`;
+}
+function erFilaHtml(r, x, run, prim) {
+  const b = x.b, t = erTitulo(r, b), hi = x.hecho ? r.hechos[b.id] : null, et = erEtq(x);
+  const der = x.hecho ? `<span class="er-ok" aria-label="Hecho">✓</span>`
+    : run && run.id === b.id ? `<span class="er-on">${+run.pausa > 0 ? 'En pausa' : 'En marcha'}</span>`
+    : `<button type="button" class="${prim ? 'primary' : 'outline'} er-go" data-er-go="${esc(b.id)}" aria-label="Ejecutar ${esc(et)}: ${esc(t)}">Ejecutar ${esc(et)}</button>`;
+  const sub = x.hecho ? `Hecho · ${Math.max(0, Math.round(+hi.min || 0))} min` : `${erCuando(b)} · ${b.min} min${b.d < today() ? ' · quedó sin hacer' : ''}`;
+  const cab = x.n ? `<span class="er-n">Bloque ${x.n}</span> · ${esc(t)}` : `<span class="er-n">${esc(t)}</span>`;   // un repaso ya dice «Repaso» en su texto
+  return `<div class="er-b${x.hecho ? ' er-hecho' : ''}" data-er-b="${esc(b.id)}"><span class="er-t">${cab}<small>${esc(sub)}</small></span>${der}</div>`;
+}
+function erSecHtml(r, ficha = false) {
+  if (!erVivaR(r) || !EU()) return '';
+  const L = erBloques(r); if (!L.length) return '';
+  const run = erRun(), runAqui = run && run.ruta === r.id ? run : null, ult = erUlt(), hechos = L.filter(x => x.hecho).length;
+  let ultH = '', sigId = '';
+  if (ult && ult.ruta === r.id && !runAqui && r.hechos && r.hechos[ult.id]) {
+    const sig = L.find(x => !x.hecho && x.b.id === ult.sig) || L.find(x => !x.hecho);
+    sigId = sig ? sig.b.id : '';
+    const uet = erMay(erEtqDe(r, ult.id) !== 'bloque' ? erEtqDe(r, ult.id) : (ult.et || 'bloque'));
+    ultH = `<div class="er-next"><p class="er-next-t">✓ ${esc(uet)} hecho · ${esc(fmtMin(ult.min))}.${sig ? '' : ' Todos los bloques hechos.'}</p>${sig ? `<div class="er-acc"><button type="button" class="primary er-go" data-er-go="${esc(sig.b.id)}" aria-label="Ejecutar ${esc(erEtq(sig))}: ${esc(erTitulo(r, sig.b))}">Ejecutar ${esc(erEtq(sig))}</button><button type="button" class="link" data-er="ult-x">Ahora no</button></div>` : ''}</div>`;
+  }
+  const prox = L.filter(x => !x.hecho && x.b.id !== sigId && !(runAqui && x.b.id === runAqui.id)).slice(0, 3);
+  const todos = L.length > prox.length || hechos, nNum = L.filter(x => x.n).length, otros = L.length - nNum;
+  const resumen = nNum && otros ? `Ver todos los bloques (${nNum} y ${otros} de repaso)` : `Ver todos los bloques (${L.length})`;
+  return `<div class="er" data-er-ruta="${esc(r.id)}"${ficha ? ' id="er-ficha"' : ''}>
+    ${runAqui ? erRunHtml(runAqui) : ''}${ultH}
+    ${prox.length ? `<p class="er-k" tabindex="-1">${hechos ? 'Siguientes bloques' : 'Bloques'}</p><div class="er-l">${prox.map((x, i) => erFilaHtml(r, x, runAqui, i === 0 && !runAqui && !sigId)).join('')}</div>` : hechos === L.length ? '<p class="meta er-todo green" tabindex="-1">Todos los bloques hechos ✓</p>' : ''}
+    ${todos ? `<details class="er-all"${erAbiertos.has(r.id + (ficha ? '|f' : '')) ? ' open' : ''} data-er-det="${esc(r.id + (ficha ? '|f' : ''))}"><summary>${resumen}</summary><div class="er-l">${L.map(x => erFilaHtml(r, x, runAqui, false)).join('')}</div></details>` : ''}
+  </div>`;
+}
+const ER_CSS = `
+  .er { margin: 10px 0 2px; }
+  .er-k { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 4px; }
+  .er-l { display: flex; flex-direction: column; }
+  .er-b { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .er-t { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
+  .er-t small { display: block; color: var(--muted); font-size: .8rem; margin-top: 1px; }
+  .er-n { font-weight: 600; }
+  .er-hecho .er-t { color: var(--muted); }
+  .er-go { min-height: 44px; padding: 0 14px; border-radius: 999px; font-size: .9rem; font-weight: 600; flex: none; max-width: 100%; }
+  button.outline.er-go { border: 1.5px solid var(--line); background: none; color: var(--text); }
+  .er-ok { flex: none; min-width: 44px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; color: var(--green); font-weight: 700; font-size: 1.1rem; }
+  .er-on { flex: none; font-size: .85rem; font-weight: 600; color: var(--accent); }
+  .er-all { margin-top: 4px; }
+  .er-all summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; font-size: .92rem; list-style-position: inside; }
+  .er-run, .er-next { border: 1.5px solid var(--text); border-radius: 14px; padding: 10px 12px 8px; margin: 4px 0 8px; background: var(--soft); }
+  .er-run.er-p { border-style: dashed; }
+  .er-run-k { margin: 0; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .er-run-t { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; line-height: 1.3; }
+  .er-clock { margin: 2px 0 4px; } .er-clock b { font-size: 2.1rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; } .er-clock small { color: var(--muted); }
+  .er-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .er-acc > button { min-height: 44px; }
+  .er-acc .primary { padding: 0 18px; }
+  .er-next-t { margin: 0 0 6px; font-weight: 600; overflow-wrap: anywhere; }
+  .er-todo { margin: 10px 0 0; }`;
+if (euR) { const st = document.createElement('style'); st.textContent = ER_CSS; euR.appendChild(st); }
+{ const st = document.createElement('style'); st.id = 'er-css'; st.textContent = ER_CSS; ov.appendChild(st); }
+
+// La tarjeta: la sección va justo encima de «Ver ruta · Anotar estudio · Terminar».
+euCardHtml = (f => function (r) {
+  const h = f.apply(this, arguments); let s = ''; try { s = erSecHtml(r); } catch (e) { console.warn('Ejecutar bloque', e); }
+  if (!s) return h; const i = h.lastIndexOf('<div class="row-b">'); return i < 0 ? h + s : h.slice(0, i) + s + '\n    ' + h.slice(i);
+})(euCardHtml);
+// La ficha «Ver ruta»: la misma sección debajo del resumen.
+euRutaSheet = (f => function (id) {
+  const v = f.apply(this, arguments);
+  try { const E = EU(), r = E?.ruta(id), sb = euBody(), p = sb?.querySelector('#eu-f-res'); if (r && p && !sb.querySelector('#er-ficha')) { const s = erSecHtml(r, true); if (s) p.insertAdjacentHTML('afterend', s); } } catch (e) { console.warn('Ejecutar bloque', e); }
+  return v;
+})(euRutaSheet);
+// El detalle de un bloque: «Ejecutar bloque N» arriba de «Empezar acción».
+euBloqueSheet = (f => function (id) {
+  const v = f.apply(this, arguments);
+  try {
+    const E = EU(), b = euBloqueDe(id), r = b ? E?.ruta(b.ruta) : null, sb = euBody(), go = sb?.querySelector('#eu-b-go');
+    if (b && !b.hecho && erVivaR(r) && go) {
+      const x = erInfo(r, id), et = erEtq(x), run = erRun();
+      go.insertAdjacentHTML('beforebegin', run && run.id === id ? `<p class="meta er-on">${esc(erMay(erRunEt(run)))} ${+run.pausa > 0 ? 'en pausa' : 'en marcha'}: <b data-er-clock>${fmtClock(erResta(run) / 1000)}</b></p>` : x ? `<button type="button" class="primary er-go" data-er-go="${esc(id)}" style="width:100%">Ejecutar ${esc(et)}</button>` : '');
+      if (!(run && run.id === id) && x) go.className = 'outline';
+    }
+  } catch (e) { console.warn('Ejecutar bloque', e); }
+  return v;
+})(euBloqueSheet);
+
+// ---------- Repintar sin perder dónde estabas.
+function erPintar() {
+  try { if (view === 'estudio') renderEstudio(); } catch (e) { console.warn('Ejecutar bloque', e); }
+  try {
+    const sb = euBody();
+    if (sheet.open && sb?.querySelector('#er-ficha') && euFichaId) euRutaSheet(euFichaId);
+    else if (sheet.open && sb?.querySelector('#eu-b-acc')) { const id = sb.querySelector('[data-er-go]')?.dataset.erGo || erRun()?.id; if (id && euBloqueDe(id)) euBloqueSheet(id); }
+  } catch (e) { console.warn('Ejecutar bloque', e); }
+  erChip();
+}
+// Después de un toque, el foco vuelve al botón equivalente (la tarjeta se pinta entera): sin esto, TalkBack y el teclado vuelven al principio.
+function erEnfocar(ruta, sels) {
+  try {
+    const roots = [], sb = euBody(); if (sheet.open && sb) roots.push(sb); if (view === 'estudio') roots.push(euW);
+    for (const R of roots) {
+      const C = (ruta && R.querySelector(`.er[data-er-ruta="${CSS.escape(ruta)}"]`)) || R.querySelector('.er'); if (!C) continue;
+      for (const s of sels) { const el = C.querySelector(s); if (el) { el.focus({ preventScroll: true }); return true; } }
+    }
+  } catch {}
+  return false;
+}
+
+// ---------- Uno a la vez, también con los otros relojes: el temporizador de la Agenda, el Temporizador y la sesión de enfoque.
+function erOtroTxt() { try { const T = tempAct(); if (T) return `el temporizador de «${T.t}»`; } catch {} try { if (tzFase(tzRun()) === 'corre') return 'tu Temporizador'; } catch {} return ''; }
+// Pausa que nadie tocó (empezó otro reloj): sin aviso que tape el del otro, pero se anuncia.
+function erPausaCallada() {
+  const r = erRun(); if (!erCorre(r)) return false;
+  r.pausa = Date.now(); erRunPoner(r); erNatQuitar(r); erTickOn(); erPintar();
+  erDecir(`${erMay(erRunEt(r))} en pausa.`); return true;
+}
+
+// ---------- Empezar, pausar, reanudar, cancelar y terminar.
+function erEjecutar(id) {
+  const E = EU(), b = E ? euBloqueDe(id) : null; if (!b) { toast('Ese bloque ya no está en el plan.'); return; }
+  const r = E.ruta(b.ruta); if (!erVivaR(r)) { toast('La ruta está terminada: queda como registro.'); return; }
+  if (b.hecho) { toast('Ese bloque ya está hecho.'); erPintar(); return; }
+  if (ES.sesion) { toast('Ya hay una sesión de enfoque en marcha.'); return; }
+  const cur = erRun(), et = erEtqDe(r, id);
+  if (cur && cur.id === id) { toast(`El ${et} ya está en marcha.`); return; }
+  if (cur) { erCambiarSheet(cur, b, et); return; }
+  erArrancar(r, b, et);
+}
+// o.callado: sin aviso (lo da quien llama). Lo que corría en la Agenda se quita y el Temporizador queda en pausa, como entre ellos.
+function erArrancar(r, b, et, o = {}) {
+  try { tempPreparar(); } catch {}
+  let prevT = null, cedio = false;
+  try { const T = tempAct(); if (T) { prevT = JSON.parse(JSON.stringify(T)); ES.temp = null; guardar(); tempParo(); try { tempRepintar(); } catch {} } } catch {}
+  try { cedio = !!tzCeder(); } catch {}
+  const x = erInfo(r, b.id), ahora = Date.now(), min = Math.max(1, Math.min(480, Math.round(+b.min || 25)));
+  const run = { id: b.id, ruta: r.id, n: x ? x.n : 0, et, tx: erTitulo(r, b), d: b.d, min, ini: ahora, fin: ahora + min * 60000, pausa: 0 };
+  erRunPoner(run); erUltPoner(null); closeSheet(); erNativo(); erTickOn(); erPintar(); buzz(15);
+  if (o.callado) return run;
+  const extra = `${prevT ? ` El temporizador de «${prevT.t}» se quitó.` : ''}${cedio ? ' Tu Temporizador quedó en pausa.' : ''}`;
+  toast(`${erMay(et)} en marcha: ${fmtMin(min)}.${extra}`, prevT ? { deshacer: () => { const y = erRun(); if (y && y.ini === run.ini) { erRunPoner(null); erNatQuitar(y); } ES.temp = prevT; guardar(); try { tempIniciar(); tempRepintar(); } catch {} erTickOn(); erPintar(); } } : undefined);
+  return run;
+}
+function erCambiarSheet(cur, b, net) {
+  const cet = erRunEt(cur);
+  showSheet(`<p class="paso">Estudio</p><h2>¿Cambiar de bloque?</h2>
+    <p class="note">El ${esc(cet)} sigue ${+cur.pausa > 0 ? 'en pausa' : 'en marcha'} (quedan ${esc(fmtClock(erResta(cur) / 1000))}). Si cambias al ${esc(net)}, lo que llevas del ${esc(cet)} no se cuenta.</p>
+    <div class="actions stack"><button type="button" class="primary" id="er-sw-si" style="min-height:44px">Cambiar al ${esc(net)}</button><button type="button" class="outline" id="er-sw-fin" style="min-height:44px">Terminar el ${esc(cet)} y empezar el ${esc(net)}</button><button type="button" class="link" id="er-sw-no" style="min-height:44px">Seguir con el ${esc(cet)}</button></div>`);
+  const body = euBody();
+  const destino = () => { const E = EU(), y = euBloqueDe(b.id), r = y ? E?.ruta(y.ruta) : null; return y && !y.hecho && erVivaR(r) ? { y, r } : null; };
+  body.querySelector('#er-sw-no').onclick = () => closeSheet();
+  body.querySelector('#er-sw-si').onclick = () => { const d = destino(); if (!d) { closeSheet(); toast('Ese bloque ya no está pendiente.'); erPintar(); return; } erRunPoner(null); erNatQuitar(cur); erArrancar(d.r, d.y, erEtqDe(d.r, d.y.id)); };
+  // Terminar el que corre (con sus minutos reales) y empezar el otro: un solo aviso con «Deshacer» que lo devuelve todo como estaba.
+  body.querySelector('#er-sw-fin').onclick = () => {
+    const x = erRun(); closeSheet();
+    const c = x ? erCompletar(x, Math.max(1, Math.round(erLlevaMin(x))), { callado: true }) : null;
+    const d = destino(); const n = d ? erArrancar(d.r, d.y, erEtqDe(d.r, d.y.id), { callado: true }) : null; if (!n) erPintar();
+    if (c) toast(`${erMay(c.et)} hecho · ${fmtMin(c.mins)}.${n ? ` ${erMay(n.et)} en marcha.` : ''}`, { deshacer: () => { const y = erRun(); if (n && y && y.ini === n.ini) { erRunPoner(null); erNatQuitar(y); erTickOn(); } erDeshacer(c); } });
+    else if (n) toast(`${erMay(n.et)} en marcha: ${fmtMin(n.min)}.`);
+  };
+}
+function erPausa() { const r = erRun(); if (!erCorre(r)) return; r.pausa = Date.now(); erRunPoner(r); erNatQuitar(r); erTickOn(); erPintar(); toast(`${erMay(erRunEt(r))} en pausa.`); }
+function erSeguir() {
+  const r = erRun(); if (!r || !(+r.pausa > 0)) return;
+  if (ES.sesion) { toast('Ya hay una sesión de enfoque en marcha.'); return; }
+  let prevT = null, cedio = false;
+  try { const T = tempAct(); if (T && !T.pausa) { prevT = T; ES.temp = null; guardar(); tempParo(); try { tempRepintar(); } catch {} } } catch {}
+  try { cedio = !!tzCeder(); } catch {}
+  const ahora = Date.now(); r.fin = +r.fin + (ahora - +r.pausa); r.pausa = 0; erRunPoner(r); try { tempPreparar(); } catch {} erNativo(); erTickOn(); erPintar();
+  toast(`Sigue el ${erRunEt(r)}.${prevT ? ` El temporizador de «${prevT.t}» se quitó.` : ''}${cedio ? ' Tu Temporizador quedó en pausa.' : ''}`);
+}
+function erCancelar() {
+  const r = erRun(); if (!r) return; const prev = { ...r }, t0 = Date.now();
+  erRunPoner(null); erNatQuitar(r); erTickOn(); erPintar();
+  toast(`${erMay(erRunEt(r))} cancelado. No se cuenta.`, { deshacer: () => { if (erRun()) return; const y = erBloqueVivo(prev); if (!y || y.hecho) { toast('Ese bloque ya no está pendiente.'); return; } const x = { ...prev }; if (!(+x.pausa > 0)) x.pausa = t0; erRunPoner(x); erTickOn(); erPintar(); } });   // vuelve en pausa con lo que quedaba al cancelar
+}
+function erTerminar() { const r = erRun(); if (!r) return; erCompletar(r, Math.max(1, Math.round(erLlevaMin(r)))); }
+// ¿Ya avisó el sistema de este fin (la notificación en segundo plano o la alarma de Android)? Entonces al volver no suena otra vez.
+function erYaAviso(run) {
+  try { if (localStorage.getItem(ER_AV_K) === erNatK(run)) return true; } catch {}
+  try { const A = OP_ANDROID ? window.OrgAndroid : null; return !!A && typeof A.avisoDado === 'function' && !!A.avisoDado(erNatK(run), +run.fin); } catch { return false; }
+}
+const erHoraTxt = ms => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+// Marca el bloque por el camino de siempre (est.marcar con los minutos): un solo «hecho» por bloque, así nada cuenta dos veces.
+// o.tiempo: se cumplió (cuenta a la hora en que terminó, o.en); o.tarde: hace más de un minuto (sin timbre); o.callado: sin aviso.
+// Devuelve lo necesario para deshacer: { id, et, mins, prev, t0, ruta }.
+function erCompletar(run, mins, o = {}) {
+  if (erFinando) return null; erFinando = true;
+  try {
+    const t0 = Date.now(), prev = { ...run }, yaAviso = o.tiempo ? erYaAviso(run) : false;
+    erRunPoner(null); erNatQuitar(run); erTickOn();
+    const E = EU(), b = erBloqueVivo(run);
+    if (!E || !b) { toast('Ese bloque ya no está en el plan. No se contó.'); erPintar(); return null; }
+    const r = E.ruta(b.ruta), et = (r && erEtqDe(r, b.id) !== 'bloque') ? erEtqDe(r, b.id) : erRunEt(run);
+    if (b.hecho) { toast(`El ${et} ya estaba hecho.`); erPintar(); return null; }
+    mins = Math.max(1, Math.min(1440, Math.round(+mins || +run.min || 25)));
+    // Con meta de ejercicios, la pregunta de siempre («¿Cuánto estudiaste?») sale para anotar los ejercicios reales; sin ella, no hace falta.
+    let preg = false; try { preg = !!E.ejOn?.(r); } catch {}
+    const op = { min: mins }; if (+o.en > 0 && +o.en < Date.now()) op.en = Math.round(+o.en);
+    window.exCuantoNo = !preg; let x = null;
+    try { x = E.marcar(b.id, true, op); } catch (e) { console.warn('Ejecutar bloque', e); } finally { window.exCuantoNo = false; }
+    if (!x) { toast('No se pudo marcar el bloque.'); erPintar(); return null; }
+    try { localStorage.removeItem(ER_AV_K); } catch {}
+    const L = r ? erBloques(r) : [], i = L.findIndex(y => y.b.id === b.id), sig = L.slice(i + 1).find(y => !y.hecho) || L.find(y => !y.hecho);
+    erUltPoner({ ruta: b.ruta, id: b.id, n: i >= 0 ? L[i].n : 0, et, min: mins, sig: sig ? sig.b.id : '', en: Date.now() });
+    if (o.tiempo && !o.tarde && !yaAviso && !ES.sesion) erSonar(); else if (!o.tiempo) buzz(20);
+    erPintar(); try { renderAg(); } catch {}
+    const c = { id: b.id, et, mins, prev, t0, ruta: b.ruta, tiempo: !!o.tiempo };
+    if (o.callado) return c;
+    let pre = o.tiempo ? 'Tiempo cumplido. ' : '';
+    if (o.tiempo && o.tarde && +o.en > 0) { const dk = dayKey(new Date(+o.en)); pre = `Se cumplió ${dk === today() ? '' : `el ${euFCorta(dk) || dk} `}a las ${erHoraTxt(+o.en)}${dk === today() ? '' : ' y cuenta para ese día'}. `; }
+    toast(`${pre}${erMay(et)} hecho · ${fmtMin(mins)}.`, { deshacer: () => erDeshacer(c) });
+    if (sig) erDecir(`Siguiente: ${erEtq(sig)}. Toca «Ejecutar ${erEtq(sig)}» para empezarlo.`); else erDecir('Todos los bloques de la ruta están hechos.');
+    return c;
+  } finally { erFinando = false; }
+}
+// Deshacer un fin: el bloque vuelve a pendiente y, si se terminó a mano, la cuenta atrás vuelve en pausa con lo que quedaba.
+function erDeshacer(c) {
+  if (!c) return;
+  try { const y = euBloqueDe(c.id); if (y && y.hecho) EU().marcar(c.id, false); } catch (e) { console.warn('Ejecutar bloque', e); }
+  const u = erUlt(); if (u && u.id === c.id) erUltPoner(null);
+  if (!c.tiempo && c.prev && !erRun()) { const y = erBloqueVivo(c.prev); if (y && !y.hecho) { const x = { ...c.prev }; if (!(+x.pausa > 0)) x.pausa = c.t0; erRunPoner(x); erTickOn(); } }
+  try { renderAg(); } catch {} erPintar();
+  erEnfocar(c.ruta, ['[data-er="seguir"]', '[data-er-go]']);
+}
+function erSonar() { if (ES.sesion) return; try { tempSonar(); } catch {} buzz([300, 120, 300, 120, 500]); }
+
+// ---------- El reloj: marcas de tiempo; un intervalo solo para pintar y para cerrar el bloque al cumplirse.
+function erTickOn() { clearInterval(erT); erT = 0; const r = erRun(); if (r && !(+r.pausa > 0)) erT = setInterval(erTick, 1000); erChip(); }
+function erTick() {
+  try {
+    const r = erRun(); if (!r) { erTickOn(); return; }
+    const b = erBloqueVivo(r);
+    if (!b) { erRunPoner(null); erNatQuitar(r); erTickOn(); erPintar(); toast(`El ${erRunEt(r)} ya no está en el plan.`); return; }
+    if (b.hecho) { erRunPoner(null); erNatQuitar(r); erTickOn(); erPintar(); toast(`El ${erRunEt(r)} ya está hecho.`); return; }   // lo marcaste en otro sitio u otro teléfono
+    const l = erResta(r);
+    if (l <= 0 && !(+r.pausa > 0)) {
+      // En segundo plano no se cierra (ni se quita la alarma de Android, que callaría): avisa el sistema y se marca al volver a mirar.
+      if (document.visibilityState !== 'visible') { erAvisoFondo(r); erChip(r); return; }
+      erCompletar(r, r.min, { tiempo: true, tarde: Date.now() - +r.fin > 60000, en: +r.fin }); return;
+    }
+    const v = fmtClock(l / 1000);
+    for (const R of [euW, euBody()].filter(Boolean)) R.querySelectorAll('[data-er-clock]').forEach(e => { if (e.textContent !== v) e.textContent = v; });
+    erChip(r);
+  } catch (e) { console.warn('Ejecutar bloque', e); }
+}
+// El aviso arriba (debajo del XP) mientras corre, desde cualquier pestaña: toca y vas a Estudio.
+function erChip(r = erRun()) {
+  let c = document.getElementById('er-chip');
+  if (!r) { if (c) c.hidden = true; return; }
+  if (!c) {
+    const x = document.getElementById('temp-chip') || document.getElementById('xp-chip'); if (!x) return;
+    c = document.createElement('button'); c.type = 'button'; c.id = 'er-chip'; c.className = 'temp-chip er-chip';
+    c.innerHTML = '<span class="tc-l"></span> <span class="tc-s" aria-hidden="true">·</span> <span class="tc-t"></span>';
+    c.addEventListener('click', () => { irA('estudio'); setTimeout(() => { try { euW.querySelector(`.er[data-er-ruta="${CSS.escape(erRun()?.ruta || '')}"]`)?.scrollIntoView({ block: 'center' }); } catch {} }, 120); });
+    x.after(c);
+  }
+  const p = +r.pausa > 0, et = erMay(erRunEt(r)), v = `${p ? '⏸' : '⏱'} ${fmtClock(erResta(r) / 1000)}`, t = `${et} · ${r.tx || 'Estudio'}`, L = c.querySelector('.tc-l'), T = c.querySelector('.tc-t');
+  if (L.textContent !== v) L.textContent = v; if (T.textContent !== t) T.textContent = t;
+  c.setAttribute('aria-label', `${et} ${p ? 'en pausa' : 'en marcha'}. Toca para verlo`);
+  c.hidden = view === 'estudio';
+}
+// ---------- Aviso con la app cerrada: alarma nativa en Android; en el navegador, una notificación programada si el sistema la admite.
+const erNatK = r => `er|${r.id}|${r.ini}`;
+const erAvTxt = r => [`${erMay(erRunEt(r))} hecho`, `${r.tx || 'Estudio'} · ${fmtMin(r.min)}. Abre la app para ver el siguiente.`];
+function erNativo() {
+  try {
+    const r = erRun(); if (!r || +r.pausa > 0) return;
+    const [ti, tx] = erAvTxt(r);
+    if (OP_ANDROID) { const A = window.OrgAndroid; if (A && typeof A.programarAviso === 'function') A.programarAviso(erNatK(r), +r.fin, ti, tx, true); return; }
+    if (!('Notification' in window) || Notification.permission !== 'granted' || !('showTrigger' in Notification.prototype) || typeof window.TimestampTrigger !== 'function') return;
+    tempReg().then(reg => { if (!reg?.showNotification) return; const x = erRun(); if (!x || x.ini !== r.ini || +x.pausa > 0) return; return reg.showNotification(ti, { body: tx, tag: 'er-bloque', data: { url: './' }, showTrigger: new window.TimestampTrigger(+x.fin) }); }).catch(() => {});
+  } catch {}
+}
+// Se cumplió con la app en segundo plano: en el navegador, una notificación (una vez por bloque); en Android ya avisa su alarma.
+function erAvisoFondo(r) {
+  try { if (localStorage.getItem(ER_AV_K) === erNatK(r)) return; localStorage.setItem(ER_AV_K, erNatK(r)); } catch { return; }
+  if (OP_ANDROID || ES.sesion) return;
+  try { if (!('Notification' in window) || Notification.permission !== 'granted') return; } catch { return; }
+  const [ti, tx] = erAvTxt(r);
+  let son = true; try { son = tempSonidoOn(); } catch {}
+  tempReg().then(reg => {
+    if (reg?.showNotification) return reg.showNotification(ti, { body: tx, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'er-bloque', renotify: true, silent: !son, vibrate: [300, 120, 300, 120, 500], data: { url: './' } });
+    try { new Notification(ti, { body: tx, icon: 'icon-192.png', tag: 'er-bloque', silent: !son }); } catch {}
+  }).catch(() => {});
+}
+function erNatQuitar(r) {
+  try {
+    if (OP_ANDROID) { const A = window.OrgAndroid; if (r && A && typeof A.cancelarAviso === 'function') A.cancelarAviso(erNatK(r)); return; }
+    tempReg().then(async reg => { if (!reg?.getNotifications) return; const conTrig = 'showTrigger' in Notification.prototype; for (const n of await reg.getNotifications(conTrig ? { tag: 'er-bloque', includeTriggered: true } : { tag: 'er-bloque' })) n.close(); }).catch(() => {});
+  } catch {}
+}
+// La Agenda y el Temporizador quitan TODAS las alarmas de Android al parar las suyas (cancelarAviso('')) y ponen enseguida las propias:
+// la del bloque vuelve también (misma clave y mismo fin: no se duplica).
+tempNativo = (f => function () { const x = f.apply(this, arguments); try { if (OP_ANDROID) erNativo(); } catch {} return x; })(tempNativo);
+// Al revés: si empieza otro reloj, el bloque queda en pausa; y sobre el mismo bloque no se arranca un segundo reloj.
+tempEmpezar = (f => function (it0) {
+  try {
+    const run = erRun();
+    if (run) { let it = it0; try { it = agPorId(it0?.id) || it0; } catch {} if (it && (it.ref === run.id || it.id === run.id)) { closeSheet(); toast(`Ese bloque ya tiene su cuenta atrás en tu ruta (${erRunEt(run)}).`); return; } }
+  } catch {}
+  const antes = tempAct()?.ini || 0, v = f.apply(this, arguments);
+  try { const T = tempAct(); if (T && T.ini !== antes) erPausaCallada(); } catch {}
+  return v;
+})(tempEmpezar);
+tzEmpezar = (f => function () { const v = f.apply(this, arguments); try { if (v === true) erPausaCallada(); } catch {} return v; })(tzEmpezar);
+tzSeguir = (f => function () { const v = f.apply(this, arguments); try { if (v === true) erPausaCallada(); } catch {} return v; })(tzSeguir);
+startFocus = (f => function () { const v = f.apply(this, arguments); try { if (ES.sesion) erPausaCallada(); } catch {} return v; })(startFocus);
+
+// ---------- Toques (delegados: la pestaña y la hoja se vuelven a pintar enteras).
+function erClick(e) {
+  const g = e.target.closest?.('[data-er-go]'), a = e.target.closest?.('[data-er]');
+  if (!g && !a) return; e.stopPropagation(); e.preventDefault();
+  const ruta = (g || a).closest('.er')?.dataset.erRuta || erRun()?.ruta || '', hoja0 = !!sheet.open;
+  let sels;
+  if (g) { erEjecutar(g.dataset.erGo); sels = ['[data-er="pausa"]', '[data-er-go]']; }
+  else {
+    const k = a.dataset.er;
+    if (k === 'pausa') { erPausa(); sels = ['[data-er="seguir"]']; }
+    else if (k === 'seguir') { erSeguir(); sels = ['[data-er="pausa"]']; }
+    else if (k === 'fin') { erTerminar(); sels = ['.er-next [data-er-go]', '[data-er-go]', '.er-k', '.er-todo']; }
+    else if (k === 'cancelar') { erCancelar(); sels = ['[data-er-go]', '.er-k']; }
+    else if (k === 'ult-x') { erUltPoner(null); erPintar(); sels = ['[data-er-go]', '.er-k']; }
+  }
+  if (sels && !(sheet.open && !hoja0)) erEnfocar(ruta, sels);   // si se abrió una hoja (¿Cambiar de bloque?), el foco es suyo
+}
+function erToggle(e) { const d = e.target; if (!d || !d.matches?.('details.er-all')) return; const k = d.dataset.erDet || ''; if (d.open) erAbiertos.add(k); else erAbiertos.delete(k); }
+euW.addEventListener('click', erClick); euW.addEventListener('toggle', erToggle, true);
+{ const sb = euBody(); if (sb) { sb.addEventListener('click', erClick); sb.addEventListener('toggle', erToggle, true); } }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; erTick(); try { if (OP_ANDROID && erCorre(erRun())) erNativo(); } catch {} });
+document.querySelector('.tabs')?.addEventListener('click', () => setTimeout(() => erChip(), 0));
+// Al abrir: lo que quedó en marcha sigue (y si el tiempo se cumplió con la app cerrada, el bloque queda hecho ahora, con la hora en que terminó).
+setTimeout(() => { try { if (erRun()) { erTickOn(); erTick(); if (OP_ANDROID && erCorre(erRun())) erNativo(); } } catch (e) { console.warn('Ejecutar bloque', e); } }, 600);
+// Para las pruebas.
+window.erOpc = { run: () => erRun(), ult: () => erUlt(), ejecutar: erEjecutar, pausa: erPausa, seguir: erSeguir, cancelar: erCancelar, terminar: erTerminar, tick: () => erTick(), sesionPrueba: v => { ES.sesion = v || null; }, bloques: id => { const r = EU()?.ruta(id); return r ? erBloques(r).map(x => ({ id: x.b.id, n: x.n, et: erEtq(x), tipo: x.b.tipo || '', hecho: x.hecho, min: x.b.min, d: x.b.d })) : []; } };
 })();
 
 render();
