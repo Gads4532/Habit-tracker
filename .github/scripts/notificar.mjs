@@ -621,6 +621,21 @@ function candidatos(C, fecha) {
     if (actual(at) ? G.length : G.some(x => x.d < fecha)) return null;
     return { tag: 'viernes', duda: sim && G.length > 0, corto: 'el gracias del viernes', title: 'Gracias del viernes', body: '¿A quién le agradeces algo concreto esta semana? Un mensaje corto basta.' };
   } });
+  // 2.25.2 (D) · Agendar desde la víspera: a las 8:00 PM (con tu ventana siguiente), si mañana aún no tiene nada en su agenda. Solo con la
+  // regla en marcha (enfoque.agendaRegla.desde, lo pone 2.25.2); va con el tipo «Agenda». En la simulación de un día pasado, enfoque.agendaDia
+  // dice desde cuándo mañana tenía algo. «Tener algo» es lo mismo que en la app: lo del plan que no es un hábito, sus prioridades, una tarea sin
+  // hacer con esa fecha o un bloque de Estudio sin hacer de ese día.
+  const hayEn = m => { const P = planDe(E, m);
+    if (acota(P?.items, 200).some(it => it.tipo !== 'habito') || acota(P?.prios, 20).length) return true;
+    if (acota(st.tareas?.items, 2000).some(x => !x.hecha && x.fecha === m && !(x.est && typeof x.est === 'object' && x.est.examen))) return true;
+    try { return estudioDe(st, m).bloques.some(b => !b.hecho); } catch { return false; } };
+  if (hayTipo('agenda') && E.agendaRegla && typeof E.agendaRegla === 'object' && fechaOk(E.agendaRegla.desde)) sueltos.push({ nominal: '20:00', tags: ['agmanana'], tipo: 'agenda', parte: at => {
+    if (!tipoOn('agenda', at)) return null;
+    const m = masDias(fecha, 1); if (m < E.agendaRegla.desde) return null;
+    const r = E.agendaDia && typeof E.agendaDia === 'object' ? E.agendaDia[m] : null;
+    if (actual(at) ? hayEn(m) || !!(r && r.on) : !!(r && r.on && +r.a > 0 && +r.a <= at)) return null;
+    return { tag: 'agmanana', duda: sim && !r, corto: 'mañana aún sin agendar', title: 'Mañana aún no está agendado', body: 'Con una sola cosa en su agenda, mañana queda agendado.' };
+  } });
   if (hayTipo('noche')) {
     // 2.21.9 (I) · sin «Tu momento espiritual» (empujaba la iniciativa espiritual). Lo que tenga hora en tu Agenda avisa como siempre.
     sueltos.push({ nominal: '21:00', tags: ['noche'], tipo: 'noche', parte: at => {
