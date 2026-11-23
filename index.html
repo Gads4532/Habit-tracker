@@ -525,6 +525,16 @@
   .cs-cbb.on { background: var(--green); border-color: var(--green); color: #fff; }
   .cs-cbb.on.no { background: var(--muted); border-color: var(--muted); color: var(--bg); }
   .cs-dot.hoy { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--muted); }
+  /* 2.26.0 (CD) · cada punto es un botón de 44 px (el punto sigue pequeño); en 320 px, un poco más estrechos para caber */
+  .cs-sem { margin-top: 16px; } .cs-sem .cs-n7 { pointer-events: none; }
+  .cs-dots { display: flex; flex: 0 1 308px; min-width: 0; gap: 0; margin-left: -16px; }
+  .cs-dotb { flex: 1 1 0; min-width: 0; max-width: 44px; height: 44px; margin: -8px 0; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .cs-dotb .cs-dot { flex: none; transition: transform .15s; }
+  .cs-dotb:hover .cs-dot, .cs-dotb:active .cs-dot { transform: scale(1.25); }
+  .cs-dotb.off { cursor: default; }
+  .cs-dotb.off:hover .cs-dot, .cs-dotb.off:active .cs-dot { transform: none; }
+  .cs-dotb:focus-visible { outline: 2px solid var(--text); outline-offset: -4px; }
+  @media (prefers-reduced-motion: reduce) { .cs-dotb .cs-dot { transition: none; } }
   .cs-adds { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 18px; align-items: center; }
   .cs-adds .add { min-height: 44px; }
   .cs-vacio { color: var(--muted); padding: 10px 0 0; font-size: .92rem; }
@@ -1700,8 +1710,9 @@ const RA_IA = `
 
 Desde la versión 2.26.0 la métrica de la app es la racha:
 - No menciones XP, puntos, niveles ni ligas, ni los prometas: la app ya no los muestra.
-- La racha: un día cuenta si quedó agendado desde la víspera y la persona hizo más de la mitad de sus hábitos de ese día (sin hábitos ese día, basta con una cosa hecha). Cada semana, de lunes a domingo, un día libre cuida la racha; las vacaciones la congelan.
-- Si pregunta por su progreso, da su racha, su mejor racha y lo que falta hoy (ver_estado lo trae en «racha»). No la uses para presionar.`;
+- La racha: un día cuenta si quedó agendado desde la víspera y la persona hizo al menos el 80% de todo lo de ese día: hábitos, agenda, tareas y bloques de Estudio (sin nada programado, basta con una cosa hecha). Cada semana, de lunes a domingo, un día libre cuida la racha; las vacaciones la congelan.
+- La consistencia: el porcentaje de días que contaron en las últimas 4 semanas (el día libre cuenta como no cumplido; los días de vacaciones no cuentan).
+- Si pregunta por su progreso, da su racha, su mejor racha, su consistencia y lo que falta hoy (ver_estado lo trae en «racha»). No la uses para presionar.`;
 // El texto de base del asistente, sin lo que hablaba del XP y de los niveles (sigue igual con ES.metrica = 'xp').
 function raIaSistema(s) {
   if (raXp()) return s;
@@ -2164,7 +2175,7 @@ function render() {
   $('#global').dataset.streak = g.streak;
   window.xpChip?.();   // 2.17 (XP)
   $('#global').innerHTML = `<div class="g-streak${prevStreak !== undefined && +prevStreak !== g.streak ? ' bump' : ''}" title="Racha general">${flame(!g.streak)}${g.streak}</div>
-    <div class="g-rate">${g.rate === null ? 'Sin datos aún' : g.rate + '% esta semana'}</div>`;
+    <div class="g-rate">${g.rate === null ? 'Sin datos aún' : (raXp() ? '' : 'Hábitos: ') + g.rate + '% esta semana'}</div>`;
   h2AlRender();   // 2.12 · H2: lo pedido «desde el lunes» y los consolidados que vuelven a la lista activa
   const top = hbTopOrdenados();   // 2.19.9 · el orden que elegiste
 
@@ -21639,7 +21650,7 @@ function icDiaHtml(o, a) {
   let org = true; try { org = +agenda().organizado > 0; } catch {}
   const [t, m] = a && a.nada ? ['Nada más para esta hora.', 'Lo que ya pasó de hora sigue en la lista, en ámbar.']
     : !org ? ['Aún no hay nada para esta hora.', 'Lo que añadas aparece aquí.']   // sin repetir la alerta roja de abajo
-    : agVacia() ? ['Tu agenda de hoy está vacía.', 'Añade algo o elige abajo qué hacer.'] : ['Todo lo de hoy está hecho.', 'Si quieres más, abajo hay ideas.'];
+    : agVacia() ? ['Tu agenda de hoy está vacía.', 'Añade algo o elige abajo qué hacer.'] : ((typeof raTuDia === 'function' && raTuDia()) || ['Todo lo de hoy está hecho.', 'Si quieres más, abajo hay ideas.']);   // 2.26.0 (RA)
   return `<section class="ag-foco-c ic-c ic-dia" id="${o}-foco" aria-label="Tu día"><p class="ag-foco-k">Tu día${icHora()}</p><p class="ag-foco-t">${esc(t)}</p><p class="ag-foco-m">${esc(m)}</p>
     <div class="ag-foco-b"><button type="button" class="ag-fb-go" data-foco="add">+ Añadir</button>${org ? icB('ag-fb-man', 'agenda', 'Ver agenda') : ''}</div></section>`;
 }
@@ -34762,10 +34773,16 @@ window.vacOpc = { activa: () => vacActiva(), dia: d => vacDia(d), vuelta: d => v
 // - Una sola racha global, calculada siempre desde los datos sincronizados (hábitos por día, ES.agendaDia/ES.agendaRegla, ES.vacaciones,
 //   la agenda, las tareas y Estudio): dos teléfonos con los mismos datos dan la misma racha. No se guarda ningún contador (solo una caché
 //   en memoria). Se cuenta de atrás hacia adelante con todo el historial que haya (hasta 2 años).
-// - Un día cuenta (raEval) si quedó agendado desde la víspera (adAgendado, la regla de 2.25.2; antes de que la regla empezara o sin datos
-//   de agenda de ese día, solo el criterio de hábitos) Y se hizo más de la mitad de sus hábitos programados (los justificados o protegidos
-//   no entran; los de «N días por semana» tampoco: sumarlos como hechos sí cuenta como «una cosa»). Un día sin hábitos programados cuenta
-//   con al menos una cosa hecha: un hábito, algo de la agenda, una tarea o un bloque de Estudio.
+// - «Cambiemos el sistema de XP. Ahora es por la racha y consistencia, manteniendo mínimo el 80% de todo.» Un día cuenta (raEval) si quedó
+//   agendado desde la víspera (adAgendado, la regla de 2.25.2) Y se hizo al menos el 80% de TODO lo de ese día (hecho × 5 ≥ total × 4, en
+//   enteros): los hábitos programados (los justificados o protegidos no entran; los de «N días por semana» tampoco: sumarlos como hechos sí
+//   cuenta como «una cosa»), lo de su agenda (sin hábitos, eventos ni el recordatorio de dormir; una tarea o un bloque de Estudio de la agenda cuenta una sola vez), las
+//   tareas con fecha de ese día (hecha ese día o antes; hecha después, no; movida a otro día, es del otro día) y los bloques de Estudio de
+//   ese día. Antes de que empezara la regla de agendar (agendaRegla.desde), solo hay datos fiables de hábitos: el 80% de los hábitos. Un día
+//   sin nada programado cuenta con al menos una cosa hecha: un hábito, algo de la agenda, una tarea o un bloque de Estudio.
+// - Consistencia: los días que contaron entre los elegibles de los últimos 28 días (hasta ayer; hoy, solo cuando ya cuenta). Sin las
+//   vacaciones (ni las que sumaron ni las que congelaron); el día libre cuenta como no cumplido; antes del primer dato, nada. Sale de lo
+//   mismo que la racha.
 // - Un día que no cumple rompe la racha, salvo el primero de cada semana (lunes a domingo): es el día libre, queda «protegido» (ni suma ni
 //   rompe). Un día de vacaciones (2.25.3) congela la racha. Hoy cuenta en cuanto se cumple (en vivo) y, sin cumplir, no rompe hasta que
 //   termine. Las tareas vencidas ya no castigan nada por separado.
@@ -34830,14 +34847,146 @@ function raAgendaReal(d) {
   if (!desde || d < desde || vacVueltaDe(d)) return null;
   try { return !!(typeof raAdAgBase === 'function' ? raAdAgBase : adAgendado)(d); } catch { return null; }
 }
+// ---------- «Todo» lo de un día (2.26.0 · 80%): un índice de tareas y bloques de Estudio por día (con caché por cambio).
+var raIdxK = '', raIdxV = null;
+const raDk = ms => +ms > 0 ? dayKey(new Date(+ms)) : '';
+function raIdx() {
+  const k = `${today()}|${+state.cambiado || 0}|${raGen}`;
+  if (raIdxK === k && raIdxV) return raIdxV;
+  const tDia = new Map(), tId = new Map(), eDia = new Map(), eIds = new Set(), eRd = new Set(), push = (M, d, x) => { const L = M.get(d); if (L) L.push(x); else M.set(d, [x]); };
+  try { for (const x of state.tareas?.items || []) { if (!x || typeof x !== 'object' || !x.id) continue; tId.set(x.id, x); if (raOkDia(x.fecha)) push(tDia, x.fecha, x); } } catch {}
+  try {
+    for (const r of ES.estudio?.rutas || []) {
+      if (!r || !Array.isArray(r.plan)) continue;
+      const Hh = r.hechos && typeof r.hechos === 'object' ? r.hechos : {};
+      for (const b of r.plan) {
+        if (!b || typeof b.id !== 'string' || !raOkDia(b.d)) continue;
+        eIds.add(b.id); eRd.add(b.d + '|' + b.id); if (r.id) eRd.add(b.d + '|ruta:' + r.id);
+        const v = Hh[b.id] && typeof Hh[b.id] === 'object' ? Hh[b.id] : null;
+        if (r.archivada && !v) continue;   // de una ruta archivada, solo lo que se hizo
+        push(eDia, b.d, { id: b.id, hecho: !!v, en: v ? raDk(v.en) : '' });
+      }
+    }
+  } catch {}
+  raIdxK = k; raIdxV = { tDia, tId, eDia, eIds, eRd };
+  return raIdxV;
+}
+// ¿La tarea x cuenta como hecha para el día d? Hecha ese día o antes (sin hora anotada, de una versión vieja: hecha).
+const raTareaHecha = (x, d) => !!x && !!x.hecha && (!(+x.hechaEn > 0) || raDk(x.hechaEn) <= d);
+// Un bloque de tiempo cuenta como una cosa (hecho si todo lo de dentro está hecho; sin nada dentro, lo marcado a mano), salvo que todo lo de
+// dentro ya cuente en su sitio: hábitos, tareas con fecha de ese día o bloques de Estudio de ese día (una ruta con bloques ese día).
+function raBtCubierto(it, d, I) {
+  try {
+    const b = typeof btGet === 'function' ? btGet(it.ref) : (ES.bloquesT || []).find(y => y && y.id === it.ref);
+    if (!b || !Array.isArray(b.items) || !b.items.length) return false;
+    return b.items.every(i => {
+      if (!i) return true;
+      const ref = String(i.ref ?? '');
+      if (i.tipo === 'habito') return (state.habits || []).some(h => h && h.id === ref && !h.rutina);
+      if (i.tipo === 'tarea') { const x = I.tId.get(ref); return !!x && x.fecha === d; }
+      if (i.tipo === 'est') return I.eRd.has(d + '|' + ref);
+      if (i.tipo === 'ruta') return I.eRd.has(d + '|ruta:' + ref);
+      return false;
+    });
+  } catch { return false; }
+}
+// Lo de la agenda del día d, de una sola fuente para hoy y para los días pasados:
+// - hoy: la agenda de hoy (o el plan de hoy, si aún no se abrió), con lo quitado de hoy (ocultos);
+// - un día pasado ya archivado: la foto que agenda() guardó (agendaHist[d]);
+// - un día pasado aún sin archivar (la app abre y la racha se mide antes de que agenda() cambie de día, o quedó abierta a medianoche):
+//   la agenda de ese día tal cual (ES.agendaHoy con fecha d), con lo hecho a esa fecha y lo que ya no se veía (agdOcultoEn), como al archivar;
+// - un día que no se abrió: su plan (agendaPlanes[d]).
+// Estudio: la agenda de cada día trae sola sus bloques (exAgendaInyectar), salvo los que quitaste. Por eso, con la lista de ese día (hoy,
+// la foto o la agenda sin archivar), un bloque sin hacer cuenta solo si está en ella: lo quitado no cuenta, ni hoy ni al día siguiente.
+// Sin lista (un día que no se abrió, o hoy antes de abrir la agenda), todos los bloques de ese día salvo los quitados en su plan.
+function raSnap(d) {
+  const t = today(), A = ES.agendaHoy, arr = v => Array.isArray(v) ? v : [];
+  try {
+    if (d === t) {
+      if (A && A.fecha === t) return { L: arr(A.items), vivo: true, lista: true, ocu: new Set(arr(A.ocultos)) };
+      const P = planDia(t); return { L: arr(P && P.items), vivo: true, ocu: new Set(arr(P && P.ocultos)) };
+    }
+    if (d < t) {
+      const H = ES.agendaHist && typeof ES.agendaHist === 'object' ? ES.agendaHist[d] : null;
+      if (Array.isArray(H)) return { L: H, foto: true, lista: true };
+      if (A && A.fecha === d && Array.isArray(A.items)) return { L: A.items, sinRotar: true, lista: true, ocu: new Set(arr(A.ocultos)) };
+      const P = planDia(d); if (P && Array.isArray(P.items)) return { L: P.items, plan: true, ocu: new Set(arr(P.ocultos)) };
+    }
+  } catch {}
+  return { L: [] };
+}
+function raAgItems(d) { return raSnap(d).L; }
+// Todo lo de un día: { tot, hech, P: { hab, ag, tar, est } } (cada parte { tot, hech }).
+function raTodo(d, H) {
+  const P = { hab: { tot: H.tot, hech: H.hech }, ag: { tot: 0, hech: 0 }, tar: { tot: 0, hech: 0 }, est: { tot: 0, hech: 0 } };
+  const R = ES.agendaRegla, desde = R && typeof R === 'object' && raOkDia(R.desde) ? R.desde : '';
+  if (desde && d >= desde) {
+    const I = raIdx(), t = today(), vistos = new Set(), suma = (p, h) => { p.tot++; if (h) p.hech++; }, S = raSnap(d);
+    for (const x of I.tDia.get(d) || []) { vistos.add(x.id); suma(P.tar, raTareaHecha(x, d)); }
+    // Estudio: lo quitado de la agenda de ese día (y sin hacer) no cuenta, hoy y después.
+    let enLista = null; if (S.lista) { enLista = new Set(); for (const it of S.L) if (it && it.tipo === 'estudio' && it.ref) enLista.add(it.ref); }
+    for (const b of I.eDia.get(d) || []) { if (!b.hecho && (enLista ? !enLista.has(b.id) : !!(S.ocu && S.ocu.has(b.id)))) continue; suma(P.est, b.hecho && (!b.en || b.en <= d)); }
+    const ya = new Set();
+    for (const it of S.L) {
+      if (!it || typeof it !== 'object' || RA_AG_FUERA.has(it.tipo)) continue;   // los hábitos ya cuentan arriba; eventos y el recordatorio de dormir, no
+      let oc = !!it.oc; if (S.sinRotar && !oc) { try { oc = !!agdOcultoEn(it, d); } catch {} }
+      if (oc) continue;
+      if (S.foto && it.tipo === 'prio' && !it.pv) continue;
+      if (S.vivo) { let v = true; try { v = agVivo(it); } catch {} if (!v) continue; }
+      const cl = it.tipo + ':' + (it.ref || it.id || ''); if ((it.ref || it.id) && ya.has(cl)) continue; ya.add(cl);
+      if (it.tipo === 'tarea') {
+        const x = I.tId.get(it.ref), fe = S.foto && raOkDia(it.fe) ? it.fe : '';   // fe: la fecha que tenía al cerrar el día (la anota agenda() al archivar)
+        if (fe) { if (fe === d && !(x && vistos.has(x.id))) { if (x) vistos.add(x.id); suma(P.tar, x ? raTareaHecha(x, d) : !!it.hecho); } continue; }   // era de ese día: sigue contando ahí aunque después se mueva o se borre
+        if (x) { if (raOkDia(x.fecha) || vistos.has(x.id)) continue; vistos.add(x.id); suma(P.ag, raTareaHecha(x, d)); }   // con fecha: es de su día (ya contada, movida o vencida)
+        else suma(P.ag, !!it.hecho);
+        continue;
+      }
+      if (it.tipo === 'estudio' && I.eIds.has(it.ref)) continue;   // el bloque ya cuenta en Estudio
+      if (it.tipo === 'bt' && raBtCubierto(it, d, I)) continue;
+      let h = !!it.hecho;
+      if (S.vivo) { try { h = !!agHecho(it, t); } catch {} } else if (S.sinRotar) { try { h = !!agHecho(it, d); } catch {} }
+      suma(P.ag, h);
+    }
+  }
+  return { tot: P.hab.tot + P.ag.tot + P.tar.tot + P.est.tot, hech: P.hab.hech + P.ag.hech + P.tar.hech + P.est.hech, P };
+}
+// Al archivar la agenda de un día (agenda(), al cambiar de día), cada tarea de la foto guarda su fecha de ese momento (fe): si después se
+// mueve a otro día o se borra, sigue contando como no hecha en el día que era suyo (la racha no se repara moviendo lo pendiente). Una
+// agenda que quedó vacía se guarda como foto vacía (agenda() no la guarda): así se sabe que los bloques de Estudio de ese día se quitaron.
+function raFotoFechas(f) {
+  return function () {
+    let A0 = null, fe = null;
+    try {
+      A0 = ES.agendaHoy;
+      if (A0 && raOkDia(A0.fecha) && A0.fecha !== today() && Array.isArray(A0.items)) {
+        fe = new Map(); const I = raIdx();
+        for (const it of A0.items) if (it && it.tipo === 'tarea' && it.ref) { const x = I.tId.get(it.ref); if (x && raOkDia(x.fecha)) fe.set(it.ref, x.fecha); }
+      }
+    } catch {}
+    const r = f.apply(this, arguments);
+    try {
+      if (fe) {
+        const L = ES.agendaHist?.[A0.fecha];
+        if (Array.isArray(L)) { for (const y of L) if (y && y.tipo === 'tarea' && fe.has(y.ref) && !y.fe) y.fe = fe.get(y.ref); }
+        else if (!(A0.items || []).length) { const Rg = ES.agendaRegla; if (Rg && raOkDia(Rg.desde) && A0.fecha >= Rg.desde) ES.agendaHist = { ...(ES.agendaHist || {}), [A0.fecha]: [] }; }   // la agenda de ese día quedó vacía (lo de Estudio, quitado): también es su foto
+      }
+    } catch {}
+    return r;
+  };
+}
+// De la agenda no cuentan: los hábitos (ya cuentan en Hábitos), los eventos del calendario (no se «hacen») y «Bajar el ritmo para dormir»
+// (2.24.0, el recordatorio que entra solo cada noche; no es algo que agendaste).
+const RA_AG_FUERA = new Set(['habito', 'evento', 'sueno']);
+// Lo mínimo para el 80%: hecho × 5 ≥ total × 4 (en enteros).
+const raMin80 = tot => Math.floor((tot * 4 + 4) / 5);
 function raEval(d) {
   const t = today(), vac = vacDia(d);
   // De vacaciones, el día se mide con la regla de siempre (sin justificar lo no hecho por las vacaciones y con lo agendado de verdad):
-  // si la cumple, suma (empezar las vacaciones con el día ya cumplido no le quita ese día); si no, congela. 1 de 3 no suma.
-  const H = raHabitosDia(d, vac), ag = vac ? raAgendaReal(d) : raAgenda(d), sinHab = H.tot === 0;
-  const mayoria = sinHab ? raAlgoDia(d, H) : H.hech * 2 > H.tot;
+  // si la cumple, suma (empezar las vacaciones con el día ya cumplido no le quita ese día); si no, congela. 2 de 3 no suma.
+  const H = raHabitosDia(d, vac), ag = vac ? raAgendaReal(d) : raAgenda(d), T = raTodo(d, H), sinHab = T.tot === 0;
+  const mayoria = sinHab ? raAlgoDia(d, H) : T.hech * 5 >= T.tot * 4;   // (el nombre viene de la regla anterior: «cumple el 80%»)
   const ok = mayoria && ag !== false;
-  return { k: ok ? 'ok' : vac ? 'vac' : d === t ? 'hoy' : 'falla', d, H, ag, mayoria, sinHab, vac, falta: sinHab ? (mayoria ? 0 : 1) : Math.max(0, Math.floor(H.tot / 2) + 1 - H.hech) };
+  return { k: ok ? 'ok' : vac ? 'vac' : d === t ? 'hoy' : 'falla', d, H, T, ag, mayoria, sinHab, vac, falta: sinHab ? (mayoria ? 0 : 1) : Math.max(0, raMin80(T.tot) - T.hech) };
 }
 // El primer día con historial (hasta 2 años atrás).
 function raInicio(t) {
@@ -34851,7 +35000,7 @@ function raInicio(t) {
 // poda lo de la agenda (agendaHist a los 35 días, la regla de agendar a los 120), se borra una tarea o cambian los hábitos. Los últimos
 // RA_VIVO días se siguen midiendo con los datos (por si llega tarde lo de otro teléfono), pero solo pueden subir: lo anotado es el piso.
 // La fusión entre teléfonos toma, por día, el mejor veredicto (o > v > f), igual en los dos. Ver raCierreFusion (antes de mergeStates).
-const RA_VIVO = 7;
+const RA_VIVO = 7, RA_CONS = 28;
 var raCierreK = '', raCierreM = {};
 function raCierreMapa() {
   const C = ES.rachaCierre, k = C && typeof C === 'object' ? `${C.d0}|${C.s}` : '';
@@ -34864,6 +35013,7 @@ function raCalc() {
   if (raCache.k === k && raCache.v) return raCache.v;
   let cur = 0, mejor = 0, lun = '', libreUsado = false, ultRoto = '', antes = 0, ultLibre = '';
   const dias = {}, desde = agpDia(t, -27), M = raCierreMapa(), vivo = agpDia(t, -RA_VIVO), K2 = { o: 'ok', v: 'vac', f: 'falla' };
+  const c0 = agpDia(t, -RA_CONS); let cMet = 0, cEle = 0;   // la consistencia: los últimos 28 días hasta ayer
   let nuevo = null;
   for (let d = raInicio(t), i = 0; d <= t && i < 800; d = agpDia(d, 1), i++) {
     const L = adLunes(d); if (L !== lun) { lun = L; libreUsado = false; }
@@ -34885,10 +35035,12 @@ function raCalc() {
     else { st = 'roto'; if (cur > 0) { ultRoto = d; antes = cur; } cur = 0; }
     if (cur > mejor) mejor = cur;
     if (d >= desde) dias[d] = { k: st, e };
+    if (d >= c0 && st !== 'vac' && !vacDia(d) && (d < t || e.k === 'ok')) { cEle++; if (e.k === 'ok') cMet++; }   // sin las vacaciones (cumplidas o no); el día libre: no cumplido; hoy, solo si ya cuenta
   }
   if (nuevo) { try { ES.rachaCierre = raCierreEnc(nuevo, agpDia(t, -730)); raCierreMapa(); } catch (er) { console.warn('Racha', er); } }
   const hoy = dias[t]?.e || raEval(t);
-  const v = { t, racha: cur, mejor, dias, hoy, hoyK: dias[t]?.k || 'hoy', ultRoto, antes, ultLibre };
+  const cons = { met: cMet, ele: cEle, pct: cEle ? Math.round(cMet * 100 / cEle) : null };
+  const v = { t, racha: cur, mejor, dias, hoy, hoyK: dias[t]?.k || 'hoy', ultRoto, antes, ultLibre, cons };
   raCache = { k, v };
   return v;
 }
@@ -34911,8 +35063,8 @@ function raLibreManana(m) {
 function raHoyLinea(C = raCalc(), corto = false) {
   const e = C.hoy; if (!e || e.k === 'vac') return corto ? 'Hoy: de vacaciones' : 'Hoy: de vacaciones, tu racha está congelada';
   if (e.vac && e.k === 'ok') return corto ? 'Hoy: de vacaciones · cuenta ✓' : 'Hoy: de vacaciones · ya cuenta para tu racha';
-  const sh = corto ? 'Hoy: sin hábitos' : 'Hoy: sin hábitos programados';
-  const p = e.sinHab ? (e.mayoria ? `${sh} · 1 cosa hecha ✓` : sh) : `Hoy: ${e.H.hech} de ${raPl(e.H.tot, 'hábito', 'hábitos')}`;
+  const sh = e.ag === true ? 'Hoy: nada que cuente aún' : 'Hoy: sin nada programado', T = e.T || { tot: e.H.tot, hech: e.H.hech };   // agendado solo con un evento o el recordatorio de dormir (no cuentan)
+  const p = e.sinHab ? (e.mayoria ? 'Hoy: sin nada programado · 1 cosa hecha ✓' : sh) : `Hoy: ${T.hech} de ${T.tot}`;
   const a = e.ag === true ? ' · agendado ✓' : e.ag === false ? (corto ? ' · sin agendar' : ' · sin agendar desde la víspera') : '';
   return p + a;
 }
@@ -34921,8 +35073,23 @@ function raFaltaTxt(C = raCalc()) {
   if (e.k === 'ok') return 'hoy ya cuenta';
   if (e.ag === false) return C.hoyK === 'hoy-libre' ? 'tu día libre cuida la racha' : 'agenda mañana y tu próxima racha empieza ahí';
   if (e.sinHab) return 'con una cosa hecha, hoy cuenta';
-  return `${e.falta === 1 ? 'falta 1 hábito' : `faltan ${e.falta} hábitos`} para que hoy cuente`;
+  return `${e.falta === 1 ? 'falta 1' : `faltan ${e.falta}`} para el 80%`;
 }
+// De qué sale el total de hoy: «Hábitos 0 de 3 · Agenda 1 de 2 · Tareas 0 de 7 · Estudio 1 de 1» (solo lo que tiene algo).
+function raPartesTxt(e) {
+  const P = e && e.T && e.T.P; if (!P || e.sinHab) return '';
+  return [['hab', 'Hábitos'], ['ag', 'Agenda'], ['tar', 'Tareas'], ['est', 'Estudio']].filter(([k]) => P[k] && P[k].tot > 0).map(([k, n]) => `${n} ${P[k].hech} de ${P[k].tot}`).join(' · ');
+}
+// «Tu día» (Inicio): con la agenda hecha pero sin llegar aún al 80% de todo, no dice «Todo lo de hoy está hecho».
+function raTuDia() {
+  try {
+    if (!raOn()) return null;
+    const C = raCalc(), e = C.hoy; if (!e || e.k !== 'hoy' || e.ag === false || e.sinHab || !(e.falta > 0)) return null;
+    return ['Tu agenda de hoy está hecha.', `Para tu racha, ${raFaltaTxt(C)}.`];
+  } catch { return null; }
+}
+// La consistencia de las últimas 4 semanas: «Consistencia 4 semanas: 86%» ('' sin días elegibles).
+function raConsTxt(C = raCalc()) { const c = C.cons; return c && c.pct !== null ? `Consistencia 4 semanas: ${c.pct}%` : ''; }
 const raDiasTxt = n => raPl(n, 'día', 'días');
 function raQuien(d) { const t = today(); return d === t ? 'Hoy' : d === agpDia(t, -1) ? 'Ayer' : 'El ' + RA_DIAS[(new Date(d + 'T12:00').getDay() + 6) % 7].toLowerCase(); }
 function raAvLeer() { const A = ES.rachaAv; return A && typeof A === 'object' && !Array.isArray(A) ? A : {}; }
@@ -34948,8 +35115,8 @@ function raCardHtml(o) {
   if (!raOn()) return '';
   const C = raCalc(), A = raAviso(C), ok = C.hoy?.k === 'ok', vac = C.hoy?.k === 'vac';
   const av = A ? `<div class="ra-av" id="${o}-ra-av" role="status"><p>${esc(A.txt)}</p><button type="button" class="link ra-btn" data-ra="visto">Entendido</button></div>` : '';
-  const f = raFaltaTxt(C), lin = raHoyLinea(C) + (f && !vac ? ` · ${f}` : '');
-  return `<section class="ra-c${ok ? ' ra-ok' : ''}${vac ? ' ra-vac' : ''}" id="${o}-racha" aria-label="Tu racha">${av}<button type="button" class="ra-top" data-ra="ver" aria-label="${esc(`Tu racha: ${raDiasTxt(C.racha)}. ${lin}. Ver tu racha`)}"><span class="ra-n"><span class="ra-fl" aria-hidden="true">🔥</span> ${raDiasTxt(C.racha)}</span><span class="ra-l">${esc(lin)}</span></button></section>`;
+  const f = raFaltaTxt(C), lin = raHoyLinea(C) + (f && !vac ? ` · ${f}` : ''), cs = raConsTxt(C);
+  return `<section class="ra-c${ok ? ' ra-ok' : ''}${vac ? ' ra-vac' : ''}" id="${o}-racha" aria-label="Tu racha">${av}<button type="button" class="ra-top" data-ra="ver" aria-label="${esc(`Tu racha: ${raDiasTxt(C.racha)}. ${lin}.${cs ? ` ${cs}.` : ''} Ver tu racha`)}"><span class="ra-n"><span class="ra-fl" aria-hidden="true">🔥</span> ${raDiasTxt(C.racha)}</span><span class="ra-l">${esc(lin)}${cs ? ` <span class="ra-cs" id="${o}-ra-cs">· ${esc(cs)}</span>` : ''}</span></button></section>`;
 }
 function raSemana(d = today()) {
   const C = raCalc(), L = adLunes(d), t = today(), out = [];
@@ -34970,13 +35137,16 @@ function raSheet() {
   const C = raCalc(), A = raAviso(C), f = raFaltaTxt(C), vac = C.hoy?.k === 'vac';
   showSheet(`<div class="ra-h" id="ra-sheet"><h2 id="ra-tit"><span aria-hidden="true">🔥</span> ${raDiasTxt(C.racha)}</h2>
     <p class="meta" id="ra-mejor">Mejor racha: ${raDiasTxt(Math.max(C.mejor, C.racha))}</p>
+    ${raConsTxt(C) ? `<p class="meta" id="ra-cons">${esc(raConsTxt(C))} (${C.cons.met} de ${raDiasTxt(C.cons.ele)})</p>` : ''}
     ${A ? `<p class="note ra-sh-av" id="ra-sh-av">${esc(A.txt)}</p>` : ''}
     <p class="note" id="ra-hoy">${esc(raHoyLinea(C))}${f && !vac ? `<br><span class="meta">${esc(cap(f))}.</span>` : ''}</p>
+    ${raPartesTxt(C.hoy) && !vac ? `<p class="meta" id="ra-partes">${esc(raPartesTxt(C.hoy))}</p>` : ''}
     <h3>Tu semana</h3>${raSemanaHtml()}
     <p class="meta ra-ley">✓ cumplido · Libre: protegido · Vac: vacaciones · ✕ roto</p>
     <h3>Cómo funciona</h3>
     ${(() => { try { return adEstado().k !== 'ok' && !vac; } catch { return false; } })() ? '<p class="meta" id="ra-man"><button type="button" class="outline ra-btn" id="ra-ag-man">Agendar mañana</button></p>' : ''}
-    <ol class="ra-reglas" id="ra-reglas"><li>Un día cuenta si quedó agendado desde la víspera y haces más de la mitad de sus hábitos.</li><li>Si ese día no tiene hábitos, basta con una cosa hecha.</li><li>Cada semana tienes un día libre que cuida la racha, y las vacaciones la congelan.</li></ol>
+    <ol class="ra-reglas" id="ra-reglas"><li>Un día cuenta si quedó agendado desde la víspera y haces al menos el 80% de todo.</li><li>Todo: hábitos, agenda, tareas y Estudio de ese día. Si no hay nada programado, basta con una cosa hecha.</li><li>Cada semana tienes un día libre que cuida la racha, y las vacaciones la congelan.</li></ol>
+    <p class="meta" id="ra-cons-nota">La consistencia mira las últimas 4 semanas: el día libre cuenta como no cumplido y los días de vacaciones no cuentan.</p>
     <div class="actions"><button class="primary" id="ra-ok">Entendido</button></div></div>`);
   $('#ra-ok').onclick = () => { if (A) raAvVisto(); closeSheet(); };
   $('#ra-ag-man')?.addEventListener('click', () => { closeSheet(); try { adAbrirManana(); } catch (e) { console.warn('Racha', e); } });
@@ -34986,7 +35156,8 @@ var raChipHtml = '';
 function raChip() {
   const b = document.getElementById('xp-chip'); if (!b) return;
   const C = raCalc(), e = C.hoy, ok = e?.k === 'ok', vac = e?.k === 'vac';
-  const w = vac ? 0 : ok ? 100 : e?.sinHab ? 0 : Math.round(Math.min(1, e.H.hech / Math.max(1, Math.floor(e.H.tot / 2) + 1)) * 100);
+  const T = e?.T || { tot: e?.H?.tot || 0, hech: e?.H?.hech || 0 };
+  const w = vac ? 0 : ok ? 100 : e?.sinHab ? 0 : Math.round(Math.min(1, T.hech / Math.max(1, raMin80(T.tot))) * 100);
   // En el Inicio la tarjeta ya dice la racha y lo de hoy: la cabecera (mismo sitio y alto, para que nada se mueva) dice la mejor racha.
   let ini = false; try { ini = view === 'inicio'; } catch {}
   const html = ini ? `<span class="ra-ct">Mejor racha: ${raDiasTxt(Math.max(C.mejor, C.racha))}</span>` : `<span class="ra-ct">${esc(raHoyLinea(C, true))}</span> <span class="xc-bar" aria-hidden="true"><i style="width:${w}%"></i></span>${ok ? ' <span class="xc-hoy ok">hoy cuenta</span>' : ''}`;
@@ -35035,6 +35206,8 @@ function raClick(e) {
   if (b.dataset.ra === 'ver') raSheet();
   else if (b.dataset.ra === 'visto') raAvVisto();
 }
+// «Todavía puede contar»: contando cosas, el 80% siempre se alcanza; de noche, solo si faltan RA_NOCHE_MAX o menos (como el aviso push).
+const RA_NOCHE_MAX = 3;
 // ---------- La noche: si hoy aún no cuenta y todavía puede contar, lo que falta (una vez por noche en este teléfono)
 function raNoche() {
   try {
@@ -35043,13 +35216,14 @@ function raNoche() {
     let ya = ''; try { ya = localStorage.getItem('ra-noche') || ''; } catch {}
     const t = today(); if (ya === t) return false;
     const C = raCalc(), e = C.hoy; if (!e || e.k !== 'hoy' || e.ag === false) return false;
+    if (!e.sinHab && e.falta > RA_NOCHE_MAX) return false;   // falta mucho: de noche, sin presión (lo mismo que el aviso push)
     try { if (sheet.open) return false; } catch {}
     try { localStorage.setItem('ra-noche', t); } catch {}
     toast(raNocheTxt(C)); raNocheT = Date.now();
     return true;
   } catch (er) { console.warn('Racha', er); return false; }
 }
-function raNocheTxt(C = raCalc()) { const e = C.hoy; return e.sinHab ? 'Para que hoy cuente en tu racha, basta con una cosa hecha.' : `Para que hoy cuente en tu racha: ${e.falta === 1 ? 'falta 1 hábito' : `faltan ${e.falta} hábitos`}.`; }
+function raNocheTxt(C = raCalc()) { const e = C.hoy; return e.sinHab ? 'Para que hoy cuente en tu racha, basta con una cosa hecha.' : `Para que hoy cuente en tu racha: ${e.falta === 1 ? 'falta 1' : `faltan ${e.falta}`} de ${e.T ? e.T.tot : e.H.tot}.`; }
 // ---------- Sin XP a la vista: lo que queda en algún texto se limpia (red de seguridad; lo principal se cambió en su sitio).
 function raSinXp(s) {
   s = String(s ?? ''); if (!/\bXP\b/.test(s)) return s;
@@ -35143,9 +35317,9 @@ function raCiencia(L) {
   });
 }
 // «Tus datos»: la racha en lugar del nivel.
-function raDatosFila() { try { const C = raCalc(); return `<dt>Racha</dt><dd>${raDiasTxt(C.racha)} · mejor racha: ${raDiasTxt(Math.max(C.mejor, C.racha))}</dd>`; } catch { return ''; } }
+function raDatosFila() { try { const C = raCalc(), cs = raConsTxt(C); return `<dt>Racha</dt><dd>${raDiasTxt(C.racha)} · mejor racha: ${raDiasTxt(Math.max(C.mejor, C.racha))}${cs ? ` · ${cs.replace(/^C/, 'c')}` : ''}</dd>`; } catch { return ''; } }
 // El asistente: sin XP en lo que ve; con la racha.
-function raIaDatos() { const C = raCalc(), e = C.hoy; return { dias: C.racha, mejor: Math.max(C.mejor, C.racha), hoy_cuenta: e?.k === 'ok', hoy: raHoyLinea(C), falta: raFaltaTxt(C), dia_libre_disponible: raLibreDisp(agpDia(today(), 1)) && raLibreDisp(today()) }; }
+function raIaDatos() { const C = raCalc(), e = C.hoy; return { dias: C.racha, mejor: Math.max(C.mejor, C.racha), hoy_cuenta: e?.k === 'ok', hoy: raHoyLinea(C), falta: raFaltaTxt(C), hoy_hecho: e?.T?.hech ?? 0, hoy_total: e?.T?.tot ?? 0, hoy_desglose: raPartesTxt(e), consistencia_4_semanas: C.cons?.pct ?? null, dias_cumplidos_4_semanas: C.cons?.met ?? 0, dias_elegibles_4_semanas: C.cons?.ele ?? 0, dia_libre_disponible: raLibreDisp(agpDia(today(), 1)) && raLibreDisp(today()) }; }
 // ---------- Estilos
 const RA_CARD_CSS = `
   .ra-c { margin: 0 0 10px; padding: 2px 4px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--bg, transparent); color: var(--text); }
@@ -35154,12 +35328,13 @@ const RA_CARD_CSS = `
   .ra-n { flex: none; font-size: 1.6rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ra-fl { font-size: 1.35rem; }
   .ra-l { flex: 1 1 0; min-width: 0; font-size: .86rem; line-height: 1.3; color: var(--muted); overflow-wrap: anywhere; }
+  .ra-cs { white-space: nowrap; }
   .ra-ok .ra-l { color: var(--green, #2e9e5b); }
   .ra-av { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; margin: 4px 10px 0; padding: 6px 0 4px; border-bottom: 1px solid var(--line); }
   .ra-av p { margin: 0; flex: 1 1 180px; font-weight: 600; font-size: .95rem; line-height: 1.35; overflow-wrap: anywhere; }
   .ra-btn { min-height: 44px; min-width: 44px; padding: 0 4px; }
   /* En un teléfono estrecho, compacta (una fila de 44 px): lo de debajo casi no se mueve. */
-  @media (max-width: 359px) { .ra-c { padding: 0; border-width: 1px; margin-bottom: 3px; border-radius: 14px; } .ra-n { font-size: 1.25rem; } .ra-fl { font-size: 1.05rem; } .ra-top { padding: 0 8px; gap: 2px 8px; } .ra-l { font-size: .74rem; line-height: 1.2; } }`;
+  @media (max-width: 359px) { .ra-cs { white-space: normal; } .ra-c { padding: 0; border-width: 1px; margin-bottom: 3px; border-radius: 14px; } .ra-n { font-size: 1.25rem; } .ra-fl { font-size: 1.05rem; } .ra-top { padding: 0 8px; gap: 2px 8px; } .ra-l { font-size: .74rem; line-height: 1.2; } }`;
 const RA_OV_CSS = RA_CARD_CSS + `
   .ra-h h2 { font-size: 1.7rem; margin-bottom: 2px; }
   .ra-h #ra-mejor { margin-top: 0; }
@@ -35238,7 +35413,7 @@ adInfo = (f => function () {
   const E = adEstado();
   showSheet(`<h2>Agendar desde la víspera</h2>
     <p class="note">Un día cuenta como agendado si la noche antes ya tiene al menos una cosa en su agenda.</p>
-    <p class="note">Para tu racha, un día cuenta si quedó agendado desde la víspera y haces más de la mitad de sus hábitos. Cada semana, de lunes a domingo, el primer día que no cuenta es tu día libre: la racha sigue.</p>
+    <p class="note">Para tu racha, un día cuenta si quedó agendado desde la víspera y haces al menos el 80% de todo lo de ese día. Cada semana, de lunes a domingo, el primer día que no cuenta es tu día libre: la racha sigue.</p>
     <p class="meta">Lo que añadas el mismo día no cuenta para ese día. Lo que pases a otro día antes de que llegue, sí. Si quitas todo antes de la medianoche, ese día queda sin agendar.</p>
     <h3>Tu semana</h3>${raSemanaHtml()}
     <p class="meta" id="ad-info-lib">${raLibreDisp(agpDia(today(), 1)) ? 'Esta semana aún tienes tu día libre.' : 'Ya usaste tu día libre de esta semana.'}</p>
@@ -35261,8 +35436,9 @@ adNoche = (f => function () {
     toast('Mañana aún no está agendado. Con una cosa basta.');
   } catch (e) { console.warn('Agendar desde la víspera', e); }
 })(adNoche);
+try { agenda = raFotoFechas(agenda); } catch (e) { console.warn('Racha', e); }   // 2.26.0 · la fecha de cada tarea al archivar el día
 // Las vistas que cambian lo de hoy: pintar la racha también al marcar desde la Agenda o Rápido.
-try { renderAg = (f => function () { const x = f.apply(this, arguments); try { raChip(); raGlobal(); } catch {} return x; })(renderAg); } catch {}
+try { renderAg = (f => function () { const x = f.apply(this, arguments); try { raChip(); raGlobal(); raPintarIni(); } catch {} return x; })(renderAg); } catch {}   // 2.26.0 · lo de la agenda cuenta: también la tarjeta del Inicio
 setInterval(() => {
   try {
     if (!raOn()) return;
@@ -35281,8 +35457,564 @@ window.raOpc = {
   semana: d => raSemana(d), aviso: () => raAviso(), visto: () => raAvVisto(), sheet: () => raSheet(), noche: () => raNoche(), nocheTxt: () => raNocheTxt(), on: () => raOn(),
   metrica: v => { if (v === 'xp' || v === 'racha') state.enfoque.metrica = v; else delete state.enfoque.metrica; raGen++; raChipHtml = ''; try { xpChipHtml = ''; } catch {} guardar(); try { document.body.classList.toggle('ra-on', raOn()); renderAll(); renderXp(); } catch {} return raOn(); },
   sinXp: s => raSinXp(s), ciencia: () => ciencia(), ia: () => raIaDatos(), estadoIa: () => JSON.parse(JSON.stringify(iaEstado())), sistemaIa: () => raIaSistema(IA_SYSTEM), limpiar: () => raRaices(), invalidar: () => { raGen++; },
-  cierre: () => JSON.parse(JSON.stringify(ES.rachaCierre || null)), veredicto: d => raCierreMapa()[d] || '', libreManana: () => raLibreManana(agpDia(today(), 1))
+  cierre: () => JSON.parse(JSON.stringify(ES.rachaCierre || null)), cons: () => JSON.parse(JSON.stringify(raCalc().cons)), consTxt: () => raConsTxt(), todo: d => JSON.parse(JSON.stringify(raTodo(d, raHabitosDia(d, vacDia(d))))), partes: () => raPartesTxt(raCalc().hoy), tuDia: () => raTuDia(), veredicto: d => raCierreMapa()[d] || '', libreManana: () => raLibreManana(agpDia(today(), 1))
 };
+// 2.26.0 (EA) · Estudio en la Agenda
+// ====================================================================
+// 2.26.0 (EA) · «No me sale el estudio para agregar en agenda. Por más que tenga su apartado debe estar ahí en agenda.»
+// Causa: el estudio solo entraba a la Agenda solo (exAgendaInyectar: los bloques de las rutas activas con fecha de HOY que no quitaste)
+// y «Organizar mi día» solo listaba los bloques de ese día. Ninguna hoja para añadir (la de la Agenda: Tarea, Iniciativa, Otra cosa,
+// Constante; la del «+»: Hábito, Tarea, Iniciativa, Otra cosa, Constante) tenía Estudio. Si la ruta no tenía nada para hoy (un día de
+// descanso, una ruta hecha de noche que reparte desde mañana, sesiones que quedaron atrás, una sesión quitada de hoy) o no había ruta,
+// no había por dónde ponerlo.
+// Ahora: «Estudio» en las dos hojas (y un atajo visible en la del «+» cuando la ruta tiene algo por agendar), en «Organizar mi día»
+// (traer una sesión pendiente o de otro día) y un rato de estudio libre (tema + minutos). La sesión de la ruta entra con el mecanismo de
+// siempre: moverBloque al día (y su hora), sale de ocultos y exAgendaInyectar la pone; marcarla en la Agenda escribe ruta.hechos y al
+// revés, como cualquier bloque de hoy. Lo libre es una cosa suelta { tipo: 'libre', cat: 'estudio', estL: 1 } (2.25.3 la ve como
+// «Extra de estudio»). Nada se borra.
+// ====================================================================
+const EA_ATR = 14, EA_MAX = 8, EA_VIS = 3;
+const eaOk = () => { try { return exOk() && typeof window.est.rutas === 'function' && typeof window.est.moverBloque === 'function'; } catch { return false; } };
+const eaDia = d => /^\d{4}-\d\d-\d\d$/.test(d || '');
+const eaRutasVivas = () => { try { return (window.est.rutas() || []).filter(r => r && !r.archivada && !r.terminada && Array.isArray(r.plan) && !(r.fecha && r.fecha < today())); } catch { return []; } };
+function eaFechaTxt(d) { try { const t = today(); if (d === t) return 'hoy'; if (d === dayKey(addDays(new Date(), 1))) return 'mañana'; if (d === dayKey(addDays(new Date(), -1))) return 'ayer'; return new Date(d + 'T12:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric' }).replace(',', ''); } catch { return d; } }
+// Lo que ya está en ese día (la agenda de hoy o el plan de otro día) y lo que quitaste de él.
+function eaEnDia(D) {
+  const en = new Set(); let oc = new Set();
+  try {
+    if (D === today()) { const A = agenda(); oc = new Set(Array.isArray(A.ocultos) ? A.ocultos : []); for (const it of A.items || []) if (it && it.tipo === 'estudio' && (agHecho(it) || !oc.has(it.ref))) en.add(it.ref); }
+    else { const P = planDia(D); oc = new Set(Array.isArray(P?.ocultos) ? P.ocultos : []); for (const it of (P && Array.isArray(P.items) ? P.items : [])) if (it && it.tipo === 'estudio' && !oc.has(it.ref)) en.add(it.ref); }
+  } catch {}
+  return { en, oc };
+}
+// Las sesiones que se pueden poner ese día: las de ese día que quitaste, las que quedaron atrás (14 días, sin las que un plan nuevo ya
+// repartió) y las próximas; nunca una hecha ni una que ya está en ese día. Primero las de ese día y las atrasadas, luego las próximas.
+function eaCands(D = today()) {
+  if (!eaOk() || !eaDia(D)) return [];
+  const hoy = today(), desde = dayKey(addDays(new Date(), -EA_ATR)), { en, oc } = eaEnDia(D), A = [], B = [], C = [];
+  for (const r of eaRutasVivas()) {
+    if (r.fecha && r.fecha <= D) continue;   // el día va de hoy a la víspera del examen
+    const h = r.hechos || {}; let fuera = new Set(); try { fuera = estSesFueraSet(r); } catch {}
+    for (const b of r.plan) {
+      if (!b || typeof b.id !== 'string' || !eaDia(b.d) || h[b.id] || fuera.has(b.id) || en.has(b.id)) continue;
+      if (b.d === D) { if (oc.has(b.id)) A.push({ r, b, g: 'dia' }); continue; }
+      if (b.d < hoy) { if (b.d >= desde && !(typeof estRepartido === 'function' && estRepartido(r, b))) B.push({ r, b, g: 'atr' }); continue; }
+      C.push({ r, b, g: 'prox' });
+    }
+  }
+  const ord = (x, y) => (x.b.d < y.b.d ? -1 : x.b.d > y.b.d ? 1 : String(x.b.h || '99').localeCompare(String(y.b.h || '99')));
+  B.sort(ord); C.sort(ord);   // las atrasadas, de la más antigua: la primera es la que sigue en la ruta
+  let amb = false;   // solo la primera atrasada va en ámbar; las demás, en gris
+  return [...A.sort(ord), ...B.slice(0, 4), ...C.slice(0, 4)].slice(0, EA_MAX).map(({ r, b, g }) => {
+    const am = g === 'atr' && !amb; if (am) amb = true;
+    let eb = null; try { eb = window.est.bloque(b.id); } catch {}
+    let t = '', ses = ''; try { t = window.est.textoBloque(eb || b) || ''; } catch {} try { ses = window.est.sesTexto(eb || b) || ''; } catch {}
+    return { id: b.id, d: b.d, h: b.h || '', min: +b.min || AG_MIN.ini, g, t: t || r.nombre || 'Estudio', ses, ruta: r.nombre || '', color: (eb && eb.color) || '', amb: am };
+  });
+}
+function eaCuandoTxt(c) {
+  if (c.g === 'dia') return `La quitaste de ${c.d === today() ? 'hoy' : 'ese día'}`;
+  if (c.g === 'atr') return `Pendiente ${c.d === dayKey(addDays(new Date(), -1)) ? 'de ayer' : 'del ' + eaFechaTxt(c.d)}`;
+  return `Para ${c.d === today() ? 'hoy' : c.d === dayKey(addDays(new Date(), 1)) ? 'mañana' : 'el ' + eaFechaTxt(c.d)}`;
+}
+// Corto, para los chips del Calendario: «de ayer», «mañana», «quitada».
+function eaCortoTxt(c) {
+  if (c.g === 'dia') return 'quitada';
+  if (c.g === 'atr') return c.d === dayKey(addDays(new Date(), -1)) ? 'de ayer' : 'del ' + eaFechaTxt(c.d);
+  return c.d === today() ? 'hoy' : c.d === dayKey(addDays(new Date(), 1)) ? 'mañana' : 'el ' + eaFechaTxt(c.d);
+}
+// «Para mañana · 5:00 PM · Sesión 1/18 · 25 min» (lo pendiente, sin su hora de entonces)
+const eaSmallHtml = c => `${c.g === 'atr' && c.amb ? `<span class="amber">${esc(eaCuandoTxt(c))}</span>` : esc(eaCuandoTxt(c))}${c.g !== 'atr' && eaHora(c.h) ? ' · ' + esc(fmtHora(c.h)) : ''}${c.ses ? ' · ' + esc(c.ses) : ''} · ${esc(fmtMin(c.min))}`;
+const eaHora = h => /^\d\d:\d\d$/.test(h || '') ? h : '';
+// Poner una sesión de la ruta en el día D (hoy por defecto), a la hora h. Sin hora: la suya si aún no pasó; si pasó, sin hora.
+function eaPoner(id, D = today(), h = '') {
+  if (!eaOk()) return null;
+  const E = window.est, b0 = E.bloque(id), r = b0 ? E.ruta(b0.ruta) : null, pb = r && Array.isArray(r.plan) ? r.plan.find(p => p && p.id === id) : null;
+  if (!pb || (r.hechos || {})[id]) return null;
+  if (r.fecha && r.fecha <= D) { toast('Su examen es ese día: la ruta va hasta la víspera.'); return null; }
+  const hoy = today(); let hh = eaHora(h), hArg = hh;
+  // Sin hora elegida: la que quitaste de ese día conserva la suya si aún no pasó (sin tocar si era fija); la que viene de otro día entra
+  // sin hora (la reparte la Agenda), para no chocar con las de ese día ni quedar fijada sin que la elijas.
+  if (!hh) { if (pb.d === D && eaHora(pb.h) && (D > hoy || toMin(pb.h) > nowMin())) { hh = pb.h; hArg = undefined; } else hArg = ''; }
+  const d0 = pb.d, h0 = pb.h || '', hf0 = !!pb.hFija, Aa = agenda(), oc0 = D === hoy && (Aa.ocultos || []).includes(id), q0 = D === hoy ? (Aa.quit || {})['estudio:' + id] : undefined;
+  let ocD0 = false; if (D !== hoy) { try { const P0 = planDia(D); ocD0 = !!(P0 && Array.isArray(P0.ocultos) && P0.ocultos.includes(id)); } catch {} }
+  E.moverBloque(id, D, hArg);
+  const und = () => {   // «Deshacer»: el bloque vuelve a su día y su hora (si no lo marcaste ya), con el plan en orden y sus números
+    const r2 = E.ruta(r.id), b2 = r2 && Array.isArray(r2.plan) ? r2.plan.find(p => p && p.id === id) : null; if (!b2 || (r2.hechos || {})[id]) return;
+    b2.d = d0; b2.h = h0; if (hf0) b2.hFija = true; else delete b2.hFija;
+    try { estOrdenarPlan(r2); } catch {} try { estSesRenum(r2); } catch {} r2.cambiado = Date.now();
+    if (D === hoy) { const A2 = agenda(); if (d0 !== hoy) { const y = A2.items.find(i => i && i.tipo === 'estudio' && i.ref === id); if (y) { A2.items = A2.items.filter(i => i !== y); forget(y.id); } } if (oc0) { A2.ocultos = [...new Set([...(A2.ocultos || []), id])]; if (q0 !== undefined) { A2.quit = agQuitNorm(A2.quit); A2.quit['estudio:' + id] = q0; } } }
+    else if (ocD0) { try { const P2 = planDia(D); if (P2) P2.ocultos = [...new Set([...(Array.isArray(P2.ocultos) ? P2.ocultos : []), id])]; } catch {} }
+    guardar(); try { estAvisar('bloque', estEnriquecer(r2, b2), null); } catch {} try { renderE(); renderAg(); } catch {} try { cdRender(true); } catch {}
+  };
+  if (D === hoy) {
+    const A = agenda();
+    A.ocultos = (Array.isArray(A.ocultos) ? A.ocultos : []).filter(z => z !== id); agQuitMarcar(A, 'estudio:' + id, false);
+    agenda();   // exAgendaInyectar la pone, con la hora del bloque
+    const it = A.items.find(i => i && i.tipo === 'estudio' && i.ref === id);
+    if (it) { it.h = hh; delete it.ha; }
+  } else {
+    const P = planDia(D);
+    if (P && Array.isArray(P.ocultos)) P.ocultos = P.ocultos.filter(z => z !== id);
+  }
+  return und;
+}
+// Un rato de estudio libre: tema + minutos (+ hora), como cosa suelta de la categoría Estudio.
+function eaLibre(t, min, h, D = today()) {
+  const it = { id: crypto.randomUUID(), tipo: 'libre', ref: '', t: String(t || '').trim().slice(0, 100), h: eaHora(h), min: Math.max(5, Math.min(720, Math.round(+min || 25))), hecho: false, alta: Date.now(), cat: 'estudio', estL: 1 };
+  if (!it.t) return null;
+  if (D === today()) { const A = agenda(); A.items.push(it); if (agQuitado(A, agQuitClave(it))) agQuitMarcar(A, agQuitClave(it), false); }
+  else { const P = agPlanDe(D); it.ord = Math.max(0, ...P.items.map(x => +x.ord || 0)) + 1; P.items.push(it); }
+  return it;
+}
+function eaTras(msg, und) {
+  try { const g = agPestGuardada(); if (g && g !== 'todo') agPestPoner('estudio'); } catch {}
+  guardar(); renderE(); renderAg(); try { agCompleta(); } catch {} closeSheet();
+  if (typeof und === 'function') agAviso(msg || 'En la agenda.', und); else toast(msg || 'En la agenda.');
+}
+function eaFilasHtml(L, attr = 'data-ea', vis = Infinity) {
+  return L.map((c, i) => `<button type="button" class="row ea-b" ${attr}="${esc(c.id)}"${i >= vis ? ' hidden data-ea-mas' : ''}><span class="dot" style="--c:${esc(c.color || 'var(--accent)')}"></span><span class="t"><div style="white-space:normal;overflow-wrap:anywhere">${esc(c.t)}</div><small style="white-space:normal;overflow-wrap:anywhere">${eaSmallHtml(c)}</small></span><span class="tag">+</span></button>`).join('');
+}
+// La hoja «Añadir a la agenda» con Estudio elegido.
+function eaSheet() {
+  const L = eaCands(today()), hayRuta = eaOk() && eaRutasVivas().length > 0;
+  const chips = `<div class="chips" id="aa-tipos">${[['tarea', 'Tarea'], ['estudio', 'Estudio'], ['ini', 'Iniciativa'], ['libre', 'Otra cosa'], ['cons', 'Constante']].map(([k, n]) => `<button class="chip${k === 'estudio' ? ' on' : ''}" data-k="${k}" style="min-height:44px">${n}</button>`).join('')}</div>`;
+  const vis = (window.innerHeight || 800) < 720 ? 2 : EA_VIS;   // en una pantalla baja, 2: que «+ Estudio libre» se vea sin desplazar
+  const nota = L.length ? '<p class="note ea-n" style="margin:4px 0 6px">De tu ruta: toca una para ponerla hoy.</p>'
+    : hayRuta ? '<p class="note ea-n">Lo de tu ruta ya está en tu agenda o hecho. Puedes añadir un rato libre.</p>'
+    : '<p class="note ea-n">Aún no tienes una ruta de estudio. Añade un rato libre o <button type="button" class="link" data-goview="estudio" style="min-height:44px">crea una ruta</button>.</p>';
+  showSheet(`<h2>Añadir a la agenda</h2>${chips}
+    <div class="field ea-hora" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px"><label for="ae-h" style="margin:0">Hora <span class="meta">(si quieres)</span></label>${horaInput('ae-h', '', 'style="min-height:44px;max-width:140px;box-sizing:border-box"')}</div>
+    <p class="meta red" id="ae-herr" style="margin:0"></p>
+    ${nota}${L.length ? `<div class="rows" id="ae-rows">${eaFilasHtml(L, 'data-ea', vis)}</div>` : ''}
+    <style>#ae-pie { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: 18px; margin-top: 4px; } #ae-pie > details { flex: 1 1 auto; } #ae-pie > details[open] { flex-basis: 100%; }</style>
+    <div id="ae-pie">${L.length > vis ? `<button type="button" class="link" id="ae-mas" style="min-height:44px;flex:none">Ver más (${L.length - vis})</button>` : ''}
+    <details id="ae-libre" ${L.length ? '' : 'open'}><summary class="link" style="cursor:pointer;min-height:44px;display:flex;align-items:center">+ Estudio libre</summary>
+      <div class="field"><label>Qué vas a estudiar</label><input id="ae-t" maxlength="100" placeholder="Repasar derivadas"></div>
+      <div class="field"><label>Duración</label>${minSelect('ae-m', 30)}</div>
+      <p class="meta red" id="ae-err"></p>
+      <div class="actions" style="margin-top:0"><button class="primary" id="ae-ok">Añadir</button></div></details></div>
+    <div class="actions"><button class="link" id="aa-close" style="min-height:44px;min-width:44px">Cerrar</button></div>`);
+  const b = $('#sheet-body');
+  $('#aa-tipos').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) agAddSheet(c.dataset.k); });
+  $('#aa-close').onclick = closeSheet;
+  const hora = () => b.querySelector('#ae-h')?.value || '';
+  // Una hora de hoy que ya pasó hace más de una hora no entra (como en el Calendario).
+  const horaMal = (el) => { const h = hora(); if (h && agcPasada(h)) { (el || b.querySelector('#ae-herr')).textContent = agcPasadaTxt(); b.querySelector('#ae-h')?.focus(); return true; } return false; };
+  b.querySelector('#ae-h')?.addEventListener('input', () => { const x = b.querySelector('#ae-herr'); if (x) x.textContent = ''; });
+  b.querySelector('#ae-mas')?.addEventListener('click', e => { b.querySelectorAll('[data-ea-mas]').forEach(x => { x.hidden = false; }); e.currentTarget.remove(); });
+  b.querySelectorAll('[data-ea]').forEach(x => x.onclick = () => { const c = L.find(y => y.id === x.dataset.ea); if (!c || horaMal()) return; const u = eaPoner(c.id, today(), hora()); if (u) eaTras('En la agenda.', u); });
+  $('#ae-ok').onclick = () => {
+    const t = b.querySelector('#ae-t').value.trim(), err = b.querySelector('#ae-err');
+    if (!t) { err.textContent = 'Escribe qué vas a estudiar.'; b.querySelector('#ae-t').focus(); return; }
+    err.textContent = ''; if (horaMal(err)) return;
+    const it = eaLibre(t, +b.querySelector('#ae-m').value || 30, hora()); if (it) eaTras('En la agenda.', () => { const A = agenda(), y = A.items.find(i => i && i.id === it.id); if (y && !agHecho(y)) { A.items = A.items.filter(i => i !== y); forget(y.id); guardar(); renderE(); renderAg(); } });
+  };
+}
+// La hoja de la Agenda: el chip «Estudio» junto a Tarea; con Estudio elegido, la hoja de arriba.
+agAddSheet = (f => function (tipo = '') {
+  if (tipo === 'estudio') { try { return eaSheet(); } catch (e) { console.warn('Estudio · agenda', e); } }
+  const r = f.apply(this, arguments);
+  try { const ch = $('#aa-tipos'); if (ch && !ch.querySelector('[data-k="estudio"]')) { const t = ch.querySelector('[data-k="tarea"]'); const x = document.createElement('button'); x.className = 'chip'; x.dataset.k = 'estudio'; x.style.minHeight = '44px'; x.textContent = 'Estudio'; if (t) t.after(x); else ch.prepend(x); } } catch (e) { console.warn('Estudio · agenda', e); }
+  return r;
+})(agAddSheet);
+// La hoja del «+»: «Estudio» entre los tipos y, si la ruta tiene algo por poner, un atajo a la vista.
+qaSheet = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    const b = $('#sheet-body'), tb = b && b.querySelector('.qa-tipos-b');
+    if (tb && !tb.querySelector('[data-qa-tipo="estudio"]')) {
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'outline'; x.dataset.qaTipo = 'estudio'; x.textContent = 'Estudio';
+      const t = tb.querySelector('[data-qa-tipo="tarea"]'); if (t) t.after(x); else tb.append(x);
+      x.onclick = () => agAddSheet('estudio');
+    }
+    const n = eaCands(today()).filter(c => c.g !== 'prox').length, ok = b && b.querySelector('#qa-ok');   // el atajo, solo si hay algo pendiente o quitado de hoy
+    if (n && ok && !b.querySelector('#qa-est')) {
+      const y = document.createElement('button'); y.type = 'button'; y.className = 'link qa-est'; y.id = 'qa-est';
+      y.style.cssText = 'display:flex;align-items:center;min-height:44px;margin:4px 0 0'; y.textContent = 'Estudio pendiente ›';
+      y.setAttribute('aria-label', `Estudio pendiente: ${n} ${n === 1 ? 'sesión' : 'sesiones'} de tu ruta`);
+      y.onclick = () => agAddSheet('estudio'); ok.after(y);
+    }
+  } catch (e) { console.warn('Estudio · añadir', e); }
+  return r;
+})(qaSheet);
+// Las pestañas y el calendario de la Agenda: lo libre de estudio va con Estudio.
+agPestDe = (f => function (it) { if (it && it.tipo === 'libre' && it.estL && !(typeof it.esp === 'string' && it.esp)) return 'estudio'; return f.apply(this, arguments); })(agPestDe);
+agcTipoDe = (f => function (it) { if (it && it.tipo === 'libre' && it.estL && !(typeof it.esp === 'string' && it.esp)) return 'estudio'; return f.apply(this, arguments); })(agcTipoDe);
+// «Organizar mi día» (u otro día): además de los bloques de ese día, las sesiones pendientes o de otro día, apagadas; encender una la trae.
+exOrgInit = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    if (org && org.est && eaOk()) { const D = org.dest || today(); for (const c of eaCands(D)) if (c.g !== 'dia' && !org.est.has(c.id)) org.est.set(c.id, { on: false, h: '', traer: c }); }
+  } catch (e) { console.warn('Estudio · organizar', e); }
+  return r;
+})(exOrgInit);
+const eaSinTraer = fn => { const M = org && org.est; if (!M) return fn(); const T = [...M].filter(([, o]) => o && o.traer && !o.on); for (const [id] of T) M.delete(id); try { return fn(); } finally { for (const [id, o] of T) M.set(id, o); } };
+exOrgPaso3Html = (f => function () {
+  const T = org && org.est ? [...org.est].filter(([, o]) => o && o.traer) : [];
+  if (!T.length) return f.apply(this, arguments);
+  const M = org.est; for (const [id] of T) M.delete(id);
+  let base = ''; try { base = f.apply(this, arguments); } finally { for (const [id, o] of T) M.set(id, o); }
+  const deC = org.manana ? agpDe(org.dest) : 'hoy';
+  const rows = T.map(([id, o]) => { const c = o.traer; return `<div class="row" data-tg="${esc(id)}" style="cursor:pointer"><span class="box" style="${boxSt(o.on)}"></span>
+      <span class="t"><div style="white-space:normal;overflow-wrap:anywhere">Estudio · ${esc(c.t)}</div><small style="white-space:normal;overflow-wrap:anywhere">${eaSmallHtml(c)}</small></span>
+      ${horaInput('oe-' + esc(id).replace(/[^\w-]/g, '_'), o.h, `data-te="${esc(id)}"`)}</div>`; }).join('');
+  return `${base || `<h3 style="margin-top:18px">Estudio</h3>`}
+    <p class="note" style="margin-top:${base ? '12px' : '0'}">De tu ruta, por poner: toca una para traerla ${deC === 'hoy' ? 'hoy' : deC}.</p>
+    <div class="rows" id="og-est-t">${rows}</div>`;
+})(exOrgPaso3Html);
+// «Tu día propuesto» (la pantalla de «Organizar mi día»): al final, «+ Estudio de tu ruta» con las mismas sesiones; tocar una la pone
+// en la lista con su hora (la × la vuelve a quitar) y «Listo» la trae.
+orgPropuestaSheet = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    const b = $('#sheet-body'), W = b && b.querySelector('#op-wrap'), pie = W && W.querySelector('.op-pie');
+    const T = org && org.est ? [...org.est].filter(([, o]) => o && o.traer && !o.on) : [];
+    if (pie && T.length && !W.querySelector('#op-est')) {
+      const d = document.createElement('details'); d.id = 'op-est'; d.className = 'op-est'; d.style.margin = '6px 0 10px';
+      d.innerHTML = `<summary class="link" style="cursor:pointer;min-height:44px;display:flex;align-items:center">+ Estudio de tu ruta</summary><div class="rows" id="op-est-l">${eaFilasHtml(T.map(([, o]) => o.traer), 'data-op-est')}</div>`;
+      if (eaOrgAbierto) d.open = true;
+      d.addEventListener('toggle', () => { eaOrgAbierto = d.open; });
+      pie.before(d);
+      d.addEventListener('click', e => { const x = e.target.closest('[data-op-est]'); if (!x) return; const o = org.est.get(x.dataset.opEst); if (!o) return; o.on = true; o.tocada = true; eaOrgAbierto = false;
+        try { orgAutoHoras(false); } catch {} const top = $('#sheet-body')?.scrollTop || 0, v = W.querySelector('#op-p1')?.value || ''; orgPropuestaSheet(org.dest, true); const b2 = $('#sheet-body'); if (b2) { b2.scrollTop = top; const i = b2.querySelector('#op-p1'); if (i) i.value = v; } });
+    }
+  } catch (e) { console.warn('Estudio · organizar', e); }
+  return r;
+})(orgPropuestaSheet);
+var eaOrgAbierto = false;
+exOrgPaso3Wire = (f => function (filas, horas) {
+  const r = f.apply(this, arguments);
+  try { if (org && org.est && [...org.est.values()].some(o => o && o.traer)) filas('#og-est-t', org.est, () => false); } catch (e) { console.warn('Estudio · organizar', e); }
+  return r;
+})(exOrgPaso3Wire);
+exOrgGuardar = (f => function () {
+  try {
+    if (org && org.est && eaOk()) { const D = org.dest || today(); for (const [id, o] of org.est) if (o && o.traer && o.on) { try { window.est.moverBloque(id, D, eaHora(o.h)); } catch {} } }
+  } catch (e) { console.warn('Estudio · organizar', e); }
+  return eaSinTraer(() => f.apply(this, arguments));
+})(exOrgGuardar);
+exOrgOcultos = (f => function () { return eaSinTraer(() => f.apply(this, arguments)); })(exOrgOcultos);
+// El «Calendario» (+ Agregar y un toque en una hora libre): con Estudio, las sesiones de tu ruta para elegir una (entra a ese día y a
+// esa hora, como arriba); con un nombre y sin sesión elegida, como siempre (una tarea de la ruta). Sin ruta, ya no queda apagado: con
+// un nombre entra un rato de estudio libre.
+cdaNo = (f => function (k, d) { if (k === 'estudio' && !cdaRutas().length && !(d > agpMax())) return ''; return f.apply(this, arguments); })(cdaNo);
+cdaTipo = (f => function () {
+  const r = f.apply(this, arguments);
+  try {
+    const b = $('#sheet-body'), E = cdaEst, ex = b && b.querySelector('#cda-extra');
+    if (E && ex && E.tipo === 'estudio') {
+      const L = eaCands(E.d).slice(0, 4); if (E.eaSes && !L.some(c => c.id === E.eaSes)) E.eaSes = '';
+      const w = document.createElement('div'); w.className = 'ea-cda';
+      w.innerHTML = L.length ? `<p class="cda-k" id="cda-el">De tu ruta</p><div class="cda-sub" role="group" aria-labelledby="cda-el">${L.map(c => `<button type="button" class="chip${E.eaSes === c.id ? ' on' : ''}" data-ea-ses="${esc(c.id)}" aria-pressed="${E.eaSes === c.id}" style="white-space:normal;text-align:left;max-width:100%">${esc(c.t.split(' · ').slice(1).join(' · ') || c.t)}${c.ses ? ' · ' + esc(c.ses.replace('Sesión ', '')) : ''} · ${esc(eaCortoTxt(c))}</button>`).join('')}</div>`
+        : !cdaRutas().length ? '<p class="meta" style="margin:0 0 10px">Sin ruta: entra como un rato de estudio libre.</p>' : '';
+      ex.append(w);
+      w.addEventListener('click', e => { const c = e.target.closest('[data-ea-ses]'); if (!c) return; E.eaSes = E.eaSes === c.dataset.eaSes ? '' : c.dataset.eaSes; cdaTipo(); });
+      if (E.eaSes) { const nt = b.querySelector('#cda-nota'); if (nt) nt.textContent = 'Entra esa sesión de tu ruta; el nombre no hace falta.'; }
+    }
+  } catch (e) { console.warn('Estudio · calendario', e); }
+  return r;
+})(cdaTipo);
+cdaGuardar = (f => function () {
+  const b = $('#sheet-body'), E = cdaEst;
+  try {
+    if (b && E && E.tipo === 'estudio' && b.querySelector('#cda') && (E.eaSes || !cdaRutas().length)) {
+      const er = m => { const x = b.querySelector('#cda-err'); if (x) x.textContent = m; };
+      const d = E.d, h = b.querySelector('#cda-h').value || '', min = durMin(b.querySelector('#cda-m')?.value) || CDA_MIN.estudio, t = (b.querySelector('#cda-t').value || '').replace(/\s+/g, ' ').trim();
+      if (d < today()) { er('Ese día ya pasó: solo para ver.'); return; }
+      if (d === today() && h && agcPasada(h)) { er(agcPasadaTxt()); return; }
+      if (E.eaSes) { const u = eaPoner(E.eaSes, d, h); if (!u) return; cdaUltPoner('estudio'); closeSheet(); guardar(); cdaPintarTodo(); try { renderAg(); } catch {} agAviso(`Estudio para ${agpCuando(d)}${eaHora(h) ? ` a las ${fmtHora(h)}` : ''}.`, u); cdaFiltroIncluir('estudio'); cdRender(true); return; }
+      if (!t) { er('Escribe qué vas a estudiar.'); b.querySelector('#cda-t').focus(); return; }
+      const it = eaLibre(t, min, h, d); if (!it) return;
+      cdaUltPoner('estudio'); closeSheet(); guardar(); cdaPintarTodo(); try { renderAg(); } catch {}
+      agAviso(`Estudio para ${agpCuando(d)}${eaHora(h) ? ` a las ${fmtHora(h)}` : ''}.`, () => { const P = d === today() ? agenda() : planDia(d), y = P && Array.isArray(P.items) ? P.items.find(i => i && i.id === it.id) : null; if (y && !agHecho(y)) { P.items = P.items.filter(i => i !== y); forget(y.id); guardar(); } cdaPintarTodo(); });
+      cdaFiltroIncluir('estudio'); cdRender(true); return;
+    }
+  } catch (e) { console.warn('Estudio · calendario', e); }
+  return f.apply(this, arguments);
+})(cdaGuardar);
+window.eaOpc = { cands: d => eaCands(d || today()), poner: (id, d, h) => eaPoner(id, d || today(), h || ''), libre: (t, m, h, d) => eaLibre(t, m, h, d || today()), hoja: () => agAddSheet('estudio'), pasada: h => { try { return !!agcPasada(h); } catch { return false; } } };
+// 2.26.0 (CD) · Los puntos de la semana se tocan: anotar o corregir un día
+// Los siete puntos de cada meta (los últimos 7 días) son botones: un toque abre una hoja pequeña para ese día, con las mismas opciones
+// que la tarjeta de hoy según el tipo; guardar pasa por csPoner (XP del día, racha y sincronización como siempre) y vuelve a pintar todo.
+// Un día que no tocaba (o antes de crear la meta) no se edita: lo dice. Hoy, antes de su hora (de noche, o de madrugada), tampoco.
+// Sin datos nuevos: lo guardado es la misma anotación de siempre (ES.consLog[d][id]), así que 2.25.3 la abre y la fusiona igual.
+const CSDP_DN = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const CSDP_SH_CSS = `
+  .cd-sh h2 { overflow-wrap: anywhere; }
+  .cd-sh .meta { overflow-wrap: anywhere; }
+  .cd-bs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 4px; }
+  .cd-si { flex: 1 1 140px; min-height: 52px; border-radius: 999px; background: var(--text); color: var(--bg); font-weight: 600; font-size: 1rem; padding: 0 16px; border: 0; }
+  .cd-no { flex: 1 1 120px; min-height: 52px; border-radius: 999px; border: 1.5px solid var(--line); color: var(--text); background: transparent; font-size: 1rem; padding: 0 16px; }
+  .cd-si[aria-current="true"]::after, .cd-no[aria-current="true"]::after { content: ' · lo anotado'; font-weight: 400; font-size: .8rem; opacity: .75; }
+  .cd-stp { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0 4px; }
+  .cd-stp button { flex: none; width: 52px; height: 52px; border-radius: 50%; border: 1.5px solid var(--text); background: transparent; color: var(--text); font-size: 1.5rem; font-weight: 600; line-height: 1; }
+  .cd-stp button:disabled { opacity: .3; }
+  .cd-stp b { min-width: 2.5ch; text-align: center; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+  .cd-stp small { color: var(--muted); font-size: .85rem; flex: 1 1 120px; min-width: 0; }
+  .cd-cbh { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  .cd-cbh span { flex: 1 1 140px; min-width: 0; font-size: .92rem; font-weight: 600; overflow-wrap: anywhere; }
+  .cd-cbb { flex: 0 0 auto; min-width: 64px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); background: transparent; font-weight: 600; color: var(--text); }
+  .cd-cbb[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #fff; }
+  .cd-cbb.no[aria-pressed="true"] { background: var(--muted); border-color: var(--muted); color: var(--bg); }
+  .cd-sh .chips .chip { min-height: 44px; }
+  .cd-sh .chips .chip[aria-current="true"] { border-color: var(--text); font-weight: 600; }
+  .cd-sh .chips .chip[aria-current="true"]::after { content: ' · lo anotado'; font-weight: 400; font-size: .8rem; opacity: .75; }
+  .cd-sh .cd-l { font-size: .85rem; color: var(--muted); margin: 14px 0 8px; }
+  .cd-sh .field { margin: 14px 0 0; }
+  .cd-sh .field input { min-height: 44px; }
+  .cd-borrar { display: block; min-height: 44px; margin-top: 10px; padding: 0 2px; color: var(--muted); }
+  .cd-sh .actions { margin-top: 12px; }
+  .cd-sh .actions button { min-height: 44px; }`;
+// «Martes 17» (o «Hoy»); en minúscula para el medio de una frase.
+function csdpDia(d, may = true) { const x = new Date(d + 'T12:00'), s = d === today() ? 'hoy' : `${CSDP_DN[x.getDay()]} ${x.getDate()}`; return may ? s[0].toUpperCase() + s.slice(1) : s; }
+// ¿Hay algo anotado ese día? (lo quitado queda como { ok: null, v: '' }: no cuenta)
+function csdpHay(c, d) { const r = csRaw(c, d); return !!r && (r.ok === true || r.ok === false || typeof r.v === 'number' || (typeof r.v === 'string' && r.v !== '') || csCbH(r) !== null || r.okc === true || r.okc === false); }
+function csdpEstado(c, d) {
+  if (!csToca(c, d)) return c.creado && d < c.creado ? 'la meta aún no existía' : 'no tocaba';
+  if (!csdpHay(c, d)) return 'sin anotar';
+  const r = csRaw(c, d), g = csReg(c, d), ok = g ? g.ok : null;
+  if (c.tipo === 'max' || c.tipo === 'min') {
+    const v = +r.v || 0, b = `${v} ${csUnidad(c, v)}`;
+    return ok === true ? `${b}, cumplida` : ok === false ? `${b}, no se cumplió` : csCb(c) && csCbH(r) === null ? `${b}, falta la hora` : b;
+  }
+  if (c.tipo === 'antes' && /^\d\d:\d\d$/.test(r.v || '')) return ok ? `cumplida a las ${csHora12(r.v)}` : `a las ${csHora12(r.v)}, no se cumplió`;
+  return ok === true ? 'cumplida' : ok === false ? 'no se cumplió' : 'sin anotar';
+}
+function csdpDots(c) {
+  const t = today();
+  return `<span class="cs-dots" role="group" aria-label="Últimos 7 días, toca uno para anotarlo o cambiarlo">${csSemana(c).map(x => {
+    const cls = `cs-dot${!x.toca ? ' off' : x.ok ? ' ok' : x.no ? ' no' : ''}${x.d === t ? ' hoy' : ''}`;
+    return `<button type="button" class="cs-dotb${x.toca ? '' : ' off'}" data-csd="${esc(c.id)}" data-csd-d="${x.d}" aria-label="${esc(csdpDia(x.d))}: ${esc(csdpEstado(c, x.d))}"><span class="${cls}" title="${esc(fmtFecha(x.d))}: ${esc(csdpEstado(c, x.d))}"></span></button>`;
+  }).join('')}</span>`;
+}
+csTarjeta = (f => function (c) {
+  const h = f.apply(this, arguments);
+  try {
+    const i = h.indexOf('<span class="cs-dots" aria-hidden="true">'), j = i < 0 ? -1 : h.indexOf('<span class="cs-n7">', i);
+    if (i < 0 || j < 0) return h;
+    return (h.slice(0, i) + csdpDots(c) + h.slice(j)).replace(/<div class="cs-sem" aria-label="[^"]*">/, '<div class="cs-sem">');
+  } catch (e) { console.warn('Puntos de la semana', e); return h; }
+})(csTarjeta);
+// ¿Se puede anotar ese día? Devuelve '' o lo que se le dice.
+function csdpNoSe(c, d) {
+  const t = today();
+  if (!/^\d{4}-\d\d-\d\d$/.test(d || '') || d > t) return 'Ese día aún no llega.';
+  if (d < csDiaMas(t, -6)) return '';
+  if (!csToca(c, d)) return c.creado && d < c.creado ? 'Ese día la meta aún no existía.' : 'Ese día no tocaba.';
+  if (d > csDiaDe(c)) return 'Lo de hoy se anota más tarde.';   // de madrugada, el día de hoy aún no empieza para la meta
+  if (d === t && !csdpHay(c, d) && csTemprano(c, d)) return `Lo de hoy se anota esta noche, desde las ${csHora12(csHM(toMin(c.hora) - 240))}.`;
+  return '';
+}
+function csdpFoco(c, d) { setTimeout(() => { try { document.querySelector(`#cons [data-csd="${CSS.escape(c.id)}"][data-csd-d="${d}"]`)?.focus({ preventScroll: true }); } catch {} }, 60); }
+// Guardar lo de ese día: lo mismo que la tarjeta (csPoner da o quita el XP de ese día, guarda y sincroniza).
+function csdpGuardar(c, d, ok, v, o = null) {
+  closeSheet();
+  const num = c.tipo === 'max' || c.tipo === 'min';
+  if (!o && !num && d === csDiaDe(c)) { csAnotar(c, ok, v, d); csdpFoco(c, d); return; }   // el día de la tarjeta: como «Lo cumplí» / «Hoy no»
+  const prev = csPoner(c, d, ok, v, { sinPop: true, ...(o || {}) });
+  csPintarTodo();
+  const cu = d === today() ? '' : ` (${d === csDiaDe(c) && csCuando(c, d) ? csCuando(c, d) : csdpDia(d, false)})`;
+  const det = num ? ` ${v} ${csUnidad(c, v)}` : c.tipo === 'antes' && v ? ` ${c.t} · ${csHora12(v)}` : ` ${c.t}`;
+  csAvisoAnotado(c, d, prev, ok === false ? `Anotado${cu}.${num ? det + '.' : ''} Lo que sigue cuenta igual.` : `Anotado${cu}:${det}.`);
+  csdpFoco(c, d);
+}
+function csdpBorrar(c, d) {
+  closeSheet();
+  const prev = csPoner(c, d, null, '', { sinPop: true, ...(csCb(c) ? { h: null } : {}) });
+  csPintarTodo();
+  toast(csXpTxt(csPoner.xp) + 'Borrado. Anótalo otra vez cuando quieras.', { deshacer: () => csDeshacer(c, d, prev) });
+  csdpFoco(c, d);
+}
+function csdpHoja(c, d) {
+  const r = csRaw(c, d), hay = csdpHay(c, d), g = csReg(c, d), num = c.tipo === 'max' || c.tipo === 'min', cb = csCb(c), id = esc(c.id);
+  let cuerpo = '', guardar = '';
+  if (num) {
+    let v = hay ? Math.max(0, Math.min(999, +r.v || 0)) : 0, h = cb ? csCbH(r) : null;
+    const sm = c.tipo === 'max' ? `de ${c.n} ${esc(csUnidad(c))} como máximo` : `de ${c.n} ${esc(csUnidad(c))}`;
+    cuerpo = `<div class="cd-stp"><button type="button" id="cd-menos" aria-label="Uno menos"${v <= 0 ? ' disabled' : ''}>−</button><b id="cd-v" aria-live="polite">${v}</b><button type="button" id="cd-mas" aria-label="Uno más">+</button><small>${sm}</small></div>`
+      + (cb ? `<div class="cd-cbh" role="group" aria-label="${esc(csCbQ(c))}"><span>${esc(csCbQ(c))}</span><button type="button" class="cd-cbb" data-cd-h="si" aria-pressed="${h === true}">Sí</button><button type="button" class="cd-cbb no" data-cd-h="no" aria-pressed="${h === false}">No</button></div>` : '')
+      + (c.tipo === 'max' ? `<div class="cd-bs"><button type="button" class="cd-no" id="cd-cero">Ninguno</button></div>` : '');
+    guardar = `<button type="button" class="primary" id="cd-ok">Guardar</button>`;
+    showSheet(csdpHtml(c, d, cuerpo, guardar, hay));
+    const B = $('#sheet-body'), pinta = () => { B.querySelector('#cd-v').textContent = v; B.querySelector('#cd-menos').disabled = v <= 0; B.querySelectorAll('[data-cd-h]').forEach(b => b.setAttribute('aria-pressed', String(h === (b.dataset.cdH === 'si')))); };
+    B.querySelector('#cd-menos').onclick = () => { v = Math.max(0, v - 1); pinta(); };
+    B.querySelector('#cd-mas').onclick = () => { v = Math.min(999, v + 1); pinta(); };
+    B.querySelectorAll('[data-cd-h]').forEach(b => { b.onclick = () => { const si = b.dataset.cdH === 'si'; h = h === si ? null : si; pinta(); }; });
+    const fin = x => cb ? csdpGuardar(c, d, csCbOk(c, x, h), x, { h }) : csdpGuardar(c, d, csCumple(c, x), x);
+    B.querySelector('#cd-ok').onclick = () => fin(v);
+    B.querySelector('#cd-cero')?.addEventListener('click', () => fin(0));
+  } else if (c.tipo === 'antes' && /^\d\d:\d\d$/.test(c.hora || '')) {
+    // Las horas de alrededor de la meta (como «¿A qué hora fue?»); si «ahora» cuenta para ese día, ninguna después de ahora.
+    const hm = toMin(c.hora), ahora = hhmm(new Date()), mismo = csAhoraCuenta(c, d) && d === csDiaDe(c), K = x => csNoche(c) ? csNM(toMin(x)) : toMin(x);
+    let C = [...new Set([hm - 30, hm - 15, hm - 5, hm + 15, hm + 30].map(csHM))].filter(x => !mismo || K(x) <= K(ahora));
+    if (mismo && !C.includes(ahora)) C.push(ahora);
+    C.sort((a, b) => K(a) - K(b));
+    const v0 = hay && /^\d\d:\d\d$/.test(r.v || '') ? r.v : c.hora, va = hay && g && g.ok !== false && /^\d\d:\d\d$/.test(r.v || '') ? r.v : '';
+    cuerpo = `<p class="cd-l">¿A qué hora fue?</p><div class="chips" id="cd-hs">${C.map(x => `<button type="button" class="chip" data-cd-hh="${x}"${x === va ? ' aria-current="true"' : ''}>${esc(csHora12(x))}${x === ahora && mismo ? ' (ahora)' : ''}</button>`).join('')}</div>
+      <div class="field"><label for="cd-o">Otra hora</label><input type="time" id="cd-o" value="${esc(v0)}"></div>
+      <div class="cd-bs"><button type="button" class="cd-no" id="cd-no"${g && g.ok === false ? ' aria-current="true"' : ''}>No se cumplió</button></div>`;
+    guardar = `<button type="button" class="primary" id="cd-ok">Anotar</button>`;
+    showSheet(csdpHtml(c, d, cuerpo, guardar, hay));
+    const B = $('#sheet-body');
+    B.querySelector('#cd-hs').addEventListener('click', e => { const b = e.target.closest('[data-cd-hh]'); if (b) csdpGuardar(c, d, csCumple(c, b.dataset.cdHh), b.dataset.cdHh); });
+    B.querySelector('#cd-ok').onclick = () => { const x = B.querySelector('#cd-o').value; if (!/^\d\d:\d\d$/.test(x)) { B.querySelector('#cd-o').focus(); return; } csdpGuardar(c, d, csCumple(c, x), x); };
+    B.querySelector('#cd-no').onclick = () => csdpGuardar(c, d, false, '');
+  } else {
+    cuerpo = `<div class="cd-bs"><button type="button" class="cd-si" id="cd-si"${g && g.ok === true ? ' aria-current="true"' : ''}>Lo cumplí</button><button type="button" class="cd-no" id="cd-no"${g && g.ok === false ? ' aria-current="true"' : ''}>No se cumplió</button></div>`;
+    showSheet(csdpHtml(c, d, cuerpo, '', hay));
+    const B = $('#sheet-body');
+    B.querySelector('#cd-si').onclick = () => csdpGuardar(c, d, true, c.tipo === 'despues' ? c.hora : '');
+    B.querySelector('#cd-no').onclick = () => csdpGuardar(c, d, false, '');
+  }
+  const B = $('#sheet-body');
+  B.querySelector('#cd-x').onclick = closeSheet;
+  B.querySelector('#cd-borrar')?.addEventListener('click', () => csdpBorrar(c, d));
+}
+function csdpHtml(c, d, cuerpo, guardar, hay) {
+  return `<style>${CSDP_SH_CSS}</style><div class="cd-sh" data-sin-hecho data-cd-dia="${d}">
+    <p class="paso">Meta de consistencia</p><h2>${esc(csdpDia(d))} · ${esc(csdpEstado(c, d))}</h2>
+    <p class="meta">${esc(c.t)}${csSub(c) ? ' · ' + esc(csSub(c)) : ''}</p>
+    ${cuerpo}
+    ${hay ? '<button type="button" class="link cd-borrar" id="cd-borrar">Borrar lo anotado</button>' : ''}
+    <div class="actions"><button type="button" class="link" id="cd-x">Cancelar</button>${guardar}</div></div>`;
+}
+function csdpTocar(c, d) {
+  const no = csdpNoSe(c, d);
+  if (no) { toast(no); return; }
+  if (d < csDiaMas(today(), -6)) return;
+  csdpHoja(c, d);
+}
+document.getElementById('cons')?.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-csd]'); if (!b) return;
+  const c = csGet(b.dataset.csd); if (!c) return;
+  try { csdpTocar(c, b.dataset.csdD || ''); } catch (err) { console.warn('Puntos de la semana', err); }
+});
+window.csdpOpc = { tocar: (id, d) => { const c = csGet(id); if (c) csdpTocar(c, d); }, estado: (id, d) => { const c = csGet(id); return c ? csdpEstado(c, d) : ''; }, noSe: (id, d) => { const c = csGet(id); return c ? csdpNoSe(c, d) : ''; } };
+// 2.26.0 (HB) · Botones Hábitos ↔ Agenda
+// «Pon de nuevo hábitos en agenda… no debe ni realmente estar sino que pon un botón que te lleve a la parte de hábitos; también pon ese
+// apartado pero para agenda, que de hábitos vayas a agenda.»
+// - En la Agenda (vista de lista, hoy), al final de la fila de pestañas: «Hábitos 3/5 ›», un botón (no una pestaña) que lleva a Hábitos.
+//   Si en esa fila no cabe en la misma línea (o no hay pestañas), va justo encima de ella, a la derecha, en una línea que no se queda
+//   fija: la fila de pestañas queda como estaba (una línea, fija arriba al desplazar) y sus pestañas no cambian de alto.
+//   Los hábitos no vuelven a la lista ni a «Todo»: desde 2.21.4 (S) agVisible deja fuera los ítems de hábito y así sigue.
+// - En Hábitos, en la línea de «Mes de hábitos · Análisis»: «Agenda 1/2 ›», que lleva a la Agenda.
+// - El Atrás (el de la app, el del navegador o el del teléfono) después de uno de estos saltos vuelve a donde estabas, no a Inicio.
+// La cuenta de hábitos es la de la pestaña Hábitos hoy: cada hábito que toca hoy (también los de una rutina y los consolidados), sin
+// los protegidos ni los que hoy quedan fuera (semana ya cumplida, meta que ya no se puede cumplir); lo marcado «Hoy no» o justificado
+// no cuenta ni a favor ni en contra, así llega a y/y cuando todo está atendido. La de la Agenda, la misma de su barra «n de m hechas»
+// (agUniCuenta sin eventos ni bloques). Sin datos nuevos: nada se guarda.
+const HBIR_CSS = `
+  .ag-pest-tl { display: contents; }
+  .ag-hb-ir { margin: -4px 0 -4px auto; display: inline-flex; align-items: center; gap: 2px; min-height: 44px; min-width: 44px; padding: 0 12px 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: transparent; color: var(--text); font-size: .9rem; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
+  .ag-hb-fila { display: flex; justify-content: flex-end; margin: 2px 0 6px; }
+  .ag-hb-fila .ag-hb-ir { margin: -4px 0; }
+  .ag-sin-hb .ag-hb-ir { margin: 0 0 0 auto; }
+  .ag-hb-ir small { color: inherit; opacity: .7; font-size: .8em; margin-left: 4px; }
+  .ag-hb-ir .ag-hb-f { margin-left: 4px; color: var(--muted); }
+  .ag-hb-ir:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }`;
+const HBIR_CSS_HB = `
+  #view-hoy .hb-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; }
+  #view-hoy .hb-ag-ir { margin: -12px 0 -12px auto; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; padding: 0 12px 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: transparent; color: var(--text); font-size: .88rem; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
+  #view-hoy .hb-ag-ir small { color: inherit; opacity: .7; font-size: .8em; margin-left: 4px; }
+  #view-hoy .hb-ag-ir .ag-hb-f { margin-left: 4px; color: var(--muted); }
+  #view-hoy .hb-ag-ir:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  @media (max-width: 359px) { #view-hoy .hb-sub { gap: 0 4px; } #view-hoy .hb-ag-ir { padding: 0 8px 0 10px; } #view-hoy .hb-ag-ir small { margin-left: 3px; } #view-hoy .hb-ag-ir .ag-hb-f { margin-left: 3px; } }`;
+try { agStyle.textContent += HBIR_CSS; } catch {}
+try { const st = document.createElement('style'); st.id = 'hbir-css'; st.textContent = HBIR_CSS_HB; document.head.appendChild(st); } catch {}
+
+// Hábitos de hoy, como la pestaña Hábitos: { n, h }. Pendiente = lo que pendientes() lista y no queda fuera hoy (hbFuera); hecho =
+// 'full' o 'min'; lo marcado «Hoy no» o justificado (y lo protegido) sale de la cuenta.
+function hbirHabitos() {
+  try {
+    const S = HT(), t = today(), w = wd(t); let n = 0, h = 0;
+    for (const x of S.habits || []) {
+      if (!x || x.rutina || x.archivado || (x.creado && x.creado > t) || !(x.dias?.length ? x.dias : ALL_DAYS).includes(w)) continue;
+      const v = S.log?.[x.id]?.[t];
+      if (v === 'full' || v === 'min') { n++; h++; continue; }
+      if (v || window.hbProtegido?.(x, t)) continue;   // «Hoy no», justificado u otra marca; protegido
+      let fuera = false; try { fuera = hbFuera(x, t) || isJust(x, t); } catch {}
+      if (fuera) continue;
+      n++;
+    }
+    return { n, h };
+  } catch { return { n: 0, h: 0 }; }
+}
+// La Agenda de hoy, como su barra: { n, h }.
+function hbirAgenda() {
+  try { return agUniCuenta(agItems().filter(it => it && it.tipo !== 'evento' && it.tipo !== 'bt')); } catch { return { n: 0, h: 0 }; }
+}
+function hbirTxt(nom, c) { return `${esc(nom)}${c.n ? `<small>${c.h}/${c.n}</small>` : ''}<span class="ag-hb-f" aria-hidden="true">›</span>`; }
+function hbirAria(nom, c, hech = 'hechos') { return `Ir a ${nom}${c.n ? `: ${c.h} de ${c.n} ${hech} hoy` : ''}`; }
+
+// El salto: de dónde vienes y a dónde fuiste. El Atrás, en esa sección y sin nada abierto, te devuelve.
+let hbirMem = null;
+function hbirIr(de, a) { irA(a); if (view === a) hbirMem = { de, a }; }
+try { document.querySelector('.tabs')?.addEventListener('click', e => { const v = e.target.closest?.('.tab')?.dataset.view; if (hbirMem && v !== hbirMem.a) hbirMem = null; }); } catch {}
+atrasPaso = (f => function () {
+  try {
+    const M = hbirMem;
+    if (M && view === M.a && !atrasArriba() && !mvFoco()) {
+      if (view === 'agenda' && window.agDiaAtras?.()) return;   // de un día anterior, primero a hoy (como siempre)
+      hbirMem = null; irA(M.de); return;
+    }
+  } catch (e) { console.warn('Hábitos y Agenda', e); }
+  return f.apply(this, arguments);
+})(atrasPaso);
+
+// ---------- En la Agenda: el botón, al final de la fila de pestañas; si ahí no cabe en la misma línea (o no hay pestañas), en la
+// línea de «n de m hechas», antes de «Más». Sin pestañas, agPestHtml sigue devolviendo '' (como en 2.25.3).
+function hbirBtnHtml() { const c = hbirHabitos(); return `<button type="button" class="ag-hb-ir" id="ag-hb-ir" aria-label="${esc(hbirAria('Hábitos', c))}">${hbirTxt('Hábitos', c)}</button>`; }
+agPestHtml = (f => function (its, act) {
+  const r = f.apply(this, arguments);
+  try {
+    const AB = '<div class="chips ag-pest" role="tablist" aria-label="Qué ver de tu agenda">';
+    if (r && r.startsWith(AB) && r.endsWith('</div>')) return `<div class="chips ag-pest ag-pest-hb"><div class="ag-pest-tl" role="tablist" aria-label="Qué ver de tu agenda">${r.slice(AB.length, -6)}</div>${hbirBtnHtml()}</div>`;
+    return r;
+  } catch (e) { console.warn('Hábitos y Agenda', e); return r; }
+})(agPestHtml);
+// Después de pintar la Agenda: si el botón salta a otra línea de la fila de pestañas, o no hay fila, va en su línea, encima.
+function hbirColocarAg() {
+  try {
+    if (!agW || view === 'iniciativas' || !agW.querySelector('.ag-lista')) return;
+    let b = agW.querySelector('#ag-hb-ir');
+    const pe = agW.querySelector('.ag-pest');
+    if (b && !(pe && pe.contains(b))) return;   // ya está en su sitio (en su línea o junto a «Añadir una cosa»)
+    if (b) {
+      const c0 = pe.querySelector('[data-ag-pest]');
+      if (!c0 || !pe.offsetHeight || Math.abs(b.offsetTop + b.offsetHeight / 2 - (c0.offsetTop + c0.offsetHeight / 2)) < 8) return;   // cabe en la misma línea
+      b.remove();
+      pe.classList.remove('ag-pest-alta'); if (pe.offsetHeight > 64) pe.classList.add('ag-pest-alta');   // la regla de 2.21.3 (C), sin el botón
+    }
+    if (!b) { const t = document.createElement('div'); t.innerHTML = hbirBtnHtml(); b = t.firstElementChild; }
+    const lista = agW.querySelector('.ag-lista');
+    if (agW.querySelector('.ag-av')) { const f = document.createElement('div'); f.className = 'ag-hb-fila'; f.append(b); lista.insertBefore(f, pe && pe.parentElement === lista ? pe : lista.firstChild); return; }
+    if (+agenda().organizado > 0) return;   // la agenda libre ya trae «Ver mis hábitos»
+    const add = agW.querySelector('.ag-top #ag-add'), fila = add && add.closest('.actions');
+    if (fila) { fila.classList.add('ag-sin-hb'); fila.append(b); }
+  } catch (e) { console.warn('Hábitos y Agenda', e); }
+}
+renderAg = (f => function () { const x = f.apply(this, arguments); hbirColocarAg(); return x; })(renderAg);
+try { let hbirRo = 0; new ResizeObserver(() => { cancelAnimationFrame(hbirRo); hbirRo = requestAnimationFrame(hbirColocarAg); }).observe(agW); } catch {}   // al girar el teléfono o cambiar el ancho
+try { agW.addEventListener('click', e => { if (e.target.closest?.('#ag-hb-ir')) { e.stopPropagation(); hbirIr('agenda', 'hoy'); } }); } catch {}
+
+// ---------- En Hábitos: «Agenda n/m ›» en la línea de «Mes de hábitos · Análisis»
+function hbirPintarHb() {
+  try {
+    const a = document.querySelector('#view-hoy [data-subvista="analisis"]'), p = a && a.closest('p'); if (!p) return;
+    p.classList.add('hb-sub');
+    let b = p.querySelector('#hb-ag-ir');
+    if (!b) { b = document.createElement('button'); b.type = 'button'; b.className = 'hb-ag-ir'; b.id = 'hb-ag-ir'; p.append(b); }
+    const c = hbirAgenda(), h = hbirTxt('Agenda', c), al = hbirAria('Agenda', c, 'hechas');
+    if (b.innerHTML !== h) b.innerHTML = h;
+    if (b.getAttribute('aria-label') !== al) b.setAttribute('aria-label', al);
+  } catch (e) { console.warn('Hábitos y Agenda', e); }
+}
+try { document.getElementById('view-hoy')?.addEventListener('click', e => { if (e.target.closest?.('#hb-ag-ir')) { e.stopPropagation(); hbirIr('hoy', 'agenda'); } }); } catch {}
+render = (f => function () { const x = f.apply(this, arguments); hbirPintarHb(); return x; })(render);
+try { hbirPintarHb(); } catch {}
+// Para las pruebas: las dos cuentas.
+window.hbirOpc = { habitos: () => hbirHabitos(), agenda: () => hbirAgenda(), mem: () => hbirMem && { ...hbirMem } };
 })();
 
 render();

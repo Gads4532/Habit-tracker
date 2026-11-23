@@ -614,12 +614,16 @@ Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el o
 
 ## 2.26.0: la racha manda
 
-- La métrica de la app es una sola racha global. Un día cuenta si quedó agendado desde la víspera y hiciste más de la mitad de sus hábitos. Si ese día no tiene hábitos, basta con hacer una cosa (hábito, algo de la agenda, una tarea o un bloque de Estudio).
-- Cada semana (lunes a domingo) el primer día que no cuenta es el día libre y la racha sigue. El segundo la reinicia, con un mensaje amable. Hoy cuenta en cuanto se cumple y nunca rompe antes de medianoche.
-- En vacaciones la racha queda congelada; si ese día cumples la regla, igual suma.
+- La métrica de la app es una sola racha global. Un día cuenta si quedó agendado desde la víspera y hiciste al menos el 80% de todo lo de ese día: hábitos, cosas de la agenda, tareas con esa fecha y bloques de Estudio. El aviso del sueño y los eventos no cuentan.
+- Cada semana (lunes a domingo) el primer día que no cuenta es el día libre y la racha sigue. El segundo la reinicia, con un mensaje amable. Hoy cuenta en cuanto llega al 80% y nunca rompe antes de medianoche.
+- Consistencia de 4 semanas: porcentaje de días que contaron en los últimos 28 (hasta ayer, y hoy en cuanto cuenta). Los días de vacaciones no entran en la cuenta.
+- En vacaciones la racha queda congelada. Las tareas vencidas no castigan.
 - Los días cerrados se guardan sincronizados (rachaCierre), así la racha no cambia sola al limpiar datos viejos ni al archivar un hábito.
-- El XP y los niveles ya no se ven en ninguna parte (ni en avisos ni en el asistente), pero se siguen calculando por dentro. Las tareas vencidas ya no castigan.
-- Tarjeta «🔥 N días» con lo que falta hoy, hoja de la racha con la semana y la mejor racha, y un recordatorio por la noche solo si hoy aún no cuenta.
+- El XP y los niveles ya no se ven en ninguna parte, pero se siguen calculando por dentro.
+- Tarjeta «🔥 N días · Hoy: 7 de 10 · faltan 2 para el 80%», hoja de la racha con el desglose del día, y un recordatorio por la noche solo si faltan 3 cosas o menos.
+- Estudio en la Agenda: el chip «Estudio» al añadir abre las sesiones de tu ruta (las de hoy, las atrasadas y las próximas) y «Estudio libre». También sale en «Organizar mi día» y en el Calendario.
+- Puntos editables: los 7 círculos de las metas de consistencia se pueden tocar para corregir un día que no se anotó o se anotó mal.
+- Botones entre pestañas: en la Agenda, «Hábitos x/y ›» lleva a Hábitos (los hábitos siguen fuera de «Todo» y de la lista). En Hábitos, «Agenda x/y ›» lleva a la Agenda. Atrás vuelve a donde estabas.
 
 ## 2.25.3: modo vacaciones
 
