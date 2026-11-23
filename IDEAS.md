@@ -612,6 +612,15 @@ Evidencia que se aprovecha, sin cifras: decidir cuándo y dónde se hará algo, 
 
 Pedido: «en agendar el día, que la cantidad de prioridades sea ilimitada; el orden siempre va a ser importante; el primero siempre va a ser el más importante». Las prioridades del día ya no son tres como máximo: son las que la persona quiera, en orden, y la 1 es siempre «La más importante: primero, antes que todo». Se ordenan con ↑ ↓ y se quitan con ×, en Enfoque y en el paso de las horas de «Organizar mi día», hoy y mañana (para mañana ya no hay una sola «rana»: el plan guarda la lista entera en orden y la primera sigue siendo la del bloque protegido). Para que más prioridades no inflen el XP: la 1 da 40, la 2 y la 3 dan 25, de la 4 en adelante 10, una vez por tramo y día; el bono de 50 es por las tres primeras. El asistente agrega en la posición que se le diga y el resumen de la mañana lista las cuatro primeras.
 
+## 2.26.0: la racha manda
+
+- La métrica de la app es una sola racha global. Un día cuenta si quedó agendado desde la víspera y hiciste más de la mitad de sus hábitos. Si ese día no tiene hábitos, basta con hacer una cosa (hábito, algo de la agenda, una tarea o un bloque de Estudio).
+- Cada semana (lunes a domingo) el primer día que no cuenta es el día libre y la racha sigue. El segundo la reinicia, con un mensaje amable. Hoy cuenta en cuanto se cumple y nunca rompe antes de medianoche.
+- En vacaciones la racha queda congelada; si ese día cumples la regla, igual suma.
+- Los días cerrados se guardan sincronizados (rachaCierre), así la racha no cambia sola al limpiar datos viejos ni al archivar un hábito.
+- El XP y los niveles ya no se ven en ninguna parte (ni en avisos ni en el asistente), pero se siguen calculando por dentro. Las tareas vencidas ya no castigan.
+- Tarjeta «🔥 N días» con lo que falta hoy, hoja de la racha con la semana y la mejor racha, y un recordatorio por la noche solo si hoy aún no cuenta.
+
 ## 2.25.3: modo vacaciones
 
 - Vacaciones sin límite de veces ni de duración: desde el mosaico «Vacaciones» de «Rápido» o el botón junto al título de Ajustes. «Hasta que vuelva» o hasta una fecha; terminan solas.

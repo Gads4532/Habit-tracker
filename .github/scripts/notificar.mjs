@@ -638,6 +638,47 @@ function candidatos(C, fecha) {
     if (actual(at) ? hayEn(m) || !!(r && r.on) : !!(r && r.on && +r.a > 0 && +r.a <= at)) return null;
     return { tag: 'agmanana', duda: sim && !r, corto: 'mañana aún sin agendar', title: 'Mañana aún no está agendado', body: 'Con una sola cosa en su agenda, mañana queda agendado.' };
   } });
+  // 2.26.0 (RA) · La racha manda: a las 8:00 PM (con tu ventana siguiente), si hoy aún no cuenta para la racha y todavía puede contar, lo
+  // que falta: más de la mitad de los hábitos programados de hoy (sin los justificados, protegidos ni los de «N días por semana») o, sin
+  // hábitos hoy, una cosa hecha. Si hoy ya se sabe que no quedó agendado desde la víspera, no sale (hoy no puede contar). Va con el tipo
+  // «Hábitos». Sin XP. Con enfoque.metrica = 'xp' (el XP a la vista), no sale. Las vacaciones lo callan como a todo. Solo con la app que ya
+  // tiene la regla de agendar en marcha (enfoque.agendaRegla.desde, la pone la app desde 2.25.2): una cuenta que no la abre no lo recibe.
+  if (hayTipo('habitos') && E.metrica !== 'xp' && E.agendaRegla && typeof E.agendaRegla === 'object' && fechaOk(E.agendaRegla.desde)) sueltos.push({ nominal: '20:00', tags: ['racha'], tipo: 'habitos', parte: at => {
+    if (!tipoOn('habitos', at)) return null;
+    const R = E.agendaRegla;
+    if (fecha >= R.desde && !vacVuelta(E, fecha)) {
+      const ev = R.ev && typeof R.ev === 'object' ? R.ev[fecha] : null, r = E.agendaDia && typeof E.agendaDia === 'object' ? E.agendaDia[fecha] : null;
+      const agR = !!(r && r.on && +r.a > 0 && +r.a < inicio);
+      if (ev && ev.r !== 'ok' && !agR) return null;
+      // Sin revisar aún (la app no se abrió hoy): el mismo criterio que la app (adAgendado): lo anotado, el plan organizado la víspera,
+      // la agenda de hoy armada la noche antes o algo movido a hoy antes de que empezara. Si no se puede saber, no sale.
+      if (!ev && !agR) {
+        const despues = x => +x > 0 && +x < inicio && !(r && !r.on && +r.u >= +x), vis = L => Array.isArray(L) && L.some(it => it && typeof it === 'object' && it.tipo !== 'habito');
+        const P = E.agendaPlanes && typeof E.agendaPlanes === 'object' && E.agendaPlanes[fecha] ? E.agendaPlanes[fecha] : E.agendaPlan && E.agendaPlan.fecha === fecha ? E.agendaPlan : null;
+        const A = E.agendaHoy && E.agendaHoy.fecha === fecha ? E.agendaHoy : null;
+        let ag = !!(P && vis(P.items) && despues(P.organizado)) || !!(A && A.anoche && vis(A.items) && despues(A.organizado));
+        if (!ag) try { for (const L of Object.values(E.agendaMov && typeof E.agendaMov === 'object' ? E.agendaMov : {})) for (const x of Array.isArray(L) ? L : []) if (x && x.a === fecha && despues(x.en)) ag = true; } catch {}
+        if (!ag) return null;
+      }
+    }
+    const marca = h => st.log?.[h.id]?.[fecha], hecho = h => { const m = marca(h); return (m === 'full' || m === 'min') && (actual(at) || !pendienteHabito(h, at)); };
+    const semanal = h => { const x = Math.round(+h.semana); return x >= 1 && x <= 6; };
+    let tot = 0, hech = 0;
+    for (const h of H) {
+      if (h.rutina || h.archivado || (fechaOk(h.creado) && h.creado > fecha) || !programado(h, fecha) || semanal(h)) continue;
+      if (hecho(h)) { tot++; hech++; continue; }
+      if (marca(h) === 'just' || (Array.isArray(h.protegidos) && h.protegidos.includes(fecha))) continue;
+      tot++;
+    }
+    if (tot > 0) {
+      if (hech * 2 > tot) return null;
+      const f = Math.floor(tot / 2) + 1 - hech, ft = f === 1 ? 'Falta 1 hábito' : `Faltan ${f} hábitos`;
+      return { tag: 'racha', duda: sim, corto: `${minus(ft)} para que hoy cuente en tu racha`, title: 'Para que hoy cuente en tu racha', body: `${ft}. ¿Uno ahora o en un rato?` };
+    }
+    const algo = H.some(hecho) || (E.agendaHoy?.fecha === fecha && acota(E.agendaHoy.items, 200).some(it => it && it.hecho)) || acota(st.tareas?.items, 2000).some(x => x && x.hecha && delDia(+x.hechaEn) && (actual(at) || +x.hechaEn <= at));
+    if (algo) return null;
+    return { tag: 'racha', duda: sim, corto: 'una cosa hecha y hoy cuenta en tu racha', title: 'Para que hoy cuente en tu racha', body: 'Basta con una cosa hecha. ¿Una ahora o en un rato?' };
+  } });
   if (hayTipo('noche')) {
     // 2.21.9 (I) · sin «Tu momento espiritual» (empujaba la iniciativa espiritual). Lo que tenga hora en tu Agenda avisa como siempre.
     sueltos.push({ nominal: '21:00', tags: ['noche'], tipo: 'noche', parte: at => {
