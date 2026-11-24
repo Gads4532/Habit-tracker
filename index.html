@@ -563,6 +563,12 @@
   /* «Hecho» del aviso y del formulario de hábito: el mismo borde que el contenido del diálogo (24 px). */
   .hecho-bar { padding-left: 24px; padding-right: 24px; }
 </style>
+<style>
+.ag-jornada { margin-inline-start:auto; white-space:nowrap; font-size:.78em; color:var(--muted); font-variant-numeric:tabular-nums }
+.ag-avance { display:block; font-size:.9em; font-weight:normal; text-align:right }
+.ag-est .rel-t > div:first-child { display:flex; align-items:baseline; gap:.5em }
+.ag-est .ag-tema { min-width:0; overflow-wrap:anywhere }
+</style>
 </head>
 <body>
 <main>
@@ -12367,6 +12373,14 @@ const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_C
 const agW = document.createElement('div'); agW.className = 'enf'; agR.append(agStyle, agW);
 // 2.17.1 (U) · Un bloque de estudio muestra primero lo que toca (el tema) y después la materia: dos bloques de la misma materia se
 // distinguen aunque el título se corte. Lo demás, su texto tal cual.
+function agJornada(it) {
+  return it.tipo === 'estudio' ? window.est?.jornadaInfo(it.ref) || '' : '';
+}
+function agJornadaHtml(jornada) {
+  if (!jornada) return '';
+  const { numero, total, hechas } = jornada;
+  return `<span class="ag-jornada">Jornada ${numero}/${total}<span class="ag-avance">${hechas} de ${total} completas</span></span>`;
+}
 function agTituloEst(it) {
   const t = String(it?.t || ''); if (!it || it.tipo !== 'estudio') return t;
   const b = exBloque(it.ref), m = b && typeof b.materia === 'string' ? b.materia : '';
@@ -12412,18 +12426,20 @@ function renderAg() {
   cargarAgenda();
   const iniV = view === 'iniciativas';   // 2.22.0 (N) · la sección Iniciativas: la misma lista, solo con las iniciativas
   if (!iniV && agdVer()) { agdRender(agDia); return; }   // 2.24.0 (H) · un día que ya pasó: solo para ver
-  const A = agenda(), its = iniV ? agItems().filter(ivEs) : agItems(), sinEv = its.filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt'), U0 = agUniCuenta(sinEv), hechas = U0.h, org0 = !!A.organizado, now = nowMin();
+  const A = agenda(), items = agItems();
+  const jornadas = new Set((window.est?.bloquesDe() || []).map(b => b.id));
+  const its = iniV ? items.filter(ivEs) : items.filter(it => it.tipo !== 'estudio' || !agJornada(it) || jornadas.has(it.ref)), sinEv = its.filter(it => it.tipo !== 'evento').filter(it => it.tipo !== 'bt'), U0 = agUniCuenta(sinEv), hechas = U0.h, org0 = !!A.organizado, now = nowMin();
   const pest = its.length && !iniV ? agPestActual(its) : 'todo', vis = pest === 'todo' ? its : its.filter(it => agPestDe(it) === pest), pestHtml = iniV ? '' : agPestHtml(its, pest);   // 2.19 (P)
   const cadM = agCadenaMapa(A), ordV = agOrdenDia(vis, cadM), conH = ordV.filter(i => /^\d\d:\d\d$/.test(i.h || '')), sinH = ordV.filter(i => !/^\d\d:\d\d$/.test(i.h || ''));   // 2.20.2 · 2.21 (M) · 2.21.2 (H) · por hora; el número, donde la hora no
   const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length, P = iniV ? null : planManana(), tarde = !iniV && now >= 18 * 60;
   const pTodo = pest === 'todo', movN = it => it.tipo === 'tarea' ? +((HT().tareas?.items || []).find(y => y && y.id === it.ref)?.movida) || 0 : +it.movida || 0;   // 2.21 (A)
-  const fila = it => { const ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, fo = !!it.foco, mv = movN(it), ab = agAbre === it.id;   // 2.21.3 (C) · en reposo, lo mínimo
+  const fila = it => { const jornada = agJornada(it), ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, fo = !!it.foco, mv = movN(it), ab = agAbre === it.id;   // 2.21.3 (C) · en reposo, lo mínimo
     const Kt = it.tipo === 'tarea' && !ok ? tareaCalorAttr((HT().tareas?.items || []).find(y => y && y.id === it.ref)) : { cls: '', st: '', c: null };   // 2.19.6 · el calor de la tarea
     const corre = !ok && it.tipo !== 'evento' && (!!tempDe(it.id) || !!window.tzEnCosaId?.(it.id));   // con el temporizador en marcha, la cuenta atrás sigue a la vista · 2.23.0 (T) · también el Temporizador
     const edad = Kt.c && Kt.c.dias > 0 ? `<span class="ag-edad">${tareaHace(Kt.c.dias)}</span>` : '';   // (v2) con «calor», el motivo va en la línea pequeña (la fila roja se explica sola)
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecha" aria-pressed="${ok}"></button>
-      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div>${esc(fo ? agbFocoTitulo(it) : agTituloEst(it))}${(() => { if (fo || it.tipo !== 'estudio' || typeof it.ref !== 'string') return ''; let q = ''; try { q = window.est.sesTexto(it.ref) || ''; } catch {} return q ? ` <span class="ag-ses-n">· ${esc(q)}</span>` : ''; })()}</div><small>${fo ? 'Bloque protegido' : esc(agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
+      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.ruta || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? agTituloEst(it) : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
       ${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
@@ -17820,10 +17836,45 @@ function estEnriquecer(r, b) {
   const m = estMateria(r.materia), hi = r.hechos[b.id] || null;
   return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', iden: r.iden || (m && m.iden) || '', habito: r.habito || (m && m.habito) || '', examen: r.fecha, hecho: !!hi, hechoInfo: hi ? { ...hi } : null, ...(() => { if (hi) return {}; try { return estEjOn(r) ? { ej: estEjSug(r, b), ejPlan: b.ej, ejSug: true } : {}; } catch { return {}; } })() };   // 2.22.6 (E) · con meta de ejercicios, los sugeridos
 }
+function estJornadas(r) {
+  const fuera = estSesFueraSet(r);
+  const sesiones = r.plan.filter(b => estSesTipo(b) && (r.hechos[b.id] || (!fuera.has(b.id) && !estRepartido(r, b))));
+  return sesiones.every(b => +b.sn > 0)
+    ? sesiones.sort((a, b) => a.sn - b.sn || estSesCron(a, b))
+    : sesiones.sort(estSesCron);
+}
+function estJornadaPermitida(id) {
+  const r = estRutaDeBloque(id, true);
+  if (!r || r.hechos[id] || !estSesTipo(r.plan.find(b => b.id === id))) return true;
+  if (estJornadas(r).find(b => !r.hechos[b.id])?.id === id) return true;
+  toast('Completa primero la jornada pendiente de esta ruta.');
+  return false;
+}
+function estJornadaInfo(id) {
+  const r = estRutaDeBloque(id, true);
+  if (!r) return '';
+  const sesiones = estJornadas(r), i = sesiones.findIndex(b => b.id === id);
+  if (i < 0) return null;
+  const hechas = sesiones.filter(b => r.hechos[b.id]).length;
+  return { numero: i + 1, total: sesiones.length, hechas, ruta: r.nombre };
+}
 function estBloquesDe(fecha = today()) {
   fecha = estF(fecha) || today();
   const out = [];
-  for (const r of estRutas()) for (const b of r.plan) if (b.d === fecha) out.push(estEnriquecer(r, b));
+  const hoy = today();
+  for (const r of estRutas()) {
+    const actual = fecha === hoy && !r.terminada && r.fecha >= hoy;
+    for (const b of r.plan) {
+      if (b.d === fecha && (!actual || !estSesTipo(b))) out.push(estEnriquecer(r, b));
+    }
+    if (!actual) continue;
+    const sesiones = estJornadas(r), pendiente = sesiones.find(b => !r.hechos[b.id]);
+    const visible = pendiente && pendiente.d <= hoy ? pendiente : sesiones.filter(b => {
+      const en = r.hechos[b.id]?.en;
+      return en && dayKey(new Date(en)) === hoy;
+    }).pop();
+    if (visible) out.push(estEnriquecer(r, visible));
+  }
   return out.sort(estOrdenH);
 }
 function estBloque(id) { const r = estRutaDeBloque(id); return r ? estEnriquecer(r, r.plan.find(b => b.id === id)) : null; }
@@ -18393,6 +18444,7 @@ function estTemaHecho(r, temaId) {
 }
 function estMarcar(id, hecho = true, { min, ej, nota, en } = {}) {
   const r = estRutaDeBloque(id, true); if (!r) return null;
+  if (hecho && !estJornadaPermitida(id)) return null;
   { const cc = hecho && estCompletarCon && estCompletarCon.id === id ? estCompletarCon : null; if (cc) { min = cc.min; ej = cc.ej; nota = cc.nota; } }   // 2.22.6 (E) · lo de la hoja «Completar», por cualquier camino
   const b = r.plan.find(x => x.id === id), antes = !hecho && r.hechos[id] && typeof r.hechos[id] === 'object' ? { ...r.hechos[id] } : null;   // 2.14.1 (X) · lo anotado, para el oyente al deshacer
   if (hecho) {
@@ -18494,7 +18546,7 @@ function estResumenIA() {
 const estSesLen = r => { const v = +(r && r.config && r.config.bloqueMin), d = +estD().cfg.bloqueMin; return [25, 50, 90].includes(v) ? v : [25, 50, 90].includes(d) ? d : 50; };
 const estSesTipo = b => !!b && typeof b === 'object' && b.tipo !== 'repaso' && b.tipo !== 'ligero';
 // Sin meta: lo estudiado más las sesiones que quedan por delante en el plan (sin repasos ni víspera ligera).
-function estSesHorasPlan(r) { if (!r) return 0; const hoy = today(), h = r.hechos || {}; let m = estMetaReal(r); for (const b of r.plan || []) if (estSesTipo(b) && !h[b.id] && b.d >= hoy && (!r.fecha || b.d < r.fecha)) m += +b.min || 0; return Math.round(m); }
+function estSesHorasPlan(r) { if (!r) return 0; const hoy = today(), h = r.hechos || {}; let m = estMetaReal(r); for (const b of r.plan || []) if (estSesTipo(b) && !h[b.id] && !estRepartido(r, b) && (!r.fecha || b.d < r.fecha)) m += +b.min || 0; return Math.round(m); }
 function estSesHoras(r) { const on = estMetaOn(r); if (on) return Math.round(on.min); if (r && r.ses && +r.ses.h > 0) return Math.round(+r.ses.h); return estSesHorasPlan(r); }
 function estSesN(r, hechas) { const H = estSesHoras(r), L = estSesLen(r); if (!(H > 0)) return 0; return (hechas || 0) + Math.ceil(Math.max(0, H - estMetaReal(r)) / L); }   // al empezar, ⌈H/L⌉
 // Lo que define N (para saber si un cambio de ajustes obliga a reacomodar).
@@ -18531,7 +18583,7 @@ function estSesInfo(r) {
   for (const b of r.plan) {
     if (!estSesTipo(b)) continue;
     if (h[b.id]) { cuenta.push(b); continue; }
-    if (!(b.d >= hoy) || (r.fecha && b.d >= r.fecha) || fuera.has(b.id)) continue;
+    if (estRepartido(r, b) || (r.fecha && b.d >= r.fecha) || fuera.has(b.id)) continue;
     let oc = ocD.get(b.d); if (!oc) { oc = estSesOcultos(b.d); ocD.set(b.d, oc); }
     if (oc.has(b.id)) { ocultas++; continue; }
     cuenta.push(b);
@@ -18839,7 +18891,7 @@ const estAPI = {
   bloquesDe: estBloquesDe, bloque: estBloque, marcar: estMarcar, moverBloque: estMover,
   pendientes: estPendientes, pendienteCrear: estPendienteCrear, pendienteMarcar: estPendienteMarcar, pendienteBorrar: estPendienteBorrar,
   examenes: estExamenes, proximoExamen: estProximo, resumen: estResumen, repartido: estRepartido, hoy: estHoy, calendario: estCalendario,
-  textoBloque: estTexto, etiqueta: estEtiqueta, sesInfo: estSesInfo, sesTexto: estSesTexto, textoSes: estTextoSes, sesAviso: estSesAviso, sesAvHtml: (r, o) => estSesAvHtml(typeof r === 'string' ? estRuta(r) : r, o), reacomodar: id => estSesReacomodar(id), reacomodarSim: id => estSesReacomodar(id, { sim: true }), sesSheet: id => estSesSheet(id),   /* 2.22.5 (R) */ resumenIA: estResumenIA, escuchar: estEscuchar, avisar: estAvisar,
+  textoBloque: estTexto, etiqueta: estEtiqueta, jornadaInfo: estJornadaInfo, jornadaPermitida: estJornadaPermitida, sesInfo: estSesInfo, sesTexto: estSesTexto, textoSes: estTextoSes, sesAviso: estSesAviso, sesAvHtml: (r, o) => estSesAvHtml(typeof r === 'string' ? estRuta(r) : r, o), reacomodar: id => estSesReacomodar(id), reacomodarSim: id => estSesReacomodar(id, { sim: true }), sesSheet: id => estSesSheet(id),   /* 2.22.5 (R) */ resumenIA: estResumenIA, escuchar: estEscuchar, avisar: estAvisar,
   cfg: () => ({ ...estD().cfg, descanso: [...estD().cfg.descanso] }),
   ui: {}, extras: [],
   abrir: (rutaId = '') => estAPI.ui.abrir?.(rutaId) ?? irA('estudio'),
@@ -19377,7 +19429,7 @@ const euListaEst = T => (Array.isArray(T?.listas) ? (T.listas.find(l => l && l.i
 function euOtrasHtml() {
   const T = HT().tareas; if (!T || !Array.isArray(T.items)) return '';
   const LE = euListaEst(T), ts = T.items.filter(x => x && x.lista === LE && !x.est && !x.hecha).slice(0, 10); if (!ts.length) return '';
-  return `<h3>Otras tareas de estudio</h3><p class="meta" style="margin:0 0 6px">De la lista «Estudio» de Tareas, creadas allí.</p><div class="rows">${ts.map(x => `<div class="row"><span class="dot" style="--c:var(--muted)"></span><span class="t"><div>${esc(x.titulo)}</div><small>${euF(x.fecha) ? esc(fmtFecha(x.fecha)) : 'Sin fecha'}${x.detalle ? ' · ' + esc(x.detalle) : ''}</small></span></div>`).join('')}</div><p class="more"><button class="link" id="eu-ir-tareas">Ir a Tareas</button></p>`;
+  return `<details class="eu-sec"><summary>Otras tareas de estudio</summary><div class="rows">${ts.map(x => `<div class="row"><span class="dot" style="--c:var(--muted)"></span><span class="t"><div>${esc(x.titulo)}</div><small>${euF(x.fecha) ? esc(fmtFecha(x.fecha)) : 'Sin fecha'}${x.detalle ? ' · ' + esc(x.detalle) : ''}</small></span></div>`).join('')}</div><p class="more"><button class="link" id="eu-ir-tareas">Ir a Tareas</button></p></details>`;
 }
 
 // ---------- La pestaña.
@@ -19461,13 +19513,13 @@ function euCardHtml(r) {
 }
 function renderEstudio() {
   if (!euW) return;
-  const E = EU(), cab = '<h2 style="margin-top:0">Estudio</h2><p class="note">Cada ruta reparte los temas en bloques con día y hora: lo que queda sin hacer se vuelve a repartir.</p>';
+  const E = EU(), cab = '<h2 style="margin-top:0">Estudio</h2>';
   if (!E) { euW.innerHTML = `${cab}<p class="empty">El motor de estudio no está en esta versión.</p>`; return; }
   const hoy = today(), todas = E.rutas(true), activas = E.rutas().filter(r => r.fecha >= hoy), ant = todas.filter(r => r.archivada || r.fecha < hoy);
   if (!todas.length) {
     euW.innerHTML = `${cab}<div class="eu-card"><div class="top"><b>¿Qué examen tienes a la vista?</b></div>
       <p class="meta">Una ruta es el camino hasta un examen: materia, fecha y temas.</p>
-      <ul class="pros"><li>Eliges cuántos días antes, cuántos minutos al día y a qué hora.</li><li>La ruta reparte los temas en bloques con día y hora, con ejercicios y repasos.</li><li>Los bloques de hoy entran en tu Agenda; lo que queda sin hacer se vuelve a repartir.</li></ul>
+      <ul class="pros"><li>Eliges cuántos días antes, cuántos minutos al día y a qué hora.</li><li>La ruta reparte los temas en bloques con día y hora, con ejercicios y repasos.</li><li>La agenda muestra la primera jornada pendiente de cada ruta.</li></ul>
       <div class="row-b"><button class="primary" id="eu-nueva">Nueva ruta</button></div></div>${euOtrasHtml()}${EU_PIE}`;
     euWireTab(); return;
   }
@@ -20300,7 +20352,7 @@ const exTexto = b => { try { return String(window.est.textoBloque(b) || ''); } c
 const exEtiqueta = b => { try { return String(window.est.etiqueta(b) || 'Estudio'); } catch { return 'Estudio'; } };
 // Para la Agenda (que ya añade «· {min}» a cada fila): la etiqueta sin los minutos, «Estudio{ · n ejercicios}».
 const exEtiquetaCorta = b => exEtiqueta(b).replace(/ · \d+ min(?= · |$)/, '');
-const exEtiquetaIt = it => { const e = exEtiquetaCorta(agFuente(it) || it); let q = ''; try { q = it && it.tipo === 'estudio' && typeof it.ref === 'string' ? (window.est.sesTexto(it.ref) || '') : ''; } catch {} return q ? e.replace(/^Estudio/, 'Estudio · ' + q) : e; };   // 2.22.5 (R)
+const exEtiquetaIt = it => exEtiquetaCorta(agFuente(it) || it);
 const exDias = f => /^\d{4}-\d{2}-\d{2}$/.test(f || '') ? Math.round((new Date(f + 'T12:00') - new Date(today() + 'T12:00')) / 864e5) : NaN;
 const exFechaLarga = f => /^\d{4}-\d{2}-\d{2}$/.test(f || '') ? new Date(f + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' }) : '';
 // «Examen de Álgebra el 18 de noviembre» (hoy / mañana cuando toca).
@@ -20520,6 +20572,7 @@ function exCompletarMarcar(id) { if (typeof euMarcar === 'function') euMarcar(id
 function exCompletar(id, o = {}) {
   const E = window.est, b = (typeof euBloqueDe === 'function' ? euBloqueDe(id) : null) || exBloque(id); if (!E || !b) { toast('Ese bloque ya no está en el plan.'); return; }
   const r = (E.rutas(true) || []).find(x => x.id === b.ruta) || null; if (r && r.terminada) { toast('La ruta está terminada: queda como registro.'); return; }
+  if (!b.hecho && !E.jornadaPermitida(id)) return;
   let ejOn = false; try { ejOn = !!(r && (E.ejOn(r) || +r.config.ejDia > 0)) || +b.ej > 0 || !!(b.hechoInfo && +b.hechoInfo.ej > 0); } catch {}
   const hi = b.hecho && b.hechoInfo ? b.hechoInfo : null, min = Math.max(1, Math.round(+(hi ? hi.min : 0) || +b.min || 25)), ej = Math.max(0, Math.round(+(hi ? hi.ej : b.ej) || 0)), nota = hi ? String(hi.nota || '') : '';
   let ses = ''; try { ses = E.sesTexto(b) || ''; } catch {}
@@ -20614,12 +20667,13 @@ function exSesDe(dias) {
 const exSesTxt = o => o.n ? `${fmtMin(o.min)} en ${o.n} ${o.n === 1 ? 'sesión anotada' : 'sesiones anotadas'}${o.ej ? `, ${exEj(o.ej)}` : ''}` : '';
 // «Empezar» de un ítem de estudio: sesión de enfoque de tipo estudio; al terminar completa (o casi), el bloque queda hecho.
 function exEmpezar(it) {
+  if (!window.est.jornadaPermitida(it.ref)) return;
   const min = Math.max(5, Math.min(120, +it.min || 25));
   startFocus(it.t, min, '', 0, 'estudio');
   if (ES.sesion) { ES.sesion.est = it.ref; guardar(); }
 }
 function exEmpezarBloque(b) {
-  if (!b) return; closeSheet(); irA('enfoque');
+  if (!b || !window.est.jornadaPermitida(b.id)) return; closeSheet(); irA('enfoque');
   exEmpezar({ t: exTexto(b), min: b.min, ref: b.id });
 }
 // Abrir un bloque: la hoja de la pestaña (área T) si existe; si no, su ficha en la Agenda; si no, la sesión directamente.
@@ -20711,7 +20765,7 @@ function exIniDeBloque(b) {
 function exIniHecha(x) {
   if (!exOk() || !x || !x.hecho) return;
   const b = (typeof x.est === 'string' && x.est ? exBloque(x.est) : null) || (x.t ? exHoy().find(y => `Estudiar ${exTexto(y)}` === x.t) : null);
-  if (b && !b.hecho && b.d === today()) { try { window.est.marcar(b.id, true); } catch {} }
+  if (b && !b.hecho && exHoy().some(x => x.id === b.id)) { try { window.est.marcar(b.id, true); } catch {} }
 }
 
 // ---------- 4. Ahora: un bloque de hoy pendiente y sin hora (los que tienen hora ya salen por agendaAhora) o con el examen a 3 días o menos.
@@ -20727,7 +20781,7 @@ function exAhora() {
 function exFocoFin(s, mins, completa) {
   if (!s || s.tipo !== 'estudio' || typeof s.est !== 'string' || !s.est || !exOk()) return null;
   const b = exBloque(s.est) || exSucesor(s); if (!b || b.hecho) return null;   // 2.14.1 (X) · replanificado durante la sesión: su sucesor
-  if (completa || mins >= b.min * 0.8) { try { window.est.marcar(b.id, true, { min: Math.max(1, Math.round(mins)) }); } catch {} return { b, marcado: true, mins }; }
+  if (completa || mins >= b.min * 0.8) { const marcado = !!window.est.marcar(b.id, true, { min: Math.max(1, Math.round(mins)) }); return { b, marcado, mins }; }
   return { b, marcado: false, mins };
 }
 // 2.14.1 (X) · Si el plan se replanificó mientras corría la sesión, su bloque ya no existe: el sucesor es el pendiente del mismo día, de la
@@ -20772,7 +20826,7 @@ function exOyente(ev, b, extra) {
     const kd = +info.en > 0 && dayKey(new Date(+info.en)) < hoy ? dayKey(new Date(+info.en)) : hoy;   // 2.25.1 (R) · el día en que se hizo
     exBumps.set(b.id, { min, ej, k: kd });
     bump('estudioBloques', 1, kd); if (min) bump('estudioMin', min, kd); if (ej) bump('estudioEj', ej, kd);
-    if (b.d === hoy) { exHabito(b); exIniDeBloque(b); }
+    if (b.d === hoy || (kd === hoy && it)) { exHabito(b); exIniDeBloque(b); }
   } else {
     // 2.14.1 (X) · Lo sumado en esta sesión o, tras recargar, lo que el motor tenía anotado (b.anterior: el día en que se marcó y los minutos y
     // ejercicios reales); sin nada anotado, el bloque no estaba hecho y no se resta nada.
@@ -29670,7 +29724,7 @@ function agcHtml(E, hijo, o = {}) {
     const lbl = `${e.etq || agcNombre(e.tk)}: ${e.t}. ${cuando}${e.cad ? `, después de ${e.cad}` : ''}${e.ok ? '. Hecha' : ''}${e.lock ? '. Fijo' : ''}${e.meta ? '. Con meta' : ''}`;
     return `<div class="agc-s agc-t-${e.tk}${e.ok ? ' ok' : ''}${e.lock ? ' lock' : ''}${e.meta ? ' meta' : ''}${hpx < 34 ? ' xs' : ''}${ancho ? ' w' : ''}${l2 ? ' l2' : ''}${estrecho ? ' n' : ''}" data-agc-it="${esc(e.id)}" data-agc-min="${e.min}" style="height:${hpx}px">
       ${chk ? `<button type="button" class="agc-chk${e.ok ? ' on' : ''}" data-chk="${esc(e.id)}" aria-label="Hecha: ${esc(e.t)}" aria-pressed="${!!e.ok}"></button>` : ''}
-      <div class="agc-x"${e.open ? ` role="button" tabindex="0" data-open="${esc(e.id)}"` : ''} aria-label="${esc(lbl)}" title="${esc(lbl)}"><div class="agc-n"><span class="agc-l" aria-hidden="true">${agcLetra(e.tk)}</span>${e.meta && !estrecho ? '<span class="agc-m" aria-hidden="true">◎</span>' : ''}<span class="agc-tt">${esc(e.t)}</span></div><small aria-hidden="true">${e.meta && estrecho ? '◎ ' : ''}${esc(cuando)}${e.cad ? ` · después de ${esc(e.cad)}` : e.rut ? ` · ${esc(e.rut)}` : ''}</small></div>
+      <div class="agc-x"${e.open ? ` role="button" tabindex="0" data-open="${esc(e.id)}"` : ''} aria-label="${esc(lbl)}" title="${esc(lbl)}"><div class="agc-n"><span class="agc-l" aria-hidden="true">${agcLetra(e.tk)}</span>${e.meta && !estrecho ? '<span class="agc-m" aria-hidden="true">◎</span>' : ''}<span class="agc-tt">${esc(e.t)}</span>${agJornadaHtml(e.jornada)}</div><small aria-hidden="true">${e.meta && estrecho ? '◎ ' : ''}${esc(cuando)}${e.cad ? ` · después de ${esc(e.cad)}` : e.rut ? ` · ${esc(e.rut)}` : ''}</small></div>
       ${pil ? `<span class="agc-pil">${e.pill}</span>` : ''}${rs ? `<span class="agc-rs" data-agc-rs="${esc(e.id)}" aria-hidden="true"></span>` : ''}</div>`;
   };
   const bloques = conH.map(u => {
@@ -29683,7 +29737,7 @@ function agcHtml(E, hijo, o = {}) {
     return `<div class="agc-b${u.segs.length > 1 ? ' cad' : ''}${rn ? ' agc-rut' : ''}${estrecho ? ' agc-estr' : ''}"${rn ? ` data-agc-rut="${esc(rn)}"` : ''} data-agc-u="${esc(u.id)}"${u.lock ? ' data-agc-lock="1"' : ''} data-agc-s="${u.s}" data-agc-d="${u.dur}" style="top:${top}px;height:${h}px;left:${u.col / u.cols * 100}%;width:${100 / u.cols}%">${rn ? `<span class="agc-rut-n" aria-hidden="true">${esc(rn)}</span>` : ''}${segs}${u.lock ? '' : '<span class="agc-asa" data-agc-asa aria-hidden="true" title="Arrastrar">⠿</span>'}</div>`;
   }).join('');
   const chips = sinH.map(u => { const e = u.segs[0], n = u.segs.length - 1;
-    return `<button type="button" class="agc-chip agc-t-${e.tk}${e.ok ? ' ok' : ''}${e.meta ? ' meta' : ''}" data-agc-u="${esc(u.id)}"${u.lock ? ' data-agc-lock="1"' : ''} data-agc-d="${u.dur}"${e.open ? ` data-open="${esc(e.id)}"` : ''} aria-label="${esc(`${e.etq || agcNombre(e.tk)}: ${e.t}${n ? ` y ${n} más de la rutina` : ''}. Sin hora${u.lock ? '' : '. Arrástralo a una hora'}`)}"><span class="agc-l" aria-hidden="true">${agcLetra(e.tk)}</span><span class="agc-tt">${esc(e.t)}</span><small>${n ? `+${n} · ` : ''}${fmtMin(u.dur)}</small>${u.lock ? '' : '<span class="agc-asa agc-asa-c" data-agc-asa aria-hidden="true">⠿</span>'}</button>`; }).join('');
+    return `<button type="button" class="agc-chip agc-t-${e.tk}${e.ok ? ' ok' : ''}${e.meta ? ' meta' : ''}" data-agc-u="${esc(u.id)}"${u.lock ? ' data-agc-lock="1"' : ''} data-agc-d="${u.dur}"${e.open ? ` data-open="${esc(e.id)}"` : ''} aria-label="${esc(`${e.etq || agcNombre(e.tk)}: ${e.t}${n ? ` y ${n} más de la rutina` : ''}. Sin hora${u.lock ? '' : '. Arrástralo a una hora'}`)}"><span class="agc-l" aria-hidden="true">${agcLetra(e.tk)}</span><span class="agc-tt">${esc(e.t)}</span>${agJornadaHtml(e.jornada)}<small>${n ? `+${n} · ` : ''}${fmtMin(u.dur)}</small>${u.lock ? '' : '<span class="agc-asa agc-asa-c" data-agc-asa aria-hidden="true">⠿</span>'}</button>`; }).join('');
   return `<section class="agc" data-agc-ctx="${o.ctx || 'ag'}" data-agc-ini="${ini}" aria-label="${o.ctx === 'cd' ? 'Calendario' : 'Calendario del día'}">
     ${agcLeyendaHtml(E)}
     ${sinH.length ? `<div class="agc-tray"><p class="agc-tray-k">Sin hora · ${sinH.length}${sinH.some(u => !u.lock) ? ' · arrástralo desde ⠿ a una hora' : ''}</p><div class="agc-tray-l">${chips}</div></div>` : ''}
@@ -29701,7 +29755,7 @@ function agcAgendaE(its, cadM) {
     let prevR = null; try { prevR = hijo.has(it.id) ? null : agHojaSinHora(it); } catch {}
     const ok = agHecho(it), lock = it.tipo === 'evento' || it.tipo === 'plan' || it.tipo === 'examen' || (it.tipo === 'bt' && !agcBtEditable(it)) || !!prevR, pil = agPildoraHtml(it, ok);
     let etq = ''; try { etq = it.foco ? 'Bloque protegido' : agEtqRut(it, agEtqCat(it)); } catch {}
-    return { id: it.id, t: it.foco ? agbFocoTitulo(it) : agTituloEst(it), h: it.h || '', min: Math.max(5, agMinDe(it)), tk: agcTipoDe(it), ok, lock, rs: true, meta: agcMeta(it),
+    return { id: it.id, jornada: agJornada(it), t: it.foco ? agbFocoTitulo(it) : agTituloEst(it), h: it.h || '', min: Math.max(5, agMinDe(it)), tk: agcTipoDe(it), ok, lock, rs: true, meta: agcMeta(it),
       open: true, chk: it.tipo !== 'evento', pill: /data-tm-go/.test(pil) ? pil.replace(/^ · /, '') : '', cad: hijo.has(it.id) ? agTrasTxt(cadM.get(it.id)) : prevR ? `«${prevR.nombre}», que hoy no está` : '', etq, rut: agRutNombre(it) };
   });
   return { E, hijo };
