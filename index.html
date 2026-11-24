@@ -12438,9 +12438,9 @@ function renderAg() {
     const corre = !ok && it.tipo !== 'evento' && (!!tempDe(it.id) || !!window.tzEnCosaId?.(it.id));   // con el temporizador en marcha, la cuenta atrás sigue a la vista · 2.23.0 (T) · también el Temporizador
     const edad = Kt.c && Kt.c.dias > 0 ? `<span class="ag-edad">${tareaHace(Kt.c.dias)}</span>` : '';   // (v2) con «calor», el motivo va en la línea pequeña (la fila roja se explica sola)
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
-    return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecha" aria-pressed="${ok}"></button>
-      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.ruta || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? agTituloEst(it) : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
-      ${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
+    return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="${jornada ? (ok ? 'Desmarcar jornada' : 'Marcar jornada como hecha') : 'Hecha'}" aria-pressed="${ok}"></button>
+      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.ruta || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? agTituloEst(it) : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab && !jornada ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
+      ${jornada && !ok ? agAccionBtnHtml(it, false) : ''}${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${jornada ? '' : agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
   const pendE = it => esLead(it) ? RG.lead.get(it.id).ms.some(agPendVis) : agPendVis(it);
@@ -12453,13 +12453,15 @@ function renderAg() {
   const objs = objetivosActivos();
   const mananaCard = P ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Mañana ya está organizado</div><small>${agVisibles(P.items).length} ${agVisibles(P.items).length === 1 ? 'cosa' : 'cosas'}${P.rana?.t ? ` · tu prioridad 1: ${esc(P.rana.t)}` : ''}${(P.items || []).some(i => i.foco) ? ' · con bloque protegido' : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`
     : tarde ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Deja mañana organizado · 2 min</div><small>Al despertar ya sabrás qué hacer y a qué hora: decidirlo la víspera, en frío, ayuda a cumplirlo.</small></span><span class="tag">›</span></button>` : '';
-  const agcOn = !iniV && agcVista() === 'cal';   // 2.21 (K) · 2.22.0 (N) · Iniciativas, siempre en lista
+  const agcOn = !iniV && agcVista() === 'cal';
+  const filasRuta = agcOn ? its.filter(it => agJornada(it)) : [];
+  const bloquesCalendario = agcOn ? its.filter(it => !agJornada(it)) : [];   // 2.21 (K) · 2.22.0 (N) · Iniciativas, siempre en lista
   agW.innerHTML = `<div class="ag-top">${(p => iniV ? p : agdHoyNavHtml(p))(`<p class="paso">${esc(cap(fechaLarga(today())))}${A.anoche ? ' · organizada anoche' : ''}</p>`)}${agcSegHtml()}
     ${iniV ? '' : agdMadrugadaHtml()}${org0 || iniV ? '' : agAlertaHtml('ag-org', hayAyer)}${iniV ? '' : estSesAgHtml()}
     ${its.length ? `<div class="ag-av"><div class="ag-av-m"><div class="meter"><span>${iniV ? 'Iniciativas de hoy' : org0 ? 'Día organizado' : 'Agenda de hoy'}</span><b class="${U0.n && hechas === U0.n ? 'green' : ''}">${hechas} de ${U0.n} hechas${raXp() ? ` · ${xpHoy()} XP hoy` : ''}</b></div><div class="meter-bar"><i style="width:${U0.n ? hechas / U0.n * 100 : 0}%"></i></div></div>
       ${agMenuHtml(org0, its, hayAyer)}</div>${cadDiaHtml(pest)}`
     : `${org0 ? '<p class="note ag-libre">Tu agenda de hoy está libre. Tus hábitos siguen en Hábitos.</p><div class="actions ag-libre-a" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-libre-org">Organizar mi día</button><button class="link" data-goview="hoy">Ver mis hábitos</button><button class="link" id="ag-add">Añadir una cosa</button></div>' : '<div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-add">Añadir una cosa</button></div>'}${agMenuHtml(org0, its, hayAyer, true)}`}</div>
-    ${agcOn ? agcAgendaHtml(its, A, cadM, org0) : `<div class="ag-lista">${pestHtml}
+    ${agcOn ? (filasRuta.length ? `<div class="ag-lista">${filasRuta.map(fila).join('')}</div>` : '') + (bloquesCalendario.length || !filasRuta.length ? agcAgendaHtml(bloquesCalendario, A, cadM, org0) : '') : `<div class="ag-lista">${pestHtml}
     ${filas.length ? `<div class="rows ag-rows-h">${filas.join('')}</div>` : ''}
     ${sinH.filter(visE).some(pendE) ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows ag-rows-s">${sinH.filter(visE).filter(pendE).map(filaE).join('')}</div>${!agHorasOcultas() && agNotaHora() ? '<p class="meta">Toca «Poner hora»: con hora se cumple más.</p>' : ''}` : ''}
     ${agHechasHtml(ordV.filter(visE).filter(it => !pendE(it)), filaE, true)}
@@ -12821,14 +12823,17 @@ function agmItems(d, L) {
 // ---------- Un día que viene: su plan, las tareas con esa fecha y los bloques de estudio
 function agmFutItems(S) {
   const P = planDia(S), out = [], ya = new Set(), T = HT().tareas?.items || [];
+  const bloques = window.est?.bloquesDe?.(S, true) || [];
+  const visibles = new Set(bloques.map(b => b.id));
   for (const it of agVisibles(P && Array.isArray(P.items) ? P.items : [])) {
     if (!it || typeof it !== 'object' || !String(it.t || '').trim()) continue;
+    if (agJornada(it) && !visibles.has(it.ref)) continue;
     if (it.tipo === 'tarea') { const f = T.find(y => y && y.id === it.ref); if (f && !f.hecha && f.fecha && f.fecha > S) continue; }   // ya se movió a otro día
     out.push(it); ya.add(it.tipo + ':' + it.ref);
   }
   for (const x of T) if (x && !x.hecha && x.fecha === S && !ya.has('tarea:' + x.id) && !(x.est && typeof x.est === 'object' && x.est.examen)) { out.push({ tipo: 'tarea', ref: x.id, t: x.titulo, h: x.hora || '', min: +x.min || AG_MIN.tarea, hecho: false, _v: 'tarea' }); ya.add('tarea:' + x.id); }
   try { const oc = new Set(Array.isArray(P?.ocultos) ? P.ocultos : []);
-    for (const b of window.est?.bloquesDe?.(S) || []) if (b && b.id && !b.hecho && !ya.has('estudio:' + b.id) && !oc.has(b.id)) { let t = ''; try { t = window.est.textoBloque(b) || ''; } catch {} out.push({ tipo: 'estudio', ref: b.id, t: t || b.rutaNombre || 'Estudio', h: b.h || '', min: +b.min || AG_MIN.ini, hecho: false, _v: 'estudio' }); ya.add('estudio:' + b.id); } } catch {}
+    for (const b of bloques) if (b && b.id && !b.hecho && !ya.has('estudio:' + b.id) && !oc.has(b.id)) { let t = ''; try { t = window.est.textoBloque(b) || ''; } catch {} out.push({ tipo: 'estudio', ref: b.id, t: t || b.rutaNombre || 'Estudio', h: b.h || '', min: +b.min || AG_MIN.ini, hecho: false, _v: 'estudio' }); ya.add('estudio:' + b.id); } } catch {}
   return out;
 }
 function agmHechoFut(it) {
@@ -13058,9 +13063,9 @@ function agmDecir(d) { const n = agmFutItems(d).length; return `${cap(agdLbl(d))
 function agmFuturoHtml(d) {
   const L = agmFilas(d), cal = agcVista() === 'cal', nom = agdNomLargo(d);
   const fila = (it, i) => {
-    const ok = agmHechoFut(it), fijo = it.tipo === 'evento' || it.tipo === 'bt', mv = !ok && agmMovible(it, d), n = agmNomFila(it);
+    const ok = agmHechoFut(it), fijo = it.tipo === 'evento' || it.tipo === 'bt', mv = !ok && agmMovible(it, d), jornada = agJornada(it), n = jornada?.ruta || agmNomFila(it);
     const hora = /^\d\d:\d\d$/.test(it.h || '') ? fmtHora(it.h) : 'Sin hora', etq = agdEtq(it), estado = ok ? 'Hecha' : '';
-    return `<div class="row agd-it agm-it${ok ? ' ok' : ''}" role="listitem" aria-label="${esc(`${n}. ${hora}.${estado ? ` ${estado}` : ''}`)}"><span class="dot" style="--c:${ok ? 'var(--green)' : fijo ? 'var(--muted)' : 'var(--accent)'}" aria-hidden="true"></span>${mv ? `<button type="button" class="t agd-tb" data-agm-it="${i}" aria-haspopup="dialog" aria-label="${esc(`Mover: ${n}. ${hora}.`)}"><span class="agm-tt">` : '<span class="t" aria-hidden="true"><div>'}${esc(n)}${mv ? '</span>' : '</div>'}<small><b>${esc(hora)}</b>${etq ? ` · ${esc(etq)}` : ''}${estado ? ` · ${esc(estado)}` : ''}</small>${mv ? '</button>' : '</span>'}${ok ? '<span class="agd-ok" aria-hidden="true">✓</span>' : ''}</div>`;
+    return `<div class="row agd-it agm-it${ok ? ' ok' : ''}" role="listitem" aria-label="${esc(`${n}. ${hora}.${estado ? ` ${estado}` : ''}`)}"><span class="dot" style="--c:${ok ? 'var(--green)' : fijo ? 'var(--muted)' : 'var(--accent)'}" aria-hidden="true"></span>${mv ? `<button type="button" class="t agd-tb" data-agm-it="${i}" aria-haspopup="dialog" aria-label="${esc(`Mover: ${n}. ${hora}.`)}"><span class="agm-tt">` : '<span class="t" aria-hidden="true"><div>'}${esc(n)}${mv ? '</span>' : '</div>'}<small><b>${esc(hora)}</b>${etq ? ` · ${esc(etq)}` : ''}${estado ? ` · ${esc(estado)}` : ''}</small>${mv ? '</button>' : '</span>'}${agJornadaHtml(jornada)}${ok ? '<span class="agd-ok" aria-hidden="true">✓</span>' : ''}</div>`;
   };
   let cuerpo;
   if (!L.length) cuerpo = '<p class="empty agd-vacio">Aún no hay nada agendado para ese día.</p>';
@@ -13068,7 +13073,10 @@ function agmFuturoHtml(d) {
     let E = [], hijo = new Map();
     try { const R = cdArmar(d); E = R.E; hijo = R.hijo; } catch (e) { try { E = cdAgOtroE(d); } catch {} }
     E = agmCalE(d, E.map(e => ({ ...e, open: false, chk: false, lock: true, rs: false, pill: '' })));
-    cuerpo = E.length ? agcHtml(E, hijo, { ctx: 'agp', ahora: null, pie: false }) : '<p class="empty agd-vacio">Aún no hay nada agendado para ese día.</p>';
+    const rutas = L.map((it, i) => agJornada(it) ? fila(it, i) : '').join('');
+    E = E.filter(e => !e.jornada);
+    cuerpo = (rutas ? `<div class="rows agd-rows" role="list">${rutas}</div>` : '') +
+      (E.length ? agcHtml(E, hijo, { ctx: 'agp', ahora: null, pie: false }) : '');
   } else cuerpo = `<div class="rows agd-rows" role="list" aria-label="${esc(`Agenda de ${nom}`)}">${L.map(fila).join('')}</div>`;
   return `<section class="agd agd-fut" aria-label="${esc(`Agenda de ${nom}`)}"><div class="ag-top agd-top">${agdNavHtml(d)}
     <p class="agd-solo" role="status">${L.length ? 'Lo agendado para ese día.' : 'Ese día aún está libre.'}</p>
@@ -17858,20 +17866,26 @@ function estJornadaInfo(id) {
   const hechas = sesiones.filter(b => r.hechos[b.id]).length;
   return { numero: i + 1, total: sesiones.length, hechas, ruta: r.nombre };
 }
-function estBloquesDe(fecha = today()) {
+function estDiaDeJornada(r, fecha) {
+  const ajuste = r.fechas?.[fecha];
+  if (ajuste && Number.isFinite(+ajuste.min)) return +ajuste.min > 0;
+  return r.plan.some(b => b.d === fecha && estSesTipo(b)) ||
+    estMetaDias(r).includes(new Date(fecha + 'T12:00').getDay());
+}
+function estBloquesDe(fecha = today(), agendaFutura = false) {
   fecha = estF(fecha) || today();
   const out = [];
   const hoy = today();
   for (const r of estRutas()) {
-    const actual = fecha === hoy && !r.terminada && r.fecha >= hoy;
+    const actual = (fecha === hoy || (agendaFutura && fecha > hoy)) && !r.terminada && r.fecha >= fecha;
     for (const b of r.plan) {
       if (b.d === fecha && (!actual || !estSesTipo(b))) out.push(estEnriquecer(r, b));
     }
     if (!actual) continue;
     const sesiones = estJornadas(r), pendiente = sesiones.find(b => !r.hechos[b.id]);
-    const visible = pendiente && pendiente.d <= hoy ? pendiente : sesiones.filter(b => {
+    const visible = pendiente && pendiente.d <= fecha && estDiaDeJornada(r, fecha) ? pendiente : sesiones.filter(b => {
       const en = r.hechos[b.id]?.en;
-      return en && dayKey(new Date(en)) === hoy;
+      return en && dayKey(new Date(en)) === fecha;
     }).pop();
     if (visible) out.push(estEnriquecer(r, visible));
   }
@@ -28727,7 +28741,11 @@ function tempModo() { try { return localStorage.getItem('ag-temp-modo') === 'sol
 function tempModoPoner(v) { try { if (v === 'solo') localStorage.setItem('ag-temp-modo', 'solo'); else localStorage.removeItem('ag-temp-modo'); } catch {} }
 function tempAct() { const T = ES.temp; return T && typeof T === 'object' && T.id && +T.fin > 0 ? T : null; }
 function tempLeft(T = tempAct()) { return T ? (+T.fin - (T.pausa ? +T.pausa : Date.now())) / 1000 : 0; }   // 2.21 (H) · en pausa, congelado
-function tempCaduco(T) { return T.d !== today() && Date.now() > +T.fin + 12 * 3600000; }   // cruzar la medianoche no lo corta: termina y avisa
+function tempCaduco(T) {
+  if (T.d === today() || Date.now() <= +T.fin + 12 * 3600000) return false;
+  const bloque = T.tipo === 'estudio' && !T.cad && !T.pausa && window.est?.bloque(T.ref);
+  return !bloque || bloque.hecho || !window.est.jornadaInfo(T.ref);
+}   // cruzar la medianoche no lo corta: termina y avisa
 function tempItem(T) { try { return T && T.d === today() ? (agPorId(T.id) || (String(T.id).startsWith('v:') ? cadVirtual(T) : null)) : null; } catch { return null; } }   // 2.21 (H) · o su fuente, si empezó fuera de la Agenda   // de otro día, ya no se marca desde aquí
 function tempFuera(it) { try { return (it && it.tipo === 'habito' ? !agFuente(it) : !agVivo(it)) || agSaltado(it); } catch { return false; } }   // 2.21.4 (S) · un hábito vale si existe (no está en la Agenda)   // pasado a otro día, sin fuente o «hoy no»
 function tempDe(id) { const T = tempAct(); return T && T.id === id ? T : null; }
@@ -28824,6 +28842,17 @@ function tempTick() {
     const it = tempItem(T);
     if (tempCaduco(T) || (T.d === today() && (!it || agHecho(it) || tempFuera(it)))) { if (T.cad && !tempCaduco(T) && cadSigue(T, 'fuera')) return; ES.temp = null; guardar(); tempParo(); tempRepintar(); return; }   // 2.21 (H) · en cadena: el siguiente   // ya hecho, quitado de hoy, pasado a otro día o «hoy no»
     const l = tempLeft(T), txt = tempTxt(T);
+    if (T.tipo === 'estudio' && !T.cad && !T.pausa && l <= 0 && agJornada({ tipo: T.tipo, ref: T.ref })) {
+      exTempMinPoner(T);
+      ES.temp = null;
+      tempParo();
+      if (it) agMarcarAviso(it, true);
+      else if (exBloque(T.ref) && !exBloque(T.ref).hecho) window.est.marcar(T.ref, true, { en: +T.fin, min: (+T.min || 0) + (+T.ext || 0) });
+      guardar();
+      if (sheet.open && $('#sheet-body')?.querySelector('.tm-big')) closeSheet();
+      tempRepintar();
+      return;
+    }
     for (const R of tempRaices()) R.querySelectorAll('[data-temp-left]').forEach(e => { const v = e.classList.contains('tm-big') ? fmtClock(Math.max(0, l)) : e.hasAttribute('data-temp-corto') ? tempTxt(T, true) : txt; if (e.textContent !== v) e.textContent = v; });
     if (T.cad && Date.now() - cadRefT > 5000) { cadRefT = Date.now(); cadRefrescar(cadDe(T)); }   // 2.21 (H) · la rutina, al día (orden y hábitos nuevos)
     tempChip(T, l);
@@ -29430,7 +29459,7 @@ function agAccionBtnHtml(it, ok) {
   if (it.tipo === 'bt' && !bt) return '';
   if (T) return `<button type="button" class="ag-pil ag-acc on" data-tm-go="${esc(it.id)}" aria-label="Temporizador en marcha de «${esc(it.t)}». Toca para verlo"><span class="ag-pil-i">⏱ <span class="ag-temp" data-temp-left>${tempTxt(T)}</span> · Ver</span></button>`;
   const mm = fmtMin(agMinDe(it));
-  return `<button type="button" class="ag-pil ag-acc" data-tm-go="${esc(it.id)}" aria-label="${bt ? `Empezar el bloque «${esc(it.t)}» en cadena` : `Empezar acción: temporizador de ${esc(mm)} para «${esc(it.t)}»`}"><span class="ag-pil-i">▶ ${bt ? 'Empezar el bloque' : 'Empezar acción'} · ${esc(mm)}</span></button>`;
+  return `<button type="button" class="ag-pil ag-acc" data-tm-go="${esc(it.id)}" aria-label="${bt ? `Empezar el bloque «${esc(it.t)}» en cadena` : `Empezar acción: temporizador de ${esc(mm)} para «${esc(it.t)}»`}"><span class="ag-pil-i">▶ ${it.tipo === 'estudio' ? '' : (bt ? 'Empezar el bloque · ' : 'Empezar acción · ')}${esc(mm)}</span></button>`;
 }
 // «Empezar la rutina» en la primera fila (de las que se ven) de cada rutina con algo pendiente.
 let cadRutVistas = null;
@@ -30112,7 +30141,7 @@ const cdHab = id => (state.habits || []).find(x => x && x.id === id) || null;
 function cdAgOtroE(d) {
   const t = today(); let L = [];
   try { if (d < t) L = ES.agendaHist?.[d] || []; else { const P = planDia(d); L = P && Array.isArray(P.items) ? P.items : []; } } catch {}
-  return agVisibles(L).filter(it => it && it.t).map((it, i) => ({ id: 'cdo:' + i, t: String(it.t), h: /^\d\d:\d\d$/.test(it.h || '') ? it.h : '', min: Math.max(5, Math.round(+it.min) || agMinDe(it)), tk: agcTipoDe(it), ok: !!it.hecho, lock: true, rs: false, meta: false, open: false, chk: false, pill: '', cad: '', etq: '', rut: '' }));
+  return agVisibles(L).filter(it => it && it.t).map((it, i) => ({ id: 'cdo:' + i, jornada: agJornada(it), t: String(it.t), h: /^\d\d:\d\d$/.test(it.h || '') ? it.h : '', min: Math.max(5, Math.round(+it.min) || agMinDe(it)), tk: agcTipoDe(it), ok: !!it.hecho, lock: true, rs: false, meta: false, open: false, chk: false, pill: '', cad: '', etq: '', rut: '' }));
 }
 // El día entero: E y hijo para agcHtml. Los hábitos llevan id 'cdh:ID'; el primero de una cadena lleva la hora (la de ese día o la suya).
 function cdArmar(d) {
