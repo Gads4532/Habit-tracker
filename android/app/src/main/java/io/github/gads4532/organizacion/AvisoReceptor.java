@@ -18,6 +18,7 @@ import androidx.core.app.NotificationManagerCompat;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -61,6 +62,16 @@ public class AvisoReceptor extends BroadcastReceiver {
         SharedPreferences p = prefs(c);
         Set<String> act = new HashSet<>(p.getStringSet(K_ACTIVAS, new HashSet<>()));
         if (!act.contains(id) && act.size() >= MAX_ACTIVAS) return;
+        if ("su|bajar".equals(id) && act.contains(id)) {
+            long prevista = p.getLong("sueno_prevista", 0), ahora = System.currentTimeMillis();
+            if (prevista > 0 && prevista <= ahora && ahora - prevista < 15 * 60000L) {
+                Calendar siguiente = Calendar.getInstance();
+                siguiente.setTimeInMillis(prevista);
+                siguiente.add(Calendar.DAY_OF_MONTH, 1);
+                // Una alarma inexacta de hoy aún espera entrega; el refresco de la web no debe sustituirla por la de mañana.
+                if (siguiente.getTimeInMillis() == cuando) return;
+            }
+        }
         long pedido = cuando;   // la hora de la página (la clave de avisoDado), aunque la alarma se adelante a «ya»
         if (cuando < System.currentTimeMillis()) cuando = System.currentTimeMillis() + 500;
         PendingIntent pi = alarmaIntent(c, id, pedido, titulo, texto, sonido);
@@ -71,7 +82,9 @@ public class AvisoReceptor extends BroadcastReceiver {
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi);
         }
         act.add(id);
-        p.edit().putStringSet(K_ACTIVAS, act).apply();
+        SharedPreferences.Editor editar = p.edit().putStringSet(K_ACTIVAS, act);
+        if ("su|bajar".equals(id)) editar.putLong("sueno_prevista", pedido);
+        editar.apply();
     }
 
     // id vacío: todas las alarmas pendientes y sus avisos.
@@ -148,7 +161,8 @@ public class AvisoReceptor extends BroadcastReceiver {
         String id = in.getStringExtra(EXTRA_ID);
         if (id == null) id = "";
         long cuando = in.getLongExtra(EXTRA_CUANDO, 0);
-        if (appVisible || !permitidos(c)) { quitarActiva(c, id); return; }   // a la vista suena la página; sin permiso no sale nada (la página suena al volver)
+        boolean dormir = "su|bajar".equals(id);
+        if ((!dormir && appVisible) || !permitidos(c)) { quitarActiva(c, id); return; }
         String titulo = in.getStringExtra(EXTRA_TITULO);
         String texto = in.getStringExtra(EXTRA_TEXTO);
         boolean sonido = in.getBooleanExtra(EXTRA_SONIDO, true);
@@ -162,15 +176,23 @@ public class AvisoReceptor extends BroadcastReceiver {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
-                .setContentIntent(abrirIntent(c, "ver", id, 1))
-                .addAction(0, c.getString(R.string.aviso_hecho), abrirIntent(c, "hecho", id, 2))
-                .addAction(0, c.getString(R.string.aviso_mas5), abrirIntent(c, "mas5", id, 3));
+                .setContentIntent(abrirIntent(c, "ver", id, 1));
+        if (!id.startsWith("su|")) {
+            b.addAction(0, c.getString(R.string.aviso_hecho), abrirIntent(c, "hecho", id, 2))
+                    .addAction(0, c.getString(R.string.aviso_mas5), abrirIntent(c, "mas5", id, 3));
+        }
         // Antes de Android 8 (en 8+ lo pone el canal). Sin sonido: solo vibra. Nunca setSilent(true): también quitaría la vibración y el aviso emergente.
         if (sonido) b.setDefaults(NotificationCompat.DEFAULT_SOUND).setVibrate(VIBRACION);
         else b.setSound((Uri) null).setVibrate(VIBRACION);
         try {
             NotificationManagerCompat.from(c).notify(id, ID_AVISO, b.build());
             anotarDado(c, id, cuando);
+            if (dormir) {
+                Calendar proximo = Calendar.getInstance();
+                proximo.setTimeInMillis(cuando);
+                do { proximo.add(Calendar.DAY_OF_MONTH, 1); } while (proximo.getTimeInMillis() <= System.currentTimeMillis());
+                programar(c, id, proximo.getTimeInMillis(), titulo, texto, sonido);
+            }
         } catch (SecurityException ignored) { }
     }
 

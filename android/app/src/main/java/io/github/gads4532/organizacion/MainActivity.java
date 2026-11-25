@@ -4,6 +4,8 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -453,7 +455,7 @@ public class MainActivity extends Activity {
         public void programarAviso(String id, double cuando, String titulo, String texto, boolean sonido) {
             if (!enLaApp || Double.isNaN(cuando) || cuando <= 0) return;
             AvisoReceptor.programar(getApplicationContext(), corto(id, 300), (long) cuando, corto(titulo, 200), corto(texto, 400), sonido);
-            runOnUiThread(MainActivity.this::pedirAvisos);
+            if (!corto(id, 300).startsWith("su|")) runOnUiThread(MainActivity.this::pedirAvisos);
         }
 
         @JavascriptInterface
@@ -471,6 +473,40 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean avisosPermitidos() {
             return enLaApp && AvisoReceptor.permitidos(getApplicationContext());
+        }
+
+        @JavascriptInterface
+        public boolean canalSuenoPermitido() {
+            if (!enLaApp) return false;
+            if (Build.VERSION.SDK_INT < 26) return true;
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            NotificationChannel canal = nm == null ? null : nm.getNotificationChannel(AvisoReceptor.CANAL_SILENCIO);
+            return canal == null || canal.getImportance() != NotificationManager.IMPORTANCE_NONE;
+        }
+
+        @JavascriptInterface
+        public void activarAvisos() {
+            if (!enLaApp) return;
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        && (!getSharedPreferences(AvisoReceptor.PREFS, MODE_PRIVATE).getBoolean("pidio_avisos", false)
+                        || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS))) {
+                    getSharedPreferences(AvisoReceptor.PREFS, MODE_PRIVATE).edit().putBoolean("pidio_avisos", true).apply();
+                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_AVISOS);
+                    return;
+                }
+                Intent ajustes = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()));
+                if (Build.VERSION.SDK_INT >= 26) {
+                    Intent avisos = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                    if (avisosPermitidos() && !canalSuenoPermitido()) {
+                        avisos.setAction(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);
+                        avisos.putExtra(Settings.EXTRA_CHANNEL_ID, AvisoReceptor.CANAL_SILENCIO);
+                    }
+                    avisos.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                    try { startActivity(avisos); return; } catch (ActivityNotFoundException ignored) { }
+                }
+                try { startActivity(ajustes); } catch (ActivityNotFoundException e) { aviso(getString(R.string.sin_app)); }
+            });
         }
 
         @JavascriptInterface
@@ -655,6 +691,17 @@ public class MainActivity extends Activity {
         super.onResume();
         AvisoReceptor.appVisible = true;   // a la vista, el temporizador suena en la página (la alarma no avisa)
         web.onResume();
+        actualizarPermisoAvisos();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_AVISOS) actualizarPermisoAvisos();
+    }
+
+    private void actualizarPermisoAvisos() {
+        if (web != null && cargada && enLaApp) web.evaluateJavascript("window.opActualizarAvisos?.()", null);
     }
 
     @Override

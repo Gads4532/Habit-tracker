@@ -569,8 +569,18 @@
 .ag-est .rel-t > div:first-child { display:flex; align-items:baseline; gap:.5em }
 .ag-est .ag-tema { min-width:0; overflow-wrap:anywhere }
 </style>
+<style>
+  #noche-aviso { position: sticky; top: 0; z-index: 80; padding: max(6px,env(safe-area-inset-top)) 14px 6px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  #noche-aviso .noche-fila { max-width: 488px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .83rem; }
+  #noche-aviso button { min-height: 36px; font-size: inherit; flex: none; }
+  #noche-dialog { max-height: 80dvh; overflow: auto; }
+  #noche-dialog p { line-height: 1.45; }
+  #noche-dialog li { margin-bottom: 14px; overflow-wrap: anywhere; }
+</style>
 </head>
 <body>
+<aside id="noche-aviso" hidden aria-label="Horario de descanso"><div class="noche-fila"><span id="noche-texto" role="status"></span><button type="button" class="link" id="noche-accion" hidden>Justificar</button></div></aside>
+<dialog id="noche-dialog" aria-labelledby="noche-titulo"></dialog>
 <main>
   <div class="upd" id="upd" hidden><span>Hay una versión nueva lista.</span><button class="primary" id="upd-go">Actualizar</button></div>
   <header class="top">
@@ -820,7 +830,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.26.0';
+const APP_VERSION = '2.27.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -896,6 +906,7 @@ function globalStats() {
 }
 let justDone = null;
 
+let nocheCopia = '', nochePermiso = null, nocheGesto = false;
 let state = load();
 const open = new Set();
 function load() {
@@ -1171,6 +1182,8 @@ function suNorm(x) {
     mod: +o.mod > 0 ? +o.mod : 0,
     meta: N(o.meta, 6, 10, 0.25, 8),
     despertar: HM(o.despertar) || '07:00',
+    finJornada: HM(o.finJornada),
+    rutinaNocturna: HM(o.rutinaNocturna),
     latencia: N(o.latencia, 5, 45, 5, 15),
     ciclo: N(o.ciclo, 80, 110, 5, 90),
     avisoOn: o.avisoOn === undefined ? true : !!o.avisoOn,
@@ -1404,12 +1417,13 @@ const progressOf = (h, day) => state.progreso[h.id]?.[day] || 0;
 const elapsedOf = h => { const t = state.timers[h.id]; return t ? t.acum + (t.start ? (Date.now() - t.start) / 1000 : 0) : 0; };
 const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function save() {
+  nocheRevisarAlta();
   window.avAntesDeGuardar?.();   // 2.12 · avisos: lo que llegó desde una notificación y las horas de los hábitos
   window.xpPenLevantar?.();   // 2.19 (X) · un hábito marcado para un día que ya restó devuelve su XP
   window.mtTrasGuardar?.();
   window.iniAntesDeGuardar?.();   // 2.21.4 (I) · cada iniciativa que cambió lleva su mod   // 2.18 (M) · lo recién creado desde «Crear algo nuevo para esta meta» queda vinculado
   state.cambiado = Date.now();
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  nocheGuardarLocal();
   pushCloud();
 }
 // Lo borrado se recuerda por id para que no vuelva al combinar con la nube.
@@ -1759,6 +1773,7 @@ function mergeStates(a, b) {
   const byId = (x, y) => { const m = new Map(); for (const i of y) m.set(i.id, i); for (const i of x) m.set(i.id, i); return [...m.values()].filter(i => !dead.has(i.id)); };
   const perId = (x, y) => { const o = {}; for (const k of new Set([...Object.keys(y), ...Object.keys(x)])) if (!dead.has(k)) o[k] = { ...y[k], ...x[k] }; return o; };
   const out = normalize({ ...older, ...newer });
+  if (older.altasNocturnas || newer.altasNocturnas) out.altasNocturnas = { ...older.altasNocturnas, ...newer.altasNocturnas };
   out.habits = byId(newer.habits, older.habits);
   { const A = new Map(older.habits.map(h => [h.id, h])), B = new Map(newer.habits.map(h => [h.id, h]));   // 2.22.8 (H) · la relevancia: la elegida (o quitada) más tarde, venga de la copia que venga
     out.habits = out.habits.map(h => { const x = A.get(h.id), y = B.get(h.id); if (!x || !y) return h; const w = (+x.relMod || 0) > (+y.relMod || 0) ? x : y; if ((+w.relMod || 0) <= (+h.relMod || 0)) return h; const o = { ...h, relMod: w.relMod }; if (w.rel) o.rel = w.rel; else delete o.rel; return o; }); }
@@ -2022,7 +2037,7 @@ async function connectSupabase() {
     const merged = mergeStates(JSON.parse(JSON.stringify(state)), remote);
     const localChanged = canon(merged) !== canon(state);
     const remoteChanged = canon(merged) !== canon(remote);
-    if (localChanged) { snapshotLocal(); state = merged; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} renderAll(); }
+    if (localChanged) { snapshotLocal(); state = merged; nocheGuardarLocal(); renderAll(); }
     lastSeen = row.updated_at; try { localStorage.setItem(SEEN_KEY, lastSeen); } catch {}
     if (remoteChanged) pushCloud(); else setSync('ok');
     nubeCombinada();   // ya combinado: lo que se cambió al pintar se guarda ahora
@@ -2049,7 +2064,7 @@ async function connectCloud() {
     if (snap.exists) {
       const remote = normalize(structuredClone(snap.data()));
       const merged = mergeStates(JSON.parse(JSON.stringify(state)), remote);
-      if (canon(merged) !== canon(state)) { snapshotLocal(); state = merged; try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} renderAll(); }
+      if (canon(merged) !== canon(state)) { snapshotLocal(); state = merged; nocheGuardarLocal(); renderAll(); }
       if (canon(merged) !== canon(remote)) pushCloud(); else setSync('ok');
     } else if (first && state.habits.length) {
       pushCloud(); // Primera vez: sube lo que ya había en este dispositivo.
@@ -5522,10 +5537,18 @@ async function gCalEventos(desde, hasta) {
   return (r.items || []).filter(e => e.status !== 'cancelled').map(e => ({ id: e.id || '', titulo: e.summary || '(Sin título)', inicio: e.start?.dateTime || e.start?.date, fin: e.end?.dateTime || e.end?.date,
     todoElDia: !e.start?.dateTime, lugar: e.location || '', enlace: e.htmlLink || '', opBloque: String(e.extendedProperties?.private?.opBloque || '') }));
 }
-function gCalCrear(a) {
+async function gCalCrear(a) {
+  const n = nocheActual();
+  if (n?.cerrado && !nochePermitir(n)) throw new DOMException('Registro nocturno cancelado.', 'AbortError');
+  const permiso = n?.cerrado ? { ...nochePermiso, en: Date.now() } : null;
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return gCalFetch(CAL_API, { method: 'POST', body: JSON.stringify({ summary: a.titulo, location: a.lugar || undefined, description: a.descripcion || undefined,
+  const evento = await gCalFetch(CAL_API, { method: 'POST', body: JSON.stringify({ summary: a.titulo, location: a.lugar || undefined, description: a.descripcion || undefined,
     start: { dateTime: `${a.fecha}T${a.hora_inicio}:00`, timeZone }, end: { dateTime: `${a.fecha}T${a.hora_fin}:00`, timeZone } }) });
+  if (permiso) {
+    (state.altasNocturnas ||= {})[crypto.randomUUID()] = { ...permiso, titulo: String(a.titulo || 'Evento de Google Calendar').slice(0, 120) };
+    save();
+  }
+  return evento;
 }
 const gSnap = x => JSON.stringify([x.titulo, x.detalle || '', x.fecha || '', !!x.hecha]);
 const gBody = x => ({ title: x.titulo, notes: x.detalle || '', due: x.fecha ? x.fecha + 'T00:00:00.000Z' : null, status: x.hecha ? 'completed' : 'needsAction', ...(x.hecha ? {} : { completed: null }) });
@@ -6137,7 +6160,7 @@ $('#prev-go').onclick = () => {
   if (!prev) return;
   showMsg(`<h2>¿Recuperar la copia previa?</h2><p class="meta" style="margin-top:12px">Se combinará con lo que hay ahora: no se pierde nada de ninguna de las dos.</p>
     <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="prev-ok">Recuperar</button></div>`);
-  $('#prev-ok').onclick = () => { state = mergeStates(prev.state, JSON.parse(JSON.stringify(state))); state.cambiado = Date.now(); save(); renderAll(); $('#msg-dialog').close(); };
+  $('#prev-ok').onclick = () => { state = mergeStates(prev.state, JSON.parse(JSON.stringify(state))); nocheCopia = JSON.stringify(state); state.cambiado = Date.now(); save(); renderAll(); $('#msg-dialog').close(); };
 };
 renderPrev();
 
@@ -6161,7 +6184,7 @@ $('#backup-file').onchange = async e => {
   showMsg(`<h2>¿Restaurar?</h2>
     <p class="meta" style="margin-top:12px">La copia tiene ${data.habits.length} ${data.habits.length === 1 ? 'hábito' : 'hábitos'}. Sustituirá lo que hay ahora en este teléfono.</p>
     <div class="dialog-actions"><button class="link" data-close>Cancelar</button><button class="primary" id="restore-go">Restaurar</button></div>`);
-  $('#restore-go').onclick = () => { state = data; save(); renderAll(); $('#msg-dialog').close(); };
+  $('#restore-go').onclick = () => { state = data; nocheCopia = JSON.stringify(state); save(); renderAll(); $('#msg-dialog').close(); };
 };
 
 // Sin internet: el service worker guarda la app en el teléfono tras la primera apertura.
@@ -6549,8 +6572,8 @@ function guardar() {
     if (v.length) AH[k] = v; else delete AH[k];
   }
   if (state.enfoque.iniHistIden && typeof state.enfoque.iniHistIden === 'object') for (const k of Object.keys(state.enfoque.iniHistIden)) if (k < cutV) delete state.enfoque.iniHistIden[k];
-  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {}
   save();
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {}
 }
 const irA = v => document.querySelector(`.tabs .tab[data-view="${v === 'todo' ? 'rapido' : v}"]`)?.click();   // 2.25.1 (S) · «Todo» ahora es Rápido
 const irAVista = e => { const b = e.target.closest('[data-goview]'); if (b) { closeSheet(); irA(b.dataset.goview); } };
@@ -8340,7 +8363,7 @@ const CIENCIA = [
   ['Votos de identidad, sin porcentajes', 'Decir «ser votante» en vez de «votar» subió la participación en el estudio original (95,5 % frente a 81,8 %), pero un experimento de campo mucho mayor no encontró diferencia. Los votos de «Soy una persona que…» son una forma de contar lo que haces, no una promesa de efecto.', 'Bryan, Walton, Rogers y Dweck (2011), PNAS; Gerber, Huber, Biggers y Hendry (2016), PNAS'],
   ['Volver es lo que cuenta', 'En 88 muestras con unas 67 000 personas, el «grit» resultó casi lo mismo que ser responsable, y su parte útil fue seguir esforzándose tras los tropiezos, no una pasión constante. Por eso la app no pone etiquetas a nadie: cuenta las veces que volviste.', 'Credé, Tynan y Harms (2017), Journal of Personality and Social Psychology'],
   ['Hora de soltar el teléfono', 'No usar el móvil un rato antes de dormir, durante unas semanas, acortó el tiempo en dormirse y mejoró el sueño en un ensayo piloto pequeño; leer en una pantalla antes de dormir retrasó el reloj del cuerpo y dejó menos alerta a la mañana siguiente. Por eso, desde 30 minutos antes de tu hora de dormir, la app te propone cargarlo fuera del cuarto, y por la mañana te pregunta cómo fue.', 'He et al. (2020), PLoS ONE; Chang et al. (2015), PNAS'],
-  ['Ciclos de sueño', 'Dormimos en ciclos de unos 90 min, pero su duración cambia entre personas (mediana de 96 min en 369 personas) y a lo largo de la noche. Por eso la calculadora suma el tiempo para dormirte, da ventanas de media hora y destaca 5 y 6 ciclos: a tu edad se recomiendan de 7 a 9 h.', 'Cajochen et al. (2024), Sleep Health; Hirshkowitz et al. (2015), Sleep Health'],   // 2.24.0 (S)
+  ['Ciclos de sueño', 'Los ciclos suelen durar de 80 a 100 min y varían durante la noche. El horario permite estimar cuántos podrían caber. La duración recomendada depende de la edad. Para adolescentes de 13 a 17 años es de 8 a 10 h por día.', 'NIH/NHLBI, Sleep Phases and Stages · CDC, About Sleep'],
   ['Horario regular', 'En universitarios, los horarios de sueño irregulares se asociaron con peores notas y un reloj del cuerpo más tardío, aun con las mismas horas de sueño. Por eso la app te muestra cuánto varían tus horas y propone despertar a la misma hora todos los días. Es una asociación, no prueba causa.', 'Phillips et al. (2017), Scientific Reports; Windred et al. (2024), Sleep'],
   ['Pacto de esta noche', 'Decidir con calma, la víspera, el máximo de redes de mañana es un compromiso previo. Dejar que la gente fijara límites a su uso futuro lo redujo: parte del uso es hábito y autocontrol que no anticipamos.', 'Bryan, Karlan y Nelson (2010), Annual Review of Economics; Allcott, Gentzkow y Song (2022), American Economic Review'],
   ['Página nueva', 'Los hitos (un lunes, el día 1 del mes, tu cumpleaños o volver tras unos días) abren un periodo nuevo y facilitan empezar otra vez. Por eso la revisión llega el lunes y el día 1, y la página nueva propone retomar con la versión de 2 minutos. El efecto se midió al empezar, no al mantener.', 'Dai, Milkman y Riis (2014), Management Science'],
@@ -8468,8 +8491,7 @@ function settings() {
     <div class="set-row"><span>Configura tu teléfono<small>${CONFIG.filter(c => ES.config[c[0]]).length} de ${CONFIG.length} hechos</small></span><button class="link" id="s-conf">Ver</button></div>
     <label class="set-row" id="s-tson-row" style="cursor:pointer;min-height:44px"><span>Sonido al terminar el temporizador<small>${OP_ANDROID ? 'Te avisa esta app, aunque esté cerrada' : 'Con el aviso del sistema'}. Suena aunque tengas horas de silencio</small></span><input type="checkbox" id="s-tson" role="switch"${tempSonidoOn() ? ' checked' : ''} style="flex:none;width:26px;height:26px;min-height:0;margin:0 0 0 12px;padding:0;accent-color:var(--text)"></label>
     ${OP_ANDROID && (() => { try { return typeof window.OrgAndroid?.avisoExacto === 'function' && !window.OrgAndroid.avisoExacto(); } catch { return false; } })() ? `<div class="set-row" id="s-texacto-row"><span>Aviso a la hora exacta<small>Sin este permiso, Android puede retrasar el aviso unos minutos</small></span><button class="link" id="s-texacto" style="min-height:44px">Permitir</button></div>` : ''}
-    ${OP_ANDROID ? `<div class="set-row" id="s-av-opa"><span>Notificaciones<small>${OP_AV_MSG}</small></span></div>`
-      : `<div class="set-row"><span>Notificaciones<small>${avCfg().on ? 'Activadas' : 'Para no tener que abrir la app'}</small></span><button class="link" id="s-av">Configurar</button></div>`}
+    <div class="set-row"><span>Notificaciones<small id="s-av-estado">${avTelefonoActivo() ? 'Activadas en este teléfono' : 'Pendientes de activar'}</small></span><button class="link" id="s-av">Configurar</button></div>
     ${OP_CHROME_ANDROID ? `<div class="set-row" id="s-apk-row" style="border-bottom:0;padding-bottom:4px${opApkSi() ? '' : ';display:none'}"><span>App para Android<small>Cuenta tu tiempo de uso en el teléfono</small></span><a class="link" id="s-apk" href="${OP_APK}" target="_blank" rel="noopener" style="min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:flex-end;flex:none">Descargar</a></div>
     <p class="meta" id="s-apk-nota" style="margin:0 0 12px${opApkSi() ? '' : ';display:none'}">Al abrir el archivo, si Android lo pide, permite instalar apps de Chrome.</p>` : ''}
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
@@ -8487,7 +8509,7 @@ function settings() {
   };
   $('#s-help').onclick = welcome;
   $('#s-conf').onclick = configSheet;
-  { const b = $('#s-av'); if (b) b.onclick = avisosSheet; }   // 2.21.7 (A) · en la app Android no hay botón
+  { const b = $('#s-av'); if (b) b.onclick = avisosSheet; }
   $('#s-tson')?.addEventListener('change', e => { const on = !!e.target.checked; tempSonidoPoner(on); if (on) { tempPreparar(); tempSonar(); } toast(on ? 'Sonará al terminar el temporizador.' : 'El temporizador termina sin sonido. La vibración sigue.'); try { tempNativo('cambio'); } catch {} });   // 2.21.9 (T)
   $('#s-texacto')?.addEventListener('click', () => { try { window.OrgAndroid?.permitirExacto?.(); } catch {} });
   if (OP_CHROME_ANDROID && !opApkSi()) opApkVer().then(si => { if (si) ['#s-apk-row', '#s-apk-nota'].forEach(k => { const e = $(k); if (e) e.style.display = ''; }); });   // 2.21.7 (A)
@@ -12414,6 +12436,9 @@ function agendaAsistente(a) {
 const agHost = document.getElementById('view-agenda');
 const agR = agHost.attachShadow({ mode: 'open' });
 const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_CSS + `
+  .su-noche {border:1px solid var(--line);border-radius:18px;padding:18px;margin:12px 0 18px;color:var(--text)}
+  .su-noche h2 {margin:0 0 8px;font-size:1.1rem}.su-noche .su-big {margin:0 0 8px;font-size:clamp(1.5rem,6vw,2rem);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+  .su-noche .su-l {margin:5px 0;line-height:1.4}.su-noche .su-mut {color:var(--muted);font-size:.88rem}.su-noche .su-b {display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:10px}.su-noche button {min-height:44px}
   .ag-it { padding: 11px 0; } .ag-it.ok .t div { text-decoration: line-through; color: var(--muted); }
   .ag-it.ag-est .t div { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
   .ag-now { display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 4px 0; }
@@ -12550,6 +12575,7 @@ function renderAg() {
     ${its.length ? `<div class="ag-av"><div class="ag-av-m"><div class="meter"><span>${iniV ? 'Iniciativas de hoy' : org0 ? 'Día organizado' : 'Agenda de hoy'}</span><b class="${U0.n && hechas === U0.n ? 'green' : ''}">${hechas} de ${U0.n} hechas${raXp() ? ` · ${xpHoy()} XP hoy` : ''}</b></div><div class="meter-bar"><i style="width:${U0.n ? hechas / U0.n * 100 : 0}%"></i></div></div>
       ${agMenuHtml(org0, its, hayAyer)}</div>${cadDiaHtml(pest)}`
     : `${org0 ? '<p class="note ag-libre">Tu agenda de hoy está libre. Tus hábitos siguen en Hábitos.</p><div class="actions ag-libre-a" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-libre-org">Organizar mi día</button><button class="link" data-goview="hoy">Ver mis hábitos</button><button class="link" id="ag-add">Añadir una cosa</button></div>' : '<div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-add">Añadir una cosa</button></div>'}${agMenuHtml(org0, its, hayAyer, true)}`}</div>
+    ${iniV ? '' : suEstaNocheHtml(true)}
     ${agcOn ? (filasRuta.length ? `<div class="ag-lista">${filasRuta.map(fila).join('')}</div>` : '') + (bloquesCalendario.length || !filasRuta.length ? agcAgendaHtml(bloquesCalendario, A, cadM, org0) : '') : `<div class="ag-lista">${pestHtml}
     ${filas.length ? `<div class="rows ag-rows-h">${filas.join('')}</div>` : ''}
     ${sinH.filter(visE).some(pendE) ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows ag-rows-s">${sinH.filter(visE).filter(pendE).map(filaE).join('')}</div>${!agHorasOcultas() && agNotaHora() ? '<p class="meta">Toca «Poner hora»: con hora se cumple más.</p>' : ''}` : ''}
@@ -12567,6 +12593,7 @@ function renderAg() {
     ${agbMananasHtml()}</details>`;
   { const og = agW.querySelector('#ag-org'); if (og) og.onclick = () => orgPropuestaSheet(); }
   agW.querySelector('#ag-libre-org')?.addEventListener('click', () => orgPropuestaSheet());   // 2.21.4 (S)   // 2.20.1 · con la Agenda vacía y organizada no hay botón · 2.21 (A) · «Tu día propuesto»
+  agW.querySelector('[data-su-acc="horas"]')?.addEventListener('click', suHorasSheet);
   agW.querySelector('.ag-mas')?.addEventListener('toggle', e => agMasPoner(e.target.open));   // 2.19.1 · se recuerda abierto o cerrado
   agW.querySelectorAll('[data-ag-pest]').forEach(b => b.onclick = () => { const k = b.dataset.agPest; agPestPoner(k); renderAg();   // 2.19 (P)
     const p = agW.querySelector('.ag-pest'); if (p && p.getBoundingClientRect().top <= 1) p.scrollIntoView({ block: 'start' }); agW.querySelector(`[data-ag-pest="${k}"]`)?.focus({ preventScroll: true }); });
@@ -23257,9 +23284,10 @@ function suVentanas(modo, hora, D = suD()) {
   const ciclo = +D.ciclo || 90, lat = +D.latencia || 15, meta = (+D.meta || 8) * 60, H = suMin(hora);
   const L = (modo === 'B' ? [4, 5, 6] : [6, 5, 4]).map(n => {
     const c = modo === 'B' ? H + lat + n * ciclo : H - n * ciclo - lat;
-    return { n, centro: suDeMin(suR5(c)), ini: suDeMin(suR5(c - 15)), fin: suDeMin(suR5(c + 15)), sueno: n * ciclo, rec: n >= 5, corto: n * ciclo < 420, meta: false };
+    const sueno = n * ciclo, rec = sueno >= 480 && sueno <= 600;
+    return { n, centro: suDeMin(suR5(c)), ini: suDeMin(suR5(c - 15)), fin: suDeMin(suR5(c + 15)), sueno, rec, corto: sueno < 480, meta: false };
   });
-  let mej = null; for (const r of L) if (!r.corto && (!mej || Math.abs(r.sueno - meta) < Math.abs(mej.sueno - meta))) mej = r;   // nunca «Tu meta» en menos de 7 h
+  let mej = null; for (const r of L) if (r.rec && (!mej || Math.abs(r.sueno - meta) < Math.abs(mej.sueno - meta))) mej = r;
   if (mej) mej.meta = true;
   return L;
 }
@@ -23366,7 +23394,7 @@ function suVacPausa() { try { const a = ES.vacaciones?.act, ok = d => /^\d{4}-\d
 function suAvisos(D = suD()) { const L = suAvisos0(D); return suVacPausa() ? L.filter(x => x && x.k !== 'su|bajar') : L; }
 function suAvisos0(D = suD()) {
   const hd = suHD(), out = [];
-  if (D.avisoOn && !(D.avisoMin === 30 && suPushNoche())) out.push({ k: 'su|bajar', at: suProx(suDeMin(suMin(hd) - D.avisoMin)), titulo: 'Es hora de ir bajando el ritmo', texto: `A las ${suH(hd)} a dormir. Luz tenue y el teléfono lejos.`, son: false });
+  if (D.avisoOn && !suPushNoche()) out.push({ k: 'su|bajar', at: suProx(suDeMin(suMin(hd) - D.avisoMin)), titulo: 'Se acerca la hora de dormir', texto: `Tienes previsto acostarte a las ${suH(hd)}.`, son: false });
   if (D.alarmaOn && suHM(D.alarmaH)) { const c = Math.round(Math.max(0, suD0(hd, D.alarmaH) - (+D.latencia || 15)) / (+D.ciclo || 90) * 2) / 2;
     out.push({ k: 'su|desp', at: suProx(D.alarmaH), titulo: 'Buenos días', texto: `${suCiclosTxt(c, true)} desde las ${suH(hd)}. Luz, agua y moverte un poco ayudan a despejarte.`, son: true }); }
   return out;
@@ -23426,14 +23454,27 @@ function suCalcHora(m) { if (suHM(suCalcH[m])) return suCalcH[m]; return m === '
 const suFechaCorta = k => { const s = new Date(k + 'T12:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric' }).replace(/\./g, ''); return s[0].toUpperCase() + s.slice(1); };
 const suNocheTxt = k => `Noche del ${new Date(k + 'T12:00').toLocaleDateString('es', { weekday: 'long' })} ${+k.slice(8)}`;
 function suPalabra(n, r) { if (r.TST < 360) return 'poco'; if (+n.cal >= 4 || (!+n.cal && r.TST >= 420)) return 'bien'; return 'regular'; }
-function suEstaNocheHtml() {
+function suEstimacionHorario(hd, w, latencia) {
+  const cama = suD0(hd, w);
+  if (!suHM(hd) || !suHM(w) || !cama) return null;
+  const minutos = Math.max(0, cama - latencia), min = Math.floor(minutos / 100), max = Math.floor(minutos / 80);
+  const ciclos = min === max ? `${min} ${min === 1 ? 'ciclo completo' : 'ciclos completos'}` : `${min}–${max} ciclos completos`;
+  const perspectiva = minutos < 480 ? 'El horario deja menos de 8 h de sueño.' : minutos <= 600 ? 'El horario permite entre 8 y 10 h de sueño.' : 'El horario deja más de 10 h de sueño posibles.';
+  return { duracion: `${suDur(cama)} en cama · ${suDur(minutos)} de sueño previsto`, ciclos: `Aprox. ${ciclos}`, perspectiva };
+}
+function suEstaNocheHtml(enAgenda = false) {
   const D = suD(), P = suPlan(D), and = OP_ANDROID && typeof window.OrgAndroid?.programarAviso === 'function';
-  const lin = P.corto ? '<span class="su-mut">Menos de 7 h de sueño</span>' : `${suCiclosTxt(P.ciclos)} · ${suDur(P.sueno)} de sueño`;
+  const est = suEstimacionHorario(P.hd, P.W, D.latencia);
+  const anoche = suNoche(suAnoche()), calidadAnoche = anoche && SU_CAL[anoche.cal - 1];
   const av = [D.avisoOn ? `Aviso para bajar el ritmo: ${suH(suDeMin(suMin(P.hd) - D.avisoMin))}` : '', and && D.alarmaOn && suHM(D.alarmaH) ? `Aviso para despertar: ${suH(D.alarmaH)}` : ''].filter(Boolean);
-  return `<section class="su-card su-noche" aria-label="Esta noche"><p class="su-k">Esta noche</p>
-    <p class="su-big">${esc(suH(P.hd))} <span aria-hidden="true">→</span><span class="su-sr"> a </span> ${esc(suH(P.W))}</p>
-    <p class="su-l">${lin}</p>${av.map(x => `<p class="su-l su-mut">${esc(x)}</p>`).join('')}
-    <div class="su-b"><button type="button" class="su-btn" data-su-acc="horas">Cambiar horas</button><button type="button" class="su-btn su-sec" data-su-acc="siesta">Siesta</button></div></section>`;
+  const horaO = h => suHM(h) ? esc(suH(h)) : 'Sin definir';
+  return `<section class="su-card su-noche" aria-label="Sueño de esta noche"><h2 class="su-t">${enAgenda ? 'Sueño' : 'Esta noche'}</h2>
+    <p class="su-big" aria-label="Acostarse a las ${esc(suH(P.hd))} y despertar a las ${esc(suH(P.W))}">${esc(suH(P.hd))} → ${esc(suH(P.W))}</p>
+    <p class="su-l">Fin de jornada · ${horaO(D.finJornada)}<br>Rutina nocturna · ${horaO(D.rutinaNocturna)}</p>
+    ${!est ? '<p class="su-l">Elige horas distintas para estimar el sueño.</p>' : D.ocultar ? '' : `<p class="su-l">${est.duracion}<br>${est.ciclos}</p><p class="su-l su-mut">${est.perspectiva} La calidad se aprecia al despertar, según las interrupciones y cómo te sientes.</p>`}
+    ${calidadAnoche ? `<p class="su-l">Calidad que registraste al despertar · ${esc(calidadAnoche)}</p>` : ''}
+    ${av.map(x => `<p class="su-l su-mut">${esc(x)}</p>`).join('')}
+    <div class="su-b"><button type="button" class="${enAgenda ? 'link' : 'su-btn'}" data-su-acc="horas">Editar horario</button>${enAgenda ? '<button type="button" class="link" data-avisos-telefono>Avisos del teléfono</button>' : '<button type="button" class="su-btn su-sec" data-su-acc="siesta">Siesta</button>'}<button type="button" class="${enAgenda ? 'link' : 'su-link'}" data-historial-nocturno>Registros tardíos</button></div></section>`;
 }
 function suAnocheHtml() {
   const D = suD(), k = suAnoche(), n = suNoche(k);
@@ -23452,7 +23493,7 @@ function suConsultaHtml() {
 function suCalcHtml() {
   const D = suD(), m = suModo(), h = suCalcHora(m), L = suVentanas(m, h, D);
   const seg = (v, t) => `<button type="button" class="su-seg${m === v ? ' on' : ''}" data-su-modo="${v}" aria-pressed="${m === v}">${t}</button>`;
-  const fila = r => `<div class="su-row${r.rec ? '' : ' su-row-m'}"><div class="su-row-t"><b>${esc(suH(r.ini))} a ${esc(suH(r.fin))}</b><small>${r.n} ciclos · unas ${esc(suDur(r.sueno))}${r.corto ? ' · menos de 7 h, solo de vez en cuando' : ''}${r.meta ? ' · <span class="su-meta">Tu meta</span>' : ''}</small></div><button type="button" class="su-usar" data-su-usar="${r.centro}" aria-label="Usar ${esc(suH(r.centro))}">Usar</button></div>`;
+  const fila = r => `<div class="su-row${r.rec ? '' : ' su-row-m'}"><div class="su-row-t"><b>${esc(suH(r.ini))} a ${esc(suH(r.fin))}</b><small>${r.n} ciclos · unas ${esc(suDur(r.sueno))}${r.corto ? ' · por debajo de la referencia adolescente' : ''}${r.meta ? ' · <span class="su-meta">Cerca de tu meta</span>' : ''}</small></div><button type="button" class="su-usar" data-su-usar="${r.centro}" aria-label="Usar ${esc(suH(r.centro))}">Usar</button></div>`;
   return `<section class="su-sec-b" aria-labelledby="su-calc-h"><h3 class="su-h" id="su-calc-h">Calculadora de ciclos</h3>
     <div class="su-segs" role="group" aria-label="Qué quieres calcular">${seg('A', 'Despertar a las…')}${seg('B', 'Me acuesto ahora…')}</div>
     <label class="su-cin"><span>${m === 'A' ? 'Despertar a las' : 'Me acuesto a las'}</span><input type="time" id="su-calc-in" value="${esc(h)}"></label>
@@ -23503,11 +23544,12 @@ function suAjustesHtml() {
   const Hb = suHabitos(), nA = `Acostarme a las ${suH(P.hd)}`, nL = `Levantarme a las ${suH(P.W)}`;
   const hb = [!Hb.nombres.has(nA.toLowerCase()) ? `<button type="button" class="su-btn su-sec su-hb" data-su-hb="a">Crear hábito «${esc(nA)}»</button>` : '', !Hb.nombres.has(nL.toLowerCase()) ? `<button type="button" class="su-btn su-sec su-hb" data-su-hb="l">Crear hábito «${esc(nL)}»</button>` : '', Hb.ligado ? `<button type="button" class="su-link" data-su-acc="verhab">Ver hábito «${esc(Hb.ligado.nombre)}»</button>` : ''].join('');
   return `<details class="su-det" id="su-aj"${suAjAbierto ? ' open' : ''}><summary>Ajustes</summary>
-    ${pm('meta', esc(suDur(D.meta * 60)), 'Meta de sueño', 'Entre 7 y 9 h es lo recomendado a tu edad')}
+    ${pm('meta', esc(suDur(D.meta * 60)), 'Meta de sueño', 'Para adolescentes de 13 a 17 años, la referencia es de 8 a 10 h diarias')}
     <label class="su-aj-f"><span class="su-aj-l">Hora de despertar<small>La misma todos los días, también el fin de semana, con margen de 30 min</small></span><input type="time" id="su-desp-in" value="${esc(P.W)}"></label>
     ${pm('latencia', `${D.latencia} min`, 'Tiempo para dormirte')}
     ${pm('ciclo', `${D.ciclo} min`, 'Duración del ciclo', 'Si despiertas aturdido a menudo, prueba 5 min más o menos')}
     ${sw('su-aviso-on', D.avisoOn, 'Aviso para bajar el ritmo', D.avisoOn ? `A las ${esc(suH(suDeMin(suMin(P.hd) - D.avisoMin)))}` : '')}
+    <button type="button" class="su-link" data-avisos-telefono>Avisos del teléfono</button>
     ${D.avisoOn ? `<div class="su-chips" role="group" aria-label="Cuánto antes">${[15, 30, 45, 60].map(v => `<button type="button" class="su-chip${D.avisoMin === v ? ' on' : ''}" data-su-amin="${v}" aria-pressed="${D.avisoMin === v}">${v} min antes</button>`).join('')}</div>` : ''}
     ${and ? `${sw('su-alarma-on', D.alarmaOn, 'Aviso para despertar', 'Es un aviso de la app. Para ir a lo seguro, deja también la alarma de tu reloj.')}
       ${D.alarmaOn ? `<label class="su-aj-f"><span class="su-aj-l">Despertar a las</span><input type="time" id="su-alarma-in" value="${esc(suHM(D.alarmaH) ? D.alarmaH : P.W)}"></label>` : ''}
@@ -23517,7 +23559,7 @@ function suAjustesHtml() {
     ${sw('su-ocultar', D.ocultar, 'Ocultar números', 'Si mirar los números te inquieta')}</details>`;
 }
 const SU_TIPS = [
-  ['Lo primero son las horas y la constancia', 'A tu edad se recomiendan entre 7 y 9 h de sueño. Dormir menos de 7 h de forma habitual se asocia con peor salud y rendimiento. Por eso tu meta de partida son 8 h y la calculadora destaca 5 y 6 ciclos.', 'Hirshkowitz et al. (2015), Sleep Health; Watson et al. (2015), Sleep (consenso AASM y SRS)', 'moderada (consenso de expertos)'],
+  ['Lo primero son las horas y la constancia', 'Para adolescentes de 13 a 17 años se recomiendan entre 8 y 10 h de sueño por día. La cantidad de sueño y su continuidad importan más que apuntar al final de un ciclo.', 'CDC, About Sleep; Paruthi et al. (2016), Journal of Clinical Sleep Medicine (consenso AASM)', 'consenso de expertos'],
   ['Los ciclos son un promedio, no un reloj exacto', 'El sueño alterna fases ligeras, profundas y REM en ciclos de unos 90 min. En 369 personas medidas en laboratorio, la mediana fue de 96 min y cambió mucho entre personas; el primer ciclo suele ser más corto. Por eso la app te da ventanas de media hora y te deja ajustar la duración del ciclo y el tiempo que tardas en dormirte.', 'Carskadon y Dement (2017), Normal human sleep, en Principles and Practice of Sleep Medicine; Cajochen et al. (2024), Sleep Health', 'fuerte sobre el promedio y la variación; débil para usar 90 min exactos'],
   ['Despertar al final de un ciclo puede ayudar, sin garantías', 'Despertar desde el sueño profundo deja más aturdido que desde el sueño ligero, y ese aturdimiento suele pasar en 15 a 30 min. Calcular por ciclos sube la probabilidad de despertar en sueño ligero, pero no hay ensayos que prueben que elimine el aturdimiento, y la app no mide tus fases. Lo que más pesa es haber dormido lo suficiente. Deja lo exigente para después de esa primera media hora.', 'Tassi y Muzet (2000), Sleep Medicine Reviews; Hilditch y McHill (2019), Nature and Science of Sleep; Campanella et al. (2024), Clocks & Sleep', 'moderada sobre el aturdimiento; débil sobre las alarmas por ciclos'],
   ['Un horario parejo te ayuda a estudiar', 'En universitarios, dormir con horarios irregulares se asoció con peores notas y un reloj del cuerpo más tardío, aun durmiendo las mismas horas. En otro curso, el sueño del mes y la semana previos al examen se relacionó con las notas; la noche anterior por sí sola, no. Son estudios de asociación, no prueban causa. Por eso la app te muestra cuánto varían tus horas, no un puntaje.', 'Phillips et al. (2017), Scientific Reports; Okano et al. (2019), npj Science of Learning', 'moderada (observacional)'],
@@ -23530,6 +23572,7 @@ const SU_CUANDO = ['Roncas fuerte casi todas las noches o alguien notó que deja
 function suPorQueHtml() {
   const tip = ([t, x, f, e]) => `<div class="su-tip"><p class="su-tip-t">${esc(t)}</p><p>${esc(x)}</p><p class="su-cita">${esc(f)} · Evidencia: ${esc(e)}.</p></div>`;
   return `<details class="su-det" id="su-pq"${suPqAbierto ? ' open' : ''}><summary>Por qué</summary>${SU_TIPS.map(tip).join('')}${tip(SU_DIARIO_TXT)}<p class="su-nota">${esc(SU_NOHACE)}</p>
+    <p class="su-nota">Para estimar los ciclos completos, dividimos el sueño previsto por 100 y por 80 minutos. Su duración varía durante la noche. La referencia de sueño para adolescentes de 13 a 17 años es de 8 a 10 horas al día. <a href="https://www.nhlbi.nih.gov/health/sleep/stages-of-sleep" target="_blank" rel="noopener noreferrer">Fases del sueño (NIH)</a> · <a href="https://www.cdc.gov/sleep/about/" target="_blank" rel="noopener noreferrer">Duración y calidad (CDC)</a></p>
     <div class="su-cuando" id="su-cuando"><p class="su-tip-t">Cuándo consultar</p><p>Vale la pena hablarlo con un médico si:</p><ul>${SU_CUANDO.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
       <p>Para dificultades de sueño que duran, el enfoque con más evidencia es la terapia cognitivo-conductual para el insomnio, con un profesional. La higiene del sueño sola ayuda como base, pero no se recomienda como única medida.</p>
       <p class="su-cita">Edinger et al. (2021), Journal of Clinical Sleep Medicine (guía AASM); ICSD-3 (AASM, 2014); Chung et al. (2008), Anesthesiology (STOP-Bang) · Evidencia: fuerte.</p></div>
@@ -23631,16 +23674,25 @@ function suOtraSheet() {
 }
 function suHorasSheet() {
   const D = suD(), P = suPlan(D);
-  showSheet(`${SU_SH_CSS}<div class="su-sh"><h2>Cambiar horas</h2>
+  showSheet(`${SU_SH_CSS}<div class="su-sh"><h2>Horario de sueño</h2>
+    <div class="su-f"><label for="su-h-fin">Fin de la jornada</label><input type="time" id="su-h-fin" value="${esc(D.finJornada || '')}"></div>
+    <div class="su-f"><label for="su-h-rutina">Inicio de la rutina nocturna</label><input type="time" id="su-h-rutina" value="${esc(D.rutinaNocturna || '')}"></div>
     <div class="su-f"><label for="su-h-hd">A dormir</label><input type="time" id="su-h-hd" value="${esc(P.hd)}"></div>
     <div class="su-f"><label for="su-h-w">Despertar</label><input type="time" id="su-h-w" value="${esc(P.W)}"></div>
-    <p class="su-pre" id="su-h-pre"></p>
-    <div class="actions"><button type="button" class="link" id="su-h-5">Ajustar a 5 ciclos</button><button type="button" class="primary" id="su-h-ok">Guardar</button></div></div>`);
-  const pre = () => { const hd = $('#su-h-hd').value, w = $('#su-h-w').value; if (!suHM(hd) || !suHM(w)) { $('#su-h-pre').textContent = ''; return; } const s = Math.max(0, suD0(hd, w) - D.latencia), c = Math.round(s / D.ciclo * 2) / 2; $('#su-h-pre').textContent = s < 420 ? 'Menos de 7 h de sueño' : `${suCiclosTxt(c)} · ${suDur(s)} de sueño`; };
+    <p class="su-pre" id="su-h-pre" aria-live="polite"></p>
+    <p class="meta">La estimación descuenta ${D.latencia} min para conciliar el sueño y supone que duermes de corrido. Los ciclos suelen durar entre 80 y 100 min.</p>
+    <div class="actions"><button type="button" class="link" id="su-h-5">Ajustar a mi meta</button><button type="button" class="primary" id="su-h-ok">Guardar</button></div></div>`);
+  const pre = () => {
+    const est = suEstimacionHorario($('#su-h-hd').value, $('#su-h-w').value, D.latencia);
+    $('#su-h-pre').textContent = est ? `${est.duracion}. ${est.ciclos}. ${est.perspectiva}` : 'Elige dos horas distintas para estimar el sueño.';
+    $('#su-h-ok').disabled = !est;
+  };
   $('#su-h-hd').addEventListener('input', pre); $('#su-h-w').addEventListener('input', pre); pre();
-  $('#su-h-5').onclick = () => { const w = $('#su-h-w').value; if (!suHM(w)) return; $('#su-h-hd').value = suDeMin(suR5(suMin(w) - 5 * D.ciclo - D.latencia)); pre(); };
+  $('#su-h-5').onclick = () => { const w = $('#su-h-w').value; if (!suHM(w)) return; $('#su-h-hd').value = suDeMin(suMin(w) - D.meta * 60 - D.latencia); pre(); };
   $('#su-h-ok').onclick = () => { const hd = $('#su-h-hd').value, w = $('#su-h-w').value; if (!suHM(hd)) { $('#su-h-hd').focus(); return; } if (!suHM(w)) { $('#su-h-w').focus(); return; }
-    closeSheet(); if (w !== D.despertar) { D.despertar = w; D.mod = Math.max(Date.now(), (+D.mod || 0) + 1); } suPonerHD(hd, false); };
+    const cambio = { finJornada: $('#su-h-fin').value, rutinaNocturna: $('#su-h-rutina').value, despertar: w };
+    if (w !== D.despertar && D.alarmaH === D.despertar) cambio.alarmaH = w;
+    closeSheet(); ES.horaDormir = hd; suPoner(cambio, 'Horario de sueño guardado.'); };
 }
 function suSiestaSheet() {
   showSheet(`${SU_SH_CSS}<div class="su-sh"><h2>Siesta</h2>
@@ -23654,7 +23706,7 @@ function suComoSheet() {
   const D = suD();
   showSheet(`${SU_SH_CSS}<div class="su-sh"><h2>Cómo calculamos esto</h2>
     <p>Sumamos el tiempo que tardas en dormirte (${D.latencia} min) y ciclos de ${D.ciclo} min. Como cada ciclo varía, damos una ventana de 15 min antes y 15 min después.</p>
-    <p>Destacamos 5 y 6 ciclos porque a tu edad se recomiendan de 7 a 9 h. Nunca proponemos 3 ciclos.</p>
+    <p>Destacamos las ventanas que dejan de 8 a 10 horas de sueño, la referencia diaria para adolescentes de 13 a 17 años.</p>
     <p>La app no mide tus fases de sueño; trabaja con lo que anotas y con promedios. Puedes ajustar el ciclo y el tiempo para dormirte en Ajustes.</p>
     <div class="actions"><button type="button" class="primary" id="su-c-ok">Entendido</button></div></div>`);
   $('#su-c-ok').onclick = closeSheet;
@@ -28824,9 +28876,22 @@ const VAPID_PUBLIC = 'BCkSUFWA-q7GyyocviKZMTzTPNMvWGUNO-G_js0Y9zvBo5DtHoALCHHQIu
 const AV_KEY = 'rumbo-avisos';
 const AVISOS = [['manana', 'Resumen de la mañana', 'Prioridades, agenda, bloques de estudio y examen que viene, planes, hábitos, tareas y a quién escribir'], ['habitos', 'Hora de cada hábito', 'A su hora, si aún no lo hiciste, y tu plan para volver tras un «Hoy no». A diario las 3 primeras semanas, en días alternos hasta la 6.ª y después solo si cuesta'],
   ['planes', 'Una hora antes de cada plan', 'Con una idea para la conversación'], ['proyectos', 'Paso de proyecto', 'A la hora que fijaste para el siguiente paso'], ['agenda', 'Agenda del día', '10 minutos antes de cada cosa con hora; cada bloque de estudio a su hora; a las 9:30, si el día aún no tiene hora'], ['constantes', 'Acciones constantes', 'A su hora, los días que elegiste'],
-  ['mediodia', 'Prioridad del día', 'Juntos, al empezar tu ventana del mediodía o de la tarde, si algo sigue pendiente'], ['noche', 'Noche: cierre y hora de dormir', 'El cierre del día en tu ventana de la noche; y 30 min antes de dormir, soltar el teléfono'], ['semana', 'Lunes y viernes', 'Revisión semanal y gracias del viernes']];
+  ['mediodia', 'Prioridad del día', 'Juntos, al empezar tu ventana del mediodía o de la tarde, si algo sigue pendiente'], ['noche', 'Noche: cierre y hora de dormir', 'El cierre del día y el recordatorio previo que configures en Sueño'], ['semana', 'Lunes y viernes', 'Revisión semanal y gracias del viernes']];
 const avCfg = () => { try { return JSON.parse(localStorage.getItem(AV_KEY)) || {}; } catch { return {}; } };
 const avSetCfg = c => { try { localStorage.setItem(AV_KEY, JSON.stringify(c)); } catch {} };
+function avTelefonoActivo() {
+  if (OP_ANDROID) return !!window.OrgAndroid?.avisosPermitidos?.();
+  return !!avCfg().on && window.Notification?.permission === 'granted';
+}
+document.addEventListener('click', e => {
+  if (e.composedPath().some(el => el.matches?.('[data-avisos-telefono]'))) avisosSheet();
+});
+window.opActualizarAvisos = () => {
+  if (sheet.open && $('#av-telefono-nativo')) avisosSheet();
+  const estado = $('#s-av-estado');
+  if (estado) estado.textContent = avTelefonoActivo() ? 'Activadas en este teléfono' : 'Pendientes de activar';
+  if (OP_ANDROID && avTelefonoActivo()) suNat();
+};
 const b64u = t => { const b = atob((t + '='.repeat((4 - t.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
 async function avSuscribir(prefs) {
   if (OP_ANDROID) throw new Error(OP_AV_MSG + '.');   // 2.21.7 (A) · sin Web Push en el WebView; la suscripción de Chrome sigue igual
@@ -28849,12 +28914,17 @@ async function avDesuscribir() {
   if (sub) { try { if (await ensureToken()) await supa(`/rest/v1/push_subs?endpoint=eq.${encodeURIComponent(sub.endpoint)}`, { method: 'DELETE' }); } catch {} await sub.unsubscribe(); }
 }
 function avisosSheet() {
-  if (OP_ANDROID) {   // 2.21.7 (A)
-    showSheet(`<h2>Notificaciones</h2><p class="note" id="av-opa">${OP_AV_MSG}</p><div class="actions"><button class="primary" id="av-ok">Listo</button></div>`);
+  if (OP_ANDROID) {
+    const activo = avTelefonoActivo(), puente = window.OrgAndroid;
+    showSheet(`<h2>Notificaciones del teléfono</h2><p class="note" id="av-telefono-nativo">${activo ? 'Tienes permiso para recibir avisos de esta app.' : 'Activa el permiso de notificaciones de Organización Personal en Android.'}</p>
+      <p class="meta">${suD().avisoOn ? `Aviso de sueño: ${suH(suDeMin(suMin(suHD()) - suD().avisoMin))}.` : 'El aviso para acostarte está apagado en Sueño.'} ${activo && puente?.canalSuenoPermitido?.() === false ? 'El canal del aviso de sueño está bloqueado. Puedes habilitarlo en Ajustes de Android.' : ''}</p>
+      ${typeof puente?.activarAvisos === 'function' ? `<button class="link" id="av-permiso">${activo ? 'Ajustes de Android' : 'Activar notificaciones'}</button>` : '<p class="meta">En el teléfono: Ajustes → Aplicaciones → Organización Personal → Notificaciones.</p>'}
+      <div class="actions"><button class="primary" id="av-ok">Listo</button></div>`);
+    $('#av-permiso')?.addEventListener('click', () => puente.activarAvisos());
     $('#av-ok').onclick = () => closeSheet();
     return;
   }
-  const c = avCfg(), prefs = { hora: '07:30', ...c.prefs };
+  const c = { ...avCfg(), on: avTelefonoActivo() }, prefs = { hora: '07:30', ...c.prefs };
   prefs.max = [2, 3, 4, 5, 6, 7, 8].includes(+prefs.max) ? +prefs.max : 4;
   showSheet(`<h2>Notificaciones</h2>
     <p class="note">La app te avisa aunque no la abras: lo importante te llega en una notificación y solo entras si quieres actuar.</p>
@@ -28880,7 +28950,7 @@ function avisosSheet() {
   $('#av-on').onclick = async e => {
     e.target.disabled = true; $('#av-err').textContent = '';
     try {
-      if (avCfg().on) { await avDesuscribir(); avSetCfg({ ...avCfg(), on: false }); }
+      if (avTelefonoActivo()) { await avDesuscribir(); avSetCfg({ ...avCfg(), on: false }); }
       else { prefs.hora = $('#av-hora').value || '07:30'; await avSuscribir(prefs); avSetCfg({ ...avCfg(), on: true, prefs }); ES.avisosDesde = today(); guardar(); toast('Notificaciones activadas.'); }
       avisosSheet(); renderE();
     } catch (err) { $('#av-err').textContent = err.message; e.target.disabled = false; }
@@ -29210,7 +29280,10 @@ function tempUrl(href) {
     setTimeout(() => tempAccion(acc, k), 400);
   } catch {}
 }
-window.opTempAccion = (acc, k) => tempAccion(acc, k);
+window.opTempAccion = (acc, k) => {
+  if (k === 'su|bajar' || k === 'su|desp') { closeSheet(); irA(k === 'su|bajar' ? 'agenda' : 'sueno'); return true; }
+  return tempAccion(acc, k);
+};
 window.opTempUrl = href => tempUrl(href);
 function tempOcupado() {
   if (!$('#focus')?.hidden) return true;
@@ -34270,7 +34343,8 @@ function adPuede() { try { return !adCuenta() || (!!nubeLista && adFresco === to
 // y se sube al combinar (guardarTras).
 function adGuardarSuave() {
   try { if (!adCuenta() || nubeLista) { save(); return; } } catch { save(); return; }
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  nocheRevisarAlta();
+  nocheGuardarLocal();
   try { guardarTras = true; } catch {}
 }
 function adMapa() { const M = ES.agendaDia; if (M && typeof M === 'object' && !Array.isArray(M)) return M; ES.agendaDia = {}; return ES.agendaDia; }
@@ -36295,6 +36369,196 @@ try { hbirPintarHb(); } catch {}
 window.hbirOpc = { habitos: () => hbirHabitos(), agenda: () => hbirAgenda(), mem: () => hbirMem && { ...hbirMem } };
 })();
 
+// Una noche pertenece al día en que comenzó, también después de medianoche.
+function nocheHorario(ahora, despertar) {
+  const minutos = ahora.getHours() * 60 + ahora.getMinutes();
+  const partes = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(despertar || '');
+  const fin = partes ? +partes[1] * 60 + +partes[2] : 420;
+  const madrugada = minutos < (fin < 1170 ? fin : 420);
+  if (!madrugada && minutos < 1170) return null;
+  const dia = new Date(ahora);
+  if (madrugada) dia.setDate(dia.getDate() - 1);
+  const laborable = dia.getDay() > 0 && dia.getDay() < 6;
+  if (!laborable && madrugada) return null;
+  return { dia: dayKey(dia), laborable, cerrado: laborable && (madrugada || minutos >= 1320) };
+}
+function nocheActual() { return nocheHorario(new Date(), state.enfoque?.sueno?.despertar); }
+function nocheGuardarLocal() {
+  nocheCopia = JSON.stringify(state);
+  try { localStorage.setItem(KEY, nocheCopia); } catch {}
+}
+function nocheFrase(v) { return String(v || '').trim().toLocaleLowerCase('es') === 'soy responsable con mi tiempo'; }
+// Identidades de contenido creado. Las marcas internas de sincronización, XP y
+// recordatorios automáticos no son altas. Cambiar título, hora u orden conserva el id.
+function nocheInventario(s, gesto) {
+  const e = s.enfoque || {}, salida = new Map();
+  function marcar(grupo, id, titulo) {
+    if (id !== undefined && id !== null && id !== '') salida.set(grupo + '/' + id, String(titulo || grupo).slice(0, 120));
+  }
+  function lista(grupo, filas, filtrar) {
+    for (const x of Array.isArray(filas) ? filas : []) if (x && (!filtrar || filtrar(x)))
+      marcar(grupo, x.id, x.t || x.nombre || x.titulo || grupo);
+  }
+  lista('Hábito', s.habits);
+  lista('Tarea', s.tareas?.items, x => gesto || !x.gid);
+  lista('Lista', s.tareas?.listas, x => gesto || !x.gid);
+  for (const [grupo, filas] of Object.entries({
+    Persona: e.personas, Proyecto: e.proyectos, Plan: e.planes, Meta: e.metas, Identidad: e.identidades,
+    Objetivo: e.objetivos, Pizarra: e.pizarras, Diario: e.diario, Prioridad: e.prioridades?.items,
+    Bloque: e.bloquesT, Constante: e.constantes, Consistencia: e.consistencias, Reflexión: e.reflexiones,
+    Materia: e.estudio?.materias, Ruta: e.estudio?.rutas, Práctica: e.practicas, Estado: e.estado,
+    Ánimo: e.animo, Misión: e.misiones, Predicción: e.predicciones, Gratitud: e.buenas, Aplicación: e.apps,
+    Norma: e.espiritu?.normas
+  })) lista(grupo, filas);
+  for (const filas of Object.values(e.catalogoIni || {})) lista('Iniciativa', filas);
+  for (const x of e.iniciativas4?.items || []) if (x.t) marcar('Iniciativa del día', e.iniciativas4.dia + '/' + x.k, x.t);
+  for (const p of e.personas || []) for (const r of p.historial || []) marcar('Contacto', p.id + '/' + r.d + '/' + r.tipo, p.nombre);
+  // Pasos y avances históricos no tienen id. Dos anotaciones iguales el mismo
+  // día son dos altas, incluso si vienen en el mismo guardado.
+  function anotaciones(grupo, padre, filas, clave) {
+    const veces = new Map();
+    for (const x of filas || []) {
+      const k = JSON.stringify(clave(x)), n = (veces.get(k) || 0) + 1;
+      veces.set(k, n); marcar(grupo, padre.id + '/' + k + '/' + n, x.t || padre.t || padre.nombre || grupo);
+    }
+  }
+  for (const p of e.proyectos || []) anotaciones('Paso de proyecto', p, p.pasos, x => [x.d, x.t]);
+  for (const o of e.objetivos || []) anotaciones('Avance de objetivo', o, o.avances, x => [x.d, x.n, x.nota, x.ref]);
+  for (const m of e.metas || []) for (const rev of m.revisiones || []) marcar('Revisión de meta', m.id + '/' + rev.sem, m.t);
+  for (const [coleccion, campos] of [[e.estudio?.rutas, ['temas', 'pendientes']],
+    [e.metas, ['etapas', 'avances']], [e.pizarras, ['els']]]) {
+    for (const x of coleccion || []) for (const k of campos) lista(k + '/' + x.id, x[k]);
+  }
+  for (const [dia, entrada] of Object.entries(e.sueno?.dias || {})) if (entrada && !entrada.del) marcar('Sueño', dia, 'Sueño · ' + dia);
+  for (const [habito, dias] of Object.entries(s.log || {})) for (const [dia, marca] of Object.entries(dias || {}))
+    if (marca) marcar('Registro de hábito', habito + '/' + dia, 'Registro de hábito · ' + dia);
+  for (const [dia, vals] of Object.entries(e.consLog || {})) for (const [id, reg] of Object.entries(vals || {}))
+    if (reg && reg.ok != null) marcar('Registro de consistencia', id + '/' + dia, 'Meta de consistencia · ' + dia);
+  // La misma agenda puede estar reflejada en agendaPlan y agendaPlanes. Mover una
+  // cosa que ya existía conserva su id. Las filas proyectadas por la app no cuentan.
+  for (const plan of [e.agendaHoy, e.agendaPlan, ...Object.values(e.agendaPlanes || {})]) {
+    if (!plan) continue;
+    lista('Agenda', plan.items, x => !String(x.id).startsWith('auto:') && !x.esp && !['bt','sueno'].includes(x.tipo) &&
+      (x.tipo === 'libre' || (gesto && x.tipo !== 'estudio') || (x.tipo === 'estudio' && x.estL)));
+    lista('Prioridad', plan.prios);
+  }
+  return salida;
+}
+function nochePermitir(n) {
+  if (nochePermiso?.dia === n.dia) return true;
+  const motivo = (window.prompt('Jornada cerrada. Justifica este registro tardío:') || '').trim();
+  if (!motivo || !nocheFrase(window.prompt('Para continuar, escribe «Soy responsable con mi tiempo».'))) return false;
+  nochePermiso = { dia: n.dia, motivo: motivo.slice(0, 500) };
+  return true;
+}
+function nocheRevisarAlta() {
+  if (!nocheCopia) return;
+  const n = nocheActual();
+  if (!n?.cerrado) return;
+  const previo = JSON.parse(nocheCopia);
+  const antes = nocheInventario(previo, nocheGesto), altas = [];
+  for (const [id, titulo] of nocheInventario(state, nocheGesto)) if (!antes.has(id)) altas.push(titulo);
+  if (!altas.length) return;
+  // Los formularios abiertos antes de las 22:00 y las altas indirectas pasan aquí
+  // antes de persistir o enviar. Cancelar revierte la operación sin anotarla.
+  if (!nochePermitir(n)) {
+    state = normalize(previo);
+    setTimeout(() => { renderAll(); nochePintar(); }, 0);
+    throw new DOMException('Registro nocturno cancelado.', 'AbortError');
+  }
+  const en = Date.now(), libro = state.altasNocturnas ||= {};
+  // Un guardado puede crear varios registros. Cada uno queda identificado aunque
+  // luego se edite, se borre o se combine el estado de dos dispositivos.
+  for (const titulo of altas) libro[crypto.randomUUID()] = { en, dia: n.dia, titulo, motivo: nochePermiso.motivo };
+  nochePintar();
+}
+function nocheRotulos(texto) {
+  // Los diálogos nativos aparecen por encima de cualquier z-index. Conserva el
+  // aviso en cada superficie modal y en las dos pantallas de enfoque completo.
+  const paneles = nochePaneles();
+  for (const p of paneles) {
+    const activo = p.tagName === 'DIALOG' ? p.open : !p.hidden;
+    let r = p.querySelector(':scope > [data-aviso-de-noche]');
+    if (!texto || !activo) { r?.remove(); continue; }
+    if (!r) {
+      r = document.createElement('small'); r.dataset.avisoDeNoche = '';
+      r.style.cssText = 'display:block;position:sticky;top:0;z-index:4;padding:6px 12px;background:var(--bg);color:var(--muted);font-size:.78rem;text-align:center';
+      p.prepend(r);
+    }
+    if (r.textContent !== texto) r.textContent = texto;
+  }
+}
+function nochePaneles() {
+  const sombra = document.getElementById('view-overlays')?.shadowRoot;
+  return [...document.querySelectorAll('dialog'), ...(sombra?.querySelectorAll('dialog,#focus,#gate') || [])];
+}
+function nochePintar() {
+  const n = nocheActual(), franja = document.getElementById('noche-aviso');
+  franja.hidden = !n;
+  if (!n) { nochePermiso = null; nocheRotulos(''); return; }
+  if (nochePermiso && n.dia !== nochePermiso.dia) nochePermiso = null;
+  const texto = n.cerrado ? (nochePermiso ? 'Jornada cerrada · los registros llevarán tu justificación.' : 'Se acerca la hora de dormir · jornada cerrada a las 10:00 p. m.') :
+    n.laborable ? 'Se acerca la hora de dormir · deja todo listo a las 10:00 p. m.' : 'Se acerca la hora de dormir.';
+  const t = document.getElementById('noche-texto');
+  if (t.textContent !== texto) t.textContent = texto;
+  nocheRotulos(texto);
+  document.getElementById('noche-accion').hidden = !n.cerrado || !!nochePermiso;
+}
+function nocheAbrirPermiso(continuar) {
+  const d = document.getElementById('noche-dialog');
+  if (d.open) return;
+  d.innerHTML = '<form><h2 id="noche-titulo">Jornada cerrada</h2><p>Desde las 10:00 p. m., cada alta de esta noche queda registrada con tu justificación.</p><label for="noche-motivo">Justificación</label><textarea id="noche-motivo" required maxlength="500"></textarea><label for="noche-frase">Escribe «Soy responsable con mi tiempo»</label><input id="noche-frase" required autocomplete="off" spellcheck="false"><div class="dialog-actions"><button type="button" class="link">Cancelar</button><button class="primary">Continuar</button></div></form>';
+  const form = d.firstElementChild, razon = form.querySelector('textarea'), frase = form.querySelector('input');
+  form.oninput = () => { razon.setCustomValidity(''); frase.setCustomValidity(''); };
+  form.querySelector('button[type=button]').onclick = () => d.close();
+  form.onsubmit = ev => {
+    ev.preventDefault();
+    const motivo = razon.value.trim(), n = nocheActual();
+    if (!motivo) razon.setCustomValidity('Escribe tu justificación.');
+    if (!nocheFrase(frase.value)) frase.setCustomValidity('Escribe la frase indicada.');
+    if (!form.reportValidity()) return;
+    if (n?.cerrado) nochePermiso = { dia: n.dia, motivo };
+    d.close(); nochePintar(); continuar?.();
+  };
+  d.showModal(); razon.focus();
+}
+function nocheHistorial() {
+  const d = document.getElementById('noche-dialog');
+  if (d.open) return;
+  const registros = Object.values(state.altasNocturnas || {}).filter(r => r && Number.isFinite(r.en)).sort((a,b) => b.en - a.en);
+  d.innerHTML = '<h2 id="noche-titulo">Registros tardíos</h2>' + (registros.length ? '<ol>' + registros.map(r =>
+    '<li><strong>' + esc(r.titulo) + '</strong><br><small>' + esc(new Date(r.en).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })) +
+    '</small><br>' + esc(r.motivo) + '</li>').join('') + '</ol>' : '<p>Todavía no hay registros después del cierre.</p>') +
+    '<div class="dialog-actions"><button class="link">Cerrar</button></div>';
+  d.querySelector('button').onclick = () => d.close(); d.showModal();
+}
+function nocheArrancar() {
+  nocheCopia = JSON.stringify(state);
+  let finGesto;
+  const marcarGesto = () => { nocheGesto = true; clearTimeout(finGesto); finGesto = setTimeout(() => { nocheGesto = false; }, 0); };
+  for (const evento of ['click','submit','change','keydown']) window.addEventListener(evento, marcarGesto, true);
+  window.addEventListener('click', ev => {
+    const b = ev.composedPath().find(x => x?.matches?.('button, [role="button"]'));
+    if (!b || b.closest('#noche-dialog')) return;
+    if (b.hasAttribute('data-historial-nocturno')) { ev.preventDefault(); ev.stopImmediatePropagation(); nocheHistorial(); return; }
+    const n = nocheActual();
+    if (!n?.cerrado || nochePermiso?.dia === n.dia) return;
+    const etiq = (b.getAttribute('aria-label') || b.textContent || '').trim();
+    if (b.id !== 'noche-accion' && b.id !== 'qa-fab' && !/^(?:\+\s*(?:tarea|hábito|rutina|prioridad|meta|bloque|evento|iniciativa)\b|añadir\b|agregar\b|crear\b|nuev[oa]\b|registrar\b)/i.test(etiq)) return;
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    nocheAbrirPermiso(() => { if (b.isConnected && b.id !== 'noche-accion') b.click(); });
+  }, true);
+  // setTimeout al minuto exacto, más revalidación al volver del segundo plano.
+  let reloj;
+  const actualizar = () => { clearTimeout(reloj); nochePintar(); if (!document.hidden) reloj = setTimeout(actualizar, 60000 - Date.now() % 60000); };
+  document.addEventListener('visibilitychange', actualizar);
+  const observador = new MutationObserver(nochePintar);
+  for (const p of nochePaneles()) observador.observe(p, { attributes: true, attributeFilter: ['open', 'hidden'] });
+  window.addEventListener('pageshow', actualizar);
+  window.addEventListener('focus', actualizar);
+  actualizar();
+}
+nocheArrancar();
 render();
 document.querySelector(`.tabs .tab[data-view="${vistaDeEntrada()}"]`).click();
 window.enfoqueArranque();

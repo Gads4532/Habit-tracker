@@ -569,9 +569,15 @@ function candidatos(C, fecha) {
   if (hayTipo('proyectos')) for (const pr of acota(E.proyectos, 60)) if (!pr.archivado && pr.paso && pr.cuando === fecha && hmOk(pr.hora))
     out.push({ t: en(pr.hora), clase: 1, tag: 'r-' + pr.id, franja: 'r-' + pr.id, title: `${pr.paso} · tu espacio ${delas(pr.hora)}`, body: `${pr.nombre}${pr.donde ? ' · ' + pr.donde : ''}. ¿Lo empiezas, la versión de 2 min${sinPunto(pr.minima) ? ` (${sinPunto(pr.minima)})` : ''} o lo mueves?`,
       url: './?v=enfoque', apagar: APAGAR, limite: 60, vivo: at => tipoOn('proyectos', at) });
-  // Teléfono fuera del cuarto (F24): 30 min antes de tu hora de dormir.
-  if (hayTipo('noche')) out.push({ t: en(deMin(aMin(hmOk(E.horaDormir) ? E.horaDormir : '23:00') - 30)), clase: 1, tag: 'dormir', franja: 'dormir', title: 'Hora de soltar el teléfono', body: 'Cárgalo fuera del cuarto. Mañana te pregunto cómo dormiste.',
-    url: './?v=enfoque', apagar: APAGAR, limite: 60, vivo: at => tipoOn('noche', at) });
+  if (hayTipo('noche') && E.sueno?.avisoOn !== false) {
+    const dormir = hmOk(E.horaDormir) ? E.horaDormir : '23:00';
+    const antes = [15, 30, 45, 60].includes(+E.sueno?.avisoMin) ? +E.sueno.avisoMin : 30;
+    const minutoAviso = aMin(dormir) - antes;
+    const acostarse = aMs(minutoAviso < 0 ? masDias(fecha, 1) : fecha, dormir, tz);
+    out.push({ t: en(deMin(minutoAviso)), clase: 0, tag: 'dormir', franja: 'dormir', title: 'Se acerca la hora de dormir',
+      body: `Tienes previsto acostarte a las ${hora12(dormir)}.`, url: './?v=agenda', apagar: APAGAR,
+      hasta: acostarse - 1, llega: acostarse - 1, vivo: at => tipoOn('noche', at) });
+  }
   // 2.21 (L) · Metas de consistencia «antes de una hora» con aviso: 15 minutos antes de la hora, si ese día toca y aún no está anotada
   // (lo anotado antes de esa hora la apaga). Va con el tipo «Noche» (lo apaga «Apagar este tipo»), entra en el tope y respeta silencios.
   if (hayTipo('noche')) for (const c of acota(E.consistencias, 40)) {
@@ -791,6 +797,7 @@ function planDia(C, fecha) {
     L.push({ ...c, t, ...(c.tarde && (t !== c.t || (ahoraSale && C.ahora - c.t > 10 * 60000)) ? { title: c.tarde } : {}) });
   }
   L.sort((a, b) => a.t - b.t || a.clase - b.clase);
+  const dormir = L.find(c => c.tag === 'dormir');
   // Un día pasado se simula con el tope que tenía entonces (prefs.maxAntes: el de antes del último cambio y hasta cuándo valió).
   const max = C.sim && +C.prefs.maxAntes?.hasta > fin ? topeDe({ max: C.prefs.maxAntes.v }) : topeDe(C.prefs), env = [];
   let volver = false;
@@ -800,7 +807,8 @@ function planDia(C, fecha) {
     const a = c.lote ? armarLote(c, at, volver) : c.vivo(at) ? c : null;
     if (!a || (a.soloVolver && volver)) continue;
     const clase = a.soloVolver ? 4 : c.clase;
-    const reservados = clase === 1 ? 0 : L.slice(i + 1).filter(d => d.t > at && (d.lote ? clase === 4 && !!armarLote(d, at, true)
+    // Reserva también el recordatorio de acostarse aunque el resto del cupo se llene con otras horas elegidas.
+    const reservados = clase <= 1 ? Number(!!dormir && dormir.t > at && dormir.vivo(at)) : L.slice(i + 1).filter(d => d.t > at && (d.lote ? clase === 4 && !!armarLote(d, at, true)
       : (d.soloVolver ? 4 : d.clase) < clase && d.vivo(at))).length;
     if (env.length + 1 + reservados > max) continue;
     env.push({ t: at, tag: a.tag, title: a.title, body: a.body, url: a.url, ...(a.apagar ? { apagar: a.apagar } : {}), franja: c.franja, seguro: !(C.sim && (c.lote ? a.duda : c.duda?.(at))) });
