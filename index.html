@@ -5273,13 +5273,14 @@ function pintarPrioridades(editar = false) {
   const boton = (id, elegir = false) => {
     const icono = tabs.get(id).querySelector('svg')?.cloneNode(true);
     icono?.setAttribute('aria-hidden', 'true');
-    return `<button type="button" class="acceso" data-${elegir ? 'agregar' : 'abrir'}="${esc(id)}">${icono?.outerHTML || ''}<span>${esc(nombre(id))}</span></button>`;
+    const etiqueta = id === 'hoy' ? 'Hábitos' : nombre(id);
+    return `<button type="button" class="acceso" aria-label="${esc(nombre(id))}" data-${elegir ? 'agregar' : 'abrir'}="${esc(id)}">${icono?.outerHTML || ''}<span>${esc(etiqueta)}</span></button>`;
   };
   const lista = ids.map((id, i) => editar
     ? `<div class="acceso-fila"><span>${esc(nombre(id))}</span><button data-subir="${id}" aria-label="Subir ${esc(nombre(id))}" ${i === 0 ? 'disabled' : ''}>↑</button><button data-bajar="${id}" aria-label="Bajar ${esc(nombre(id))}" ${i === ids.length - 1 ? 'disabled' : ''}>↓</button><button data-quitar="${id}" aria-label="Quitar ${esc(nombre(id))}">×</button></div>`
     : boton(id)).join('');
   const disponibles = [...tabs.keys()].filter(id => !ids.includes(id));
-  panel.innerHTML = `<div class="actions"><button class="outline" data-edit>${editar ? 'Listo' : ids.length ? 'Personalizar' : 'Elegir accesos'}</button></div>
+  panel.innerHTML = `<div class="acceso-barra"><button type="button" data-edit>${editar ? 'Listo' : ids.length ? 'Personalizar' : 'Elegir accesos'}</button></div>
     <div class="${editar ? 'acceso-orden' : 'acceso-grid'}">${lista}</div>
     ${editar && disponibles.length ? `<h3>Agregar accesos</h3><div class="acceso-grid">${disponibles.map(id => boton(id, true)).join('')}</div>` : ''}`;
   panel.onclick = e => {
@@ -12527,7 +12528,7 @@ function renderAg() {
     const edad = Kt.c && Kt.c.dias > 0 ? `<span class="ag-edad">${tareaHace(Kt.c.dias)}</span>` : '';   // (v2) con «calor», el motivo va en la línea pequeña (la fila roja se explica sola)
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="${jornada ? (ok ? 'Desmarcar jornada' : 'Marcar jornada como hecha') : 'Hecha'}" aria-pressed="${ok}"></button>
-      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.ruta || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? [it.h && !agHorasOcultas() ? fmtHora(it.h) : '', agTituloEst(it)].filter(Boolean).join(' · ') : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab && !jornada ? agPildoraHtml(it, ok) : ''}</small>${jornada && !ab ? '' : relMarkHtml(relKeyIt(it))}</div>
+      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.titulo || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? [it.h && !agHorasOcultas() ? fmtHora(it.h) : '', jornada.tema].filter(Boolean).join(' · ') : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab && !jornada ? agPildoraHtml(it, ok) : ''}</small>${jornada && !ab ? '' : relMarkHtml(relKeyIt(it))}</div>
       ${jornada && !ok ? agAccionBtnHtml(it, false) : ''}${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${jornada ? '' : agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
@@ -13151,7 +13152,7 @@ function agmDecir(d) { const n = agmFutItems(d).length; return `${cap(agdLbl(d))
 function agmFuturoHtml(d) {
   const L = agmFilas(d), cal = agcVista() === 'cal', nom = agdNomLargo(d);
   const fila = (it, i) => {
-    const ok = agmHechoFut(it), fijo = it.tipo === 'evento' || it.tipo === 'bt', mv = !ok && agmMovible(it, d), jornada = agJornada(it, d), n = jornada?.ruta || agmNomFila(it);
+    const ok = agmHechoFut(it), fijo = it.tipo === 'evento' || it.tipo === 'bt', mv = !ok && agmMovible(it, d), jornada = agJornada(it, d), n = jornada?.titulo || agmNomFila(it);
     const hora = /^\d\d:\d\d$/.test(it.h || '') ? fmtHora(it.h) : 'Sin hora', etq = agdEtq(it), estado = ok ? 'Hecha' : '';
     return `<div class="row agd-it agm-it${ok ? ' ok' : ''}" role="listitem" aria-label="${esc(`${n}. ${hora}.${estado ? ` ${estado}` : ''}`)}"><span class="dot" style="--c:${ok ? 'var(--green)' : fijo ? 'var(--muted)' : 'var(--accent)'}" aria-hidden="true"></span>${mv ? `<button type="button" class="t agd-tb" data-agm-it="${i}" aria-haspopup="dialog" aria-label="${esc(`Mover: ${n}. ${hora}.`)}"><span class="agm-tt">` : '<span class="t" aria-hidden="true"><div>'}${esc(n)}${mv ? '</span>' : '</div>'}<small><b>${esc(hora)}</b>${etq ? ` · ${esc(etq)}` : ''}${estado ? ` · ${esc(estado)}` : ''}</small>${mv ? '</button>' : '</span>'}${agJornadaHtml(jornada)}${ok ? '<span class="agd-ok" aria-hidden="true">✓</span>' : ''}</div>`;
   };
@@ -17959,7 +17960,10 @@ function estJornadaInfo(id, fecha = today()) {
   if (i < 0) return null;
   const hechas = sesiones.filter(b => r.hechos[b.id]).length;
   const turno = estTurnoDia(r, fecha, sesiones);
-  return { numero: i + 1, total: sesiones.length, hechas, ruta: r.nombre, delDia: turno.hechas.length, cantidad: turno.cantidad, fecha };
+  const materia = estMatNombre(r);
+  const titulo = [materia, r.nombre !== materia ? r.nombre : ''].filter(Boolean).join(' · ');
+  const tema = estTexto({ ...sesiones[i], ruta: r.id }, false);
+  return { numero: i + 1, total: sesiones.length, hechas, ruta: r.nombre, titulo, tema, delDia: turno.hechas.length, cantidad: turno.cantidad, fecha };
 }
 function estDiaDeJornada(r, fecha) {
   const ajuste = r.fechas?.[fecha];
@@ -17988,13 +17992,13 @@ function estBloquesDe(fecha = today(), agendaFutura = false) {
   return out.sort(estOrdenH);
 }
 function estBloque(id) { const r = estRutaDeBloque(id); return r ? estEnriquecer(r, r.plan.find(b => b.id === id)) : null; }
-function estTexto(b) {
+function estTexto(b, incluirMateria = true) {
   if (!b || typeof b !== 'object') return '';
   const r = typeof b.ruta === 'string' ? estRuta(b.ruta) : estRutaDeBloque(b.id, true);
   const mat = typeof b.materia === 'string' && b.materia ? b.materia : r ? estMatNombre(r) : '';
   const tema = r && b.tema ? r.temas.find(t => t.id === b.tema) : null, tt = tema ? tema.t : String(b.t || '').replace(/^(Ejercicios|Repaso): /, '');
   const cuerpo = b.tipo === 'ligero' ? 'Repaso ligero' : b.tipo === 'simulacro' ? 'Simulacro' : b.tipo === 'repaso' ? `Repaso: ${tt}` : b.tipo === 'practica' ? `Ejercicios: ${tt}` : tt;
-  return [mat, cuerpo].filter(Boolean).join(' · ');
+  return incluirMateria ? [mat, cuerpo].filter(Boolean).join(' · ') : cuerpo;
 }
 const estEtiqueta = b => { const min = Math.max(0, Math.round(+b?.min || 0)), ej = Math.max(0, Math.round(+b?.ej || 0)); return `Estudio · ${min} min${ej ? ` · ${ej} ${ej === 1 ? 'ejercicio' : 'ejercicios'}` : ''}`; };
 
@@ -32897,12 +32901,24 @@ const TD_NAV_CSS = `
   .td-nav button { flex: 1 1 0; min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border-radius: 999px; font: inherit; font-size: .95rem; font-weight: 600; color: var(--muted); background: transparent; border: 0; white-space: nowrap; }
   .td-nav button svg { width: 18px; height: 18px; flex: none; }
   @media(max-width:460px) { .td-nav {gap:2px} .td-nav button {padding:0 3px;font-size:.83rem} .td-nav button svg {display:none} }
-  #view-prioridades .acceso-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:8px}
-  #view-prioridades .acceso {display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 14px;text-align:left;color:var(--text);background:var(--soft);border:1px solid var(--line);border-radius:10px;font:inherit}
-  #view-prioridades .acceso svg {width:20px;height:20px;flex:none}
-  #view-prioridades .acceso-fila {display:flex;gap:4px;align-items:center;border-bottom:1px solid var(--line)}
-  #view-prioridades .acceso-fila span {flex:1}
-  #view-prioridades .acceso-fila button {min-width:44px;min-height:44px}
+  #view-prioridades .acceso-barra { display:flex; justify-content:flex-end; margin:0 0 12px; }
+  #view-prioridades [data-edit] { min-height:44px; padding:4px 12px; border:0; border-radius:8px; background:transparent; color:var(--text); font:600 .875rem/1.25 var(--font); }
+  #view-prioridades .acceso-grid, #view-prioridades .acceso-orden { display:grid; }
+  #view-prioridades .acceso-grid:has([data-abrir]) { grid-auto-rows:1fr; }
+  #view-prioridades .acceso-grid:not(:empty), #view-prioridades .acceso-orden:not(:empty) { border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb,var(--bg) 95%,var(--text)); }
+  #view-prioridades .acceso, #view-prioridades .acceso-fila { display:flex; align-items:center; gap:12px; min-width:0; min-height:56px; padding:8px 14px; color:var(--text); }
+  #view-prioridades .acceso { width:100%; border:0; border-radius:0; background:transparent; text-align:left; font:500 1rem/1.35 var(--font); }
+  #view-prioridades .acceso:first-child { border-radius:13px 13px 0 0; }
+  #view-prioridades .acceso:last-child { border-radius:0 0 13px 13px; }
+  #view-prioridades .acceso:only-child { border-radius:13px; }
+  #view-prioridades .acceso + .acceso, #view-prioridades .acceso-fila + .acceso-fila { border-top:1px solid var(--line); }
+  #view-prioridades .acceso svg { flex:none; width:20px; height:20px; }
+  #view-prioridades .acceso span, #view-prioridades .acceso-fila span { flex:1; min-width:0; overflow-wrap:anywhere; }
+  #view-prioridades [data-abrir]::after { content:""; width:7px; height:7px; flex:none; margin-right:4px; border:solid currentColor; border-width:1.5px 1.5px 0 0; transform:rotate(45deg); opacity:.65; }
+  #view-prioridades .acceso-fila { gap:4px; padding:4px 8px 4px 14px; }
+  #view-prioridades .acceso-fila button { min-width:44px; min-height:44px; }
+  #view-prioridades button:focus-visible { outline:2px solid var(--text); outline-offset:-3px; }
+  @media (hover:hover) { #view-prioridades .acceso:hover, #view-prioridades [data-edit]:hover { background:color-mix(in srgb,var(--text) 7%,transparent); } }
   .td-nav button[aria-current="page"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1.5px var(--line), 0 1px 3px rgba(0,0,0,.14); }
   @media (max-width: 359px) { .td-nav button { font-size: .88rem; gap: 4px; padding: 0 4px; } .td-nav button svg { width: 16px; height: 16px; } }
   /* En el ordenador (y en la tableta), solo el contenido de Rápido y Apartados se ensancha: la cabecera y la tira se quedan donde están en el Inicio. */
