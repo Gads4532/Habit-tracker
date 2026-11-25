@@ -5255,43 +5255,53 @@ $('#view-cal').addEventListener('click', e => {
 
 // 2.22.0 (N) · La Agenda se ve en su sección y en Iniciativas (la misma lista, filtrada).
 function agEnVista() { return view === 'agenda' || view === 'iniciativas'; }
-function espaciosPrioritarios() {
-  try {
-    const datos = JSON.parse(localStorage.getItem('espacios-prioritarios') || '[]');
-    return Array.isArray(datos) ? datos.filter(x => x && typeof x.nombre === 'string') : [];
-  } catch { return []; }
-}
 function pintarPrioridades(editar = false) {
-  const panel = document.getElementById('view-prioridades'), espacios = espaciosPrioritarios();
-  const opciones = [...document.querySelectorAll('.tabs .tab[data-view]')].filter(b => b.dataset.view !== 'prioridades');
-  const guardar = () => { localStorage.setItem('espacios-prioritarios', JSON.stringify(espacios)); pintarPrioridades(true); };
-  panel.innerHTML = `<div class="actions"><button class="outline" data-edit>${editar ? 'Listo' : 'Personalizar'}</button></div>
-    <div class="rows">${espacios.map((x, i) => editar ? `<div class="row"><input class="t" data-nombre="${i}" value="${esc(x.nombre)}" aria-label="Nombre del espacio"><button data-subir="${i}" ${i ? '' : 'disabled'} aria-label="Subir">↑</button><button data-bajar="${i}" ${i + 1 < espacios.length ? '' : 'disabled'} aria-label="Bajar">↓</button><button data-quitar="${i}" aria-label="Quitar espacio">×</button></div>` : x.vista ? `<button class="row" data-abrir="${esc(x.vista)}">${esc(x.nombre)}</button>` : `<details><summary>${esc(x.nombre)}</summary><textarea data-nota="${i}" aria-label="Notas de ${esc(x.nombre)}" placeholder="Escribe aquí">${esc(x.nota || '')}</textarea></details>`).join('')}</div>
-    ${editar || !espacios.length ? `<form data-crear class="field"><label>Espacio<select name="vista"><option value="">Espacio propio</option>${opciones.map(b => `<option value="${esc(b.dataset.view)}">${esc(b.textContent.trim())}</option>`).join('')}</select></label><input name="nombre" placeholder="Nombre del espacio" aria-label="Nombre del nuevo espacio"><button class="primary">Agregar espacio</button></form>` : ''}`;
-  panel.querySelector('[data-edit]').onclick = () => pintarPrioridades(!editar);
-  panel.onchange = e => {
-    const t = e.target;
-    if (t.matches('[data-nombre]')) espacios[t.dataset.nombre].nombre = t.value.trim() || espacios[t.dataset.nombre].nombre;
-    else if (t.matches('[data-nota]')) espacios[t.dataset.nota].nota = t.value;
-    else return;
-    localStorage.setItem('espacios-prioritarios', JSON.stringify(espacios));
+  const panel = document.getElementById('view-prioridades');
+  const tabs = new Map([...document.querySelectorAll('.tabs .tab[data-view]')]
+    .filter(tab => tab.dataset.view !== 'prioridades')
+    .map(tab => [tab.dataset.view, tab]));
+  const clave = 'accesos-prioritarios';
+  let ids = [];
+  try {
+    const guardados = localStorage.getItem(clave);
+    const datos = guardados === null
+      ? JSON.parse(localStorage.getItem('espacios-prioritarios') || '[]').map(x => x?.vista)
+      : JSON.parse(guardados);
+    ids = [...new Set(datos.filter(id => tabs.has(id)))];
+  } catch {}
+  const nombre = id => tabs.get(id).textContent.trim();
+  const boton = (id, elegir = false) => {
+    const icono = tabs.get(id).querySelector('svg')?.cloneNode(true);
+    icono?.setAttribute('aria-hidden', 'true');
+    return `<button type="button" class="acceso" data-${elegir ? 'agregar' : 'abrir'}="${esc(id)}">${icono?.outerHTML || ''}<span>${esc(nombre(id))}</span></button>`;
   };
+  const lista = ids.map((id, i) => editar
+    ? `<div class="acceso-fila"><span>${esc(nombre(id))}</span><button data-subir="${id}" aria-label="Subir ${esc(nombre(id))}" ${i === 0 ? 'disabled' : ''}>↑</button><button data-bajar="${id}" aria-label="Bajar ${esc(nombre(id))}" ${i === ids.length - 1 ? 'disabled' : ''}>↓</button><button data-quitar="${id}" aria-label="Quitar ${esc(nombre(id))}">×</button></div>`
+    : boton(id)).join('');
+  const disponibles = [...tabs.keys()].filter(id => !ids.includes(id));
+  panel.innerHTML = `<div class="actions"><button class="outline" data-edit>${editar ? 'Listo' : ids.length ? 'Personalizar' : 'Elegir accesos'}</button></div>
+    <div class="${editar ? 'acceso-orden' : 'acceso-grid'}">${lista}</div>
+    ${editar && disponibles.length ? `<h3>Agregar accesos</h3><div class="acceso-grid">${disponibles.map(id => boton(id, true)).join('')}</div>` : ''}`;
   panel.onclick = e => {
-    const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.abrir) return opciones.find(tab => tab.dataset.view === b.dataset.abrir)?.click();
-    if (b.hasAttribute('data-quitar')) espacios.splice(+b.dataset.quitar, 1);
-    else if (b.hasAttribute('data-subir') || b.hasAttribute('data-bajar')) {
-      const i = +(b.dataset.subir ?? b.dataset.bajar), j = i + (b.hasAttribute('data-subir') ? -1 : 1);
-      [espacios[i], espacios[j]] = [espacios[j], espacios[i]];
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const { abrir, agregar, subir, bajar, quitar } = btn.dataset;
+    if (abrir) return tabs.get(abrir)?.click();
+    if (btn.hasAttribute('data-edit')) {
+      pintarPrioridades(!editar);
+      panel.querySelector('[data-edit]').focus();
+      return;
+    }
+    if (agregar) ids.push(agregar);
+    else if (quitar) ids.splice(ids.indexOf(quitar), 1);
+    else if (subir || bajar) {
+      const i = ids.indexOf(subir || bajar), j = i + (subir ? -1 : 1);
+      [ids[i], ids[j]] = [ids[j], ids[i]];
     } else return;
-    guardar();
-  };
-  const form = panel.querySelector('form');
-  if (form) form.onsubmit = e => {
-    e.preventDefault();
-    const v = form.elements.vista, nombre = form.elements.nombre.value.trim() || (v.value && v.selectedOptions[0].textContent);
-    if (!nombre) { form.elements.nombre.focus(); return; }
-    espacios.push({ nombre, vista: v.value }); guardar();
+    localStorage.setItem(clave, JSON.stringify(ids));
+    pintarPrioridades(true);
+    const destino = quitar ? `[data-agregar="${quitar}"]` : `[data-quitar="${agregar || subir || bajar}"]`;
+    panel.querySelector(destino)?.focus({ preventScroll: true });
   };
 }
 function renderAll() { if (view === 'prioridades') pintarPrioridades(); try { window.estFechasSync?.(); } catch {} render(); if (view === 'inicio') window.renderInicio?.(); if (view === 'identidad') window.renderIdentidad?.(); if (view === 'metas') window.renderMetas?.(); if (view === 'espiritu') window.renderEspiritu?.(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (agEnVista()) window.renderAgendaTab?.(); if (view === 'bloques') window.renderBloques?.(); if (view === 'estudio') window.renderEstudio?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
@@ -32887,9 +32897,12 @@ const TD_NAV_CSS = `
   .td-nav button { flex: 1 1 0; min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border-radius: 999px; font: inherit; font-size: .95rem; font-weight: 600; color: var(--muted); background: transparent; border: 0; white-space: nowrap; }
   .td-nav button svg { width: 18px; height: 18px; flex: none; }
   @media(max-width:460px) { .td-nav {gap:2px} .td-nav button {padding:0 3px;font-size:.83rem} .td-nav button svg {display:none} }
-  #view-prioridades .rows > button {width:100%;padding:12px;text-align:left;color:var(--text);background:var(--soft);border:0;border-radius:10px;margin-bottom:5px}
-  #view-prioridades input.t {min-width:0}
-  #view-prioridades details {padding:10px 0} #view-prioridades textarea {width:100%;margin-top:8px}
+  #view-prioridades .acceso-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:8px}
+  #view-prioridades .acceso {display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 14px;text-align:left;color:var(--text);background:var(--soft);border:1px solid var(--line);border-radius:10px;font:inherit}
+  #view-prioridades .acceso svg {width:20px;height:20px;flex:none}
+  #view-prioridades .acceso-fila {display:flex;gap:4px;align-items:center;border-bottom:1px solid var(--line)}
+  #view-prioridades .acceso-fila span {flex:1}
+  #view-prioridades .acceso-fila button {min-width:44px;min-height:44px}
   .td-nav button[aria-current="page"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1.5px var(--line), 0 1px 3px rgba(0,0,0,.14); }
   @media (max-width: 359px) { .td-nav button { font-size: .88rem; gap: 4px; padding: 0 4px; } .td-nav button svg { width: 16px; height: 16px; } }
   /* En el ordenador (y en la tableta), solo el contenido de Rápido y Apartados se ensancha: la cabecera y la tira se quedan donde están en el Inicio. */
