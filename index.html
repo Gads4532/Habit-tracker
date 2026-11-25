@@ -633,6 +633,7 @@
 </main>
 
 <nav class="tabs">
+  <button class="tab" data-view="prioridades"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 21V4h14l-3 5 3 5H5"/></svg>Prioridades</button>
   <button class="tab" data-view="inicio">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 11.5L12 4l8.5 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-6h4v6"/></svg>Inicio
   </button>
@@ -654,7 +655,6 @@
   <button class="tab" data-view="enfoque">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/></svg>Enfoque
   </button>
-  <button class="tab" data-view="prioridades"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 21V4h14l-3 5 3 5H5"/></svg>Prioridades</button>
   <button class="tab" data-view="agenda">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg>Agenda
   </button>
@@ -5149,6 +5149,12 @@ function justifyForm(id, day) {
 }
 
 // ---------- Calendario
+const vistasDeEntrada = [['prioridades', 'Prioridades'], ['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia'], ['rapido', 'Rápido'], ['apartados', 'Apartados']];
+function vistaDeEntrada() {
+  const guardada = localStorage.getItem('habit-inicio');
+  const vista = guardada === 'todo' ? 'rapido' : guardada;
+  return vistasDeEntrada.some(([id]) => id === vista) ? vista : 'prioridades';
+}
 let view = 'hoy', calHabit = null, calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
 function dayStatus(h, day) {
@@ -8456,7 +8462,7 @@ function settings() {
     ${OP_CHROME_ANDROID ? `<div class="set-row" id="s-apk-row" style="border-bottom:0;padding-bottom:4px${opApkSi() ? '' : ';display:none'}"><span>App para Android<small>Cuenta tu tiempo de uso en el teléfono</small></span><a class="link" id="s-apk" href="${OP_APK}" target="_blank" rel="noopener" style="min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:flex-end;flex:none">Descargar</a></div>
     <p class="meta" id="s-apk-nota" style="margin:0 0 12px${opApkSi() ? '' : ';display:none'}">Al abrir el archivo, si Android lo pide, permite instalar apps de Chrome.</p>` : ''}
     <div class="set-row"><span>Abrir la app en<small>En este teléfono</small></span>
-      <select id="s-inicio">${[['inicio', 'Inicio'], ['identidad', 'Identidad'], ['enfoque', 'Enfoque'], ['iniciativas', 'Iniciativas'], ['hoy', 'Hábitos y metas de consistencia'], ['consistencia', 'Metas de consistencia'], ['rapido', 'Rápido'], ['apartados', 'Apartados']].map(([v, n]) => `<option value="${v}" ${(['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'rapido', 'apartados'].includes((x => x === 'todo' ? 'rapido' : x)(localStorage.getItem('habit-inicio'))) ? (x => x === 'todo' ? 'rapido' : x)(localStorage.getItem('habit-inicio')) : 'inicio') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <select id="s-inicio">${vistasDeEntrada.map(([v, n]) => `<option value="${v}" ${vistaDeEntrada() === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="set-row"><span>Cómo usar Enfoque</span><button class="link" id="s-help">Ver</button></div>
     <div class="actions"><button class="primary" id="s-ok">Listo</button></div>`);
   const body = $('#sheet-body');
@@ -32893,7 +32899,7 @@ const tdNav = document.createElement('nav');
 tdNav.className = 'td-nav'; tdNav.id = 'td-nav'; tdNav.setAttribute('aria-label', 'Navegación principal'); tdNav.hidden = true;
 {
   const ic = v => document.querySelector(`.tabs .tab[data-view="${v}"] svg`)?.outerHTML?.replace('<svg', '<svg aria-hidden="true"') || '';
-  tdNav.innerHTML = [['inicio', 'Inicio'], ['rapido', 'Rápido'], ['apartados', 'Apartados'], ['prioridades', 'Prioridades']].map(([v, n]) => `<button type="button" data-tdn="${v}">${ic(v)}<span>${n}</span></button>`).join('');
+  tdNav.innerHTML = [['prioridades', 'Prioridades'], ['inicio', 'Inicio'], ['rapido', 'Rápido'], ['apartados', 'Apartados']].map(([v, n]) => `<button type="button" data-tdn="${v}">${ic(v)}<span>${n}</span></button>`).join('');
   document.querySelector('header.top')?.after(tdNav);
 }
 tdNav.addEventListener('click', e => {
@@ -36261,8 +36267,7 @@ window.hbirOpc = { habitos: () => hbirHabitos(), agenda: () => hbirAgenda(), mem
 })();
 
 render();
-// 2.13 · La app abre en Identidad (la base), salvo que en este teléfono se elija Enfoque o Hábitos.
-{ const ini = localStorage.getItem('habit-inicio'); document.querySelector(`.tabs .tab[data-view="${['hoy', 'enfoque', 'identidad', 'iniciativas', 'consistencia', 'rapido', 'apartados'].includes(ini) ? ini : ini === 'todo' ? 'rapido' : 'inicio'}"]`).click(); }   // 2.22.3 (M)   // 2.22.0 (N)
+document.querySelector(`.tabs .tab[data-view="${vistaDeEntrada()}"]`).click();
 window.enfoqueArranque();
 // Al tocar una notificación se abre la pestaña que indica (?v=...).
 const abrirVista = url => { let v = new URL(url, location.href).searchParams.get('v'); if (v === 'todo') v = 'rapido';   /* 2.25.1 (S) */ if (v) document.querySelector(`.tabs .tab[data-view="${v}"]`)?.click(); };
