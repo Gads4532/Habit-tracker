@@ -595,6 +595,7 @@
   <div id="view-ia" hidden></div>
   <div id="view-pizarra" hidden></div>
   <div id="view-bienestar" hidden></div>
+  <div id="view-prioridades" hidden></div>
   <div id="view-agenda" hidden></div>
   <div id="view-iniciativas" hidden></div>
   <div id="view-consistencia" hidden></div>   <!-- 2.22.3 (M) -->
@@ -653,6 +654,7 @@
   <button class="tab" data-view="enfoque">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/></svg>Enfoque
   </button>
+  <button class="tab" data-view="prioridades"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 21V4h14l-3 5 3 5H5"/></svg>Prioridades</button>
   <button class="tab" data-view="agenda">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg>Agenda
   </button>
@@ -1383,7 +1385,7 @@ function normEnfoque(e) {
 const saludo = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
 // Pendientes de una lista (o de todas), para mostrarlos entre paréntesis.
 const pendientesDe = lista => state.tareas.items.filter(x => !x.hecha && (!lista || x.lista === lista)).length;
-const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', temporizador: 'Temporizador', sueno: 'Sueño', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis', todo: window.tdTitulo?.() || 'Todo', rapido: 'Rápido', apartados: window.tdTitulo?.() || 'Apartados' }[view];   // 2.25.0 (T)   // 2.25.1 (S)
+const titulo = () => view === 'hoy' || view === 'enfoque' || view === 'inicio' ? saludo() + (state.nombre ? `, ${state.nombre}` : '') : view === 'tareas' ? `Tareas (${pendientesDe()})` : { identidad: 'Identidad', metas: 'Metas', espiritu: 'Vida espiritual', ia: 'Asistente', prioridades: 'Prioridades', agenda: 'Agenda', iniciativas: 'Iniciativas', consistencia: 'Metas de consistencia', descanso: 'Descanso cognitivo', temporizador: 'Temporizador', sueno: 'Sueño', caldia: 'Calendario', bloques: 'Bloques de tiempo', estudio: 'Estudio', journal: 'Journaling', pizarra: 'Ideas', bienestar: 'Bienestar', cal: 'Mes de hábitos', analisis: 'Análisis', todo: window.tdTitulo?.() || 'Todo', rapido: 'Rápido', apartados: window.tdTitulo?.() || 'Apartados' }[view];   // 2.25.0 (T)   // 2.25.1 (S)
 function renderTitle() { const t = $('#title'); t.textContent = titulo(); { const b = $('#ir-inicio'); if (b) b.hidden = view === 'inicio'; } t.classList.toggle('tap', view === 'hoy' || view === 'enfoque'); t.title = view === 'hoy' || view === 'enfoque' ? 'Toca para poner tu nombre' : ''; }
 function nameForm() {
   showMsg(`<h2>¿Cómo te llamas?</h2>
@@ -4033,6 +4035,7 @@ function estNorm(x) {
       ...(() => { const f = estFechasN(r.fechas); return f ? { fechas: f } : {}; })(), ...(r.inicio && typeof r.inicio === 'object' && F(r.inicio.d) ? { inicio: { d: F(r.inicio.d), mod: Z(r.inicio.mod) } } : {}),   // 2.22.3 (I) · el día en que empieza ...(typeof r.fechasH === 'string' && r.fechasH ? { fechasH: r.fechasH.slice(0, 24) } : {}),   // 2.21.8 (K) · cambios por fecha y la huella del plan
       ...(['horas', 'ej', 'ambas'].includes(r.metaTipo) ? { metaTipo: r.metaTipo, metaEj: Z(r.metaEj, 100000), metaEjMod: Z(r.metaEjMod), ...(Z(r.metaHAnt, 18000) > 0 ? { metaHAnt: Z(r.metaHAnt, 18000) } : {}) } : {}),   // 2.22.6 (E) · la meta: horas, ejercicios o las dos
       ...(r.ses && typeof r.ses === 'object' && Z(r.ses.n, 2000) > 0 && BLQ.includes(+r.ses.L) ? { ses: { n: Z(r.ses.n, 2000), L: +r.ses.L, ...(Z(r.ses.h, 18000) ? { h: Z(r.ses.h, 18000) } : {}), mod: Z(r.ses.mod), ...(r.ses.sucio === true ? { sucio: true } : {}) } } : {}),   // 2.22.5 (R) · sesiones
+      turnos: estTurnosNorm(r.turnos),
       ...(() => { const o = O(r.sesFuera), q = {}; for (const [k, v] of Object.entries(o).slice(0, 60)) { const f = F(k); if (f && Array.isArray(v)) { const ids = v.filter(x => typeof x === 'string' && x).map(x => x.slice(0, 80)).slice(0, 30); if (ids.length) q[f] = [...new Set(ids)]; } } return Object.keys(q).length ? { sesFuera: q } : {}; })(),   // 2.22.5 (R) · lo dejado fuera de su día
       ...(r.archivada && r.terminada && typeof r.terminada === 'object' && Z(r.terminada.en) ? { terminada: { en: Z(r.terminada.en) } } : {}) };   // 2.20.1 (T)
   }).slice(0, 40);
@@ -4118,11 +4121,23 @@ function estFechasFus(g, p) {
 // 2.22.3 (I) · El inicio de la ruta (ruta.inicio = { d, mod }): el de mod más reciente; una copia sin inicio (2.22.2 no lo conoce) nunca lo borra.
 function estInicioFus(g, p) { const ok = v => !!v && typeof v === 'object' && typeof v.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.d), a = ok(g && g.inicio) ? g.inicio : null, b = ok(p && p.inicio) ? p.inicio : null; const w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b; return w ? { inicio: w } : {}; }
 // 2.22.5 (R) · ses: el de mod más reciente (una copia sin ses, como 2.22.4, nunca lo borra); sesFuera: unión por día.
+function estTurnosNorm(datos) {
+  const turnos = {};
+  for (const [fecha, plan] of Object.entries(datos || {})) {
+    if (!/^\d{4}-\d\d-\d\d$/.test(fecha) || !Array.isArray(plan?.horas)) continue;
+    turnos[fecha] = { horas: plan.horas.slice(0, 1600).map(h => /^([01]\d|2[0-3]):[0-5]\d$/.test(h) ? h : ''), mod: Number(plan.mod) || 0 };
+  }
+  return turnos;
+}
 function estSesFus(g, p) {
   const ok = v => !!v && typeof v === 'object' && +v.n > 0, a = ok(g && g.ses) ? g.ses : null, b = ok(p && p.ses) ? p.ses : null, w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b;
   const O = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {}, fu = {};
   for (const [k, v] of [...Object.entries(O(p && p.sesFuera)), ...Object.entries(O(g && g.sesFuera))]) if (Array.isArray(v)) fu[k] = [...new Set([...(fu[k] || []), ...v])].slice(0, 30);
-  return { ...(w ? { ses: w } : {}), ...(Object.keys(fu).length ? { sesFuera: fu } : {}) };
+  const turnos = estTurnosNorm(p?.turnos);
+  for (const [fecha, plan] of Object.entries(estTurnosNorm(g?.turnos))) {
+    if (!turnos[fecha] || plan.mod >= turnos[fecha].mod) turnos[fecha] = plan;
+  }
+  return { turnos, ...(w ? { ses: w } : {}), ...(Object.keys(fu).length ? { sesFuera: fu } : {}) };
 }
 // 2.22.6 (E) · metaTipo y metaEj: los de metaEjMod más reciente (una copia sin ellos, como 2.22.6, nunca los borra).
 function estMetaEjFus(g, p) { const ok = v => !!v && ['horas', 'ej', 'ambas'].includes(v.metaTipo), a = ok(g) ? g : null, b = ok(p) ? p : null; const w = a && b ? ((+b.metaEjMod || 0) > (+a.metaEjMod || 0) ? b : a) : a || b; return w ? { metaTipo: w.metaTipo, metaEj: Math.max(0, Math.round(+w.metaEj || 0)), metaEjMod: +w.metaEjMod || 0, ...(+w.metaHAnt > 0 ? { metaHAnt: Math.round(+w.metaHAnt) } : {}) } : {}; }
@@ -5234,7 +5249,46 @@ $('#view-cal').addEventListener('click', e => {
 
 // 2.22.0 (N) · La Agenda se ve en su sección y en Iniciativas (la misma lista, filtrada).
 function agEnVista() { return view === 'agenda' || view === 'iniciativas'; }
-function renderAll() { try { window.estFechasSync?.(); } catch {} render(); if (view === 'inicio') window.renderInicio?.(); if (view === 'identidad') window.renderIdentidad?.(); if (view === 'metas') window.renderMetas?.(); if (view === 'espiritu') window.renderEspiritu?.(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (agEnVista()) window.renderAgendaTab?.(); if (view === 'bloques') window.renderBloques?.(); if (view === 'estudio') window.renderEstudio?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
+function espaciosPrioritarios() {
+  try {
+    const datos = JSON.parse(localStorage.getItem('espacios-prioritarios') || '[]');
+    return Array.isArray(datos) ? datos.filter(x => x && typeof x.nombre === 'string') : [];
+  } catch { return []; }
+}
+function pintarPrioridades(editar = false) {
+  const panel = document.getElementById('view-prioridades'), espacios = espaciosPrioritarios();
+  const opciones = [...document.querySelectorAll('.tabs .tab[data-view]')].filter(b => b.dataset.view !== 'prioridades');
+  const guardar = () => { localStorage.setItem('espacios-prioritarios', JSON.stringify(espacios)); pintarPrioridades(true); };
+  panel.innerHTML = `<div class="actions"><button class="outline" data-edit>${editar ? 'Listo' : 'Personalizar'}</button></div>
+    <div class="rows">${espacios.map((x, i) => editar ? `<div class="row"><input class="t" data-nombre="${i}" value="${esc(x.nombre)}" aria-label="Nombre del espacio"><button data-subir="${i}" ${i ? '' : 'disabled'} aria-label="Subir">↑</button><button data-bajar="${i}" ${i + 1 < espacios.length ? '' : 'disabled'} aria-label="Bajar">↓</button><button data-quitar="${i}" aria-label="Quitar espacio">×</button></div>` : x.vista ? `<button class="row" data-abrir="${esc(x.vista)}">${esc(x.nombre)}</button>` : `<details><summary>${esc(x.nombre)}</summary><textarea data-nota="${i}" aria-label="Notas de ${esc(x.nombre)}" placeholder="Escribe aquí">${esc(x.nota || '')}</textarea></details>`).join('')}</div>
+    ${editar || !espacios.length ? `<form data-crear class="field"><label>Espacio<select name="vista"><option value="">Espacio propio</option>${opciones.map(b => `<option value="${esc(b.dataset.view)}">${esc(b.textContent.trim())}</option>`).join('')}</select></label><input name="nombre" placeholder="Nombre del espacio" aria-label="Nombre del nuevo espacio"><button class="primary">Agregar espacio</button></form>` : ''}`;
+  panel.querySelector('[data-edit]').onclick = () => pintarPrioridades(!editar);
+  panel.onchange = e => {
+    const t = e.target;
+    if (t.matches('[data-nombre]')) espacios[t.dataset.nombre].nombre = t.value.trim() || espacios[t.dataset.nombre].nombre;
+    else if (t.matches('[data-nota]')) espacios[t.dataset.nota].nota = t.value;
+    else return;
+    localStorage.setItem('espacios-prioritarios', JSON.stringify(espacios));
+  };
+  panel.onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.abrir) return opciones.find(tab => tab.dataset.view === b.dataset.abrir)?.click();
+    if (b.hasAttribute('data-quitar')) espacios.splice(+b.dataset.quitar, 1);
+    else if (b.hasAttribute('data-subir') || b.hasAttribute('data-bajar')) {
+      const i = +(b.dataset.subir ?? b.dataset.bajar), j = i + (b.hasAttribute('data-subir') ? -1 : 1);
+      [espacios[i], espacios[j]] = [espacios[j], espacios[i]];
+    } else return;
+    guardar();
+  };
+  const form = panel.querySelector('form');
+  if (form) form.onsubmit = e => {
+    e.preventDefault();
+    const v = form.elements.vista, nombre = form.elements.nombre.value.trim() || (v.value && v.selectedOptions[0].textContent);
+    if (!nombre) { form.elements.nombre.focus(); return; }
+    espacios.push({ nombre, vista: v.value }); guardar();
+  };
+}
+function renderAll() { if (view === 'prioridades') pintarPrioridades(); try { window.estFechasSync?.(); } catch {} render(); if (view === 'inicio') window.renderInicio?.(); if (view === 'identidad') window.renderIdentidad?.(); if (view === 'metas') window.renderMetas?.(); if (view === 'espiritu') window.renderEspiritu?.(); if (view === 'enfoque') window.renderEnfoque?.(); if (view === 'ia') window.renderIA?.(); if (agEnVista()) window.renderAgendaTab?.(); if (view === 'bloques') window.renderBloques?.(); if (view === 'estudio') window.renderEstudio?.(); if (view === 'journal') window.renderJournal?.(); if (view === 'pizarra') window.renderPizarras?.(); if (view === 'bienestar') window.renderBienestar?.(); if (view === 'cal') renderCal(); if (view === 'tareas') renderTareas(); if (view === 'analisis') renderAnalisis(); }
 
 // ---------- Tareas: listas ilimitadas, una tarea por línea, completadas aparte.
 let tareasShowDone = false, justDoneTask = null, newTaskId = null, undoneTask = null, cleanJust = false;
@@ -5756,7 +5810,7 @@ document.querySelector('.tabs').addEventListener('click', e => {
   view = b.dataset.view;
   document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b || (x.dataset.view === 'hoy' && ['cal', 'analisis'].includes(view))));
   document.querySelector('.tabs .tab.on')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' });   // 2.14 · la activa siempre a la vista
-  for (const v of ['inicio', 'identidad', 'metas', 'espiritu', 'enfoque', 'agenda', 'iniciativas', 'bloques', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'consistencia', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
+  for (const v of ['prioridades', 'inicio', 'identidad', 'metas', 'espiritu', 'enfoque', 'agenda', 'iniciativas', 'bloques', 'estudio', 'ia', 'journal', 'pizarra', 'bienestar', 'hoy', 'consistencia', 'cal', 'tareas', 'analisis']) $('#view-' + v).hidden = view !== v;
   try { window.csVista?.(view); } catch (e) { console.warn('Metas de consistencia', e); }   // 2.22.3 (M) · el apartado de Hábitos, en su sección
   try { window.agVistaIni?.(view); } catch (e) { console.warn('Iniciativas', e); }   // 2.22.0 (N) · la Agenda, dentro de Iniciativas
   renderTitle();
@@ -11375,6 +11429,7 @@ function agTrasPoner(it, v) {
 }
 function agSync(A) {
   const s = HT(), I = ini4Semana().items; let cambio = agAutoAlta(A);
+  const estudio = new Map((window.est?.bloquesDe?.(A.fecha) || []).map(b => [b.id, b]));
   if (A.quit && A.fecha === today()) for (const it of A.items) { const k = agQuitClave(it); if (agQuitado(A, k) && !(+it.alta > A.quit[k])) { agQuitMarcar(A, k, false); cambio = true; } }   // 2.21 (N) · está en la agenda después de quitarlo: lo pusiste otra vez
   for (const it of A.items) {
     let t = '', h = null;
@@ -11383,7 +11438,7 @@ function agSync(A) {
     else if (it.tipo === 'tarea') { const x = s.tareas.items.find(y => y.id === it.ref); if (x) { t = x.titulo; if (x.hora) h = x.hora; } }
     else if (it.tipo === 'habito') { if (!agVisible(it)) continue; const x = s.habits.find(y => y.id === it.ref); if (x) { t = x.nombre; const fh = (x.horas || [])[0] || ''; if (it.hf === undefined) { it.hf = fh; cambio = true; } else if (it.hf !== fh) { if (it.h === it.hf) h = fh; it.hf = fh; cambio = true; } } }   // 2.20 · la hora del hábito, si nadie la cambió a mano
     else if (it.tipo === 'prio') { const x = ES.prioridades.items.find(y => y.id === it.ref); if (x) { t = x.t; if (!!x.hecho !== !!it.hecho) { it.hecho = !!x.hecho; cambio = true; } } }
-    else if (it.tipo === 'estudio') { const x = window.est?.bloque?.(it.ref); if (x) { t = window.est.textoBloque(x); h = x.h || ''; } }   // 2.14 (X)
+    else if (it.tipo === 'estudio') { const x = estudio.get(it.ref); if (x) { t = window.est.textoBloque(x); h = x.h || ''; } }   // 2.14 (X)
     else if (it.tipo === 'plan') { const x = ES.planes.find(y => y.id === it.ref); if (x) { t = `${cap(x.titulo)}${x.con ? ' con ' + x.con : ''}`; h = x.hora || ''; } }
     else if (it.tipo === 'cons') { const x = consGet(it.ref); if (x) { t = x.t; const fh = x.h || ''; if ((it.hf ?? '') !== fh) { if ((it.h || '') === (it.hf ?? '')) h = fh; it.hf = fh; cambio = true; } if (it.minf !== x.min) { it.min = x.min; it.minf = x.min; cambio = true; } } }   // 2.21.6 (C) · la hora de la acción, si hoy nadie la movió
     if (t && t !== it.t) { it.t = t; cambio = true; }
@@ -11571,7 +11626,13 @@ function agQuitar(it) {
   if (it.tipo === 'ini') { const x = agFuente(it); if (x && !x.hecho) { x.t = ''; x.hora = ''; x.exito = ''; } }
   guardar(); renderE(); renderAg();
 }
-function agPonerHora(it, h) { it.h = h || ''; delete it.ha; const f = agFuente(it); if (it.tipo === 'ini' && f) f.hora = it.h; if (it.tipo === 'tarea' && f) f.hora = it.h; if (it.tipo === 'estudio' && f) { try { window.est.moverBloque(it.ref, today(), it.h); } catch {} } guardar(); renderE(); renderAg(); }   // 2.14 (X) · la hora vuelve al bloque
+function agPonerHora(it, h) { it.h = h || ''; delete it.ha; const f = agFuente(it); if (it.tipo === 'ini' && f) f.hora = it.h; if (it.tipo === 'tarea' && f) f.hora = it.h; if (it.tipo === 'estudio' && f) { try {
+    const r = window.est.ruta(f.ruta), turno = r && estTurnoDia(r, today());
+    if (turno?.plan && estSesTipo(f) && !f.hecho) {
+      turno.plan.horas[turno.hechas.length] = it.h;
+      turno.plan.mod = Date.now();
+    } else window.est.moverBloque(it.ref, today(), it.h);
+  } catch {} } guardar(); renderE(); renderAg(); }   // 2.14 (X) · la hora vuelve al bloque
 
 // ---------- Crear en el momento, con lo mínimo SMART: un hábito (qué con cantidad, hora, para qué) o una tarea (verbo + qué, hora, señal de hecho).
 function agCrearHabito(d) {
@@ -12370,16 +12431,27 @@ const agStyle = document.createElement('style'); agStyle.textContent = ENFOQUE_C
   .ag-it.ag-no { animation: agNo .36s ease-in-out; }
   @keyframes agNo { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-7px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(4px); } }
   @media (prefers-reduced-motion: reduce) { .ag-it.ag-no { animation: none; outline: 2px solid var(--amber, #c80); } }`;
+agStyle.textContent += `
+.ag-lista .ag-it.ag-est:has(.ag-jornada) {display:grid;grid-template-columns: auto minmax(0,1fr) auto;gap:6px 10px;align-items:center}
+.ag-it.ag-est:has(.ag-jornada) > .t {min-width:0;width:100%}
+.ag-it.ag-est:has(.ag-jornada) .rel-t > div:first-child {display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;white-space:normal}
+.ag-est .ag-tema {overflow-wrap:anywhere;flex:1 1 6em}
+.ag-est .ag-jornada {font-size:.82rem;text-align:right;color:var(--muted);white-space:nowrap}
+.ag-est .ag-avance {display:block;color:var(--text);font-size:.78rem;font-variant-numeric:tabular-nums}
+.ag-est:has(.ag-jornada) > .ag-rk,.ag-est:has(.ag-jornada):not(.ag-ab) > .ag-asa,.ag-est:has(.ag-jornada):not(.ag-ab) > .tag {display:none}
+.ag-est:has(.ag-jornada) > .ag-ex {grid-column:1/-1}
+.ag-est:has(.ag-jornada) .ag-acc {min-width:44px}
+`;
 const agW = document.createElement('div'); agW.className = 'enf'; agR.append(agStyle, agW);
 // 2.17.1 (U) · Un bloque de estudio muestra primero lo que toca (el tema) y después la materia: dos bloques de la misma materia se
 // distinguen aunque el título se corte. Lo demás, su texto tal cual.
-function agJornada(it) {
-  return it.tipo === 'estudio' ? window.est?.jornadaInfo(it.ref) || '' : '';
+function agJornada(it, fecha = today()) {
+  return it.tipo === 'estudio' ? window.est?.jornadaInfo(it.ref, fecha) || '' : '';
 }
 function agJornadaHtml(jornada) {
   if (!jornada) return '';
-  const { numero, total, hechas } = jornada;
-  return `<span class="ag-jornada">Jornada ${numero}/${total}<span class="ag-avance">${hechas} de ${total} completas</span></span>`;
+  const { numero, total, hechas, cantidad, delDia, fecha } = jornada;
+  return `<span class="ag-jornada">Jornada ${numero}/${total}<span class="ag-avance">${fecha === today() ? 'Hoy' : 'Ese día'} ${delDia}/${cantidad} sesiones · Ruta ${hechas}/${total}</span></span>`;
 }
 function agTituloEst(it) {
   const t = String(it?.t || ''); if (!it || it.tipo !== 'estudio') return t;
@@ -12439,7 +12511,7 @@ function renderAg() {
     const edad = Kt.c && Kt.c.dias > 0 ? `<span class="ag-edad">${tareaHace(Kt.c.dias)}</span>` : '';   // (v2) con «calor», el motivo va en la línea pequeña (la fila roja se explica sola)
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="${jornada ? (ok ? 'Desmarcar jornada' : 'Marcar jornada como hecha') : 'Hecha'}" aria-pressed="${ok}"></button>
-      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.ruta || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? agTituloEst(it) : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab && !jornada ? agPildoraHtml(it, ok) : ''}</small>${relMarkHtml(relKeyIt(it))}</div>
+      <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.ruta || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? [it.h && !agHorasOcultas() ? fmtHora(it.h) : '', agTituloEst(it)].filter(Boolean).join(' · ') : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab && !jornada ? agPildoraHtml(it, ok) : ''}</small>${jornada && !ab ? '' : relMarkHtml(relKeyIt(it))}</div>
       ${jornada && !ok ? agAccionBtnHtml(it, false) : ''}${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${jornada ? '' : agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
@@ -13063,7 +13135,7 @@ function agmDecir(d) { const n = agmFutItems(d).length; return `${cap(agdLbl(d))
 function agmFuturoHtml(d) {
   const L = agmFilas(d), cal = agcVista() === 'cal', nom = agdNomLargo(d);
   const fila = (it, i) => {
-    const ok = agmHechoFut(it), fijo = it.tipo === 'evento' || it.tipo === 'bt', mv = !ok && agmMovible(it, d), jornada = agJornada(it), n = jornada?.ruta || agmNomFila(it);
+    const ok = agmHechoFut(it), fijo = it.tipo === 'evento' || it.tipo === 'bt', mv = !ok && agmMovible(it, d), jornada = agJornada(it, d), n = jornada?.ruta || agmNomFila(it);
     const hora = /^\d\d:\d\d$/.test(it.h || '') ? fmtHora(it.h) : 'Sin hora', etq = agdEtq(it), estado = ok ? 'Hecha' : '';
     return `<div class="row agd-it agm-it${ok ? ' ok' : ''}" role="listitem" aria-label="${esc(`${n}. ${hora}.${estado ? ` ${estado}` : ''}`)}"><span class="dot" style="--c:${ok ? 'var(--green)' : fijo ? 'var(--muted)' : 'var(--accent)'}" aria-hidden="true"></span>${mv ? `<button type="button" class="t agd-tb" data-agm-it="${i}" aria-haspopup="dialog" aria-label="${esc(`Mover: ${n}. ${hora}.`)}"><span class="agm-tt">` : '<span class="t" aria-hidden="true"><div>'}${esc(n)}${mv ? '</span>' : '</div>'}<small><b>${esc(hora)}</b>${etq ? ` · ${esc(etq)}` : ''}${estado ? ` · ${esc(estado)}` : ''}</small>${mv ? '</button>' : '</span>'}${agJornadaHtml(jornada)}${ok ? '<span class="agd-ok" aria-hidden="true">✓</span>' : ''}</div>`;
   };
@@ -17858,13 +17930,20 @@ function estJornadaPermitida(id) {
   toast('Completa primero la jornada pendiente de esta ruta.');
   return false;
 }
-function estJornadaInfo(id) {
+function estTurnoDia(r, fecha, sesiones = estJornadas(r)) {
+  const hechas = sesiones.filter(b => r.hechos[b.id]?.en && dayKey(new Date(r.hechos[b.id].en)) === fecha);
+  const plan = r.turnos?.[fecha];
+  const cantidad = plan ? plan.horas.length : Math.max(1, sesiones.filter(b => b.d === fecha).length);
+  return { hechas, cantidad, plan };
+}
+function estJornadaInfo(id, fecha = today()) {
   const r = estRutaDeBloque(id, true);
   if (!r) return '';
   const sesiones = estJornadas(r), i = sesiones.findIndex(b => b.id === id);
   if (i < 0) return null;
   const hechas = sesiones.filter(b => r.hechos[b.id]).length;
-  return { numero: i + 1, total: sesiones.length, hechas, ruta: r.nombre };
+  const turno = estTurnoDia(r, fecha, sesiones);
+  return { numero: i + 1, total: sesiones.length, hechas, ruta: r.nombre, delDia: turno.hechas.length, cantidad: turno.cantidad, fecha };
 }
 function estDiaDeJornada(r, fecha) {
   const ajuste = r.fechas?.[fecha];
@@ -17883,11 +17962,12 @@ function estBloquesDe(fecha = today(), agendaFutura = false) {
     }
     if (!actual) continue;
     const sesiones = estJornadas(r), pendiente = sesiones.find(b => !r.hechos[b.id]);
-    const visible = pendiente && pendiente.d <= fecha && estDiaDeJornada(r, fecha) ? pendiente : sesiones.filter(b => {
-      const en = r.hechos[b.id]?.en;
-      return en && dayKey(new Date(en)) === fecha;
-    }).pop();
-    if (visible) out.push(estEnriquecer(r, visible));
+    const turno = estTurnoDia(r, fecha, sesiones);
+    if (!pendiente || turno.hechas.length >= turno.cantidad) continue;
+    if (!turno.plan && (pendiente.d > fecha || !estDiaDeJornada(r, fecha))) continue;
+    const bloque = estEnriquecer(r, pendiente);
+    if (turno.plan) bloque.h = turno.plan.horas[turno.hechas.length];
+    out.push(bloque);
   }
   return out.sort(estOrdenH);
 }
@@ -19514,12 +19594,15 @@ function euEjP4(N, r0) {
 function euCardHtml(r) {
   const E = EU(), s = E.resumen(r.id) || {}, m = E.materia(r.materia), lun = lunes(), dom = euDia(lun, 6);
   let semPlan = 0, semHecho = 0; for (const b of r.plan) if (b.d >= lun && b.d <= dom && !E.repartido?.(r, b)) { semPlan += b.min; if (r.hechos[b.id]) semHecho += r.hechos[b.id].min || b.min; }
-  const pct = s.bloquesTotal ? Math.round(s.bloquesHechos / s.bloquesTotal * 100) : 0;
+  const sesiones = estJornadas(r), dia = estTurnoDia(r, today(), sesiones);
+  const completadas = sesiones.filter(b => r.hechos[b.id]).length;
+  const pct = sesiones.length ? Math.round(completadas / sesiones.length * 100) : 0;
   const avT = euAvSubirT(r, r.config.minDia, true), av = euAvisoVivo(r, s) ? `<p class="meta amber">${esc(euAvTexto(r))}</p><div class="chips eu-av" style="margin-top:8px">${avT ? `<button class="chip" data-av="subir" data-id="${esc(r.id)}">${esc(avT)}</button>` : ''}<button class="chip" data-av="temas" data-id="${esc(r.id)}">Quitar temas</button><button class="chip" data-av="dejar" data-id="${esc(r.id)}">Dejarlo así</button></div>` : '';
   return `<div class="eu-card" data-id="${esc(r.id)}">
     <div class="top"><b>${esc(r.nombre)}</b><span class="tag">${esc(m ? m.nombre : '')}</span></div>
     <p class="meta">Examen ${esc(euFL(r.fecha))}${r.hora ? ` · ${esc(fmtHora(r.hora))}` : ''}${euF(r.fecha) ? ` · ${euDiasT(s.diasRestantes)}` : ''}</p>${euIniFut(r) && !r.archivada ? `<p class="meta eu-ini-t"><b>${esc(euEmpiezaT(euIniFut(r)))}</b></p>` : ''}
-    ${euSesLinea(r)}<p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'}${euIniFut(r) && !semPlan ? '' : ` · ${semHecho} de ${semPlan} min esta semana`}</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}${euEjLinea(r)}
+    <p>${completadas} de ${sesiones.length} sesiones completadas${dia.plan || dia.hechas.length ? ` · Hoy ${dia.hechas.length}/${dia.cantidad}` : ''}</p>
+    <details class="eu-sec"><summary>Detalles del plan</summary>${euSesLinea(r)}<p class="meta">${s.bloquesTotal ? euProgBl(s) : 'Sin bloques en el plan'}${euIniFut(r) && !semPlan ? '' : ` · ${semHecho} de ${semPlan} min esta semana`}</p>${euMetaProgHtml(r) || euRealHtml(r)}${euBalCard(r)}${euEjLinea(r)}</details>
     <div class="meter-bar"><i style="width:${pct}%"></i></div>
     ${s.diasRestantes > 0 ? `<p class="meta">${euSinFuturo(r) ? `Sin bloques por delante: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>` : s.alDia ? (euBalOn(r) || estSesMalR(r) || euEjOnR(r) ? '' : '<span class="green">Al día</span>') : `${euBlT(s.sinHacer)} sin hacer: <button class="link" data-replan="${esc(r.id)}">Replanificar</button>`}</p>` : ''}
     ${av}
@@ -20704,24 +20787,74 @@ function exOrgInit(base, organizado) {
   org.est = new Map();
   if (!exOk()) return;
   const M = org.manana, oc = new Set((M ? planDia(org.dest)?.ocultos : agenda().ocultos) || []);
-  for (const b of exHoy(org.dest)) { const it = (base || []).find(i => i && i.tipo === 'estudio' && i.ref === b.id); org.est.set(b.id, { on: it ? true : !oc.has(b.id), h: (it && it.h) || b.h || '' }); }
+  for (const b of exHoy(org.dest)) {
+    if (estSesTipo(b)) continue;
+    const it = (base || []).find(i => i.tipo === 'estudio' && i.ref === b.id);
+    org.est.set(b.id, { on: !!it || !oc.has(b.id), h: it?.h || b.h || '' });
+  }
+  org.turnos = new Map();
+  for (const r of estRutas()) {
+    if (r.terminada || r.fecha < org.dest || estIni(r) > org.dest) continue;
+    const sesiones = estJornadas(r), pendientes = sesiones.filter(b => !r.hechos[b.id]);
+    const dia = estTurnoDia(r, org.dest, sesiones);
+    if (!pendientes.length && !dia.hechas.length) continue;
+    const primera = pendientes[0], previsto = primera && primera.d <= org.dest && estDiaDeJornada(r, org.dest);
+    const cantidad = dia.plan || previsto ? dia.cantidad : 0;
+    const grupo = { r, pendientes, hechas: dia.hechas, horas: new Map() };
+    org.turnos.set(r.id, grupo);
+    let siguienteHora = primera?.h || '';
+    for (const [i, b] of pendientes.entries()) {
+      const previa = (base || []).find(it => it.tipo === 'estudio' && it.ref === b.id);
+      const hora = dia.plan?.horas[dia.hechas.length + i] ?? previa?.h ?? (b.d === org.dest && b.h ? b.h : siguienteHora);
+      const fin = hora ? toMin(hora) + b.min : 1440;
+      siguienteHora = fin < 1440 ? minToHm(fin) : '';
+      grupo.horas.set(b.id, hora || '');
+    }
+    exOrgCantidad(grupo, cantidad);
+  }
+}
+function exOrgCantidad(grupo, cantidad) {
+  const n = Math.max(0, Math.min(grupo.pendientes.length, Math.floor(cantidad) - grupo.hechas.length));
+  for (const [i, b] of grupo.pendientes.entries()) {
+    const previo = org.est.get(b.id);
+    if (previo) grupo.horas.set(b.id, previo.h);
+    if (i < n) org.est.set(b.id, { on: true, h: grupo.horas.get(b.id) || '', turno: grupo.r.id });
+    else org.est.delete(b.id);
+  }
+}
+function exOrgControles() {
+  return [...(org?.turnos?.values() || [])].map(g => {
+    const hechas = g.hechas.length, max = hechas + g.pendientes.length;
+    const n = hechas + g.pendientes.filter(b => org.est.get(b.id)?.on).length;
+    return `<label class="row"><span class="t">${esc(g.r.nombre)}<small>${hechas} de ${n} sesiones completadas · ${estSesLen(g.r)} min por sesión</small></span><span>Sesiones</span><input type="number" inputmode="numeric" min="${hechas}" max="${max}" value="${n}" data-turno="${esc(g.r.id)}" aria-label="Sesiones de ${esc(g.r.nombre)}" style="width:4.5em"></label>`;
+  }).join('');
+}
+function exOrgVincularTurnos(root, actualizar) {
+  root.querySelectorAll('[data-turno]').forEach(input => input.onchange = () => {
+    const g = org.turnos.get(input.dataset.turno);
+    if (!g) return;
+    exOrgCantidad(g, Number(input.value) || 0);
+    actualizar();
+  });
 }
 function exOrgPaso3Html() {
-  if (!org || !org.est || !org.est.size || !exOk()) return '';
+  if (!org || !org.est || !exOk()) return '';
+  const controles = exOrgControles();
   const cuando = org.manana ? agpCuando(org.dest) : 'hoy';
-  const rows = [...org.est].map(([id, o]) => { const b = exBloque(id); if (!b) return '';
+  const rows = [...org.est].filter(([, o]) => !o.turno).map(([id, o]) => { const b = exBloque(id); if (!b) return '';
     const ok = !!b.hecho;
     return `<div class="row" data-tg="${esc(id)}" ${ok ? 'data-hecho="1"' : ''} style="cursor:pointer"><span class="box" style="${ok ? boxHecho : boxSt(o.on)}"></span>
       <span class="t"><div style="white-space:normal;overflow-wrap:anywhere">Estudio · ${esc(exTexto(b))}${ok ? ' <span class="green">· hecho</span>' : ''}</div><small style="white-space:normal;overflow-wrap:anywhere">${esc(exEtiqueta(b))} · ${esc(exExamenTxt(b))}</small></span>
       ${horaInput('oe-' + esc(id).replace(/[^\w-]/g, '_'), o.h, `data-te="${esc(id)}"`)}</div>`; }).join('');
-  if (!rows) return '';
+  if (!rows && !controles) return '';
   const deC = org.manana ? agpDe(org.dest) : 'de hoy';   // 2.17.1 (U) · «del jueves…»
   return `<h3 style="margin-top:18px">Bloques de estudio ${deC}</h3>
-    <p class="note">Vienen de tus rutas, con su hora. Toca una fila para dejarla fuera de la agenda ${deC}; el bloque sigue en la ruta.</p>
+    ${controles}
     <div class="rows" id="og-est">${rows}</div>`;
 }
 function exOrgPaso3Wire(filas, horas) {
-  if (!org || !org.est || !org.est.size) return;
+  if (!org || !org.est) return;
+  exOrgVincularTurnos($('#sheet-body'), () => organizarDia(3, true));
   filas('#og-est', org.est, id => !!exBloque(id)?.hecho);
   horas('data-te', org.est, 'est:');
   $('#sheet-body').querySelectorAll('[data-te]').forEach(i => i.addEventListener('change', () => exOrgSincIni(i.getAttribute('data-te'), i.value)));
@@ -20733,7 +20866,9 @@ function exOrgLista(L) {
   if (!org || !org.est || !org.est.size || !exOk()) return;
   for (const [id, o] of org.est) {
     if (!o.on) continue; const b = exBloque(id); if (!b) continue;
-    L.push({ key: 'est:' + id, tipo: 'estudio', t: exTexto(b), etq: exEtiquetaCorta(b), h: o.h || '', min: b.hecho ? b.min : agbMin('est:' + id, 'estudio', b.min), hecho: !!b.hecho });
+    const grupo = o.turno && org.turnos.get(o.turno);
+    const titulo = grupo ? grupo.r.nombre + ' · Sesión ' + (grupo.hechas.length + grupo.pendientes.findIndex(x => x.id === id) + 1) : exTexto(b);
+    L.push({ key: 'est:' + id, tipo: 'estudio', t: titulo, etq: exEtiquetaCorta(b), h: o.h || '', min: b.hecho || grupo ? b.min : agbMin('est:' + id, 'estudio', b.min), hecho: !!b.hecho });
   }
   const x = org.ini && org.ini.estudio, i = L.findIndex(e => e.key === 'ini:estudio');
   const esp = i >= 0 && x && x.on ? exEspejoDe(x, [...org.est].filter(([, o]) => o.on).map(([id]) => id)) : '';   // 2.14.1 (X)
@@ -20741,13 +20876,21 @@ function exOrgLista(L) {
 }
 // Al guardar: cada bloque encendido entra como ítem (y su hora elegida vuelve al bloque); los apagados van a ocultos.
 function exOrgGuardar(mk, items) {
-  if (!org || !org.est || !org.est.size || !exOk()) return;
+  if (!org || !org.est || !exOk()) return;
   const D = org.dest;
+  for (const g of org.turnos?.values() || []) {
+    const horas = g.hechas.map((b, i) => g.r.turnos?.[D]?.horas[i] ?? b.h ?? '');
+    for (const b of g.pendientes) {
+      const o = org.est.get(b.id);
+      if (o?.on) horas.push(o.h || '');
+    }
+    (g.r.turnos ||= {})[D] = { horas, mod: Date.now() };
+  }
   for (const [id, o] of org.est) {
     if (!o.on) continue; const b = exBloque(id); if (!b) continue;
     mk('estudio', id, exTexto(b), o.h, b.min, { iden: b.iden || '' });
     const h = /^\d\d:\d\d$/.test(o.h || '') ? o.h : '';
-    if (h !== (b.h || '')) { try { window.est.moverBloque(id, D, h); } catch {} }
+    if (!o.turno && h !== (b.h || '')) { try { window.est.moverBloque(id, D, h); } catch {} }
   }
   // 2.14.1 (X) · La iniciativa de estudio espejo de un bloque que entra no ocupa una segunda fila (como en el paso 4): el bloque la representa,
   // marcar uno marca la otra y la iniciativa sigue en Enfoque (y, mañana, en el plan). Así la Agenda no cuenta dos veces el mismo bloque.
@@ -21522,7 +21665,7 @@ const INI_CSS = `
 const iniW = document.createElement('div'); iniW.className = 'enf ini';
 if (iniR) { const iniStyle = document.createElement('style'); iniStyle.textContent = ENFOQUE_CSS + INI_CSS + AG_YA_BTN_CSS; iniR.append(iniStyle, iniW); }   // 2.21.3 (B) · AG_YA_BTN_CSS
 // Grupos y su orden; lo que exista en la barra y no esté aquí va al final, en «Más».
-const INI_GRUPOS = [['Organizar y hacer', ['agenda', 'caldia', 'iniciativas', 'bloques', 'hoy', 'consistencia', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar', 'descanso']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
+const INI_GRUPOS = [['Organizar y hacer', ['prioridades', 'agenda', 'caldia', 'iniciativas', 'bloques', 'hoy', 'consistencia', 'tareas', 'estudio', 'enfoque']], ['Desde la base', ['identidad', 'metas', 'espiritu', 'bienestar', 'descanso']], ['Escribir', ['journal', 'pizarra']], ['Ayuda', ['ia']], ['Ver', ['cal', 'analisis']]];
 // Líneas de estado: se calculan solo al pintar, una llamada a cada helper, sin guardar nada.
 const INI_ESTADO = {
   identidad: () => {
@@ -32737,16 +32880,20 @@ const TD_NAV_CSS = `
   .td-nav[hidden] { display: none; }
   .td-nav button { flex: 1 1 0; min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border-radius: 999px; font: inherit; font-size: .95rem; font-weight: 600; color: var(--muted); background: transparent; border: 0; white-space: nowrap; }
   .td-nav button svg { width: 18px; height: 18px; flex: none; }
+  @media(max-width:460px) { .td-nav {gap:2px} .td-nav button {padding:0 3px;font-size:.83rem} .td-nav button svg {display:none} }
+  #view-prioridades .rows > button {width:100%;padding:12px;text-align:left;color:var(--text);background:var(--soft);border:0;border-radius:10px;margin-bottom:5px}
+  #view-prioridades input.t {min-width:0}
+  #view-prioridades details {padding:10px 0} #view-prioridades textarea {width:100%;margin-top:8px}
   .td-nav button[aria-current="page"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1.5px var(--line), 0 1px 3px rgba(0,0,0,.14); }
   @media (max-width: 359px) { .td-nav button { font-size: .88rem; gap: 4px; padding: 0 4px; } .td-nav button svg { width: 16px; height: 16px; } }
   /* En el ordenador (y en la tableta), solo el contenido de Rápido y Apartados se ensancha: la cabecera y la tira se quedan donde están en el Inicio. */
   @media (min-width: 600px) { body.td-ancho #view-rapido, body.td-ancho #view-apartados { --tdw: min(1208px, calc(100vw - 64px)); width: var(--tdw); margin-left: calc((100% - var(--tdw)) / 2); } }`;
 { const st = document.createElement('style'); st.textContent = TD_NAV_CSS; document.head.append(st); }
 const tdNav = document.createElement('nav');
-tdNav.className = 'td-nav'; tdNav.id = 'td-nav'; tdNav.setAttribute('aria-label', 'Inicio, Rápido y Apartados'); tdNav.hidden = true;
+tdNav.className = 'td-nav'; tdNav.id = 'td-nav'; tdNav.setAttribute('aria-label', 'Navegación principal'); tdNav.hidden = true;
 {
   const ic = v => document.querySelector(`.tabs .tab[data-view="${v}"] svg`)?.outerHTML?.replace('<svg', '<svg aria-hidden="true"') || '';
-  tdNav.innerHTML = [['inicio', 'Inicio'], ['rapido', 'Rápido'], ['apartados', 'Apartados']].map(([v, n]) => `<button type="button" data-tdn="${v}">${ic(v)}<span>${n}</span></button>`).join('');
+  tdNav.innerHTML = [['inicio', 'Inicio'], ['rapido', 'Rápido'], ['apartados', 'Apartados'], ['prioridades', 'Prioridades']].map(([v, n]) => `<button type="button" data-tdn="${v}">${ic(v)}<span>${n}</span></button>`).join('');
   document.querySelector('header.top')?.after(tdNav);
 }
 tdNav.addEventListener('click', e => {
@@ -32756,7 +32903,7 @@ tdNav.addEventListener('click', e => {
   irA(v);
 });
 function tdNavSync() {
-  const ver = view === 'inicio' || tdEn();
+  const ver = view === 'inicio' || view === 'prioridades' || tdEn();
   tdNav.hidden = !ver;
   for (const b of tdNav.querySelectorAll('[data-tdn]')) { if (b.dataset.tdn === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }
   document.body.classList.toggle('td-ancho', tdEn());
@@ -35728,7 +35875,7 @@ agcTipoDe = (f => function (it) { if (it && it.tipo === 'libre' && it.estL && !(
 exOrgInit = (f => function () {
   const r = f.apply(this, arguments);
   try {
-    if (org && org.est && eaOk()) { const D = org.dest || today(); for (const c of eaCands(D)) if (c.g !== 'dia' && !org.est.has(c.id)) org.est.set(c.id, { on: false, h: '', traer: c }); }
+    if (org && org.est && eaOk()) { const D = org.dest || today(); for (const c of eaCands(D)) if (c.g !== 'dia' && !agJornada({ tipo: 'estudio', ref: c.id }) && !org.est.has(c.id)) org.est.set(c.id, { on: false, h: '', traer: c }); }
   } catch (e) { console.warn('Estudio · organizar', e); }
   return r;
 })(exOrgInit);
@@ -35753,6 +35900,19 @@ orgPropuestaSheet = (f => function () {
   try {
     const b = $('#sheet-body'), W = b && b.querySelector('#op-wrap'), pie = W && W.querySelector('.op-pie');
     const T = org && org.est ? [...org.est].filter(([, o]) => o && o.traer && !o.on) : [];
+    if (pie && org?.turnos?.size && !W.querySelector('.op-turnos')) {
+      const panel = document.createElement('div');
+      panel.className = 'op-turnos';
+      panel.innerHTML = '<h3>Sesiones de estudio</h3>' + exOrgControles();
+      pie.before(panel);
+      exOrgVincularTurnos(panel, () => {
+        const prioridad = W.querySelector('#op-p1')?.value, scroll = b.scrollTop;
+        orgAutoHoras(false); orgPropuestaSheet(org.dest, true);
+        const campo = b.querySelector('#op-p1');
+        if (campo && prioridad !== undefined) campo.value = prioridad;
+        b.scrollTop = scroll;
+      });
+    }
     if (pie && T.length && !W.querySelector('#op-est')) {
       const d = document.createElement('details'); d.id = 'op-est'; d.className = 'op-est'; d.style.margin = '6px 0 10px';
       d.innerHTML = `<summary class="link" style="cursor:pointer;min-height:44px;display:flex;align-items:center">+ Estudio de tu ruta</summary><div class="rows" id="op-est-l">${eaFilasHtml(T.map(([, o]) => o.traer), 'data-op-est')}</div>`;
