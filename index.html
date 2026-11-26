@@ -190,6 +190,9 @@
   .hb-ord-r { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: auto; }
   .hb-ord-r.arr { background: var(--soft); box-shadow: 0 8px 24px rgba(0,0,0,.18); border-radius: 12px; position: relative; z-index: 3; }
   .hb-ord-kids { margin: 0 0 6px 18px; border-left: 2px solid var(--line); padding-left: 8px; }
+  .hb-num-visual { display: inline-grid; place-items: center; min-width: 1.6ch; font-size: 1.6rem; line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; color: var(--text); flex-shrink: 0; }
+  .asa-visual { touch-action: none; user-select: none; cursor: grab; color: var(--muted); background: transparent; border: 0; font: inherit; font-size: 1.15rem; min-height: 44px; min-width: 32px; padding: 0 4px; }
+  .asa-visual:active { cursor: grabbing; }
   .hb-ord-kids .hb-ord-n { width: 22px; height: 22px; font-size: .8rem; }
   .hb-ord-asa { flex: none; width: 34px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 1.3rem; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   .hb-ord-r.arr > .hb-ord-row .hb-ord-asa { cursor: grabbing; color: var(--text); }
@@ -830,7 +833,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.27.0';
+const APP_VERSION = '2.27.1';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1839,6 +1842,7 @@ function mergeStates(a, b) {
     ...(eN.rachaAv || eO.rachaAv ? { rachaAv: raAvFusion(eN.rachaAv, eO.rachaAv) } : {}),   // 2.26.0 (RA) · avisos de la racha vistos
     ...(eN.rachaCierre || eO.rachaCierre ? { rachaCierre: raCierreFusion(eN.rachaCierre, eO.rachaCierre) } : {}),   // 2.26.0 (RA) · los días cerrados
     ...(eN.ntAuto || eO.ntAuto ? { ntAuto: ntaFusion(eN.ntAuto, eO.ntAuto) } : {}),   // 2.25.1 (A) · lo enviado a Notion solo
+    ordenVista: ordenVistaFusion(eN.ordenVista, eO.ordenVista),
     agendaPlanes: agpFusion(eN.agendaPlanes, eO.agendaPlanes),   // 2.17 (O) · por día, el plan organizado más tarde
     agendaPlan: ((x, y) => !x ? (y || null) : !y ? x : x.fecha !== y.fecha ? (x.fecha > y.fecha ? x : y) : ((+x.organizado || 0) >= (+y.organizado || 0) ? x : y))(eN.agendaPlan, eO.agendaPlan) });
   // 2.12 · Lo que la regla de arriba no combinaba: cada hábito con lo del otro (unirHabito), los registros de la puerta y del teléfono,
@@ -2121,6 +2125,37 @@ const consHTML = h => `<h3 class="cons">Contras de no hacerlo</h3>${list(h.contr
 
 // 2.19.9 · «No me deja poner orden de los hábitos: quiero subirlos o bajarlos.» Cada hábito (y rutina) de primer nivel lleva `orden`; con
 // «Ordenar», la lista se vuelve una columna con ↑ ↓ por fila y «Listo». Sin ningún orden puesto, el de siempre (los clave primero).
+// El orden de lectura se guarda aparte de las horas, las cadenas y la prioridad.
+function ordenVistaFusion(a, b) {
+  const r = {};
+  for (const mapa of [a, b]) for (const [clave, v] of Object.entries(mapa || {})) {
+    if (!/^(habitos$|rutina:|agenda:)/.test(clave) || !Array.isArray(v?.ids) || !Number.isFinite(v.en)) continue;
+    const otro = r[clave];
+    if (!otro || v.en > otro.en || (v.en === otro.en && JSON.stringify(v.ids) > JSON.stringify(otro.ids))) r[clave] = v;
+  }
+  return r;
+}
+function vistaOrdenada(clave, lista, id = x => x.id) {
+  const ids = state.enfoque?.ordenVista?.[clave]?.ids;
+  if (!Array.isArray(ids)) return lista;
+  const rank = new Map(ids.map((k, i) => [k, i]));
+  return lista.slice().sort((a,b) => (rank.get(id(a)) ?? ids.length) - (rank.get(id(b)) ?? ids.length));
+}
+function ponerOrdenVista(clave, ids, base) {
+  const visibles = new Set(ids), orden = [...new Set(base.concat(ids))];
+  let i = 0;
+  const mapa = state.enfoque.ordenVista ||= {};
+  mapa[clave] = { ids: orden.map(id => visibles.has(id) ? ids[i++] : id), en: Math.max(Date.now(), (mapa[clave]?.en || 0) + 1) };
+}
+const hbClaveVisual = rut => rut ? 'rutina:' + rut : 'habitos';
+const hbVisuales = rut => vistaOrdenada(hbClaveVisual(rut), rut ? hbHijosOrd(rut) : hbTopOrdenados());
+function hbNumeroVisual(h) {
+  const p = hbRutDe(h);
+  if (!p) return '';
+  const n = hbVisuales(p).findIndex(x => x.id === h.id) + 1;
+  return n ? '<span class="hb-num-visual" aria-label="Puesto ' + n + ' en la rutina">' + n + '</span>' : '';
+}
+function asaVisual(nombre) { return '<button type="button" class="asa-visual" data-asa-visual aria-label="Mover ' + esc(nombre) + '" title="Arrastrar o usar las flechas">⠿</button>'; }
 let hbOrdenando = false, hbOtrosAbierto = false;
 document.getElementById('list')?.addEventListener('toggle', e => { if (e.target.classList?.contains('hb-otros')) hbOtrosAbierto = e.target.open; if (e.target.classList?.contains('hb-hechos')) hbHechosAbierto = e.target.open; }, true);   // 2.20 · 2.21 (C) · y «Hechos hoy»
 // 2.21 (M) · «Sigo sin poder mover los hábitos.» Cada hábito (también los de una rutina) lleva `orden`; sin ninguno puesto, el de siempre.
@@ -2159,14 +2194,13 @@ function hbRutinaSegun(rid, sub) {
   return ch;
 }
 function hbOrdenAplicar(rut, ids) {
-  if (rut) hbRutinaOrdenar(rut, ids);
-  else { const L = hbTopOrdenados(), por = new Map(L.map(h => [h.id, h])), en = Date.now(); [...ids.filter(id => por.has(id)).map(id => por.get(id)), ...L.filter(h => !ids.includes(h.id))].forEach((h, k) => { h.orden = k; h.ordenEn = en; }); }
+  ponerOrdenVista(hbClaveVisual(rut), ids, hbVisuales(rut).map(h => h.id));
   save(); render();
 }
 const hbRutDe = h => h && !h.rutina && h.padre && state.habits.some(r => r && r.rutina && r.id === h.padre) ? h.padre : '';
 function hbMover(id, d) {
   const h0 = state.habits.find(x => x && x.id === id), rut = hbRutDe(h0);
-  const L = rut ? hbHijosOrd(rut) : hbTopOrdenados(), i = L.findIndex(h => h.id === id), j = i + d;
+  const L = hbVisuales(rut), i = L.findIndex(h => h.id === id), j = i + d;
   if (i < 0 || j < 0 || j >= L.length) return;
   [L[i], L[j]] = [L[j], L[i]];
   hbOrdenAplicar(rut, L.map(h => h.id));
@@ -2174,15 +2208,18 @@ function hbMover(id, d) {
 }
 const hbPuedeOrdenar = top => top.length > 1 || top.some(r => r.rutina && hbHijosOrd(r.id).length > 1);
 function hbOrdFila(h, k, n, rut) {
-  const kids = h.rutina ? hbHijosOrd(h.id) : [], cu = rut ? hbCuandoTxt(h) : '';
+  const kids = h.rutina ? hbVisuales(h.id) : [], cu = rut ? hbCuandoTxt(h) : '';
   const sub = h.rutina ? `rutina · ${kids.length === 1 ? '1 hábito' : kids.length + ' hábitos'}` : cu ? cu[0].toUpperCase() + cu.slice(1) : '';
-  return `<div class="og-r hb-ord-r" data-ok="${esc(h.id)}" style="${colorVar(h)}"><div class="hb-ord-row"><span class="hb-ord-n og-rk">${k + 1}</span><span class="hb-ord-t">${esc(h.nombre)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>
-      <span class="hb-ord-asa" data-asa role="button" aria-label="Mantén pulsado y arrastra para mover ${esc(h.nombre)}">⠿</span><button class="hb-ord-b" data-hbord="${esc(h.id)}" data-d="-1" ${k === 0 ? 'disabled' : ''} aria-label="Subir ${esc(h.nombre)}">↑</button><button class="hb-ord-b" data-hbord="${esc(h.id)}" data-d="1" ${k === n - 1 ? 'disabled' : ''} aria-label="Bajar ${esc(h.nombre)}">↓</button></div>${kids.length ? `<div class="hb-ord-l hb-ord-kids" data-rut="${esc(h.id)}">${kids.map((x, j) => hbOrdFila(x, j, kids.length, h.id)).join('')}</div>` : ''}</div>`;
+  return `<div class="og-r hb-ord-r" data-ok="${esc(h.id)}" data-hv="${esc(h.id)}" data-hvr="${esc(rut)}" style="${colorVar(h)}"><div class="hb-ord-row">${hbNumeroVisual(h)}<span class="hb-ord-t">${esc(h.nombre)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+      ${asaVisual(h.nombre)}<button class="hb-ord-b" data-hbord="${esc(h.id)}" data-d="-1" ${k === 0 ? 'disabled' : ''} aria-label="Subir ${esc(h.nombre)}">↑</button><button class="hb-ord-b" data-hbord="${esc(h.id)}" data-d="1" ${k === n - 1 ? 'disabled' : ''} aria-label="Bajar ${esc(h.nombre)}">↓</button></div>${kids.length ? `<div class="hb-ord-l hb-ord-kids" data-rut="${esc(h.id)}">${kids.map((x, j) => hbOrdFila(x, j, kids.length, h.id)).join('')}</div>` : ''}</div>`;
 }
 function hbOrdenHTML(L) {
-  return `<div class="hb-ord"><p class="meta" style="margin:0 0 8px">Mantén pulsada una fila y arrástrala (o desde ⠿), o toca ↑ ↓. El de arriba va primero. Dentro de una rutina, cada hábito va después del anterior y solo el primero lleva hora.</p><div class="hb-ord-l" data-rut="">${L.map((h, k) => hbOrdFila(h, k, L.length, '')).join('')}</div></div>`;
+  return `<div class="hb-ord"><p class="meta" style="margin:0 0 8px">Arrastra desde ⠿ para elegir el orden de lectura.</p><div class="hb-ord-l" data-rut="">${L.map((h, k) => hbOrdFila(h, k, L.length, '')).join('')}</div></div>`;
 }
-function hbOrdenWire() { document.querySelectorAll('#list .hb-ord-l').forEach(c => window.ordArrastre?.(c, K => hbOrdenAplicar(c.dataset.rut || '', K))); }
+function hbOrdenWire() {
+  const cont = document.getElementById('list');
+  if (cont && !cont.dataset.arrG) window.enlazarOrdenVisual?.(cont, '[data-hv]', r => r.dataset.hv, r => r.dataset.hvr, hbOrdenAplicar);
+}
 document.getElementById('list')?.addEventListener('click', e => {
   const b = e.target.closest('[data-hbord]'); if (b) { e.stopPropagation(); hbMover(b.dataset.hbord, +b.dataset.d); return; }
   if (e.target.closest('.hb-ord-ir')) { e.stopPropagation(); hbOrdenando = true; render(); document.querySelector('#list .hb-ord')?.scrollIntoView({ block: 'start' }); return; }
@@ -2200,7 +2237,7 @@ function render() {
   $('#global').innerHTML = `<div class="g-streak${prevStreak !== undefined && +prevStreak !== g.streak ? ' bump' : ''}" title="Racha general">${flame(!g.streak)}${g.streak}</div>
     <div class="g-rate">${g.rate === null ? 'Sin datos aún' : (raXp() ? '' : 'Hábitos: ') + g.rate + '% esta semana'}</div>`;
   h2AlRender();   // 2.12 · H2: lo pedido «desde el lunes» y los consolidados que vuelven a la lista activa
-  const top = hbTopOrdenados();   // 2.19.9 · el orden que elegiste
+  const top = hbVisuales();   // 2.19.9 · el orden que elegiste
 
   const building = state.habits.filter(h => !h.rutina && !h.graduado).length;   // solo graduarse libera el hueco (F21), no los 66 votos
   $('#notice').hidden = building <= 3;
@@ -2223,9 +2260,10 @@ function render() {
   const hbListo = h => hbHechoHoy(h) || hbSemListoHoy(h);   // 2.22.5 (W) · «Ya cumplido esta semana» va abajo, con lo hecho
   const hoyP = hoy.filter(h => !hbListo(h) || hbRecien(h)), hoyH = hoy.filter(h => hbListo(h) && !hbRecien(h)), fila = h => h.rutina ? routineHTML(h) : habitHTML(h);
   const hechosHTML = hoyH.length ? `<details class="hb-hechos"${hbHechosAbierto || hoyH.some(h => open.has(h.id)) ? ' open' : ''}><summary class="group-title" style="cursor:pointer">Hechos hoy · ${hoyH.length}</summary>${hoyH.map(fila).join('')}</details>` : '';
-  $('#list').innerHTML = hbDiaBarHtml('') + ordBtn + (hoy.length ? (hoyP.length ? hoyP.map(fila).join('') : '<p class="empty">Todo lo de hoy está hecho.</p>') + hechosHTML : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
+  $('#list').innerHTML = hbDiaBarHtml('') + ordBtn + (hoy.length ? state.enfoque?.ordenVista?.habitos ? hoy.map(fila).join('') : (hoyP.length ? hoyP.map(fila).join('') : '<p class="empty">Todo lo de hoy está hecho.</p>') + hechosHTML : `<p class="empty">${cons.some(h => isSched(h, t)) ? 'Hoy solo tocan tus hábitos consolidados.' : 'Hoy no toca ningún hábito.'}</p>`)
     + (otros.length ? `<details class="hb-otros"${hbOtrosAbierto || otros.some(h => open.has(h.id)) ? ' open' : ''}><summary class="group-title" style="cursor:pointer">Otros días · ${otros.length}</summary>${otros.map(h => habitHTML(h)).join('')}</details>` : '') + h2ConsHTML(cons);   // 2.20 · plegado: hoy, lo de hoy
   try { hbSaleAnim(); } catch (e) { console.warn('Hechos hoy', e); }   // 2.21.3 (B)
+  hbOrdenWire();
   tickTimers();
 }
 
@@ -2274,7 +2312,7 @@ function hbPasFila(h, d) {
   const L = hecho ? `<button class="link" data-act="hbp-undo" data-id="${id}" data-day="${d}">Deshacer</button>`
     : h.modo === 'veces' && p > 0 ? `<button class="link" data-act="hbp-minus" data-id="${id}" data-day="${d}">−1</button>` : '';
   return `<section class="habit hb-pas" data-id="${id}" data-day="${d}" style="${colorVar(h)}">
-    <div class="row">
+    <div class="row">${hbNumeroVisual(h)}
       <button class="check ${cls}" data-act="${act}" data-id="${id}" data-day="${d}"${st} aria-label="${hecho ? `Deshacer ${esc(h.nombre)} de ese día` : `Marcar ${esc(h.nombre)} hecho ese día`}">${inner}</button>
       <div class="title"><div class="name">${esc(h.nombre)}${catChipFila(h.cat)}</div>${sub}</div>
       <span class="streak${s.streak ? ' on' : ''}" title="${s.semanas ? 'Racha en semanas' : 'Racha'}">${flame(!s.streak)}${s.streak}${s.semanas ? '<small> sem</small>' : ''}</span>
@@ -2283,9 +2321,9 @@ function hbPasFila(h, d) {
 }
 function hbPasHtml(d) {
   let filas = '', n = 0, hechos = 0;
-  for (const h of hbTopOrdenados()) {
+  for (const h of hbVisuales()) {
     if (h.rutina) {
-      const kids = hbHijosOrd(h.id).filter(x => hbAplica(x, d)); if (!kids.length) continue;
+      const kids = hbVisuales(h.id).filter(x => hbAplica(x, d)); if (!kids.length) continue;
       const k = kids.filter(x => isDone(x, d)).length; n += kids.length; hechos += k;
       filas += `<section class="habit hb-pas-rut" style="${colorVar(h)}"><div class="row"><span class="check ${k === kids.length ? 'done' : k ? 'half' : ''}" aria-hidden="true">${icon(h.icono)}</span>
         <div class="title"><div class="name">${esc(h.nombre)}</div><div class="identity">rutina</div></div><span class="streak">${k}/${kids.length}</span></div>
@@ -2665,7 +2703,7 @@ function hbFormWFin(h) { if (!h) return; if (h.semana == null || h.rutina) delet
 
 // Una rutina agrupa hábitos: se abre con un toque y muestra los suyos dentro.
 function routineHTML(r) {
-  const kids = hbHijosOrd(r.id).filter(h => isSched(h, today()));   // 2.21 (M) · en el orden de la rutina
+  const kids = hbVisuales(r.id).filter(h => isSched(h, today()));   // 2.21 (M) · en el orden de la rutina
   const cuentan = kids.filter(h => isDone(h, today()) || !hbFuera(h, today()));   // 2.22.5 (W) · lo ya cumplido de la semana (o una meta que hoy ya no se cumple) no cuenta
   const done = cuentan.filter(h => isDone(h, today())).length;
   const checkClass = (kids.length && !cuentan.length) || (cuentan.length && done === cuentan.length) ? 'done' : done ? 'half' : '';
@@ -2677,14 +2715,14 @@ function routineHTML(r) {
         <button class="link" data-act="edit" data-id="${r.id}">Editar rutina</button>
       </div>
     </div>` : '';
-  return `<section class="habit" style="${colorVar(r)}">
+  return `<section class="habit" data-hv="${esc(r.id)}" data-hvr="" style="${colorVar(r)}">
     <div class="row">
       <button class="check ${checkClass}" data-act="toggle" data-id="${r.id}" aria-label="Abrir rutina">${icon(r.icono)}</button>
       <button class="title" data-act="toggle" data-id="${r.id}">
         <div class="name">${esc(r.nombre)}</div>
         <div class="identity">${kids.length === 1 ? '1 hábito' : kids.length + ' hábitos'}</div>
       </button>
-      ${relMarkHtml('hbh:' + r.id)}<span class="streak hb-rut-prog">${done}/${cuentan.length}</span>
+      ${asaVisual(r.nombre)}${relMarkHtml('hbh:' + r.id)}<span class="streak hb-rut-prog">${done}/${cuentan.length}</span>
     </div>
     ${window.cadena?.hb?.(r) || ''}
     ${inside}
@@ -2762,8 +2800,8 @@ function habitHTML(h) {
     </div>`;
   }
 
-  return `<section class="habit${justDone === h.id ? ' pop' : ''}${sched ? '' : ' off'}${hbSemListoHoy(h) ? ' hb-semok' : ''}" data-id="${h.id}" style="${colorVar(h)}">
-    <div class="row">
+  return `<section class="habit${justDone === h.id ? ' pop' : ''}${sched ? '' : ' off'}${hbSemListoHoy(h) ? ' hb-semok' : ''}" data-id="${h.id}" data-hv="${esc(h.id)}" data-hvr="${esc(hbRutDe(h))}" style="${colorVar(h)}">
+    <div class="row">${hbNumeroVisual(h)}
       <button class="check ${checkClass}" data-act="${act}" data-id="${h.id}"${mtAttr} style="${style}"
         aria-label="${m ? 'Deshacer' : mtAttr ? hbMtPriTxt(mt) : 'Marcar hecho'}">${inner}</button>
       <button class="title" data-act="toggle" data-id="${h.id}">
@@ -2771,7 +2809,7 @@ function habitHTML(h) {
         ${hbCadLinea(h)}<div class="identity">${esc(h.identidad)}</div>${hbSemLinea(h)}
       </button>
       ${relMarkHtml('hbh:' + h.id)}<span class="streak${s.streak ? ' on' : ''}" title="${s.semanas ? 'Racha en semanas' : 'Racha'}">${flame(!s.streak)}${s.streak}${s.semanas ? '<small> sem</small>' : ''}</span>
-    </div>
+    ${asaVisual(h.nombre)}</div>
     ${h2Lineas(h, s, m, sched, warn)}
     ${mt && sched ? hbMtCtl(h, t) : ''}
     ${window.cadena?.emp?.(h) || ''}
@@ -2783,6 +2821,7 @@ function setMark(h, value) {
   hbXpDesmarca(h, value);   // 2.17 (XP) · desmarcar o saltar lo hecho hoy quita su XP, el «volviste», la sorpresa y la rutina
   state.log[h.id] ??= {};
   state.log[h.id][today()] = value || '';   // 2.20 · desmarcado = '' (no se borra): al combinar teléfonos, lo desmarcado no vuelve a salir hecho
+  if (h.modo === 'tiempo' && value === 'full') delete state.timers[h.id];
   if (value !== 'just') delete state.razones[h.id]?.[today()];
   if (!value) { delete state.progreso[h.id]?.[today()]; delete state.timers[h.id]; }
   save(); render();
@@ -4048,6 +4087,7 @@ function estNorm(x) {
       creado: Z(r.creado), cambiado: Z(r.cambiado), replan: Z(r.replan), archivada: !!r.archivada,
       ...(r.meta && typeof r.meta === 'object' && !Array.isArray(r.meta) ? { meta: { min: Math.max(0, Math.min(18000, Math.round(+r.meta.min) || 0)), dias: [...new Set(A(r.meta.dias).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b), mod: Z(r.meta.mod), ...estMetaBaseN(r.meta), ...(() => { const q = {}; if (r.meta.pesos && typeof r.meta.pesos === 'object') for (let wd = 0; wd < 7; wd++) { const v = Math.round(+r.meta.pesos[wd]); if (v >= 15 && v <= 480) q[wd] = v; } return Object.keys(q).length ? { pesos: q } : {}; })() } } : {}),   // 2.21.8 (D) · meta de horas (pesos: los minutos por día de la semana de los días que se quitaron, para cuando vuelvan)
       ...(() => { const f = estFechasN(r.fechas); return f ? { fechas: f } : {}; })(), ...(r.inicio && typeof r.inicio === 'object' && F(r.inicio.d) ? { inicio: { d: F(r.inicio.d), mod: Z(r.inicio.mod) } } : {}),   // 2.22.3 (I) · el día en que empieza ...(typeof r.fechasH === 'string' && r.fechasH ? { fechasH: r.fechasH.slice(0, 24) } : {}),   // 2.21.8 (K) · cambios por fecha y la huella del plan
+      ...(Z(r.minEjSesionMod) || Z(r.minEjSesion) ? { minEjSesion: Z(r.minEjSesion, 10000), minEjSesionMod: Z(r.minEjSesionMod) } : {}),
       ...(['horas', 'ej', 'ambas'].includes(r.metaTipo) ? { metaTipo: r.metaTipo, metaEj: Z(r.metaEj, 100000), metaEjMod: Z(r.metaEjMod), ...(Z(r.metaHAnt, 18000) > 0 ? { metaHAnt: Z(r.metaHAnt, 18000) } : {}) } : {}),   // 2.22.6 (E) · la meta: horas, ejercicios o las dos
       ...(r.ses && typeof r.ses === 'object' && Z(r.ses.n, 2000) > 0 && BLQ.includes(+r.ses.L) ? { ses: { n: Z(r.ses.n, 2000), L: +r.ses.L, ...(Z(r.ses.h, 18000) ? { h: Z(r.ses.h, 18000) } : {}), mod: Z(r.ses.mod), ...(r.ses.sucio === true ? { sucio: true } : {}) } } : {}),   // 2.22.5 (R) · sesiones
       turnos: estTurnosNorm(r.turnos),
@@ -4155,6 +4195,10 @@ function estSesFus(g, p) {
   return { turnos, ...(w ? { ses: w } : {}), ...(Object.keys(fu).length ? { sesFuera: fu } : {}) };
 }
 // 2.22.6 (E) · metaTipo y metaEj: los de metaEjMod más reciente (una copia sin ellos, como 2.22.6, nunca los borra).
+function estMinEjFus(a, b) {
+  const w = (+b.minEjSesionMod || 0) > (+a.minEjSesionMod || 0) ? b : a;
+  return w.minEjSesionMod || w.minEjSesion ? { minEjSesion: w.minEjSesion || 0, minEjSesionMod: w.minEjSesionMod || 0 } : {};
+}
 function estMetaEjFus(g, p) { const ok = v => !!v && ['horas', 'ej', 'ambas'].includes(v.metaTipo), a = ok(g) ? g : null, b = ok(p) ? p : null; const w = a && b ? ((+b.metaEjMod || 0) > (+a.metaEjMod || 0) ? b : a) : a || b; return w ? { metaTipo: w.metaTipo, metaEj: Math.max(0, Math.round(+w.metaEj || 0)), metaEjMod: +w.metaEjMod || 0, ...(+w.metaHAnt > 0 ? { metaHAnt: Math.round(+w.metaHAnt) } : {}) } : {}; }
 function estMetaFus(g, p) { const ok = v => !!v && typeof v === 'object' && !Array.isArray(v), a = ok(g && g.meta) ? g.meta : null, b = ok(p && p.meta) ? p.meta : null; const w = a && b ? ((+b.mod || 0) > (+a.mod || 0) ? b : a) : a || b; return w ? { meta: w } : {}; }
 function estFusion(a, b, dead) {
@@ -4189,7 +4233,7 @@ function estFusion(a, b, dead) {
     const gT = g.terminada || (p.terminada && g.archivada && p.archivada && n(g.cambiado) === n(p.cambiado) ? p.terminada : null);   // 2.20.1 (T)
     const temas = gT ? g.temas : Array.isArray(g.temas) ? g.temas.map(t => t && typeof t === 'object' && !t.hecho && visto(plan, t, hechos, rd) && !visto(plan, t, gh, rd) ? { ...t, hecho: true }
       : t && typeof t === 'object' && t.hecho && muertos.size && plan.some(b => b.tema === t.id && muertos.has(b.id)) && !visto(plan, t, hechos, rd) ? { ...t, hecho: false } : t) : g.temas;
-    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), ...estInicioFus(g, p), ...estSesFus(g, p), ...estMetaEjFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
+    rutas.set(r.id, { ...g, ...(gT ? { terminada: gT } : {}), ...estMetaFus(g, p), ...estFechasFus(g, p), ...estInicioFus(g, p), ...estSesFus(g, p), ...estMetaEjFus(g, p), ...estMinEjFus(g, p), plan, temas, hechos, deshechos, sesiones: (() => { const sm = new Map(); for (const x of L(p.sesiones)) sm.set(x.id, x); for (const x of L(g.sesiones)) { const y = sm.get(x.id); if (!y || n(x.mod) >= n(y.mod)) sm.set(x.id, x); } return [...sm.values()].filter(x => !dead.has(x.id)); })(), pendientes: [...pm.values()].filter(x => !dead.has(x.id)),   /* 2.21.7 (E) */ gcal: { ...O(p.gcal), ...O(g.gcal) }, notion: O(p.notion).id && n(O(p.notion).en) > n(O(g.notion).en) ? p.notion : g.notion || p.notion || null });
   }
   return { materias: byId(L(a.materias), L(b.materias)), rutas: [...rutas.values()].filter(r => !dead.has(r.id)).map(r => ({ ...r, pendientes: L(r.pendientes).filter(x => !dead.has(x.id)), ...(Array.isArray(r.sesiones) ? { sesiones: L(r.sesiones).filter(x => !dead.has(x.id)) } : {}) })), cfg: a.cfg && typeof a.cfg === 'object' ? a.cfg : b.cfg };
 }
@@ -5062,6 +5106,7 @@ $('#list').addEventListener('click', e => {
     case 'undo': setMark(h, null); break;
     case 'plus': plusOne(h, 1); break;
     case 'minus': plusOne(h, -1); break;
+    case 'hecho-sin-reloj': window.cadena?.hechoHb?.(h); break;
     case 'timer': toggleTimer(h); break;
     case 'empezar': window.cadena?.empHb?.(h); break;   // 2.21.8 (H) · «▶ Empezar · N min»
     case 'treset': delete state.timers[h.id]; save(); render(); break;
@@ -7206,6 +7251,7 @@ function showFocus() {
   $('#focus-body').innerHTML = `
     <p class="lead">${s.tipo === 'descanso' ? 'Descansando' : s.que ? 'Enfocado en' : 'Sesión de enfoque'}</p>
     ${s.que ? `<p class="focus-what">${esc(s.que)}</p>` : ''}
+    ${s.tipo === 'estudio' ? '<p class="meta" id="f-minimos" hidden></p>' : ''}
     ${e2aFocusExtra(s)}
     ${ES.proyectos.find(x => x.id === s.pro)?.recompensa ? `<p class="meta" style="margin:0">Mientras tanto: ${esc(ES.proyectos.find(x => x.id === s.pro).recompensa)}</p>` : ''}
     <div class="ring" id="ring"><p class="count" id="f-left"></p></div>
@@ -7213,6 +7259,7 @@ function showFocus() {
     <p class="note">Activa No molestar y deja el teléfono fuera de tu alcance.</p>
     <button class="outline" id="f-urge">Tengo ganas de mirar el teléfono</button>
     <button class="link" id="f-stop">Terminar antes</button>`;
+  if (s.est) euMinimosFoco(s.est);
   $('#f-urge').onclick = () => {
     s.impulsos = (s.impulsos || 0) + 1; guardar();
     surfSheet(s);
@@ -8783,10 +8830,11 @@ const IA_TOOLS = [
     minutos_fecha: S('Solo con ruta: minutos para un día concreto, «AAAA-MM-DD:90», separados por comas.'),
     repartir_deuda: { type: 'boolean', description: 'Solo con ruta: reparte la deuda de horas en los días de estudio que quedan (como mucho el máximo por día). Solo si la persona lo pidió.' },
     meta: { type: 'string', enum: ['horas', 'ejercicios', 'las_dos'], description: 'La meta de la ruta: horas (la de siempre), ejercicios (un total de ejercicios hasta el examen) o las dos. Al crear o, con ruta, para cambiarla.' },
-    ejercicios_total: { type: 'integer', description: 'Ejercicios en total hasta el examen (con meta ejercicios o las_dos); 0 si no aplica.' } }),
+    minimo_ejercicios_sesion: { type: 'integer', description: 'Mínimo de ejercicios en cada sesión; 0 lo quita. Omítelo para conservarlo.' },
+    ejercicios_total: { type: 'integer', description: 'Mínimo de ejercicios en total hasta el examen (con meta ejercicios o las_dos); 0 si no aplica.' } }),
   iaTool('estudio_bloque', 'Marca un bloque de estudio como hecho (con los minutos, los ejercicios y una nota; si ya estaba hecho, cambia lo anotado), lo deshace o lo mueve a otro día u hora. El id del bloque sale de estudio_ver.', {
     accion: { type: 'string', enum: ['hecho', 'deshacer', 'mover'] }, bloque: S('Id del bloque.'), fecha: S('Al mover: AAAA-MM-DD o vacío.'), hora: S('Al mover: HH:MM en 24 h o vacío.'),
-    ejercicios: { type: 'integer', description: 'Ejercicios hechos al marcar; -1 si no se sabe (se usan los sugeridos del bloque).' },
+    ejercicios: { type: 'integer', description: 'Ejercicios hechos al marcar; -1 si no se sabe (si hay un mínimo de ejercicios, no se suman ejercicios sin confirmar).' },
     minutos: { type: 'integer', description: 'Minutos que de verdad estudió al marcar; 0 si no se sabe (los del bloque).' }, nota: S('Nota corta de lo que hizo, o vacío.') }),
   iaTool('estudio_pendiente', 'Añade una tarea o una entrega a una ruta de estudio (va también a la lista «Estudio» de Tareas).', {
     ruta: S('Nombre del examen, de la materia o id de la ruta.'), texto: S('Qué hay que hacer o entregar.'), clase: { type: 'string', enum: ['tarea', 'entrega'] }, fecha: S('AAAA-MM-DD o vacío.'), hora: S('HH:MM en 24 h o vacío.') }),
@@ -12534,7 +12582,7 @@ function agAlertaHtml(id, ayer = false) {
 }
 window.agAlertaHtml = (id) => { try { return +agenda().organizado > 0 ? '' : agAlertaHtml(id); } catch { return ''; } };
 function renderAg() {
-  if (!agW) return;
+  if (!agW || agW.querySelector('.ag-lista[data-arr-visual="1"]')) return;
   if (agcArr && Date.now() - agcArrT < 20000) { agcPend = true; return; }   // 2.21 (K) · en medio de un arrastre del calendario: al soltar
   agcArr = false;
   cargarAgenda();
@@ -12547,6 +12595,7 @@ function renderAg() {
   const cadM = agCadenaMapa(A), ordV = agOrdenDia(vis, cadM), conH = ordV.filter(i => /^\d\d:\d\d$/.test(i.h || '')), sinH = ordV.filter(i => !/^\d\d:\d\d$/.test(i.h || ''));   // 2.20.2 · 2.21 (M) · 2.21.2 (H) · por hora; el número, donde la hora no
   const ayer = dayKey(addDays(new Date(), -1)), hayAyer = !!(ES.agendaHist?.[ayer] || []).length, P = iniV ? null : planManana(), tarde = !iniV && now >= 18 * 60;
   const pTodo = pest === 'todo', movN = it => it.tipo === 'tarea' ? +((HT().tareas?.items || []).find(y => y && y.id === it.ref)?.movida) || 0 : +it.movida || 0;   // 2.21 (A)
+  const agcOn = !iniV && agcVista() === 'cal';
   const fila = it => { const jornada = agJornada(it), ok = agHecho(it), tardeIt = !ok && it.h && toMin(it.h) + (it.min || 30) < now, fo = !!it.foco, mv = movN(it), ab = agAbre === it.id;   // 2.21.3 (C) · en reposo, lo mínimo
     const Kt = it.tipo === 'tarea' && !ok ? tareaCalorAttr((HT().tareas?.items || []).find(y => y && y.id === it.ref)) : { cls: '', st: '', c: null };   // 2.19.6 · el calor de la tarea
     const corre = !ok && it.tipo !== 'evento' && (!!tempDe(it.id) || !!window.tzEnCosaId?.(it.id));   // con el temporizador en marcha, la cuenta atrás sigue a la vista · 2.23.0 (T) · también el Temporizador
@@ -12554,11 +12603,13 @@ function renderAg() {
     const mas = [agMinTxt(it, ok).replace(/^ · /, ''), Kt.cls ? '' : edad, cadM.get(it.id)?.falta ? `«${esc(cadM.get(it.id).falta)}» no está hoy` : '', mv >= 3 ? `<span class="ag-mov">Movida ${mv} veces</span>` : ''].filter(Boolean).join(' · ');
     return `<div class="row ag-it${ok ? ' ok' : ''}${Kt.cls}${fo ? ' ag-foco' : ''}${it.tipo === 'estudio' && !fo ? ' ag-est' : ''}${pTodo ? ' og-r' : ''}${ab ? ' ag-ab' : ''}" data-id="${esc(it.id)}"${pTodo ? ` data-ok="${esc(it.id)}"` : ''}${Kt.st}>${agRkHtml(it, its)}<button class="box ag-box${ok ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="${jornada ? (ok ? 'Desmarcar jornada' : 'Marcar jornada como hecha') : 'Hecha'}" aria-pressed="${ok}"></button>
       <div class="t rel-t" role="button" tabindex="0" data-exp="${esc(it.id)}" aria-expanded="${ab}"><div><span class="ag-tema">${esc(fo ? agbFocoTitulo(it) : jornada?.titulo || agTituloEst(it))}</span>${agJornadaHtml(jornada)}</div><small>${fo ? 'Bloque protegido' : esc(jornada ? [it.h && !agHorasOcultas() ? fmtHora(it.h) : '', jornada.tema, jornada.ruta].filter((v, i, datos) => v && v !== jornada.titulo && datos.indexOf(v) === i).join(' · ') : agEtqRut(it, agEtqCat(it)))}${Kt.cls && edad ? ` · ${edad}` : ''}${corre && !ab && !jornada ? agPildoraHtml(it, ok) : ''}</small>${jornada && !ab ? '' : relMarkHtml(relKeyIt(it))}</div>
-      ${jornada && !ok ? agAccionBtnHtml(it, false) : ''}${agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${jornada ? '' : agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
+      ${jornada && !ok ? agAccionBtnHtml(it, false) : ''}${!iniV && !agcOn ? asaVisual(it.t) : agArrPuede(it) === '' ? '<button type="button" class="ag-asa" data-asa tabindex="-1" aria-label="Arrastrar para mover" title="Arrastrar">⠿</button>' : ''}${agTagHtml(it, cadM, tardeIt)}${ab ? `<div class="ag-ex">${mas ? `<small class="ag-ex-m">${mas}</small>` : ''}${agDetHtml(it, cadM, fo ? '' : agEtqCat(it))}${jornada ? '' : agAccionBtnHtml(it, ok)}${ivIrFilaHtml(it, ok)}<div class="ag-ex-a">${!ok && !fo && !['evento','estudio','bt'].includes(it.tipo) ? `<button type="button" class="link ag-ficha" data-ag-hecho-directo="${esc(it.id)}">✓ Hecho</button>` : ''}${it.tipo === 'estudio' && !fo && typeof it.ref === 'string' && it.ref ? `<button type="button" class="link ag-ficha ag-comp" data-ex-comp="${esc(it.ref)}" data-ex-it="${esc(it.id)}" aria-label="${esc((ok ? 'Editar lo estudiado de ' : 'Completar ') + (it.t || ''))}">${ok ? 'Editar' : 'Completar'}</button>` : ''}<button type="button" class="link ag-ficha" data-open="${esc(it.id)}">Abrir ficha</button><button type="button" class="ag-dots" data-mas="${esc(it.id)}" aria-label="Más acciones">⋯</button></div></div>` : ''}</div>`; };
   // 2.21.3 (C) · Los hábitos de una rutina van en UNA fila (la del primero de hoy); el resto, como siempre.
   const RG = agRutGrupos(ordV), esLead = it => RG.lead.has(it.id), visE = it => !RG.de.has(it.id) || esLead(it);
   const pendE = it => esLead(it) ? RG.lead.get(it.id).ms.some(agPendVis) : agPendVis(it);
   const filaE = it => esLead(it) ? agRutFilaHtml(RG.lead.get(it.id), cadM, its, now, pTodo) : fila(it);
+  const claveVisual = 'agenda:' + today(), claveFila = it => esLead(it) ? 'rut:' + RG.lead.get(it.id).r : it.id;
+  const ordenManual = !iniV && Array.isArray(ES.ordenVista?.[claveVisual]?.ids);
   const filas = []; let marcado = false;
   const nowL = () => (org0 && (iniV ? agAhoraLineaHtml(ivEs) : agAhoraLineaHtml())) || `<div class="ag-now"><span>Ahora${agHorasOcultas() ? '' : ` · ${fmtHora(hhmm(new Date()))}`}</span></div>`;   // 2.21 (E) · «Ahora / Después» al lado de la hora
   for (const it of agRutPorHora(conH.filter(visE).filter(pendE), RG)) { const hE = esLead(it) ? agRutHoraEf(RG.lead.get(it.id)) : it.h; if (!marcado && toMin(hE) > now) { filas.push(nowL()); marcado = true; } filas.push(filaE(it)); }   // 2.21.3 (B) · lo hecho, al final
@@ -12567,7 +12618,6 @@ function renderAg() {
   const objs = objetivosActivos();
   const mananaCard = P ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--green)"></span><span class="t"><div>Mañana ya está organizado</div><small>${agVisibles(P.items).length} ${agVisibles(P.items).length === 1 ? 'cosa' : 'cosas'}${P.rana?.t ? ` · tu prioridad 1: ${esc(P.rana.t)}` : ''}${(P.items || []).some(i => i.foco) ? ' · con bloque protegido' : ''} · toca para verlo o cambiarlo</small></span><span class="tag">›</span></button>`
     : tarde ? `<button class="row" id="ag-man" style="border-top:1px solid var(--line)"><span class="dot" style="--c:var(--accent)"></span><span class="t"><div>Deja mañana organizado · 2 min</div><small>Al despertar ya sabrás qué hacer y a qué hora: decidirlo la víspera, en frío, ayuda a cumplirlo.</small></span><span class="tag">›</span></button>` : '';
-  const agcOn = !iniV && agcVista() === 'cal';
   const filasRuta = agcOn ? its.filter(it => agJornada(it)) : [];
   const bloquesCalendario = agcOn ? its.filter(it => !agJornada(it)) : [];   // 2.21 (K) · 2.22.0 (N) · Iniciativas, siempre en lista
   agW.innerHTML = `<div class="ag-top">${(p => iniV ? p : agdHoyNavHtml(p))(`<p class="paso">${esc(cap(fechaLarga(today())))}${A.anoche ? ' · organizada anoche' : ''}</p>`)}${agcSegHtml()}
@@ -12577,10 +12627,10 @@ function renderAg() {
     : `${org0 ? '<p class="note ag-libre">Tu agenda de hoy está libre. Tus hábitos siguen en Hábitos.</p><div class="actions ag-libre-a" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-libre-org">Organizar mi día</button><button class="link" data-goview="hoy">Ver mis hábitos</button><button class="link" id="ag-add">Añadir una cosa</button></div>' : '<div class="actions" style="justify-content:flex-start;margin:0 0 6px"><button class="link" id="ag-add">Añadir una cosa</button></div>'}${agMenuHtml(org0, its, hayAyer, true)}`}</div>
     ${iniV ? '' : suEstaNocheHtml(true)}
     ${agcOn ? (filasRuta.length ? `<div class="ag-lista">${filasRuta.map(fila).join('')}</div>` : '') + (bloquesCalendario.length || !filasRuta.length ? agcAgendaHtml(bloquesCalendario, A, cadM, org0) : '') : `<div class="ag-lista">${pestHtml}
-    ${filas.length ? `<div class="rows ag-rows-h">${filas.join('')}</div>` : ''}
+    ${ordenManual ? `<div class="rows ag-rows-v">${vistaOrdenada(claveVisual, ordV.filter(visE), claveFila).map(filaE).join('')}</div>` : `${filas.length ? `<div class="rows ag-rows-h">${filas.join('')}</div>` : ''}
     ${sinH.filter(visE).some(pendE) ? `<h3 style="margin-top:${filas.length ? 20 : 0}px">Sin hora</h3><div class="rows ag-rows-s">${sinH.filter(visE).filter(pendE).map(filaE).join('')}</div>${!agHorasOcultas() && agNotaHora() ? '<p class="meta">Toca «Poner hora»: con hora se cumple más.</p>' : ''}` : ''}
-    ${agHechasHtml(ordV.filter(visE).filter(it => !pendE(it)), filaE, true)}
-    ${(filas.length || sinH.length) && !agLs('ag-desliza') ? '<p class="meta ag-desliza" id="ag-desliza">Toca una fila para ver más. Desliza una fila: a la derecha, hecho; a la izquierda, mañana o mover. Arrástrala desde ⠿ para cambiar su hora. El número de la derecha (como 4/5): su relevancia. <button class="link" id="ag-desliza-ok">Entendido</button></p>' : ''}
+    ${agHechasHtml(ordV.filter(visE).filter(it => !pendE(it)), filaE, true)}`}
+    ${(filas.length || sinH.length) && !agLs('ag-desliza') ? '<p class="meta ag-desliza" id="ag-desliza">Toca una fila para ver más. Desliza una fila: a la derecha, hecho; a la izquierda, mañana o mover. Arrastra desde ⠿ para cambiar el orden de lectura. El número de la derecha (como 4/5): su relevancia. <button class="link" id="ag-desliza-ok">Entendido</button></p>' : ''}
     ${pestHtml && pest !== 'todo' && vis.length && vis.every(it => agHecho(it)) && pest !== 'evento' ? `<p class="meta green ag-pest-fin">Todo hecho en ${esc((AG_PEST.find(([k]) => k === pest) || [])[1] || '').toLowerCase()}.${its.some(it => it.tipo !== 'evento' && !agHecho(it)) ? ' Lo que queda está en las otras pestañas.' : ''}</p>` : ''}</div>`}
     ${mananaCard ? `<div style="margin-top:18px">${mananaCard}</div>` : ''}
     <details class="ag-mas"${agMasAbierto() ? ' open' : ''}><summary>Más: otros días, objetivos y metas</summary>
@@ -14186,7 +14236,7 @@ function agSwipeWire(cont) {
   cont.addEventListener('touchstart', e => {
     if (!e.target.closest?.('.ag-sw')) agSwCerrar();
     if (e.touches.length !== 1) { limpiar(S); S = null; return; }
-    const row = e.target.closest?.('.ag-it'); if (!row || e.target.closest('input, select, textarea, .ag-sub, [data-asa]')) { S = null; return; }
+    const row = e.target.closest?.('.ag-it'); if (!row || e.target.closest('input, select, textarea, .ag-sub, [data-asa], [data-asa-visual]')) { S = null; return; }
     const t = e.touches[0]; S = { row, id: t.identifier, x: t.clientX, y: t.clientY, dx: 0, on: false, no: false };
   }, { passive: true });
   cont.addEventListener('touchmove', e => {
@@ -14234,7 +14284,20 @@ function agAWire(pTodo) {
   agW.querySelector('#ag-desliza-ok')?.addEventListener('click', () => { agLs('ag-desliza', '1'); agW.querySelector('#ag-desliza')?.remove(); });
   agW.querySelectorAll('[data-mas]').forEach(b => b.onclick = e => { e.stopPropagation(); agItemSheet(agItems().find(x => x.id === b.dataset.mas)); });
   const L = agW.querySelector('.ag-lista'); agSwipeWire(L);
-  try { agArrWire(L, pTodo); } catch (e) { console.warn('Arrastre', e); }   // 2.21.3 (A) · mantener pulsada y arrastrar: cambia la hora (o la quita en «Sin hora»)
+  try {
+    if (view === 'iniciativas' || agcVista() === 'cal') agArrWire(L, pTodo);
+    else if (L) enlazarOrdenVisual(L, '.ag-it,.ag-sub', row => row.dataset.sub ? row.dataset.ref : row.dataset.rut ? 'rut:' + row.dataset.rut : row.dataset.id,
+      row => row.dataset.sub ? hbClaveVisual(row.closest('.ag-rut').dataset.rut) : 'agenda:' + today(),
+      (clave, ids) => {
+        if (clave.startsWith('rutina:')) ponerOrdenVista(clave, ids, hbVisuales(clave.slice(7)).map(h => h.id));
+        else {
+          const todos = agOrdenDia(agItems(), agCadenaMapa(agenda())), grupos = agRutGrupos(todos);
+          const base = [...new Set(todos.map(it => grupos.de.has(it.id) ? 'rut:' + grupos.de.get(it.id).r : it.id))];
+          ponerOrdenVista(clave, ids, vistaOrdenada(clave, base, x => x));
+        }
+        guardar(); renderAg();
+      });
+  } catch (e) { console.warn('Arrastre', e); }   // 2.21.3 (A) · mantener pulsada y arrastrar: cambia la hora (o la quita en «Sin hora»)
 }
 // 2.21.2 (H) · Mantener pulsada una fila con hora: la lista va por hora, así que no se arrastra (al soltarla volvería a su hora). Abre «Reordenar
 // el día», la hoja que cambia solo la importancia, con esa fila resaltada. Moverse antes de 450 ms es desplazar (o deslizar).
@@ -14274,6 +14337,44 @@ function agLpWire(cont) {
 // ====================================================================
 window.arrEspera = null;   // (window: también la usa el calendario, en otro ámbito)
 addEventListener('scroll', () => { const f = window.arrEspera; if (f) { window.arrEspera = null; try { f(); } catch {} } }, { capture: true, passive: true });
+function enlazarOrdenVisual(cont, selector, id, grupo, guardarOrden) {
+  const filasDe = r => [...cont.querySelectorAll(selector)].filter(x => grupo(x) === grupo(r) && x.getClientRects().length);
+  const aceptar = (r, filas, destino) => {
+    const ids = filas.map(id), antes = ids.indexOf(id(r));
+    if (destino === antes || destino < 0 || destino >= ids.length) return;
+    ids.splice(antes, 1); ids.splice(destino, 0, id(r)); guardarOrden(grupo(r), ids);
+  };
+  cont.addEventListener('keydown', ev => {
+    const asa = ev.target.closest('[data-asa-visual]'), dir = { ArrowUp: -1, ArrowDown: 1 }[ev.key];
+    if (!asa || !dir) return;
+    const r = asa.closest(selector), filas = filasDe(r), key = id(r), raiz = cont.getRootNode();
+    ev.preventDefault(); aceptar(r, filas, filas.indexOf(r) + dir);
+    for (const row of raiz.querySelectorAll(selector)) if (id(row) === key) { row.querySelector('[data-asa-visual]')?.focus({preventScroll:true}); break; }
+  });
+  arrGesto(cont, { fila: selector, asa:'[data-asa-visual]', no:'*', empezar(r, x, y0) {
+    const filas = filasDe(r), otras = filas.filter(row => row !== r), inicio = filas.indexOf(r);
+    if (!otras.length) return null;
+    let destino = inicio, y = y0, marca = null, raf = 0;
+    const limpiar = () => { if (marca) { marca.style.removeProperty('box-shadow'); marca = null; } };
+    const colocar = () => {
+      const i = otras.findIndex(row => { const b = row.getBoundingClientRect(); return y < b.top + b.height / 2; });
+      destino = i < 0 ? otras.length : i; limpiar();
+      if (destino === inicio) return;
+      marca = otras[Math.min(destino, otras.length - 1)];
+      marca.style.boxShadow = destino === otras.length ? 'inset 0 -3px var(--text)' : 'inset 0 3px var(--text)';
+    };
+    const sc = ordScroller(cont);
+    const borde = () => {
+      const b = sc === document.scrollingElement || sc === document.documentElement ? {top:0,bottom:innerHeight} : sc.getBoundingClientRect();
+      const dy = y < b.top + 40 ? -8 : y > b.bottom - 40 ? 8 : 0;
+      if (dy && r.isConnected) { const pre = sc.scrollTop; sc.scrollTop += dy; if (pre !== sc.scrollTop) colocar(); }
+      raf = requestAnimationFrame(borde);
+    };
+    cont.dataset.arrVisual = '1'; r.classList.add('arr'); raf = requestAnimationFrame(borde);
+    return {mv(x2,y2) { y = y2; colocar(); }, fin(ok) { cancelAnimationFrame(raf); limpiar(); delete cont.dataset.arrVisual; r.classList.remove('arr'); if (ok && r.isConnected) aceptar(r, filas, destino); }};
+  }});
+}
+window.enlazarOrdenVisual = enlazarOrdenVisual;
 function arrGesto(cont, o) {
   if (!cont || cont.dataset.arrG) return; cont.dataset.arrG = '1';
   const MS = o.ms || 350, TOL = 10, ASA = o.asa || '[data-asa]';
@@ -14511,16 +14612,17 @@ function agRutFilaHtml(g, cadM, its, now, pTodo) {
   //      ya pasó su hora (2.19.8: ese resta XP; la fila cerrada lo dice igual que lo decía cada fila en 2.21.2).
   const P = agRutPrimPend(g) || L, tardeDe = x => !agHecho(x) && !agSaltado(x) && /^\d\d:\d\d$/.test(x.h || '') && toMin(x.h) + (x.min || 30) < now, tarde = ms.some(tardeDe);
   const corre = ms.find(x => !agHecho(x) && tempDe(x.id));
+  const visuales = hbVisuales(g.r), indice = new Map(visuales.map((h, i) => [h.id, i]));
   const sub = it => {
     const o = agHecho(it), hh = !agHorasOcultas() && /^\d\d:\d\d$/.test(it.h || '') ? fmtHora(it.h) : '', mm = fmtMin(agMinDe(it)), td = tardeDe(it);
     const sm = `${hh ? `<span class="${td ? 'ag-sub-tarde' : ''}">${esc(hh)}${td ? ' · tarde' : ''}</span>` : td ? '<span class="ag-sub-tarde">Tarde</span>' : ''}${(hh || td) && mm ? ' · ' : ''}${esc(mm)}`;
     let det = ''; try { det = agDetTxt(it, cadM); } catch {}
     const x = cadM.get(it.id), lb = `${it.t}. ${x?.prev ? `Después de ${agTrasTxt(x)}${/^\d\d:\d\d$/.test(it.h || '') ? `, hacia las ${fmtHora(it.h)}` : ''}. ` : ''}Abrir su ficha`;
-    return `<div class="ag-sub${o ? ' ok' : ''}" data-sub="${esc(it.id)}"><button type="button" class="box ag-box${o ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecho: ${esc(it.t)}" aria-pressed="${o}"></button><div class="t" role="button" tabindex="0" data-open="${esc(it.id)}" aria-label="${esc(lb)}" title="${esc(lb)}"><div>${esc(it.t)}</div><small>${sm}${det ? ` · ${esc(det)}` : ''}</small></div>${o ? '' : agPildoraHtml(it, o).replace(/^ · /, '').replace(/(<span class="ag-pil-i">)([^<]+)(<\/span>)/, '$1<span class="ag-pil-m">$2</span>$3')}</div>`;
+    return `<div class="ag-sub${o ? ' ok' : ''}" data-ref="${esc(it.ref)}" data-sub="${esc(it.id)}"><span class="hb-num-visual" aria-label="Puesto en la rutina">${(indice.get(it.ref) ?? 0) + 1}</span><button type="button" class="box ag-box${o ? ' on' : ''}" data-chk="${esc(it.id)}" aria-label="Hecho: ${esc(it.t)}" aria-pressed="${o}"></button><div class="t" role="button" tabindex="0" data-open="${esc(it.id)}" aria-label="${esc(lb)}" title="${esc(lb)}"><div>${esc(it.t)}</div><small>${sm}${det ? ` · ${esc(det)}` : ''}</small></div>${asaVisual(it.t)}${o ? '' : agPildoraHtml(it, o).replace(/^ · /, '').replace(/(<span class="ag-pil-i">)([^<]+)(<\/span>)/, '$1<span class="ag-pil-m">$2</span>$3')}</div>`;
   };
-  return `<div class="row ag-it ag-rut${ok ? ' ok' : ''}${ab ? ' ag-ab' : ''}${pTodo ? ' og-r' : ''}" data-id="${esc(L.id)}"${pTodo ? ` data-ok="${esc(L.id)}"` : ''} data-rut="${esc(g.r)}" data-rut-ids="${esc(ms.map(x => x.id).join(' '))}">${agRkHtml(L, its)}<button type="button" class="box ag-box ag-rut-box${ok ? ' on' : hc ? ' part' : ''}" data-exp="${esc(k)}" aria-expanded="${ab}" aria-label="${esc(g.n)}: ${hc} de ${n} hechos. Toca para elegir cuáles marcar"></button>
+  return `<div class="row ag-it ag-rut${ok ? ' ok' : ''}${ab ? ' ag-ab' : ''}${pTodo ? ' og-r' : ''}" data-id="${esc(L.id)}"${pTodo ? ` data-ok="${esc(L.id)}"` : ''} data-rut="${esc(g.r)}" data-rut-ids="${esc(ms.map(x => x.id).join(' '))}"><button type="button" class="box ag-box ag-rut-box${ok ? ' on' : hc ? ' part' : ''}" data-exp="${esc(k)}" aria-expanded="${ab}" aria-label="${esc(g.n)}: ${hc} de ${n} hechos. Toca para elegir cuáles marcar"></button>
       <div class="t" role="button" tabindex="0" data-exp="${esc(k)}" aria-expanded="${ab}"><div>${esc(g.n)}</div><small>Rutina · ${hc} de ${n}${corre && !ab ? agPildoraHtml(corre, false) : ''}</small></div>
-      ${agTagHtml(P, P === L ? cadM : null, tarde)}${ab ? `<div class="ag-ex ag-rut-ex"><div class="ag-subs" role="group" aria-label="Hábitos de ${esc(g.n)}">${ms.map(sub).join('')}</div>${ok ? '' : agRutGoHtml(g.r)}</div>` : ''}</div>`;
+      ${asaVisual(g.n)}${agTagHtml(P, P === L ? cadM : null, tarde)}${ab ? `<div class="ag-ex ag-rut-ex"><div class="ag-subs" role="group" aria-label="Hábitos de ${esc(g.n)}">${ms.slice().sort((a,b) => indice.get(a.ref) - indice.get(b.ref)).map(sub).join('')}</div>${ok ? '' : agRutGoHtml(g.r)}</div>` : ''}</div>`;
 }
 // (v2) El primero de la rutina que falta (ni hecho ni «hoy no»); null si no falta ninguno. Su hora es la de la fila.
 // La fila de una rutina cuyo primero ya está hecho se coloca a la hora del siguiente que falta (lo demás no se mueve).
@@ -17958,7 +18060,7 @@ const estRepartido = (r, b) => !!(r && b && r.hechos && !r.hechos[b.id] && b.d <
 // ---------- Bloques enriquecidos y textos.
 function estEnriquecer(r, b) {
   const m = estMateria(r.materia), hi = r.hechos[b.id] || null;
-  return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', iden: r.iden || (m && m.iden) || '', habito: r.habito || (m && m.habito) || '', examen: r.fecha, hecho: !!hi, hechoInfo: hi ? { ...hi } : null, ...(() => { if (hi) return {}; try { return estEjOn(r) ? { ej: estEjSug(r, b), ejPlan: b.ej, ejSug: true } : {}; } catch { return {}; } })() };   // 2.22.6 (E) · con meta de ejercicios, los sugeridos
+  return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', iden: r.iden || (m && m.iden) || '', habito: r.habito || (m && m.habito) || '', examen: r.fecha, hecho: !!hi, hechoInfo: hi ? { ...hi } : null, ...(() => { if (hi) return {}; try { return estEjOn(r) || r.minEjSesion ? { ej: estEjSug(r, b), ejPlan: b.ej, ejSug: true } : {}; } catch { return {}; } })() };   // 2.22.6 (E) · con meta de ejercicios, los sugeridos
 }
 function estJornadas(r) {
   const fuera = estSesFueraSet(r);
@@ -18509,6 +18611,7 @@ function estCrear(datos = {}) {
     config: { ...estD().cfg, ...(datos.config && typeof datos.config === 'object' ? datos.config : {}) }, plan: [], hechos: {}, pendientes: [], iden: datos.iden, obj: datos.obj, habito: datos.habito,
     notion: null, gcal: {}, aviso: null, resultado: null, creado: Date.now(), cambiado: Date.now(), replan: 0, archivada: false });
   if (ini && ini > hoy) r.inicio = { d: ini, mod: Date.now() };   // 2.22.3 (I) · hoy (o nada) = como siempre
+  if (+datos.minEjSesion > 0) { r.minEjSesion = estMinEjN(datos.minEjSesion); r.minEjSesionMod = Date.now(); }
   if (mtE) { r.metaTipo = mtE; r.metaEj = mtN; r.metaEjMod = Date.now(); }   // 2.22.6 (E) · con «Ejercicios», sin meta de horas
   if (mtE !== 'ej' && datos.meta && typeof datos.meta === 'object' && +datos.meta.min > 0) { r.meta = estNormRuta({ ...r, meta: { min: datos.meta.min, dias: Array.isArray(datos.meta.dias) && datos.meta.dias.length ? datos.meta.dias : [0, 1, 2, 3, 4, 5, 6], mod: Date.now() } }).meta; r.config.porDia = estMetaPorDia(r.config.porDia, r.meta.dias, r.meta); }   // 2.21.8 (D)
   if (r.meta && datos.meta && datos.meta.base) { const nb = estMetaBaseN({ base: datos.meta.base }); if (nb.base) { r.meta.base = nb.base; r.meta.desde = estMetaDesde(); if (+datos.meta.red > 0 && +datos.meta.red < 15) r.meta.red = Math.round(+datos.meta.red); } }   // 2.21.8 (K)
@@ -18550,6 +18653,10 @@ function estEditar(id, cambios = {}) {
   const sesCrudo = replan && !r.terminada && !!r.ses && (iniCambio || estSesClave(r) !== sesK0);   // 2.22.5 (R) · cambió lo que define N: hay que reacomodar
   if (replan && !r.terminada) { estPlanificar(r, today(), sesCrudo ? { sinSes: true } : {}); r.replan = Date.now(); }   // 2.20.1 (T) · terminada: sin plan nuevo
   if (sesCrudo && r.ses) { const on = !!estMetaOn(r), q = { ...r.ses, sucio: true, mod: Math.max(Date.now(), (+r.ses.mod || 0) + 1) }; if (on) delete q.h; else q.h = Math.max(1, estSesHorasPlan(r)); r.ses = q; }   // 2.22.5 (R) · sin meta: las horas nuevas salen de los ajustes nuevos
+  if (cambios.minEjSesion !== undefined && estMinEjN(cambios.minEjSesion) !== (r.minEjSesion || 0)) {
+    r.minEjSesion = estMinEjN(cambios.minEjSesion);
+    r.minEjSesionMod = Math.max(Date.now(), (+r.minEjSesionMod || 0) + 1);
+  }
   if (mtE && (mtE.t !== r.metaTipo || mtE.n !== estMetaEjN(r))) { if (mtE.t === 'ej' && metaAntes && +metaAntes.min > 0) r.metaHAnt = Math.round(+metaAntes.min); r.metaTipo = mtE.t; r.metaEj = mtE.n; r.metaEjMod = Math.max(Date.now(), (+r.metaEjMod || 0) + 1); }   // 2.22.6 (E) · (metaHAnt: las horas que tenía, por si vuelve a «Horas»)
   if (mtE && mtE.t === 'ej' && metaAntes && +metaAntes.min > 0 && !estMetaOn(r) && !r.terminada && !r.archivada) { try { if (estSesInfo(r).mal) { estSesAplicar(r); r.replan = Date.now(); } } catch (e) { console.warn('Estudio', e); } }   // sin la meta de horas, las sesiones cuadran al momento (como «Reacomodar»)
   r.cambiado = Date.now(); guardar(); estAvisar('ruta', r);
@@ -18590,7 +18697,7 @@ function estMarcar(id, hecho = true, { min, ej, nota, en } = {}) {
   const b = r.plan.find(x => x.id === id), antes = !hecho && r.hechos[id] && typeof r.hechos[id] === 'object' ? { ...r.hechos[id] } : null;   // 2.14.1 (X) · lo anotado, para el oyente al deshacer
   if (hecho) {
     const dz = r.deshechos && typeof r.deshechos === 'object' ? r.deshechos : null;   // 2.17.1 (D) · el hecho nuevo va después de la marca de borrado
-    r.hechos[id] = { en: Math.max(Number.isFinite(+en) && +en > 0 && +en < Date.now() ? Math.round(+en) : Date.now(), dz ? (+dz[id] || 0) + 1 : 0),   /* 2.25.1 (R) · «en»: solo hacia atrás */ min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : estEjSug(r, b), nota: String(nota ?? '').trim().slice(0, 200) };
+    r.hechos[id] = { en: Math.max(Number.isFinite(+en) && +en > 0 && +en < Date.now() ? Math.round(+en) : Date.now(), dz ? (+dz[id] || 0) + 1 : 0),   /* 2.25.1 (R) · «en»: solo hacia atrás */ min: Number.isFinite(+min) && +min > 0 ? Math.round(+min) : b.min, ej: ej !== undefined && ej !== null && ej !== '' && Number.isFinite(+ej) ? Math.max(0, Math.round(+ej)) : (estEjOn(r) || r.minEjSesion ? 0 : estEjSug(r, b)), nota: String(nota ?? '').trim().slice(0, 200) };
     if (dz) delete dz[id];
     const ks = Object.keys(r.hechos); if (ks.length > 1600) for (const k of ks.sort((x, y) => (r.hechos[x].en || 0) - (r.hechos[y].en || 0)).slice(0, ks.length - 1600)) delete r.hechos[k];
   } else {
@@ -18775,6 +18882,7 @@ const estSesMalR = r => { try { return estSesInfo(r).mal; } catch { return false
 let estCompletarCon = null;   // { id, min, ej, nota }: lo de la hoja «Completar» mientras marca (lo lee estMarcar)
 const EST_MT = ['horas', 'ej', 'ambas'];
 function estMetaTipo(r) { const t = r && r.metaTipo; return EST_MT.includes(t) ? t : 'horas'; }
+function estMinEjN(n) { return Math.max(0, Math.min(10000, Math.round(+n || 0))); }
 function estMetaEjN(r) { return Math.max(0, Math.round(+(r && r.metaEj) || 0)); }
 function estEjOn(r) { const t = estMetaTipo(r); return (t === 'ej' || t === 'ambas') && estMetaEjN(r) > 0; }
 function estEjHechos(r) { let e = 0; for (const [k, h] of Object.entries((r && r.hechos) || {})) { if (!h || typeof h !== 'object' || k === 'aviso') continue; e += Math.max(0, Math.round(+h.ej || 0)); } for (const x of Array.isArray(r && r.sesiones) ? r.sesiones : []) e += Math.max(0, Math.round(+(x && x.ej) || 0)); return e; }
@@ -18798,7 +18906,7 @@ function estEjPlan(r) {
 }
 // Los ejercicios sugeridos de un bloque sin hacer (sin meta de ejercicios, los del bloque).
 function estEjSug(r, b) {
-  if (!r || !b) return 0; const raw = Math.max(0, Math.round(+b.ej || 0)); if (!estEjOn(r)) return raw;
+  if (!r || !b) return 0; const raw = Math.max(estSesTipo(b) ? r.minEjSesion || 0 : 0, Math.round(+b.ej || 0)); if (!estEjOn(r)) return raw;
   const pl = estEjPlan(r), s = pl.map.has(b.id) ? pl.map.get(b.id) : estSesTipo(b) ? pl.por : 0; return Math.max(s, raw);
 }
 function estEjInfo(x) {
@@ -18810,7 +18918,7 @@ function estEjInfo(x) {
   const tot = dias.size, pas = [...dias].filter(d => d < hoy).length, vivo = !r.archivada && !r.terminada;
   const esperado = tot ? Math.floor(meta * pas / tot) : 0, deuda = vivo ? Math.max(0, esperado - hechos) : 0;
   let horasOk = true; if (tipo === 'ambas') { try { const m = estMetaInfo(r); horasOk = !(m && m.on && m.deuda); } catch {} }
-  return { on, tipo, meta, hechos, faltan, esperado, deuda, alDia: deuda === 0, por: pl.por, ses: pl.k, horasOk };
+  return { on, tipo, meta, hechos, faltan, esperado, deuda, alDia: deuda === 0, por: Math.max(r.minEjSesion || 0, pl.por), ses: pl.k, horasOk };
 }
 // Con meta de ejercicios: «Meta 300 ejercicios · Hechos 40 · Faltan 260 · Al día» (texto; la interfaz lo pinta con colores).
 function estEjT(x) {
@@ -18821,8 +18929,8 @@ function estEjT(x) {
 const EST_MT_T = { horas: 'horas', ej: 'ejercicios', ambas: 'horas y ejercicios' };
 function estEjIA(r) {
   const i = estEjInfo(r); if (!i) return {};
-  if (!i.on) return { meta: EST_MT_T[i.tipo === 'horas' ? 'horas' : i.tipo] || 'horas' };
-  return { meta: EST_MT_T[i.tipo], meta_ejercicios: i.meta, ejercicios_hechos: i.hechos, ejercicios_faltan: i.faltan, ejercicios_por_sesion: i.por, ejercicios_estado: estEjT(i) };
+  if (!i.on) return { minimo_ejercicios_sesion: r.minEjSesion || 0, meta: EST_MT_T[i.tipo === 'horas' ? 'horas' : i.tipo] || 'horas' };
+  return { meta: EST_MT_T[i.tipo], minimo_ejercicios_sesion: r.minEjSesion || 0, meta_ejercicios: i.meta, ejercicios_hechos: i.hechos, ejercicios_faltan: i.faltan, ejercicios_por_sesion: i.por, ejercicios_estado: estEjT(i) };
 }
 
 // Los números en el orden del plan (después de mover una sesión): los mismos números, ordenados por día y hora.
@@ -19468,7 +19576,7 @@ function euUltimoDelTema(r, b) {
 // «hecho hoy», «hecho ayer» o «hecho el 4 nov» (nada si el registro no trae una fecha válida).
 const euHechoEl = en => { const k = +en > 0 ? dayKey(new Date(+en)) : ''; if (!euF(k)) return ''; const f = fmtFecha(k); return /^(Hoy|Ayer)$/.test(f) ? ' ' + f.toLowerCase() : ' el ' + esc(f); };
 // Un bloque de cualquier ruta (también archivada), enriquecido como los de est.bloque.
-function euEnr(r, b) { const m = EU()?.materia(r.materia); return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', examen: r.fecha, hecho: !!r.hechos[b.id], hechoInfo: r.hechos[b.id] ? { ...r.hechos[b.id] } : null, ...(() => { try { const E = EU(); return !r.hechos[b.id] && E && E.ejOn && E.ejOn(r) ? { ej: E.ejSug(r, b), ejPlan: b.ej, ejSug: true } : {}; } catch { return {}; } })() }; }   // 2.22.6 (E)
+function euEnr(r, b) { const m = EU()?.materia(r.materia); return { ...b, ruta: r.id, rutaNombre: r.nombre, materia: m ? m.nombre : '', color: m ? m.color : '', examen: r.fecha, hecho: !!r.hechos[b.id], hechoInfo: r.hechos[b.id] ? { ...r.hechos[b.id] } : null, ...(() => { try { const E = EU(); return !r.hechos[b.id] && E && (E.ejOn(r) || r.minEjSesion) ? { ej: E.ejSug(r, b), ejPlan: b.ej, ejSug: true } : {}; } catch { return {}; } })() }; }   // 2.22.6 (E)
 function euBloqueDe(id) { const E = EU(); if (!E) return null; const b = E.bloque(id); if (b) return b; const r = E.rutas(true).find(x => x.plan.some(y => y.id === id)); return r ? euEnr(r, r.plan.find(y => y.id === id)) : null; }
 // Chips «Vota por» (área J) si hay identidades; si no, nada.
 const euIdnChips = sel => { try { return typeof jdChipsHtml === 'function' ? jdChipsHtml('eu', sel || '') : (window.idn?.chips?.(sel || '', 'eu') || ''); } catch { return ''; } };
@@ -19494,7 +19602,7 @@ function euWire(body) {
 }
 // «¿Cuántos ejercicios?»: 0 … ej (hasta seis chips), el del bloque elegido.
 function euEjVals(ej) { const s = new Set([0]); if (ej <= 6) for (let i = 1; i <= ej; i++) s.add(i); else for (const q of [.25, .5, .75]) s.add(Math.round(ej * q)); s.add(ej); return [...s].sort((a, b) => a - b); }
-const euEjChips = (pref, ej) => `<div class="eu-ej" data-ej="${esc(pref)}"><p class="meta" style="margin:0 0 6px">¿Cuántos ejercicios?</p>${euPickChips(pref, euEjVals(ej).map(v => [v, String(v)]), ej)}</div>`;
+const euEjChips = (pref, ej, inicial = ej) => `<div class="eu-ej" data-ej="${esc(pref)}"><p class="meta" style="margin:0 0 6px">¿Cuántos ejercicios?</p>${euPickChips(pref, euEjVals(ej).map(v => [v, String(v)]), inicial)}</div>`;
 
 // ---------- Filas: un bloque (con [Empezar] [Hecho] si es de hoy y está pendiente) y una tarea o entrega (con casilla).
 function euBloqueRow(b, { botones = true, comp = false } = {}) {
@@ -19531,13 +19639,13 @@ function euWirePend(cont, pintar) {
 function euEmpezar(id) {
   const E = EU(), b = E ? euBloqueDe(id) : null; if (!b) return;
   closeSheet(); irA('enfoque'); startFocus(E.textoBloque(b), Math.max(5, Math.min(120, b.min || 25)), '', 0, 'estudio');
-  if (ES.sesion) { ES.sesion.est = b.id; guardar(); }   // queda en el registro local del teléfono junto con la sesión
+  if (ES.sesion) { ES.sesion.est = b.id; guardar(); euMinimosFoco(b.id); }   // queda en el registro local del teléfono junto con la sesión
 }
 // [Hecho]: con ejercicios, primero los chips «¿Cuántos ejercicios?» bajo la fila; sin ellos, se marca al momento.
 function euHechoDesde(cont, id, pintar) {
   const b = euBloqueDe(id); if (!b) return;
   const row = cont.querySelector(`.eu-b[data-b="${CSS.escape(id)}"]`);
-  if (b || !row) { euMarcar(id, b.ej, pintar); return; }   // 2.21.7 (E) · al momento: «¿Cuánto estudiaste?» sale después
+  if (b || !row) { euMarcar(id, undefined, pintar); return; }   // 2.21.7 (E) · al momento: «¿Cuánto estudiaste?» sale después
   const ya = row.nextElementSibling; if (ya && ya.classList.contains('eu-ej') && ya.dataset.ej === id) { ya.remove(); return; }
   cont.querySelectorAll('.eu-ej').forEach(x => x.remove());
   row.insertAdjacentHTML('afterend', `<div class="eu-ej" data-ej="${esc(id)}"><p class="meta" style="margin:0 0 6px">¿Cuántos ejercicios?</p>${euPickChips('ej-' + id, euEjVals(b.ej).map(v => [v, String(v)]), b.ej)}<div class="actions" style="margin-top:10px"><button class="link" data-no>Ahora no</button><button class="primary" data-si data-guarda>Hecho</button></div></div>`);
@@ -19586,19 +19694,22 @@ function euHoyHtml(H) {
 // ---------- 2.22.6 (E) · Meta de ejercicios: la línea de progreso, la elección de la meta y lo de terminar.
 const euEjOnR = r => { try { return !!EU()?.ejOn?.(r); } catch { return false; } };
 function euEjLinea(r, ficha = false) {
-  const E = EU(); let x = null; try { x = E.ejInfo(r); } catch {} if (!x || !x.on) return '';
+  const E = EU(); let x = null; try { x = E.ejInfo(r); } catch {} if (!x) return '';
+  const minSesion = r.minEjSesion ? `Mínimo por sesión: ${esc(euEjT(r.minEjSesion))}` : '';
+  if (!x.on) return minSesion ? `<p class="meta">${minSesion} · Total hecho: ${x.hechos}</p>` : '';
   const vivo = !r.archivada && !r.terminada && !!euF(r.fecha) && r.fecha >= today();
   let st = '';
   if (!x.faltan) st = ' · <b class="green">Meta cumplida</b>';
   else if (vivo) st = x.deuda ? (vacCalma() ? ` · <b>Por repartir ${x.deuda}</b>` : ` · <b class="amber">Deuda ${x.deuda}</b>`) : !x.horasOk ? ' · <b class="green">Ejercicios al día</b>' : ' · <b class="green">Al día</b>';   // solo los ejercicios: las sesiones sin agendar ya tienen su aviso con «Reacomodar»
   const por = ficha && vivo && x.faltan && x.ses ? `<p class="meta eu-ej-ses"${ficha ? ' id="eu-f-ejses"' : ''}>Unos ${x.por} por sesión en ${euPl(x.ses, 'sesión', 'sesiones')}</p>` : '';
-  return `<p class="meta eu-ej-prog"${ficha ? ' id="eu-f-ej"' : ''}>Meta ${esc(euEjT(x.meta))} · Hechos ${x.hechos} · Faltan ${x.faltan}${st}</p>${por}`;
+  return `<p class="meta eu-ej-prog"${ficha ? ' id="eu-f-ej"' : ''}>Mínimo total: ${esc(euEjT(x.meta))} · Hechos ${x.hechos} · Faltan ${x.faltan}${st}${minSesion ? `<br>${minSesion}` : ''}</p>${por}`;
 }
 function euEjTer(r, id) { const E = EU(); let x = null; try { x = E.ejInfo(r); } catch {} if (!x || !x.on) return ''; return `<p class="meta" id="${id}">Ejercicios: <b>${x.hechos} de ${x.meta}</b>${x.faltan ? '' : ' · meta cumplida'}.</p>`; }
-function euMetaTipoHtml(p, tipo, n, quita = 0) {
+function euMetaTipoHtml(p, tipo, n, quita = 0, minSesion = 0) {
   tipo = ['horas', 'ej', 'ambas'].includes(tipo) ? tipo : 'horas'; const v = Math.max(0, Math.round(+n || 0)) || 200;
   return `<div class="field eu-mt" id="${p}-mt-f"><label>Meta</label>${euPickChips(p + '-mt', [['horas', 'Horas'], ['ej', 'Ejercicios'], ['ambas', 'Las dos']], tipo)}</div>
-    <div class="field" id="${p}-mej-f"${tipo === 'horas' ? ' hidden' : ''}><label for="${p}-mej">Ejercicios en total hasta el examen</label>${euNumChips(p + '-mej', [100, 200, 300, 500], v, 1, 100000)}</div>
+    <div class="field" id="${p}-mej-f"${tipo === 'horas' ? ' hidden' : ''}><label for="${p}-mej">Mínimo total de ejercicios hasta el examen</label>${euNumChips(p + '-mej', [100, 200, 300, 500], v, 1, 100000)}</div>
+    <div class="field"><label for="${p}-minses">Mínimo de ejercicios por sesión</label><input type="number" inputmode="numeric" id="${p}-minses" min="0" max="10000" step="1" placeholder="Sin mínimo" value="${minSesion || ''}"></div>
     <p class="meta eu-mt-nota" id="${p}-mt-nota"${tipo === 'ej' ? '' : ' hidden'}>Sin meta de horas: mandan los minutos por día.${quita > 0 ? ` <b id="${p}-mt-quita">Se quita la meta de ${esc(fmtMin(quita))}.</b>` : ''}</p>`;
 }
 // Con «Ejercicios» no hay meta de horas: se ocultan las horas (no «¿Qué días estudias?») y mandan los minutos por día.
@@ -19631,12 +19742,14 @@ function euMetaTipoWire(body, p, o = {}) {
   }, true);
   euMetaTipoPoner(body, p, c.dataset.sel);
 }
-function euMetaTipoLeer(body, p, def = 'horas') { const t = euPickLeer(body, p + '-mt', def), i = body.querySelector('#' + p + '-mej'); return { t: ['horas', 'ej', 'ambas'].includes(t) ? t : 'horas', n: euNum(i ? i.value : 0, 0, 0, 100000) }; }
+function euMetaTipoLeer(body, p, def = 'horas') { const t = euPickLeer(body, p + '-mt', def), i = body.querySelector('#' + p + '-mej'); return { t: ['horas', 'ej', 'ambas'].includes(t) ? t : 'horas', n: euNum(i ? i.value : 0, 0, 0, 100000), minSesion: euNum(body.querySelector('#' + p + '-minses')?.value, 0, 0, 10000) }; }
 // El paso «Plan»: lo mismo que dirá la ruta guardada (el borrador en sesiones, como al crearla, y el mismo reparto).
 function euEjP4(N, r0) {
-  if (!N || !['ej', 'ambas'].includes(N.metaTipo) || !(+N.metaEj > 0)) return '';
-  let por = 0, k = 0; try { const y = JSON.parse(JSON.stringify(r0)); y.metaTipo = N.metaTipo; y.metaEj = +N.metaEj; if (!estFechasAct(y)) estSesionar(y); const i = estEjInfo(y); por = i.por; k = i.ses; } catch (e) { console.warn('Estudio', e); }
-  return `<p class="meta" id="eu-p4-ej">Meta ${esc(euEjT(+N.metaEj))}${k ? ` · unos ${por} por sesión en ${euPl(k, 'sesión', 'sesiones')}` : ''}</p>`;
+  if (!N) return '';
+  const porSesion = N.minEjSesion ? `Mínimo por sesión: ${esc(euEjT(N.minEjSesion))}` : '';
+  if (!['ej', 'ambas'].includes(N.metaTipo) || !(+N.metaEj > 0)) return porSesion ? `<p class="meta">${porSesion}</p>` : '';
+  let por = 0, k = 0; try { const y = JSON.parse(JSON.stringify(r0)); y.metaTipo = N.metaTipo; y.metaEj = +N.metaEj; y.minEjSesion = N.minEjSesion || 0; if (!estFechasAct(y)) estSesionar(y); const i = estEjInfo(y); por = i.por; k = i.ses; } catch (e) { console.warn('Estudio', e); }
+  return `<p class="meta" id="eu-p4-ej">${porSesion ? porSesion + '<br>' : ''}Mínimo total: ${esc(euEjT(+N.metaEj))}${k ? ` · unos ${por} por sesión en ${euPl(k, 'sesión', 'sesiones')}` : ''}</p>`;
 }
 function euCardHtml(r) {
   const E = EU(), s = E.resumen(r.id) || {}, m = E.materia(r.materia), lun = lunes(), dom = euDia(lun, 6);
@@ -20095,14 +20208,14 @@ function euPaso3() {
   const N = euN, c = N.config, hasta = Math.max(1, euDiff(today(), N.fecha));
   if (!(c.diasAntes > 0)) c.diasAntes = Math.min(14, hasta);
   const mt = euMetaWiz(N);   // 2.21.8 (D)
-  showSheet(`${euPie(3, 'Tiempo')}<h2>¿Cuánto y cuándo?</h2>${euMetaTipoHtml('eu', N.metaTipo || 'horas', N.metaEj || 0)}${euTiempoHtml('eu', c, hasta, mt)}
+  showSheet(`${euPie(3, 'Tiempo')}<h2>¿Cuánto y cuándo?</h2>${euMetaTipoHtml('eu', N.metaTipo || 'horas', N.metaEj || 0, 0, N.minEjSesion)}${euTiempoHtml('eu', c, hasta, mt)}
     <div class="actions"><button class="link" id="eu-back">Atrás</button><button class="primary" id="eu-next">Ver el plan</button></div>`);
   const body = euBody(); euWire(body); activarFranjas(body); euTiempoWire(body, 'eu');
   const cfgF = () => ({ ...N.config, ...euTiempoLeer(body, 'eu', c) });
   mt.imp = () => euMetaImpCfg(cfgF()); mt.visp = () => euPickLeer(body, 'eu-visp', c.vispera); mt.desdeForm = () => euMetaDiasForm(body, 'eu', c);
   mt.sim = o => euMetaSimWiz({ ...mt, on: o }, cfgF()); mt.lejos = () => euMetaLejos(N.fecha, cfgF(), N.inicio);
   euMetaWire(body, 'eu', mt); euMetaTipoWire(body, 'eu', { mt });   // 2.22.6 (E)
-  const leer = () => { Object.assign(N.config, euTiempoLeer(body, 'eu', c)); N.meta = mt.on ? { min: mt.min, dias: [...mt.dias].sort((a, b) => a - b) } : null; const q = euMetaTipoLeer(body, 'eu', N.metaTipo || 'horas'); N.metaTipo = q.t; N.metaEj = q.n; if (q.t === 'ej') { N.meta = null; delete N.fechas; } }; euLeerPaso = leer;
+  const leer = () => { Object.assign(N.config, euTiempoLeer(body, 'eu', c)); N.meta = mt.on ? { min: mt.min, dias: [...mt.dias].sort((a, b) => a - b) } : null; const q = euMetaTipoLeer(body, 'eu', N.metaTipo || 'horas'); N.metaTipo = q.t; N.metaEj = q.n; N.minEjSesion = q.minSesion; if (q.t === 'ej') { N.meta = null; delete N.fechas; } }; euLeerPaso = leer;
   body.querySelector('#eu-back').onclick = () => { leer(); euPaso(2); };
   body.querySelector('#eu-next').onclick = () => { leer(); if (N.metaTipo !== 'horas' && !(N.metaEj > 0)) { toast('Escribe cuántos ejercicios en total.'); body.querySelector('#eu-mej')?.focus(); return; } if (N.metaTipo === 'ambas' && !(N.meta && +N.meta.min > 0)) { toast('Elige cuántas horas en total.'); return; } euPaso(4); };
 }
@@ -20151,7 +20264,7 @@ function euPaso4() {
   body.querySelector('#eu-back').onclick = () => euPaso(3);
   body.querySelector('#eu-save').onclick = () => {
     try {
-      const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, iden: N.iden, habito: N.habito, obj: N.obj, ...(euF(N.inicio) && N.inicio > today() ? { inicio: N.inicio } : {}), ...(N.meta && +N.meta.min > 0 && N.metaTipo !== 'ej' ? { meta: N.meta, ...(N.fechas ? { fechas: N.fechas } : {}) } : {}), ...(['ej', 'ambas'].includes(N.metaTipo) ? { metaTipo: N.metaTipo, metaEj: N.metaEj } : N.metaTipo === 'horas' ? { metaTipo: 'horas' } : {}) });   // 2.22.6 (E)
+      const ruta = E.crear({ materia: N.nueva ? '' : N.materia, materiaNombre: N.nueva ? N.materiaNombre : '', materiaColor: N.materiaColor, nombre: N.nombre, fecha: N.fecha, hora: N.hora, lugar: N.lugar, temas: N.temas, config: N.config, minEjSesion: N.minEjSesion, iden: N.iden, habito: N.habito, obj: N.obj, ...(euF(N.inicio) && N.inicio > today() ? { inicio: N.inicio } : {}), ...(N.meta && +N.meta.min > 0 && N.metaTipo !== 'ej' ? { meta: N.meta, ...(N.fechas ? { fechas: N.fechas } : {}) } : {}), ...(['ej', 'ambas'].includes(N.metaTipo) ? { metaTipo: N.metaTipo, metaEj: N.metaEj } : N.metaTipo === 'horas' ? { metaTipo: 'horas' } : {}) });   // 2.22.6 (E)
       if (ruta.aviso && body.querySelector('#eu-av')?.hidden) euAvCallar(ruta);   // «Empezar igual»: la tarjeta nueva no vuelve a preguntar
       const n = ruta.plan.filter(b => b.d === hoy).length, m = ruta.plan.filter(b => b.d === euDia(hoy, 1)).length, noche = new Date().getHours() >= 20; euN = null; closeSheet(); toast(euIniFut(ruta) ? `Ruta creada. ${euEmpiezaT(euIniFut(ruta))}.` : !ruta.plan.length && euNocheUltima(ruta.fecha) ? 'Ruta creada. Mañana es el examen: si quieres, haz un repaso ligero ahora.' : noche && !n ? `Ruta creada. Empieza mañana: ${euBlT(m)}.` : `Ruta creada. Hoy: ${euBlT(n)}.`); renderEstudio(); btcTras(N.bt, { tipo: 'ruta', ref: ruta.id });
     } catch (e) { toast(e?.message || 'No se pudo crear la ruta.'); }
@@ -20199,7 +20312,7 @@ function euRutaSheet(id, sec = '') {
       <div class="field"><label>Hora</label><input type="time" id="eu-a-hora" value="${esc(r.hora)}"></div>
       <div class="field"><label>Lugar</label><input id="eu-a-lugar" maxlength="60" value="${esc(r.lugar)}"></div>
       ${euIdnChips(r.iden)}${euHabSelect('eu-a-hab', r.habito)}
-      ${r.terminada ? '' : euMetaTipoHtml('eu-a', EU().metaTipo(r), r.metaEj, r.meta && +r.meta.min > 0 ? +r.meta.min : 0)}
+      ${r.terminada ? '' : euMetaTipoHtml('eu-a', EU().metaTipo(r), r.metaEj, r.meta && +r.meta.min > 0 ? +r.meta.min : 0, r.minEjSesion)}
       <div class="field"><label>Ejercicios por día</label>${euNumChips('eu-a-ej', [0, 5, 10, 20], c.ejDia, 0, 200)}</div>
       ${euTiempoHtml('eu-a', c, pasado || !euF(r.fecha) ? 0 : Math.max(1, euDiff(hoy, r.fecha)), mtA)}
       <div class="actions" style="margin-top:4px"><button class="primary" id="eu-a-ok">Guardar ajustes</button></div></details>
@@ -20252,6 +20365,7 @@ function euRutaSheet(id, sec = '') {
     if (body.querySelector('[data-pick="eu-a-mt"]')) { const q = euMetaTipoLeer(body, 'eu-a', E.metaTipo(r)), n0 = Math.max(0, Math.round(+r.metaEj || 0));   // 2.22.6 (E)
       if (q.t !== 'horas' && !(q.n > 0)) { toast('Escribe cuántos ejercicios en total.'); return; }
       if (q.t === 'ambas' && !mtA.on) { toast('Elige cuántas horas en total.'); return; }
+      if (q.minSesion !== (r.minEjSesion || 0)) cambios.minEjSesion = q.minSesion;
       if (q.t !== E.metaTipo(r) || (q.t !== 'horas' && q.n !== n0)) { cambios.metaTipo = q.t; if (q.t !== 'horas') cambios.metaEj = q.n; }
       if (q.t === 'ej' && r.meta && +r.meta.min > 0) cambios.meta = { min: 0, dias: (Array.isArray(r.meta.dias) ? r.meta.dias : []).slice() }; }
     if (!Object.keys(cambios).length) { toast('Nada que cambiar.'); return; }
@@ -20350,7 +20464,8 @@ function euBloqueSheet(id) {
   const hoy = today(), r = E.ruta(b.ruta), pasado = b.d < hoy && !b.hecho, viva = !!r && !r.archivada && r.fecha > hoy && !!euF(r.fecha), ult = viva && !b.hecho ? euUltimoDelTema(r, b) : null;
   showSheet(`<p class="paso">${esc(E.etiqueta(b))} · ${esc(EU_TIPO[b.tipo] || 'Estudio')}</p><h2>${esc(E.textoBloque(b))}</h2>
     <p class="meta">${esc(r?.nombre || b.rutaNombre || '')} · ${esc(euCuando(b.d))}${b.h ? ` · ${esc(fmtHora(b.h))}` : ' · sin hora'} · ${b.min} min${b.ej ? ` · ${euEjT(b.ej)}` : ''} · ${b.hecho ? `<span class="green">hecho${euHechoEl(b.hechoInfo?.en)}</span>` : pasado ? '<span class="amber">quedó sin hacer: se reparte al replanificar</span>' : 'pendiente'}</p>
-    ${!b.hecho ? `<div class="actions stack" style="margin-top:6px"><button class="primary" id="eu-b-go" aria-label="Empezar acción: ${b.min} min de enfoque">Empezar acción</button>${b.ej ? euEjChips('eu-b-ej', b.ej) : ''}<button class="outline" id="eu-b-ok" data-guarda>Marcar hecho</button>${r && r.terminada ? '' : `<button class="link" data-comp="${esc(b.id)}" style="min-height:44px">Completar</button>`}</div>`
+    ${euProgresoEj(r, null) ? `<p class="meta">${esc(euProgresoEj(r, null))}</p>` : ''}
+    ${!b.hecho ? `<div class="actions stack" style="margin-top:6px"><button class="primary" id="eu-b-go" aria-label="Empezar acción: ${b.min} min de enfoque">Empezar acción</button>${b.ej ? euEjChips('eu-b-ej', b.ej, r && (r.minEjSesion || E.ejOn(r)) ? 0 : b.ej) : ''}<button class="outline" id="eu-b-ok" data-guarda>Marcar hecho</button>${r && r.terminada ? '' : `<button class="link" data-comp="${esc(b.id)}" style="min-height:44px">Completar</button>`}</div>`
       : `<p class="meta">${b.hechoInfo ? `${b.hechoInfo.min} min${b.hechoInfo.ej ? ` · ${euEjT(b.hechoInfo.ej)}` : ''}${b.hechoInfo.nota ? ` · ${esc(b.hechoInfo.nota)}` : ''}` : ''}</p><div class="actions" style="margin-top:0"><button class="link" data-exq-abrir="${esc(b.id)}" style="min-height:44px">Cambiar lo estudiado</button><button class="link" id="eu-b-undo">Desmarcar</button></div>`}
     ${viva && !b.hecho ? `<details class="eu-sec" id="eu-b-mover"><summary>Mover a otro día</summary><div class="field" style="margin-top:8px"><label>Día</label><input type="date" id="eu-b-f" min="${hoy}" max="${esc(euDia(r.fecha, -1))}" value="${esc(b.d >= hoy ? b.d : hoy)}"></div><div class="field"><label>Hora <span class="meta">(vacía = la reparte la Agenda)</span></label><input type="time" id="eu-b-fh" value="${esc(euHoraLibre(b, b.d >= hoy ? b.d : hoy))}"></div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-mv">Mover</button></div></details>
       <details class="eu-sec" id="eu-b-hora"><summary>Cambiar hora</summary><div class="field" style="margin-top:8px"><label>Hora</label>${franjaChips('eu-b-h', b.h)}${horaInput('eu-b-h', b.h)}</div><div class="actions" style="margin-top:4px"><button class="primary" id="eu-b-ch">Cambiar hora</button></div></details>` : ''}
@@ -20407,6 +20522,30 @@ function euSesHtml(r) {
   return `<h3 id="eu-ses-h">Anotado aparte</h3><div class="rows" id="eu-f-ses">${L.map(x => `<div class="row eu-ses" data-ses="${esc(x.id)}" role="button" tabindex="0" aria-label="Cambiar lo anotado del ${esc(euCuando(x.d).toLowerCase())}"><span class="dot" style="--c:var(--muted)"></span><span class="t"><div>${esc(euCuando(x.d))} · ${esc(euRealTxt(x))}</div>${x.temaT ? `<small>${esc(x.temaT)}</small>` : ''}</span><span class="meta" style="margin:0">Cambiar</span></div>`).join('')}</div>`;
 }
 // «Anotar estudio»: ruta (si hay varias), minutos, ejercicios, tema opcional y día (hoy). Con sesId, cambiarla o borrarla.
+function euProgresoEj(r, cantidad, previo = 0) {
+  if (!r || (!r.minEjSesion && !EU().ejOn(r))) return '';
+  const texto = [], min = r.minEjSesion || 0;
+  if (min) texto.push(cantidad == null ? `Mínimo por sesión: ${euEjT(min)}` : `Sesión: ${cantidad} de ${min} ejercicios · ${cantidad >= min ? 'mínimo cumplido' : 'faltan ' + (min - cantidad)}`);
+  if (EU().ejOn(r)) {
+    const i = EU().ejInfo(r), total = i.hechos + (cantidad == null ? 0 : cantidad - previo);
+    texto.push(`${cantidad == null ? 'Total registrado' : 'Total al guardar'}: ${total} de ${i.meta} ejercicios`);
+  }
+  return texto.join(' · ');
+}
+function euMinimosFoco(id) {
+  const el = $('#f-minimos'), b = EU()?.bloque(id);
+  if (el && b) { el.textContent = euProgresoEj(EU().ruta(b.ruta), null); el.hidden = !el.textContent; }
+}
+function euProgresoEjWire(body, ruta, previo = 0) {
+  const out = body.querySelector('[data-ej-progreso]'), q = body.querySelector('.exq');
+  const pintar = () => {
+    out.textContent = euProgresoEj(ruta(), exqLeer(q).ej, previo);
+    out.hidden = !out.textContent;
+  };
+  q.addEventListener('input', pintar);
+  pintar();
+  return pintar;
+}
 function euAnotarSheet(rutaId = '', sesId = '', volver = null) {
   const E = EU(); if (!E || typeof E.sesionCrear !== 'function') return;
   const x0 = sesId ? E.sesiones().find(x => x.id === sesId) || null : null;
@@ -20419,11 +20558,13 @@ function euAnotarSheet(rutaId = '', sesId = '', volver = null) {
   showSheet(`<p class="paso">Estudio</p><h2>${x0 ? 'Lo anotado' : 'Anotar estudio'}</h2>
     ${!x0 && rutas.length > 1 ? `<div class="field"><label>Ruta</label>${euPickChips('ea-ruta', rutas.map(r => [r.id, matDe(r) ? `${r.nombre} · ${matDe(r)}` : r.nombre]), rid)}</div>` : `<p class="meta">${esc(r0?.nombre || '')}${r0 && matDe(r0) ? ` · ${esc(matDe(r0))}` : ''}</p>`}
     <div class="exq exq-in exq-hoja" data-exq-ref="" data-sin-hecho>${exqCampos(x0 ? x0.min : 30, x0 ? x0.ej : 0)}</div>
+    <p class="meta" role="status" data-ej-progreso hidden></p>
     <div class="field"><label for="ea-tema">Tema <span class="meta">(opcional)</span></label><select id="ea-tema">${temasHtml(r0, x0 ? x0.tema : '')}</select></div>
     <div class="field"><label for="ea-d">Día</label><input type="date" id="ea-d" max="${hoy}" value="${esc(x0 ? x0.d : hoy)}"></div>
     <div class="actions">${x0 ? '<button class="link" id="ea-del">Borrar</button>' : ''}<button class="link" id="ea-x">Cancelar</button><button class="primary" id="ea-ok">Guardar</button></div>`);
   const body = euBody(); euWire(body);
-  body.querySelector('[data-pick="ea-ruta"]')?.addEventListener('pick', e => { rid = e.detail; const s = body.querySelector('#ea-tema'); if (s) s.innerHTML = temasHtml(E.ruta(rid), ''); });
+  const progreso = euProgresoEjWire(body, () => E.ruta(rid), x0?.ej || 0);
+  body.querySelector('[data-pick="ea-ruta"]')?.addEventListener('pick', e => { rid = e.detail; progreso(); const s = body.querySelector('#ea-tema'); if (s) s.innerHTML = temasHtml(E.ruta(rid), ''); });
   const fin = () => { if (volver) volver(); else closeSheet(); renderEstudio(); };
   body.querySelector('#ea-x').onclick = () => { if (volver) volver(); else closeSheet(); };
   body.querySelector('#ea-ok').onclick = () => {
@@ -20718,7 +20859,7 @@ function exCompletar(id, o = {}) {
   const r = (E.rutas(true) || []).find(x => x.id === b.ruta) || null; if (r && r.terminada) { toast('La ruta está terminada: queda como registro.'); return; }
   if (!b.hecho && !E.jornadaPermitida(id)) return;
   let ejOn = false; try { ejOn = !!(r && (E.ejOn(r) || +r.config.ejDia > 0)) || +b.ej > 0 || !!(b.hechoInfo && +b.hechoInfo.ej > 0); } catch {}
-  const hi = b.hecho && b.hechoInfo ? b.hechoInfo : null, min = Math.max(1, Math.round(+(hi ? hi.min : 0) || +b.min || 25)), ej = Math.max(0, Math.round(+(hi ? hi.ej : b.ej) || 0)), nota = hi ? String(hi.nota || '') : '';
+  const hi = b.hecho && b.hechoInfo ? b.hechoInfo : null, min = Math.max(1, Math.round(+(hi ? hi.min : 0) || +b.min || 25)), ej = Math.max(0, Math.round(+(hi ? hi.ej : r && (r.minEjSesion || E.ejOn(r)) ? 0 : b.ej) || 0)), nota = hi ? String(hi.nota || '') : '';
   let ses = ''; try { ses = E.sesTexto(b) || ''; } catch {}
   const cuando = typeof euCuando === 'function' ? euCuando(b.d) : b.d;
   const cs = exqCampos(min, ej), cut = cs.indexOf('<div class="exq-f">', 1), cMin = cs.slice(0, cut), cEj = cs.slice(cut);
@@ -20726,9 +20867,11 @@ function exCompletar(id, o = {}) {
   showSheet(`<p class="paso">${esc([ses, cuando].filter(Boolean).join(' · '))}</p><h2>${b.hecho ? '¿Cuánto estudiaste?' : 'Completar'}</h2>
     <p class="note">${esc(E.textoBloque(b))} · el plan traía ${fmtMin(b.min)}${b.ej ? ` y ${b.ejSug ? 'unos ' : ''}${exEj(b.ej)}` : ''}.</p>
     <div class="exq exq-in exq-hoja exc" data-exq-ref="" data-sin-hecho>${cMin}${ejOn ? cEj : `<details class="eu-sec exc-ej"><summary>Ejercicios (opcional)</summary>${cEj}</details>`}</div>
+    <p class="meta" role="status" data-ej-progreso hidden></p>
     <div class="field" style="margin-top:12px"><label for="exc-nota">Nota <span class="meta">(opcional)</span></label><textarea id="exc-nota" class="eu-res exc-nota" rows="2" maxlength="200" placeholder="Qué hiciste o qué quedó pendiente">${esc(nota)}</textarea></div>
     <div class="actions">${b.hecho ? '<button class="link" id="exc-undo" style="min-height:44px">Desmarcar</button>' : ''}<button class="link" id="exc-x" style="min-height:44px">Cancelar</button><button class="primary" id="exc-ok" style="min-height:44px">Guardar</button></div>`);
   const body = $('#sheet-body'); body.scrollTop = 0;
+  euProgresoEjWire(body, () => r, hi?.ej || 0);
   body.querySelector('#exc-x').onclick = () => volver();
   body.querySelector('#exc-undo')?.addEventListener('click', () => {
     try { if (typeof o.desmarcar === 'function') o.desmarcar(); else { const it = exItemDe(id); if (it) agMarcar(it, false); else E.marcar(id, false); } } catch (e) { console.warn('Completar', e); }
@@ -20764,7 +20907,7 @@ function exqClick(e) {
   const q = t.closest('.exq'); if (!q) return;
   if (q.id === 'ex-cuanto') clearTimeout(exCuantoT);   // tocado: ya no se va solo
   const d = t.closest('[data-exq-d]');
-  if (d) { const k = d.dataset.exqK, i = q.querySelector(`[data-exq="${k}"]`); if (i) i.value = String(exqNum((exqVal(q, k) || 0) + (+d.dataset.exqD || 0), k === 'min' ? 1 : 0, k === 'min' ? 1440 : 10000, 0)); return; }
+  if (d) { const k = d.dataset.exqK, i = q.querySelector(`[data-exq="${k}"]`); if (i) { i.value = String(exqNum((exqVal(q, k) || 0) + (+d.dataset.exqD || 0), k === 'min' ? 1 : 0, k === 'min' ? 1440 : 10000, 0)); i.dispatchEvent(new Event('input', { bubbles: true })); } return; }
   if (t.closest('[data-exq-x]')) { exCuantoQuitar(q.dataset.exqRef); return; }
   if (t.closest('[data-exq-ok]') && q.dataset.exqRef) { const id = q.dataset.exqRef, v = exqLeer(q); exCuantoQuitar(id); exCuantoGuardar(id, v); }
 }
@@ -20814,7 +20957,7 @@ function exEmpezar(it) {
   if (!window.est.jornadaPermitida(it.ref)) return;
   const min = Math.max(5, Math.min(120, +it.min || 25));
   startFocus(it.t, min, '', 0, 'estudio');
-  if (ES.sesion) { ES.sesion.est = it.ref; guardar(); }
+  if (ES.sesion) { ES.sesion.est = it.ref; guardar(); euMinimosFoco(it.ref); }
 }
 function exEmpezarBloque(b) {
   if (!b || !window.est.jornadaPermitida(b.id)) return; closeSheet(); irA('enfoque');
@@ -21545,7 +21688,7 @@ function esToolRutaMeta(E, a) {
   if (!r) throw new Error(`No encontré esa ruta. Rutas: ${rutas.map(x => `${x.nombre} (${esMat(x)})`).join(', ')}.`);
   const dias = esDiasIA(a.dias), h = esHorasIA(a.horas_total), fx = esFechasIA(a);   // 2.21.8 (K)
   { const iniIA = esF(a.inicio); if (iniIA) { E.editar(r.id, { inicio: iniIA }); if (!dias.length && !h && !fx.n && !a.repartir_deuda) { if (view === 'estudio') window.renderEstudio?.(); const n = E.ruta(r.id); return { cambiada: n.nombre, materia: esMat(n), empieza: iniIA, hoy: n.plan.filter(b => b.d === today()).length, ...esMetaIA(E, n), nota: 'El plan se volvió a repartir desde ese día: antes no hay bloques.' }; } } }   // 2.22.3 (I)
-  let mtLuego = null; { const mt = esMetaTipoIA(a, r); if (mt.metaTipo) { if (mt.metaTipo === 'ambas' && !E.meta(r).on && h) mtLuego = mt; else { const rp0 = +E.ruta(r.id).replan || 0; E.editar(r.id, mt); if (!dias.length && !h && !fx.n && !a.repartir_deuda) { if (view === 'estudio') window.renderEstudio?.(); const n = E.ruta(r.id), otra = (+n.replan || 0) !== rp0, av = E.sesAviso(n); return { cambiada: n.nombre, materia: esMat(n), ...E.ejIA(n), ...esMetaIA(E, n), ...(av ? { sesiones: av } : {}), nota: otra ? 'La meta cambió y el plan se volvió a repartir: los bloques nuevos ya están en la Agenda.' : 'La meta cambió. El plan sigue igual.' }; } } } }   // 2.22.6 (E) · «Las dos» con horas nuevas: junto con ellas
+  let mtLuego = null; { const mt = esMetaTipoIA(a, r); if (mt.metaTipo || mt.minEjSesion !== undefined) { if (mt.metaTipo === 'ambas' && !E.meta(r).on && h) mtLuego = mt; else { const rp0 = +E.ruta(r.id).replan || 0; E.editar(r.id, mt); if (!dias.length && !h && !fx.n && !a.repartir_deuda) { if (view === 'estudio') window.renderEstudio?.(); const n = E.ruta(r.id), otra = (+n.replan || 0) !== rp0, av = E.sesAviso(n); return { cambiada: n.nombre, materia: esMat(n), ...E.ejIA(n), ...esMetaIA(E, n), ...(av ? { sesiones: av } : {}), nota: otra ? 'La meta cambió y el plan se volvió a repartir: los bloques nuevos ya están en la Agenda.' : 'La meta cambió. El plan sigue igual.' }; } } } }   // 2.22.6 (E) · «Las dos» con horas nuevas: junto con ellas
   if (!dias.length && !h && !fx.n && !a.repartir_deuda) throw new Error('Para cambiar una ruta pásame meta, ejercicios_total, dias, horas_total, quitar_fecha, agregar_fecha, minutos_fecha o repartir_deuda.');
   if (!dias.length && !h) return esToolFechas(E, r, a, fx);
   const x = E.meta(r), meta = { min: h || (x.on ? x.min : Math.max(30, Math.round(x.implicita / 5) * 5)), dias: dias.length ? dias : x.dias };
@@ -21558,9 +21701,10 @@ function esToolRutaMeta(E, a) {
 function esMetaTipoIA(a, r = null) {
   const M = { horas: 'horas', ejercicios: 'ej', ej: 'ej', las_dos: 'ambas', ambas: 'ambas', 'las dos': 'ambas' }, t0 = M[String(a && a.meta || '').trim().toLowerCase()] || '', n = Number.isFinite(+(a && a.ejercicios_total)) && +a.ejercicios_total > 0 ? Math.min(100000, Math.round(+a.ejercicios_total)) : 0;
   let t = t0; if (!t && n) { const cur = r ? window.est.metaTipo(r) : ''; t = cur === 'ej' || cur === 'ambas' ? cur : (r ? (window.est.meta(r).on ? 'ambas' : 'ej') : (esHorasIA(a.horas_total) ? 'ambas' : 'ej')); }
-  if (!t) return {};
+  const minSesion = a?.minimo_ejercicios_sesion === undefined ? {} : { minEjSesion: estMinEjN(a.minimo_ejercicios_sesion) };
+  if (!t) return minSesion;
   if (t === 'ambas' && !esHorasIA(a.horas_total) && !(r && window.est.meta(r).on)) throw new Error('Para «las_dos» hace falta también horas_total (las horas en total hasta el examen).');
-  return { metaTipo: t, ...(n ? { metaEj: n } : {}) };
+  return { metaTipo: t, ...(n ? { metaEj: n } : {}), ...minSesion };
 }
 function esToolRuta(a) {
   const E = esE(); if (!E) throw esSinMotor();
@@ -22825,12 +22969,12 @@ function tzFocoRevisar(r) {
   const f = tzFocoRaw(); if (f && f.id && !tzPendOk(it)) try { localStorage.removeItem(TZ_FOCO_K); } catch {}
   return true;
 }
-function tzHecho() {
-  const it = tzFocoIt(); if (!it) return;
+function tzHecho(it = tzFocoIt()) {
+  if (!tzPendOk(it)) return;
   const r = tzRun();
   if (r && !r.espera && r.fase === 'accion' && tzActivo(r) && r.segId === it.id) { tzTramo(r); r.segId = ''; r.segT = ''; tzRunPoner(r); }
-  try { localStorage.removeItem(TZ_FOCO_K); } catch {}
-  agFocoHecho(it);   // el camino de siempre: el mismo XP, una vez, con «Deshacer»
+  if (tzFocoRaw()?.id === it.id) { try { localStorage.removeItem(TZ_FOCO_K); } catch {} }
+  marcarActividadHecha(it);   // el camino de siempre: el mismo XP, una vez, con «Deshacer»
   tzRepintar('#tz-left');
 }
 // ---------- Sonido, vibración, pantalla encendida y avisos
@@ -23026,7 +23170,7 @@ function tzListaHtml() {
   if (!L.length) return '<p class="tz-vacio">Nada pendiente en tu agenda de hoy. <button type="button" class="tz-link" data-tz-acc="agenda">Ver agenda</button></p>';
   return `<div class="tz-list">${L.map(it => {
     const on = it.id === sel, h = !oculto && /^\d\d:\d\d$/.test(it.h || '') ? fmtHora(it.h) : '', m = tzMinCosa(it.id);
-    return `<button type="button" class="tz-it${on ? ' on' : ''}" data-tz-it="${esc(it.id)}" aria-pressed="${on}">${oculto ? '' : `<span class="tz-it-h">${h ? esc(h).replace(' ', '&nbsp;') : 'Sin hora'}</span>`}<span class="tz-it-t">${esc(agTituloEst(it))}<small>${esc(fmtMin(agMinDe(it)))}<span data-tz-lleva="${esc(it.id)}" data-p=" · llevas ">${m ? ` · llevas ${m} min` : ''}</span></small></span></button>`;
+    return `<div class="tz-fila"><button type="button" class="tz-it${on ? ' on' : ''}" data-tz-it="${esc(it.id)}" aria-pressed="${on}">${oculto ? '' : `<span class="tz-it-h">${h ? esc(h).replace(' ', '&nbsp;') : 'Sin hora'}</span>`}<span class="tz-it-t">${esc(agTituloEst(it))}<small>${esc(fmtMin(agMinDe(it)))}<span data-tz-lleva="${esc(it.id)}" data-p=" · llevas ">${m ? ` · llevas ${m} min` : ''}</span></small></span></button><button type="button" class="tz-ok" data-tz-hecho="${esc(it.id)}" aria-label="Marcar hecho: ${esc(it.t)}">Hecho</button></div>`;
   }).join('')}</div>`;
 }
 function tzAjHtml() {
@@ -23093,6 +23237,8 @@ renderAll = (f => function () { const x = f.apply(this, arguments); try { tzVist
 if (tzHost) {
   tzHost.addEventListener('click', e => {
     const t = e.target;
+    const hecho = t.closest?.('[data-tz-hecho]');
+    if (hecho) { tzHecho(tzPend().find(x => x.id === hecho.dataset.tzHecho) || null); return; }
     const it = t.closest?.('[data-tz-it]');
     if (it) { const id = it.dataset.tzIt, x = tzPend().find(y => y.id === id) || null; tzElegir(x && tzFocoIt()?.id === id ? null : x); return; }
     const pm = t.closest?.('[data-tz-pm]');
@@ -23203,6 +23349,8 @@ iniW.addEventListener('click', e => {
   #view-temporizador .tz-link { min-height: 44px; min-width: 44px; padding: 0 12px; color: var(--muted); font-size: .92rem; text-decoration: underline; text-underline-offset: 3px; }
   #view-temporizador .tz-res { margin: 12px 0 22px; color: var(--muted); font-size: .92rem; text-align: center; overflow-wrap: anywhere; }
   #view-temporizador .tz-h { margin: 0 0 8px; }
+  #view-temporizador .tz-fila { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+  #view-temporizador .tz-fila .tz-it { min-width: 0; flex: 1; border-bottom: 0; }
   #view-temporizador .tz-list { border-top: 1px solid var(--line); margin: 0 0 18px; }
   #view-temporizador .tz-it { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; color: var(--text); background: none; border-radius: 0; }
   #view-temporizador .tz-it.on { background: var(--tz-soft); box-shadow: inset 3px 0 0 var(--text); }
@@ -27062,7 +27210,7 @@ function agRkMapa(its) {
   agRkC = { its, m: new Map(L.map((it, i) => [it.id, i + 1])) };
   return agRkC.m;
 }
-function agRkHtml(it, its) { return '<span class="og-rk ag-rk" aria-hidden="true"></span>'; }   // 2.21.7 (R) · el puesto lo pone agNumerar
+function agRkHtml(it, its) { if (it.tipo === 'habito') return hbNumeroVisual(HT().habits.find(h => h.id === it.ref)); return '<span class="og-rk ag-rk" aria-hidden="true"></span>'; }   // 2.21.7 (R) · el puesto lo pone agNumerar
 // 2.21.7 (R) · «El número a la izquierda no indicaría la prioridad, sino solo el orden»: 1, 2, 3… de arriba abajo, como se ve.
 function agNumerar() {
   if (!agW) return;
@@ -27071,12 +27219,25 @@ function agNumerar() {
 }
 var agRkSel = null;
 // 2.21.7 (R) · La lista como se ve en la Agenda: lo pendiente por hora (y lo sin hora en tu orden), después lo hecho.
-function agRkBase(its) { let M = null; try { M = agCadenaMapa(agenda()); } catch {} const L = agOrdenDia(its, M); return hbRutListaOrd([...L.filter(it => !agHecho(it)), ...L.filter(it => agHecho(it))], it => it.tipo === 'habito' ? it.ref : ''); }   // 2.21 (M)
+function agRkGrupo(it) {
+  const r = it?.tipo === 'habito' && !it.foco && hbRutDe(HT().habits.find(h => h.id === it.ref));
+  return r ? 'rut:' + r : it.id;
+}
+function agRkBase(its) {
+  const L = agOrdenDia(its, agCadenaMapa(agenda())), grupos = new Map();
+  for (const it of [...L.filter(it => !agHecho(it)), ...L.filter(it => agHecho(it))]) {
+    const k = agRkGrupo(it);
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(it);
+  }
+  const orden = vistaOrdenada('agenda:' + today(), [...grupos.keys()], x => x);
+  return orden.flatMap(k => k.startsWith('rut:') ? vistaOrdenada(hbClaveVisual(k.slice(4)), grupos.get(k), it => it.ref) : grupos.get(k));
+}
 function agReordenar(foco) {
   const its = agItems();
   if (its.length < 2) { toast('Con una sola cosa no hay nada que ordenar.'); return; }
   const L = agRkBase(its);
-  const ids = L.slice(0, 80).map(it => it.id); agRkSel = { ids, ini: ids.slice(), repartir: false, foco: typeof foco === 'string' ? foco : '' };   // 2.21.2 (H) · desde mantener pulsada una fila: resaltada
+  const ids = L.map(it => it.id); agRkSel = { ids, ini: ids.slice(), repartir: false, foco: typeof foco === 'string' ? foco : '' };   // 2.21.2 (H) · desde mantener pulsada una fila: resaltada
   agRkPintar();
   if (agRkSel?.foco) { try { $('#sheet-body')?.querySelector('#ag-rk-lista .og-sel')?.scrollIntoView({ block: 'center' }); } catch {} }
 }
@@ -27086,7 +27247,7 @@ function agRkPintar() {
   S.ids = S.ids.filter(id => por.has(id));
   const n = S.ids.length;
   showSheet(`<h2>Reordenar el día</h2>
-    <p class="note">Ordena lo que harás primero. Arrastra desde ⠿ o usa ↑ ↓.</p>
+    <p class="note">Elige el orden de lectura. Arrastra desde ⠿ o usa ↑ ↓.</p>
     <div class="rows og-orden" id="ag-rk-lista">${S.ids.map((id, i) => { const it = por.get(id), ok = agHecho(it);
       return `<div class="row og-r og-ag${ok ? ' ok' : ''}${S.foco === id ? ' og-sel' : ''}" data-ok="${esc(id)}">${orgRk(i + 1, { hecho: ok })}<span class="t"><div>${esc(it.foco ? agbFocoTitulo(it) : it.t)}</div><small>${it.h ? fmtHora(it.h) : 'Sin hora'} · ${esc(agEtqCat(it))}</small></span><button type="button" class="og-asa og-asa-ag" data-asa tabindex="-1" aria-label="Arrastrar para mover">⠿</button><span class="og-mv og-mv-ag"><button type="button" class="og-b" data-or-sube="${i}" aria-label="Subir" ${i ? '' : 'disabled'}>↑</button><button type="button" class="og-b" data-or-baja="${i}" aria-label="Bajar" ${i < n - 1 ? '' : 'disabled'}>↓</button></span></div>`; }).join('')}</div>
     <div class="chips" style="margin-top:14px"><button type="button" class="chip${S.repartir ? ' on' : ''}" id="ag-rk-rep" aria-pressed="${S.repartir}">Repartir las horas según este orden</button></div>
@@ -27104,17 +27265,14 @@ function agRkGuardar() {
   agRkSel = null;
   if (!S.repartir && S.ids.join('|') === (S.ini || []).join('|')) { closeSheet(); return; }   // 2.21.7 (R) · sin mover nada, nada cambia
   const A = agenda(), por = new Map(A.items.map(it => [it.id, it]));
-  // Las prioridades de hoy siguen este orden (la que va antes, se hace antes).
-  const pids = S.ids.map(id => por.get(id)).filter(it => it && it.tipo === 'prio').map(it => it.ref), P = ES.prioridades;
-  if (P.fecha === today() && pids.length > 1) { const m = new Map(P.items.map(x => [x.id, x])), want = pids.filter(id => m.has(id)); let j = 0; P.items = P.items.map(x => want.includes(x.id) ? m.get(want[j++]) : x); }
-  const hRefs = L => L.map(id => por.get(id)).filter(it => it && it.tipo === 'habito').map(it => it.ref), ini = S.ini || ordAntes;
-  const rutC = ini ? agRutinasSegun(hRefs(S.ids), hRefs(ini)) : [];   // 2.21 (M) · la rutina sigue este orden, solo si moviste uno de sus hábitos
-  if (rutC.length) { agSync(A); try { if (view === 'hoy') render(); } catch {} }
-  if (!S.repartir) {
-    S.ids.forEach((id, i) => { const it = por.get(id); if (it) it.ord = i + 1; });   // 2.21.7 (R)
-    guardar(); closeSheet(); renderE(); renderAg(); toast(rutC.length ? `Orden guardado. ${rutC.length === 1 ? `«${rutC[0].nombre}» sigue` : 'Tus rutinas siguen'} este orden.` : 'Orden guardado.');
-    return;
+  const filas = S.ids.map(id => por.get(id)).filter(Boolean);
+  const claves = [...new Set(filas.map(agRkGrupo))];
+  ponerOrdenVista('agenda:' + today(), claves, claves);
+  for (const k of claves.filter(k => k.startsWith('rut:'))) {
+    const rut = k.slice(4), hijos = [...new Set(filas.filter(it => agRkGrupo(it) === k).map(it => it.ref))];
+    ponerOrdenVista(hbClaveVisual(rut), hijos, hbVisuales(rut).map(h => h.id));
   }
+  if (!S.repartir) { guardar(); closeSheet(); renderE(); renderAg(); toast('Orden visual guardado.'); return; }
   // Con las horas: las reglas de «Organizar mi día» (lo fijo y las horas elegidas se quedan; lo automático sigue el orden).
   if (!A.organizado) A.organizado = 1;
   orgInit(today());
@@ -29730,6 +29888,10 @@ function cadDiaHtml(pest) {
 let cadPilT0 = 0;
 function cadAgWire() {
   cadRutVistas = null;
+  agW.querySelectorAll('[data-ag-hecho-directo]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    marcarActividadHecha(agPorId(b.dataset.agHechoDirecto));
+  });
   agW.querySelectorAll('[data-tm-go]').forEach(b => { b.ontouchstart = () => { cadPilT0 = Date.now(); }; b.onclick = e => {
     e.stopPropagation(); e.preventDefault();
     if (cadPilT0 && Date.now() - cadPilT0 > 450) { cadPilT0 = 0; return; }   // fue mantener pulsada (levantar la fila), no un toque
@@ -29815,14 +29977,21 @@ setTimeout(() => { try { ov.addEventListener('click', cadClick); } catch {} }, 0
 // Minutos: h.min (guardado con «Guardar como tiempo de este hábito») → la meta de un hábito «por tiempo» → los de la agenda de hoy → 15.
 function hbEmpMin(h, viejo) { const g = Math.round(+h?.min); return g >= 1 && g <= 720 ? g : h?.modo === 'tiempo' && +h.meta > 0 ? +h.meta : viejo && +viejo.min > 0 ? +viejo.min : AG_MIN.habito; }
 function hbEmpHtml(h) { try { return hbEmpHtml0(h); } catch { return ''; } }
+function marcarActividadHecha(it) {
+  if (!it || agHecho(it)) return;
+  const activo = tempDe(it.id);
+  if (activo && activo.d === today()) tempHecho();
+  else agFocoHecho(it);
+}
 function hbEmpHtml0(h) {
   const t = today();
   if (!h || h.rutina || !isSched(h, t) || (h.creado && h.creado > t) || cadQuitHoy(h) || hbSemListoHoy(h) || hbMtCerrado(h, t) || (hbMt(h) && hbMt(h).tipo !== 'si')) return '';   // 2.22.5 (W) · sin temporizador en metas de hora o de número
   const it = cadHabItem(h), T0 = tempDe(it.id), T = T0 && T0.d === t ? T0 : null, n = esc(h.nombre);   // el de ayer (mismo id «v:habito:id») no cuenta aquí
-  if (T) return `<div class="hb-emp-w"><button type="button" class="hb-emp on" data-act="empezar" data-id="${esc(h.id)}" aria-label="Temporizador en marcha de «${n}». Toca para verlo"><span data-temp-left>${tempTxt(T)}</span> · Ver</button></div>`;
+  const hecho = h.modo === 'tiempo' && !agHecho(it) ? `<button type="button" class="link hb-manual" data-act="hecho-sin-reloj" data-id="${esc(h.id)}" aria-label="Marcar hecho: ${n}">Hecho</button>` : '';
+  if (T) return `<div class="hb-emp-w"><button type="button" class="hb-emp on" data-act="empezar" data-id="${esc(h.id)}" aria-label="Temporizador en marcha de «${n}». Toca para verlo"><span data-temp-left>${tempTxt(T)}</span> · Ver</button>${hecho}</div>`;
   if (!cadPend(it)) return '';
   const mm = esc(fmtMin(agMinDe(it)));
-  return `<div class="hb-emp-w"><button type="button" class="hb-emp" data-act="empezar" data-id="${esc(h.id)}" aria-label="Empezar: temporizador de ${mm} para «${n}»">▶ Empezar · ${mm}</button></div>`;
+  return `<div class="hb-emp-w"><button type="button" class="hb-emp" data-act="empezar" data-id="${esc(h.id)}" aria-label="Empezar: temporizador de ${mm} para «${n}»">▶ Empezar · ${mm}</button>${hecho}</div>`;
 }
 function hbEmpezar(h) {
   if (!h) return;
@@ -29832,12 +30001,13 @@ function hbEmpezar(h) {
   tempEmpezar(it);
 }
 { const st = document.createElement('style'); st.id = 'hb-emp-css'; st.textContent = `
+  .hb-manual { min-height: 44px; padding: 0 12px; }
   .hb-emp-w { margin: 8px 0 0 54px; }
   .children .hb-emp-w { margin-top: 6px; }
   .hb-emp { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; padding: 0 16px; border: 1.5px solid var(--text); border-radius: 22px; background: none; color: var(--text); font: inherit; font-size: .86rem; font-weight: 600; line-height: 1.25; text-align: left; overflow-wrap: anywhere; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .hb-emp.on { border-color: var(--green); font-variant-numeric: tabular-nums; }
   .hb-emp:active, .hb-emp:focus-visible { background: var(--line); }`; document.head.appendChild(st); }
-window.cadena = { emp: h => hbEmpHtml(h), empHb: h => hbEmpezar(h), hb: r => cadRutHbHtml(r), tar: (l, p) => cadTarHtml(l, p), empezar: (key, o) => cadEmpezar(key, o), pasos: (key, o) => cadPasos(key, o), saltar: () => cadSaltar(), parar: () => cadParar(), estado: () => { const T = tempAct(), C = cadDe(T); return C ? { key: C.key, n: C.n, i: C.i, total: C.pasos.length, id: T.id, t: T.t, etq: cadEtq(T), quedan: Math.max(0, Math.round(tempLeft(T))) } : null; } };
+window.cadena = { hechoHb: h => { if (h && isSched(h, today())) marcarActividadHecha(cadHabItem(h)); }, emp: h => hbEmpHtml(h), empHb: h => hbEmpezar(h), hb: r => cadRutHbHtml(r), tar: (l, p) => cadTarHtml(l, p), empezar: (key, o) => cadEmpezar(key, o), pasos: (key, o) => cadPasos(key, o), saltar: () => cadSaltar(), parar: () => cadParar(), estado: () => { const T = tempAct(), C = cadDe(T); return C ? { key: C.key, n: C.n, i: C.i, total: C.pasos.length, id: T.id, t: T.t, etq: cadEtq(T), quedan: Math.max(0, Math.round(tempLeft(T))) } : null; } };
 
 // ====================================================================
 // 2.21.3 (C) · La fila que se abre, la rutina en una fila y una pantalla con menos cosas a la vista.
@@ -29865,6 +30035,9 @@ agStyle.textContent += `
   .ag-rut-box.part::before { background: linear-gradient(90deg, var(--green) 50%, transparent 50%); border-color: var(--green); }
   .ag-it > .ag-ex.ag-rut-ex { padding-left: 0; padding-right: 0; }
   .ag-subs { display: flex; flex-direction: column; margin: 0 0 2px; }
+  .hb-num-visual { display: inline-grid; place-items: center; min-width: 1.6ch; font-size: 1.6rem; line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; color: var(--text); flex-shrink: 0; }
+  .asa-visual { touch-action: none; user-select: none; cursor: grab; color: var(--muted); background: transparent; border: 0; font: inherit; font-size: 1.15rem; min-height: 44px; min-width: 32px; padding: 0 4px; }
+  .asa-visual:active { cursor: grabbing; }
   .ag-sub { display: flex; align-items: center; gap: 8px; min-height: 44px; border-top: 1px solid var(--line); }
   .ag-sub:first-child { border-top: 0; }
   .ag-sub > .t { flex: 1; min-width: 0; cursor: pointer; }
