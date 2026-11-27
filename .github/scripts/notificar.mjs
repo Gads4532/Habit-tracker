@@ -591,7 +591,11 @@ function candidatos(C, fecha) {
     if (hmin < 15) { tAv = en(HM(hmin + 1440 - 15)); hasta = aMs(masDias(fecha, 1), hc, tz); }
     else { if (hmin < 300) clave = masDias(fecha, -1); tAv = en(menos(hc, 15)); hasta = en(hc); }
     if (c.creado && c.creado > clave) continue;
-    if (Array.isArray(c.dias) && c.dias.length && !c.dias.includes(wd(clave))) continue;
+    // La hora de madrugada pertenece a la noche anterior. Aplica los días que
+    // estaban vigentes esa noche, incluso si se editaron después de registrar.
+    const desde = Object.keys(c.diasHist || {}).filter(d => d <= clave).sort().pop();
+    const diasMeta = c.diasHist?.[desde]?.dias || c.dias;
+    if (Array.isArray(diasMeta) && diasMeta.length && !diasMeta.includes(wd(clave))) continue;
     const r = E.consLog && typeof E.consLog === 'object' ? E.consLog[clave]?.[c.id] : null, anot = r && (cb ? r.h === true || r.h === false || r.okc === true || r.okc === false || (c.tipo === 'max' && typeof r.v === 'number' && r.v > (+c.n || 0)) : r.ok === true || r.ok === false) ? (+r.en || 1) : 0;   // 2.22.5 (K) · combinada: ok es solo la cuenta; cuenta la hora (h) o el veredicto (okc)
     const nU = Math.max(0, Math.round(+c.n || 0)), uU = String(c.unidad || 'veces').slice(0, 20);
     out.push({ t: tAv, clase: 1, tag: 'cs-' + c.id.slice(0, 60), franja: 'cs-' + c.id.slice(0, 60), title: sinPunto(String(c.t || 'Tu meta de consistencia').slice(0, 80)),
