@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Organización Personal</string>
+    <string name="sin_red">Sin conexión. La app abre lo último guardado en cuanto vuelva la red.</string>
+    <string name="sin_app">No hay una app para abrir ese enlace.</string>
+    <string name="descargado">Guardado en Descargas</string>
+    <string name="no_descarga">No se pudo guardar el archivo.</string>
+    <string name="aviso_titulo">Se cumplió el tiempo</string>
+    <string name="aviso_hecho">✓ Hecho</string>
+    <string name="aviso_mas5">+5 min</string>
+    <string name="canal_temporizador">Temporizador</string>
+    <string name="canal_temporizador_desc">Suena cuando termina el temporizador que empezaste.</string>
+    <string name="canal_silencio">Temporizador en silencio</string>
+    <string name="canal_silencio_desc">Cuando apagas «Sonido al terminar el temporizador» en Ajustes: vibra sin sonar.</string>
+</resources>
