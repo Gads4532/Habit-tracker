@@ -501,6 +501,20 @@
   .cs-h { font-size: 1.1rem; font-weight: 600; letter-spacing: -.01em; margin: 0 0 2px; }
   .cs-p { color: var(--muted); font-size: .88rem; margin: 0 0 10px; }
   .cs-card { border-top: 1px solid var(--line); padding: 16px 0; }
+  .cs-grupo { margin: 24px 0 0; }
+  .cs-grupo-cab { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .cs-grupo-cab h3 { margin: 0; flex: 1; min-width: 0; font-size: 1rem; overflow-wrap: anywhere; }
+  .cs-grupo-cab button, .cs-adds button { min-height: 44px; }
+  .cs-cat-logo { display: inline-grid; width: 32px; height: 32px; place-items: center; flex: none; font-size: 1.18rem; line-height: 1; background: var(--soft,var(--line)); border-radius: 9px; overflow: hidden; }
+  .cs-cat-logo img { width: 100%; height: 100%; object-fit: contain; }
+  .cs-cat-selector, .cs-cat-previa { display: flex; align-items: center; gap: 10px; }
+  .cs-cat-selector select { flex: 1; min-width: 0; }
+  #cs-categoria-crear { align-self: flex-start; min-height: 44px; }
+  .cs-cat-foto { display: block; overflow-wrap: anywhere; }
+  .cs-cat-foto input { max-width: 100%; }
+  .cs-cat-editor { margin: 12px 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
+  .cs-cat-paleta { display: flex; flex-wrap: wrap; gap: 4px; }
+  .cs-cat-paleta button { min-width: 44px; min-height: 44px; }
   .cs-top { display: flex; align-items: flex-start; gap: 8px; }
   .cs-t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .cs-t b { display: block; font-weight: 600; }
@@ -850,7 +864,7 @@
 
 <script>
 const KEY = 'habit-tracker-v1';
-const APP_VERSION = '2.28.0';
+const APP_VERSION = '2.29.0';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6], DAY_L = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -998,6 +1012,44 @@ function consDiasEn(c, d) {
   for (const k of Object.keys(c.diasHist || {})) if (k <= d && k > desde) desde = k;
   return c.diasHist?.[desde]?.dias || (Array.isArray(c.dias) && c.dias.length ? c.dias : [0,1,2,3,4,5,6]);
 }
+function consCategoriaId(v) {
+  return typeof v === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(v) && !['__proto__', 'prototype', 'constructor'].includes(v) ? v : '';
+}
+function consCategoriaLogo(v) {
+  const defecto = '🏷️';
+  if (typeof v !== 'string') return defecto;
+  if (v.length <= 32 && /^(?=.*[\p{Extended_Pictographic}\p{Regional_Indicator}\u20e3])[\p{Extended_Pictographic}\p{Regional_Indicator}\p{Emoji_Modifier}\u200d\ufe0f\u20e3#*0-9]+$/u.test(v)) return v;
+  const pref = 'data:image/png;base64,';
+  if (!v.startsWith(pref) || v.length > pref.length + 49152) return defecto;
+  const b64 = v.slice(pref.length);
+  if (b64.length < 60 || b64.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) return defecto;
+  try {
+    const bytes = atob(b64);
+    if (!bytes.startsWith('\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR') || bytes.slice(-8, -4) !== 'IEND') return defecto;
+    const dim = i => bytes.charCodeAt(i) * 16777216 + bytes.charCodeAt(i + 1) * 65536 + bytes.charCodeAt(i + 2) * 256 + bytes.charCodeAt(i + 3);
+    if (dim(16) >= 1 && dim(16) <= 72 && dim(20) >= 1 && dim(20) <= 72) return v;
+  } catch {}
+  return defecto;
+}
+function consCategoriasFusion(a, b, dead) {
+  const porId = new Map();
+  for (const filas of [a, b]) for (const v of Array.isArray(filas) ? filas : []) {
+    const id = consCategoriaId(v?.id), nombre = typeof v?.nombre === 'string' ? v.nombre.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+    if (!id || !nombre || dead?.has(id)) continue;
+    const mod = Number.isFinite(v.mod) ? Math.max(0, v.mod) : 0, logo = consCategoriaLogo(v.logo), previo = porId.get(id);
+    if (!previo || mod > previo.mod || (mod === previo.mod && (nombre > previo.nombre || (nombre === previo.nombre && logo > previo.logo)))) porId.set(id, { id, nombre, logo, mod });
+  }
+  return [...porId.values()].sort((x, y) => x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
+}
+function consCategoriaMeta(a, b) {
+  let elegido;
+  for (const c of [a, b]) {
+    if (!c || !(c.categoria === '' || consCategoriaId(c.categoria))) continue;
+    const mod = Number.isFinite(c.categoriaMod) ? Math.max(0, c.categoriaMod) : 0;
+    if (!elegido || mod > elegido.categoriaMod || (mod === elegido.categoriaMod && c.categoria > elegido.categoria)) elegido = { categoria: c.categoria, categoriaMod: mod };
+  }
+  return elegido || {};
+}
 function consNorm(x) {
   const TIPOS = ['antes', 'despues', 'si', 'max', 'min'], CATS = ['estudio', 'proyecto', 'laboral', 'social', 'espiritual', 'salud', 'otro'];
   const S = (v, n) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -1014,7 +1066,7 @@ function consNorm(x) {
     const cb = conNum && c.comb && typeof c.comb === 'object' && !Array.isArray(c.comb) && (c.comb.tipo === 'antes' || c.comb.tipo === 'despues') && HM(c.comb.hora) ? { tipo: c.comb.tipo, hora: HM(c.comb.hora) } : null;
     return { ...(cb ? { comb: cb } : 'comb' in c ? { comb: false } : {}), id, t: S(c.t, 80) || 'Meta de consistencia', tipo, hora: conHora ? HM(c.hora) || (tipo === 'antes' ? '22:30' : '08:00') : '',
       n: conNum ? Math.round(N(c.n, tipo === 'max' ? 2 : 8, 0, 999)) : 0, unidad: conNum ? S(c.unidad, 20) : '', dias: dias.length ? dias : [0, 1, 2, 3, 4, 5, 6], ...consCalendario(c.diasHist),
-      cat: CATS.includes(c.cat) ? c.cat : '', iden: typeof c.iden === 'string' ? c.iden.slice(0, 40) : '', mid: typeof c.mid === 'string' ? c.mid.slice(0, 60) : '',
+      cat: CATS.includes(c.cat) ? c.cat : '', ...consCategoriaMeta(c), iden: typeof c.iden === 'string' ? c.iden.slice(0, 40) : '', mid: typeof c.mid === 'string' ? c.mid.slice(0, 60) : '',
       aviso: (tipo === 'antes' || (!!cb && cb.tipo === 'antes')) && !!c.aviso, creado: F(c.creado) || hoy, archivada: !!c.archivada, orden: N(c.orden, i, -1e6, 1e6), cambiado: N(c.cambiado, 0, 0, 9e15) };
   }).filter(Boolean).slice(0, 40);
 }
@@ -1038,7 +1090,7 @@ function consFusion(a, b, dead) {
   for (const x of L(b)) m.set(String(x.id), x);
   // 2.22.5 (K) · Una copia de una app vieja llega sin comb (no lo conoce): se queda el de la otra copia. Esta versión guarda comb: false al quitarlo.
   const H = (g, o) => g && o && !('comb' in g) && o.comb && typeof o.comb === 'object' && (g.tipo === 'max' || g.tipo === 'min') ? { ...g, comb: o.comb, aviso: !!o.aviso } : g;
-  for (const x of L(a)) { const k = String(x.id), o = m.get(k); m.set(k, !o ? x : { ...((+x.cambiado || 0) >= (+o.cambiado || 0) ? H(x, o) : H(o, x)), ...consCalendario(x.diasHist, o.diasHist) }); }
+  for (const x of L(a)) { const k = String(x.id), o = m.get(k); m.set(k, !o ? x : { ...((+x.cambiado || 0) >= (+o.cambiado || 0) ? H(x, o) : H(o, x)), ...consCalendario(x.diasHist, o.diasHist), ...consCategoriaMeta(x, o) }); }
   return [...m.values()].filter(x => !dead.has(String(x.id)));
 }
 function consLogFusion(a, b, dead) {
@@ -1366,6 +1418,7 @@ function normEnfoque(e) {
   e.bienvenida = !!e.bienvenida;
   e.bloquesT = btNormT(e.bloquesT); e.bloquesTBorrar = btNormTBorrar(e.bloquesTBorrar);
   e.metas = mtNorm(e.metas);
+  if (e.consCategorias !== undefined) e.consCategorias = consCategoriasFusion(e.consCategorias);
   e.consistencias = consNorm(e.consistencias); e.consLog = consLogNorm(e.consLog);   // 2.21 (L) · metas de consistencia y lo anotado
   e.consPreg = typeof e.consPreg === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.consPreg) ? e.consPreg : '';   // 2.18 (M) · metas a largo plazo (≤ 40): etapas, avances, vínculos y revisiones   // 2.16 (B) · bloques de tiempo (≤ 300, 60 días) y eventos por quitar de Google Calendar (≤ 100)
   e.espiritu = espNorm(e.espiritu);   // 2.15 (V) · Vida espiritual: normas (≤ 40), hechos (120 días), propósitos (60 días), jaculatoria, configurado
@@ -1453,14 +1506,14 @@ const progressOf = (h, day) => state.progreso[h.id]?.[day] || 0;
 // Cronómetro: segundos acumulados más lo que corre desde `start`.
 const elapsedOf = h => { const t = state.timers[h.id]; return t ? t.acum + (t.start ? (Date.now() - t.start) / 1000 : 0) : 0; };
 const fmtSec = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-function save() {
+function save(opciones) {
   nocheRevisarAlta();
   window.avAntesDeGuardar?.();   // 2.12 · avisos: lo que llegó desde una notificación y las horas de los hábitos
   window.xpPenLevantar?.();   // 2.19 (X) · un hábito marcado para un día que ya restó devuelve su XP
   window.mtTrasGuardar?.();
   window.iniAntesDeGuardar?.();   // 2.21.4 (I) · cada iniciativa que cambió lleva su mod   // 2.18 (M) · lo recién creado desde «Crear algo nuevo para esta meta» queda vinculado
   state.cambiado = Date.now();
-  nocheGuardarLocal();
+  nocheGuardarLocal(opciones?.exigirLocal === true);
   pushCloud();
 }
 // Lo borrado se recuerda por id para que no vuelva al combinar con la nube.
@@ -1855,7 +1908,7 @@ function mergeStates(a, b) {
     temporizador: tzFusion(eN.temporizador, eO.temporizador, dead),   /* 2.23.0 (T) */
     sueno: suFusion(eN.sueno, eO.sueno, dead),   /* 2.24.0 (S) */
     ...(eN.contFuera || eO.contFuera ? { contFuera: (typeof contFueraFusion === 'function' ? contFueraFusion : window.contFueraFusion)(eN.contFuera, eO.contFuera) } : {}),   /* 2.22.7 (P) */
-    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), consistencias: consFusion(eN.consistencias, eO.consistencias, dead), consLog: consLogFusion(eN.consLog, eO.consLog, dead), consPreg: [eO.consPreg, eN.consPreg].filter(Boolean).sort().pop() || '', espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
+    objetivos: byId(eN.objetivos || [], eO.objetivos || []), estudio: estJerFusion(estFusion(eN.estudio, eO.estudio, dead), eN.estudio, eO.estudio), idenManana: eN.idenManana || eO.idenManana || null, identidades: byId(eN.identidades || [], eO.identidades || []), bloquesT: btFusionT(eN.bloquesT, eO.bloquesT, dead), bloquesTBorrar: btFusionTBorrar(eN.bloquesTBorrar, eO.bloquesTBorrar, eN.bloquesT, eO.bloquesT, dead), metas: mtFusion(eN.metas, eO.metas, dead), consistencias: consFusion(eN.consistencias, eO.consistencias, dead), ...(eN.consCategorias || eO.consCategorias ? { consCategorias: consCategoriasFusion(eN.consCategorias, eO.consCategorias, dead) } : {}), consLog: consLogFusion(eN.consLog, eO.consLog, dead), consPreg: [eO.consPreg, eN.consPreg].filter(Boolean).sort().pop() || '', espiritu: espFusion(eN.espiritu, eO.espiritu, dead), agendaHist: { ...(eO.agendaHist || {}), ...(eN.agendaHist || {}) }, noches: { ...(eO.noches || {}), ...(eN.noches || {}) }, presupuestoDia: { ...(eO.presupuestoDia || {}), ...(eN.presupuestoDia || {}) }, pantalla: { ...(eO.pantalla || {}), ...(eN.pantalla || {}) }, compartidas: { ...(eO.compartidas || {}), ...(eN.compartidas || {}) }, configXp: [...new Set([...(eO.configXp || []), ...(eN.configXp || [])])], config: { ...(eO.config || {}), ...(eN.config || {}) }, semanasMeta: { ...(eO.semanasMeta || {}), ...(eN.semanasMeta || {}) },
     // 2.12 · Avisos: unión de los abiertos, de las sesiones (la que terminó antes manda) y la fecha más reciente desde la que se anotan.
     avisosAbiertos: [...new Map([...(eO.avisosAbiertos || []), ...(eN.avisosAbiertos || [])].map(x => [x.tag + '|' + x.t, x])).values()].sort((x, y) => x.t - y.t).slice(-60),
     enfoqueLog: [...new Map([...(eO.enfoqueLog || []), ...(eN.enfoqueLog || [])].sort((x, y) => y.b - x.b).map(x => [x.a, x])).values()].sort((x, y) => x.a - y.a).slice(-12),
@@ -6638,7 +6691,7 @@ const ES = new Proxy({}, {
   set: (_, k, v) => { (LOCALES.has(k) ? local : state.enfoque)[k] = v; return true; },
 });
 const HT = () => state;
-function guardar() {
+function guardar(opciones) {
   // Solo se guardan los últimos 180 días.
   const cut = dayKey(addDays(new Date(), -180));
   for (const k of Object.keys(state.enfoque.dias)) if (k < cut) delete state.enfoque.dias[k];
@@ -6651,7 +6704,7 @@ function guardar() {
     if (v.length) AH[k] = v; else delete AH[k];
   }
   if (state.enfoque.iniHistIden && typeof state.enfoque.iniHistIden === 'object') for (const k of Object.keys(state.enfoque.iniHistIden)) if (k < cutV) delete state.enfoque.iniHistIden[k];
-  save();
+  save(opciones);
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(local)); } catch {}
 }
 const irA = v => document.querySelector(`.tabs .tab[data-view="${v === 'todo' ? 'rapido' : v}"]`)?.click();   // 2.25.1 (S) · «Todo» ahora es Rápido
@@ -31311,16 +31364,16 @@ window.enfoqueVisible = () => { if (!ES.bienvenida && !ES.sesion && enfPrimeraHe
 // ====================================================================
 var CS_TIPOS = [['antes', 'Antes de una hora'], ['despues', 'No antes de una hora'], ['si', 'Sí o no'], ['max', 'Como máximo'], ['min', 'Como mínimo'], ['comb', 'Combinado']];   // 2.22.5 (K) · Combinado
 var CS_PLANT = [
-  { t: 'Acostarme antes de las 10:35 PM', tipo: 'antes', hora: '22:35', cat: 'salud', aviso: true },
-  { t: 'Levantarme antes de las 6:30 AM', tipo: 'antes', hora: '06:30', cat: 'salud' },
-  { t: 'Sin pantallas la última hora antes de dormir', tipo: 'si', cat: 'salud' },
-  { t: 'No comer dulces', tipo: 'si', cat: 'salud' },
-  { t: 'Máximo 2 cafés', tipo: 'max', n: 2, unidad: 'cafés', cat: 'salud' },
-  { t: '8 vasos de agua', tipo: 'min', n: 8, unidad: 'vasos', cat: 'salud' },
+  { t: 'Acostarme antes de las 10:35 PM', tipo: 'antes', hora: '22:35', cat: 'salud', categoria: 'sueno', aviso: true },
+  { t: 'Levantarme antes de las 6:30 AM', tipo: 'antes', hora: '06:30', cat: 'salud', categoria: 'sueno' },
+  { t: 'Sin pantallas la última hora antes de dormir', tipo: 'si', cat: 'salud', categoria: 'sueno' },
+  { t: 'No comer dulces', tipo: 'si', cat: 'salud', categoria: 'alimentacion' },
+  { t: 'Máximo 2 cafés', tipo: 'max', n: 2, unidad: 'cafés', cat: 'salud', categoria: 'alimentacion' },
+  { t: '8 vasos de agua', tipo: 'min', n: 8, unidad: 'vasos', cat: 'salud', categoria: 'hidratacion' },
   { t: 'Sin redes antes de las 9:00 AM', tipo: 'despues', hora: '09:00', cat: 'salud' },
   { t: 'Máximo 2 cafés antes de las 12:00 PM', tipo: 'max', n: 2, unidad: 'cafés', comb: { tipo: 'antes', hora: '12:00' }, cat: 'salud' },   // 2.22.5 (K) · al final: las demás no cambian de lugar
 ];
-CS_PLANT.push({ t: 'Clases con atención completa', tipo: 'min', n: 1, unidad: 'clases', cat: 'estudio' });
+CS_PLANT.push({ t: 'Clases con atención completa', tipo: 'min', n: 1, unidad: 'clases', cat: 'estudio', categoria: 'clases' });
 var CS_DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 var csOrdenando = false, csArchAbierto = false;
 MT_TIPO.consistencia = 'Meta de consistencia'; MT_DE_FICHA.consistencia = 'consistencia';
@@ -31530,19 +31583,153 @@ function csTarjeta(c) {
     <div class="cs-sem" aria-label="${n7} de ${programados} días programados esta semana"><span class="cs-dots" aria-hidden="true">${dots}</span><span class="cs-n7">${n7} de ${programados} días programados esta semana${mej ? ` · mejor racha: ${mej} ${mej === 1 ? 'día' : 'días'}` : ''}</span></div>
   </div>`;
 }
+function csEditorCategoria(contenedor, { categoria: original = null, alGuardar, alCancelar }) {
+  const iconos = [['🌱', 'Planta'], ['🌙', 'Luna'], ['📚', 'Libros'], ['🎵', 'Música'], ['🏃', 'Carrera'], ['💧', 'Agua'], ['🎯', 'Objetivo'], ['💡', 'Idea'], ['❤️', 'Corazón'], ['☀️', 'Sol'], ['🎨', 'Arte'], ['⭐', 'Estrella']];
+  let logo = original?.logo || iconos[0][0], revision = 0, terminado = false;
+  contenedor.innerHTML = `<div class="cs-cat-editor" role="group" aria-label="${original ? 'Editar categoría' : 'Nueva categoría'}">
+    <label>Nombre de la categoría<input type="text" data-cat-nombre maxlength="40" autocomplete="off"></label>
+    <div class="chips cs-cat-paleta" role="group" aria-label="Elegir emoji">${iconos.map(([simbolo, nombre], i) => `<button type="button" class="chip${!i ? ' on' : ''}" data-cat-emoji="${simbolo}" aria-label="${nombre}" aria-pressed="${!i}">${simbolo}</button>`).join('')}</div>
+    <label class="cs-cat-foto">Usar una imagen<input type="file" data-cat-archivo accept="image/jpeg,image/png,image/webp"></label>
+    <p class="meta">JPG, PNG o WebP de hasta 4 MB.</p>
+    <div class="set-row cs-cat-previa" role="group" aria-label="Vista previa"><span data-cat-vista></span> <span data-cat-texto></span></div>
+    <p class="meta" role="status" data-cat-estado></p><p class="meta red" role="alert" data-cat-error></p>
+    <div class="actions"><button type="button" class="link" data-cat-cancelar>Cancelar</button><button type="button" class="primary" data-cat-guardar>${original ? 'Guardar cambios' : 'Crear categoría'}</button></div>
+  </div>`;
+  const editor = contenedor.firstElementChild, q = sel => editor.querySelector(sel);
+  const nombre = q('[data-cat-nombre]'), archivo = q('[data-cat-archivo]'), listo = q('[data-cat-guardar]');
+  const error = q('[data-cat-error]'), estado = q('[data-cat-estado]');
+  const pintarLogo = () => {
+    q('[data-cat-vista]').innerHTML = csLogoHtml(logo);
+    for (const b of editor.querySelectorAll('[data-cat-emoji]')) {
+      const seleccionado = b.dataset.catEmoji === logo;
+      b.setAttribute('aria-pressed', String(seleccionado));
+      b.classList.toggle('on', seleccionado);
+    }
+  };
+  nombre.oninput = () => {
+    nombre.removeAttribute('aria-invalid'); error.textContent = '';
+    q('[data-cat-texto]').textContent = nombre.value.trim() || 'Nueva categoría';
+  };
+  nombre.onkeydown = e => {
+    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); listo.click(); }
+  };
+  editor.querySelectorAll('[data-cat-emoji]').forEach(b => b.onclick = () => {
+    revision++; archivo.value = ''; logo = b.dataset.catEmoji; listo.disabled = false;
+    estado.textContent = ''; error.textContent = ''; pintarLogo();
+  });
+  archivo.onchange = async () => {
+    const file = archivo.files?.[0]; if (!file) return;
+    const intento = ++revision, sigue = () => intento === revision && !terminado && editor.isConnected;
+    listo.disabled = true; estado.textContent = 'Preparando imagen…'; error.textContent = '';
+    try { const miniatura = await csMiniaturaCategoria(file); if (sigue()) { logo = miniatura; pintarLogo(); } }
+    catch (e) { if (sigue()) { archivo.value = ''; error.textContent = e.message; } }
+    finally { if (sigue()) { listo.disabled = false; estado.textContent = ''; } }
+  };
+  q('[data-cat-cancelar]').onclick = () => { terminado = true; revision++; alCancelar(); };
+  listo.onclick = () => {
+    if (terminado || listo.disabled) return;
+    const n = nombre.value.trim().replace(/\s+/g, ' '), iguales = (a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }) === 0;
+    if (!n || iguales(n, CS_SIN_CATEGORIA.nombre) || csCatalogo().some(c => c.id !== original?.id && iguales(c.nombre, n))) {
+      error.textContent = n ? 'Ya existe una categoría con ese nombre.' : 'Escribe el nombre de la categoría.';
+      nombre.setAttribute('aria-invalid', 'true'); nombre.focus(); return;
+    }
+    const previas = ES.consCategorias || [];
+    const actual = original && previas.find(c => c.id === original.id);
+    if (original && !actual) { error.textContent = 'Esta categoría ya no está disponible.'; return; }
+    const categoria = {
+      id: actual?.id || crypto.randomUUID(),
+      nombre: actual && n === original.nombre ? actual.nombre : n,
+      logo: actual && logo === original.logo ? actual.logo : logo,
+      mod: Math.max(Date.now(), (+actual?.mod || 0) + 1)
+    };
+    const historialPrevio = state.altasNocturnas && { ...state.altasNocturnas };
+    ES.consCategorias = actual ? previas.map(c => c.id === actual.id ? categoria : c) : [...previas, categoria];
+    try { guardar({ exigirLocal: true }); } catch (e) {
+      ES.consCategorias = previas;
+      if (historialPrevio) state.altasNocturnas = historialPrevio; else delete state.altasNocturnas;
+      error.textContent = e.name === 'QuotaExceededError' ? 'El almacenamiento está lleno. Prueba con un emoji para el logo.' : 'No se pudo guardar la categoría. Intenta de nuevo.';
+      return;
+    }
+    terminado = true; revision++; alGuardar(categoria);
+  };
+  nombre.value = original?.nombre || '';
+  pintarLogo(); nombre.oninput(); nombre.focus();
+}
+async function csMiniaturaCategoria(file) {
+  if (!file.size || file.size > 4 * 1024 * 1024) throw new Error('Elige una imagen de hasta 4 MB.');
+  const cabecera = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const firma = (...bytes) => bytes.every((b, i) => cabecera[i] === b);
+  const jpg = firma(255, 216, 255), png = firma(137, 80, 78, 71, 13, 10, 26, 10);
+  const webp = firma(82, 73, 70, 70) && String.fromCharCode(...cabecera.slice(8, 12)) === 'WEBP';
+  if (!jpg && !png && !webp) throw new Error('Elige una imagen JPG, PNG o WebP.');
+  const url = URL.createObjectURL(file), imagen = new Image();
+  try {
+    imagen.src = url; await imagen.decode();
+    const lado = 72, escala = lado / Math.max(imagen.naturalWidth, imagen.naturalHeight);
+    const ancho = Math.max(1, Math.round(imagen.naturalWidth * escala)), alto = Math.max(1, Math.round(imagen.naturalHeight * escala));
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = lado;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(imagen, (lado - ancho) / 2, (lado - alto) / 2, ancho, alto);
+    return canvas.toDataURL('image/png');
+  } catch { throw new Error('La imagen no se pudo leer. Prueba con otra.'); }
+  finally { URL.revokeObjectURL(url); }
+}
 function csOrdenHtml(L) {
   return `<div class="hb-ord"><p class="meta" style="margin:0 0 8px">Mantén pulsada una fila y arrástrala (o desde ⠿), o toca ↑ ↓.</p><div class="cs-ord-l">${L.map((c, k) => `<div class="og-r hb-ord-r" data-ok="${esc(c.id)}"><div class="hb-ord-row"><span class="hb-ord-n og-rk">${k + 1}</span><span class="hb-ord-t">${esc(c.t)}<small>${esc(csRegla(c))}</small></span>
     <span class="hb-ord-asa" data-asa role="button" aria-label="Mantén pulsado y arrastra para mover ${esc(c.t)}">⠿</span><button type="button" class="hb-ord-b" data-or-sube="${k}" ${k === 0 ? 'disabled' : ''} aria-label="Subir ${esc(c.t)}">↑</button><button type="button" class="hb-ord-b" data-or-baja="${k}" ${k === L.length - 1 ? 'disabled' : ''} aria-label="Bajar ${esc(c.t)}">↓</button></div></div>`).join('')}</div></div>`;
+}
+const CS_CATEGORIAS = [
+  ['estudio', 'Estudio', '📚'], ['clases', 'Clases', '🏫'], ['lectura', 'Lectura', '📖'],
+  ['idiomas', 'Idiomas', '💬'], ['matematicas', 'Matemáticas', '📐'], ['ciencias', 'Ciencias', '🔬'],
+  ['tecnologia', 'Tecnología', '💻'], ['escritura', 'Escritura', '✍️'], ['arte', 'Arte', '🎨'],
+  ['musica', 'Música', '🎵'], ['creatividad', 'Creatividad', '💡'], ['proyecto', 'Proyecto', '🛠️'],
+  ['laboral', 'Trabajo', '💼'], ['organizacion', 'Organización', '🗓️'], ['concentracion', 'Concentración', '🎯'],
+  ['salud', 'Salud', '🌿'], ['sueno', 'Sueño', '🌙'], ['deporte', 'Deporte', '🏅'],
+  ['alimentacion', 'Alimentación', '🍎'], ['hidratacion', 'Hidratación', '💧'], ['bienestar', 'Bienestar emocional', '🌤️'],
+  ['descanso', 'Tiempo libre', '🪁'], ['social', 'Social', '🤝'], ['familia', 'Familia', '🏡'],
+  ['espiritual', 'Espiritual', '🕯️'], ['hogar', 'Hogar', '🪴'], ['finanzas', 'Finanzas personales', '🪙'],
+  ['naturaleza', 'Naturaleza', '🌱'], ['voluntariado', 'Voluntariado', '🫶'], ['otro', 'Otro', '🏷️']
+].map(([id, nombre, logo]) => ({ id, nombre, logo }));
+const CS_SIN_CATEGORIA = { id: '', nombre: 'Sin categoría', logo: '◇' };
+function csCatalogo() { return [...CS_CATEGORIAS, ...(ES.consCategorias || [])]; }
+function csCategoriaId(c) { return c.categoria ?? c.cat ?? ''; }
+function csLogoHtml(logo) {
+  const contenido = logo.startsWith('data:image/png;base64,') ? `<img alt="" src="${esc(logo)}">` : esc(logo);
+  return `<span class="cs-cat-logo" aria-hidden="true">${contenido}</span>`;
+}
+function csGrupos(metas, archivadas = false) {
+  const catalogo = new Map(csCatalogo().map(cat => [cat.id, cat])), grupos = new Map();
+  function grupo(cat) {
+    if (!grupos.has(cat.id)) grupos.set(cat.id, { cat, metas: [] });
+    return grupos.get(cat.id);
+  }
+  for (const meta of metas) grupo(catalogo.get(csCategoriaId(meta)) || CS_SIN_CATEGORIA).metas.push(meta);
+  const propias = new Set((ES.consCategorias || []).map(cat => cat.id));
+  if (!archivadas) for (const cat of ES.consCategorias || []) grupo(cat);
+  return [...grupos.values()].map(({ cat, metas }) => {
+    const editar = !archivadas && propias.has(cat.id) ? `<button type="button" class="link" data-cs-editar-cat="${esc(cat.id)}" aria-label="Editar categoría ${esc(cat.nombre)}">Editar</button>` : '';
+    const agregar = archivadas ? '' : `<button type="button" class="link" data-cs-agregar-en="${esc(cat.id)}" aria-label="Agregar meta en ${esc(cat.nombre)}">+ Meta</button>`;
+    const filas = archivadas ? metas.map(c => `<div class="cs-arch-r"><span>${esc(c.t)}</span><button type="button" class="link" data-cs-react="${esc(c.id)}">Reactivar</button></div>`) : metas.map(csTarjeta);
+    return `<section class="cs-grupo" aria-label="${esc(cat.nombre)}"><div class="cs-grupo-cab">${csLogoHtml(cat.logo)}<h3>${esc(cat.nombre)}</h3>${editar}${agregar}</div>${filas.join('')}</section>`;
+  }).join('');
+}
+function csOpcionesCategoria(id) {
+  const opcion = cat => `<option value="${esc(cat.id)}"${cat.id === id ? ' selected' : ''}>${esc(cat.nombre)}</option>`;
+  return opcion(CS_SIN_CATEGORIA) + (ES.consCategorias?.length ? `<optgroup label="Mis categorías">${ES.consCategorias.map(opcion).join('')}</optgroup>` : '') +
+    `<optgroup label="Categorías disponibles">${CS_CATEGORIAS.map(opcion).join('')}</optgroup>`;
 }
 function csRender() {
   const el = document.getElementById('cons'); if (!el) return;
   const L = csActivas(), A = csTodas().filter(c => c && c.archivada);
   let html = `<h2 class="cs-h">Metas de consistencia</h2><p class="cs-p">Elige los días y anota lo que cumpliste.</p>`;
+  const editor = el.querySelector('#cs-categoria-editor');
+  html += `<div class="cs-adds"><button type="button" class="add" id="cs-add">+ Meta de consistencia</button><button type="button" class="link" id="cs-categoria-nueva" aria-controls="cs-categoria-editor" aria-expanded="${!!editor?.firstElementChild}">+ Categoría</button>${L.length > 1 ? `<button type="button" class="link" id="cs-ordenar">${csOrdenando ? 'Listo' : 'Ordenar'}</button>` : ''}</div><div id="cs-categoria-editor"></div>`;
   if (csOrdenando && L.length > 1) html += csOrdenHtml(L);
-  else { csOrdenando = false; html += L.length ? L.map(csTarjeta).join('') : '<p class="cs-vacio">Por ejemplo, «Acostarme antes de las 10:35 PM». Un toque al día para anotarla.</p>'; }
-  html += `<div class="cs-adds"><button type="button" class="add" id="cs-add">+ Meta de consistencia</button>${L.length > 1 ? `<button type="button" class="link" id="cs-ordenar">${csOrdenando ? 'Listo' : 'Ordenar'}</button>` : ''}</div>`;
-  if (A.length) html += `<details class="cs-arch"${csArchAbierto ? ' open' : ''}><summary class="link">Archivadas · ${A.length}</summary>${A.map(c => `<div class="cs-arch-r"><span>${esc(c.t)}</span><button type="button" class="link" data-cs-react="${esc(c.id)}">Reactivar</button></div>`).join('')}</details>`;
+  else { csOrdenando = false; html += csGrupos(L) || '<p class="cs-vacio">Agrega tu primera meta de consistencia.</p>'; }
+  if (A.length) html += `<details class="cs-arch"${csArchAbierto ? ' open' : ''}><summary class="link">Archivadas · ${A.length}</summary>${csGrupos(A, true)}</details>`;
   el.innerHTML = html;
+  if (editor?.firstElementChild) el.querySelector('#cs-categoria-editor').replaceWith(editor);
   try { window.qa?.fab?.(); } catch {}
   if (csOrdenando) ordWire(el.querySelector('.cs-ord-l'), K => { const en = Date.now(), por = new Map(csActivas().map(c => [c.id, c])); K.forEach((id, k) => { const c = por.get(id); if (c) { c.orden = k; c.cambiado = en; } }); guardar(); csRender(); });
 }
@@ -31558,6 +31745,19 @@ function csPintarTodo() {
     const b = e.target.closest('button'); if (!b || !el.contains(b)) return;
     const c = csGet(b.dataset.csSi || b.dataset.csNo || b.dataset.cs || b.dataset.csCero || b.dataset.csCambiar || b.dataset.csEd || b.dataset.csReact || '');
     if (b.id === 'cs-add') { csNueva(); return; }
+    if (b.hasAttribute('data-cs-agregar-en')) { csForm(null, b.dataset.csAgregarEn); return; }
+    if (b.id === 'cs-categoria-nueva' || b.hasAttribute('data-cs-editar-cat')) {
+      const box = el.querySelector('#cs-categoria-editor');
+      const categoria = (ES.consCategorias || []).find(cat => cat.id === b.dataset.csEditarCat);
+      const cerrar = () => { box.replaceChildren(); csRender(); (categoria ? el.querySelector(`[data-cs-editar-cat="${CSS.escape(categoria.id)}"]`) : el.querySelector('#cs-categoria-nueva'))?.focus(); };
+      if (box.firstElementChild && !categoria) { cerrar(); return; }
+      el.querySelector('#cs-categoria-nueva').setAttribute('aria-expanded', 'true');
+      csEditorCategoria(box, { categoria, alCancelar: cerrar, alGuardar(cat) {
+        box.replaceChildren(); csOrdenando = false; csRender();
+        el.querySelector(`[data-cs-agregar-en="${CSS.escape(cat.id)}"]`)?.focus();
+      } });
+      return;
+    }
     if (b.id === 'cs-ordenar') { csOrdenando = !csOrdenando; csRender(); return; }
     if (!c) return;
     if (b.dataset.csSi) csCumpli(c);
@@ -31577,11 +31777,13 @@ function csNueva() { csForm(null); }
 // ¿Ya hay una con la misma frase (sin mayúsculas ni tildes) y el mismo tipo? Con todas = true, también las archivadas.
 function csIgual(t, tipo, todas = false) { const k = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(); return csTodas().find(c => c && (todas || !c.archivada) && c.tipo === tipo && k(c.t) === k(t)) || null; }
 function csEditar(id) { const c = csGet(id); if (c) csForm(c); }
-function csForm(c) {
+function csForm(c, enCategoria) {
   const nuevo = !c, x = c || { t: '', tipo: 'antes', hora: '22:35', n: 2, unidad: '', dias: [0, 1, 2, 3, 4, 5, 6], cat: '', iden: '', mid: '', aviso: false };
   const metas = (() => { try { return mtActivas(); } catch { return []; } })(), midAct = c ? (mtDe('consistencia', c.id)[0]?.id || '') : '';
   let tipo = x.tipo, dias = new Set(x.dias), borrar = false, cbN = x.tipo === 'min' ? 'min' : 'max', cbH = x.comb && x.comb.tipo === 'despues' ? 'despues' : 'antes';   // 2.22.5 (K)
   if (csCb(x)) tipo = 'comb';
+  const catAnterior = csCategoriaId(x);
+  let categoria = enCategoria ?? catAnterior, categoriaElegida = enCategoria !== undefined || !!c, areaPlantilla = '';
   showSheet(`<p class="paso">Metas de consistencia</p><h2>${nuevo ? 'Nueva meta de consistencia' : 'Editar meta de consistencia'}</h2>
     ${nuevo ? `<p class="meta">Elige una idea o escribe tu meta y selecciona los días en que quieres cumplirla.</p><div class="chips" id="cs-pl">${CS_PLANT.map((p, i) => { const ya = csIgual(p.t, p.tipo); return `<button type="button" class="chip${ya ? ' cs-ya' : ''}" data-cs-pl="${i}"${ya ? ' data-cs-ya="1"' : ''}>${esc(p.t)}${ya ? ' <small>· ya la tienes</small>' : ''}</button>`; }).join('')}</div>` : ''}
     <div class="field"><label for="cs-t">Qué</label><input id="cs-t" maxlength="80" value="${esc(x.t)}" placeholder="Acostarme antes de las 10:35 PM" autocomplete="off"></div>
@@ -31589,8 +31791,9 @@ function csForm(c) {
     <div class="field" id="cs-f-h"><label for="cs-h">Hora</label><div class="chips" id="cs-cb-h" style="margin-bottom:8px">${[['antes', 'Antes de'], ['despues', 'No antes de']].map(([k, n]) => `<button type="button" class="chip" data-cs-cbh="${k}" style="min-height:44px">${n}</button>`).join('')}</div><input type="time" id="cs-h" value="${esc((csCb(x) ? x.comb.hora : x.hora) || '22:35')}"><p class="meta" id="cs-cb-p" style="margin:8px 0 0">Se cumple el día que cumples las dos.</p></div>
     <div class="field" id="cs-f-n"><label for="cs-n" id="cs-n-l">Número por día</label><div class="chips" id="cs-cb-n" style="margin-bottom:8px">${[['max', 'Como máximo'], ['min', 'Como mínimo']].map(([k, n]) => `<button type="button" class="chip" data-cs-cbn="${k}" style="min-height:44px">${n}</button>`).join('')}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><input type="number" id="cs-n" min="0" max="999" inputmode="numeric" value="${esc(String(x.n ?? ''))}" style="flex:0 1 96px;min-width:0"><input id="cs-u" maxlength="20" value="${esc(x.unidad || '')}" placeholder="cafés, vasos…" style="flex:1 1 120px;min-width:0" aria-label="Unidad"></div></div>
     <div class="field"><label id="cs-dias-t">Días de la semana</label><div class="chips" id="cs-dias" role="group" aria-labelledby="cs-dias-t">${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((n, i) => `<button type="button" class="chip${dias.has(i) ? ' on' : ''}" data-cs-dia="${i}" aria-pressed="${dias.has(i)}" style="min-width:44px">${n}</button>`).join('')}</div>${nuevo ? '' : '<small class="meta">Los cambios se aplican desde hoy. Si ya anotaste hoy, empiezan mañana.</small>'}</div>
-    <details id="cs-mas"><summary class="link" style="min-height:44px;display:flex;align-items:center">Categoría, identidad${metas.length ? ', meta' : ''} y aviso</summary>
-      ${(() => { try { return window.cat?.chips?.('cs-cat', x.cat || '', { from: '#cs-t', jd: 'cs-jd', tocado: !!x.cat }) || ''; } catch { return ''; } })()}
+    <div class="field"><label for="cs-categoria">Categoría</label><div class="cs-cat-selector"><span id="cs-categoria-logo"></span><select id="cs-categoria">${csOpcionesCategoria(categoria)}</select></div>
+      <button type="button" class="link" id="cs-categoria-crear" aria-controls="cs-categoria-form-editor" aria-expanded="false">+ Crear categoría</button><div id="cs-categoria-form-editor"></div></div>
+    <details id="cs-mas"><summary class="link" style="min-height:44px;display:flex;align-items:center">Identidad${metas.length ? ', meta' : ''} y aviso</summary>
       ${(() => { try { return jdChipsHtml('cs-jd', x.iden || ''); } catch { return ''; } })()}
       ${metas.length ? `<div class="field"><label for="cs-meta">Para una meta</label><select id="cs-meta"><option value="">Ninguna</option>${metas.map(m => `<option value="${esc(m.id)}"${m.id === midAct ? ' selected' : ''}>${esc(m.t)}</option>`).join('')}</select></div>` : ''}
       <label class="field" id="cs-f-av" style="display:flex;gap:10px;align-items:center;min-height:44px"><input type="checkbox" id="cs-av" ${x.aviso ? 'checked' : ''} style="width:22px;height:22px;flex:none"> <span id="cs-av-t">Avisarme 15 minutos antes (con los avisos de la noche)</span></label>
@@ -31600,6 +31803,28 @@ function csForm(c) {
     <div class="actions"><button class="link" id="cs-x">Cancelar</button><button class="primary" id="cs-ok" data-guarda>${nuevo ? 'Crear' : 'Guardar'}</button></div>
     <p class="meta" style="margin-top:14px"><b>Por qué así.</b> Anotar cada día lo que haces ayuda a sostenerlo (Harkin et al., 2016). Un día que no sale se anota igual: no resta nada.</p>`);
   const body = $('#sheet-body');
+  const selectorCat = body.querySelector('#cs-categoria'), botonCat = body.querySelector('#cs-categoria-crear');
+  const pintarCategoria = () => {
+    const seleccion = csCatalogo().find(cat => cat.id === categoria) || CS_SIN_CATEGORIA;
+    selectorCat.value = seleccion.id;
+    body.querySelector('#cs-categoria-logo').innerHTML = csLogoHtml(seleccion.logo);
+  };
+  pintarCategoria();
+  selectorCat.onchange = () => { categoria = selectorCat.value; categoriaElegida = true; pintarCategoria(); };
+  body.querySelector('#cs-t').addEventListener('input', e => {
+    areaPlantilla = '';
+    if (!categoriaElegida) { categoria = window.cat?.sugerir?.(e.target.value) || ''; pintarCategoria(); }
+  });
+  botonCat.onclick = () => {
+    const box = body.querySelector('#cs-categoria-form-editor');
+    const cerrar = () => { box.replaceChildren(); botonCat.setAttribute('aria-expanded', 'false'); botonCat.focus(); };
+    if (box.firstElementChild) { cerrar(); return; }
+    botonCat.setAttribute('aria-expanded', 'true');
+    csEditorCategoria(box, { alCancelar: cerrar, alGuardar(cat) {
+      categoria = cat.id; categoriaElegida = true; selectorCat.innerHTML = csOpcionesCategoria(categoria);
+      cerrar(); pintarCategoria(); selectorCat.focus(); csRender();
+    } });
+  };
   const pintarTipo = () => {
     body.querySelectorAll('#cs-tipo .chip').forEach(b => { const on = b.dataset.csTipo === tipo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
     // 2.22.5 (K) · Combinado: primero el número (con «Como máximo» o «Como mínimo») y debajo la hora (con «Antes de» o «No antes de»).
@@ -31623,7 +31848,8 @@ function csForm(c) {
     if (p.comb) { tipo = 'comb'; cbN = p.tipo; cbH = p.comb.tipo; $('#cs-h').value = p.comb.hora; }   // 2.22.5 (K)
     if (p.n != null) { $('#cs-n').value = p.n; $('#cs-u').value = p.unidad || ''; }
     $('#cs-av').checked = !!p.aviso;
-    try { const box = body.querySelector('[data-cat-pref="cs-cat"]'); if (box && p.cat && !box.dataset.tocado) { box.dataset.sel = p.cat; box.querySelectorAll('[data-catk]').forEach(z => { const on = z.dataset.catk === p.cat; z.classList.toggle('on', on); z.setAttribute('aria-pressed', on); }); } } catch {}
+    areaPlantilla = p.cat || '';
+    if (!categoriaElegida) { categoria = p.categoria || areaPlantilla; pintarCategoria(); }
     pintarTipo();
   });
   body.querySelector('#cs-tipo').addEventListener('click', e => { const b = e.target.closest('[data-cs-tipo]'); if (!b) return; tipo = b.dataset.csTipo; pintarTipo(); });
@@ -31646,11 +31872,12 @@ function csForm(c) {
     if (!t) { err.textContent = 'Escribe qué quieres cumplir.'; $('#cs-t').focus(); return; }
     if ((tipo === 'antes' || tipo === 'despues' || cb) && !/^\d\d:\d\d$/.test(hora)) { err.textContent = 'Elige la hora.'; $('#cs-h').focus(); return; }
     if ((tipo === 'max' || tipo === 'min') && !(Number.isFinite(n) && n >= (tipo === 'min' ? 1 : 0) && n <= 999)) { err.textContent = 'Pon el número por día.'; $('#cs-n').focus(); return; }
-    let cat = ''; try { cat = window.cat?.leer?.(body, 'cs-cat') || ''; } catch {}
     let iden = ''; try { iden = jdLeerChips(body, 'cs-jd') || ''; } catch {}
+    const cat = CAT_LISTA.some(([id]) => id === categoria) ? categoria : (c ? c.cat : areaPlantilla || window.cat?.sugerir?.(t, { iden })) || '';
     const d = { t: t.slice(0, 80), tipo, hora: tipo === 'antes' || tipo === 'despues' ? hora : '', n: tipo === 'max' || tipo === 'min' ? n : 0, unidad: tipo === 'max' || tipo === 'min' ? $('#cs-u').value.trim().slice(0, 20) : '',
       dias: [...dias].sort((a, b) => a - b), cat, iden, aviso: (tipo === 'antes' || (cb && cbH === 'antes')) && $('#cs-av').checked, cambiado: Date.now() };
     if (cb) d.comb = { tipo: cbH, hora }; else if (c && 'comb' in c) d.comb = false;   // 2.22.5 (K) · false: quitado aquí (no vuelve al sincronizar)
+    if (nuevo || categoria !== catAnterior) { d.categoria = categoria; d.categoriaMod = Math.max(Date.now(), (c?.categoriaMod || 0) + 1); }
     if (c && cb && csCb(c) && c.comb.hora !== hora && d.t === c.t) { const a12 = csHora12(c.comb.hora), b12 = csHora12(hora); if (d.t.includes(a12)) d.t = d.t.replace(a12, b12); else if (d.t.includes(c.comb.hora)) d.t = d.t.replace(c.comb.hora, hora); }
     // Si el nombre lleva la hora vieja y la cambiaste, el nombre la sigue.
     // Igual con el número («Máximo 2 cafés» → «Máximo 1 café»).
@@ -36628,9 +36855,10 @@ function nocheHorario(ahora, despertar) {
   return { dia: dayKey(dia), laborable, cerrado: laborable && (madrugada || minutos >= 1320) };
 }
 function nocheActual() { return nocheHorario(new Date(), state.enfoque?.sueno?.despertar); }
-function nocheGuardarLocal() {
-  nocheCopia = JSON.stringify(state);
-  try { localStorage.setItem(KEY, nocheCopia); } catch {}
+function nocheGuardarLocal(exigirLocal) {
+  const copia = JSON.stringify(state);
+  try { localStorage.setItem(KEY, copia); } catch (e) { if (exigirLocal) throw e; }
+  nocheCopia = copia;
 }
 function nocheFrase(v) { return String(v || '').trim().toLocaleLowerCase('es') === 'soy responsable con mi tiempo'; }
 // Identidades de contenido creado. Las marcas internas de sincronización, XP y
@@ -36654,7 +36882,7 @@ function nocheInventario(s, gesto) {
   for (const [grupo, filas] of Object.entries({
     Persona: e.personas, Proyecto: e.proyectos, Plan: e.planes, Meta: e.metas, Identidad: e.identidades,
     Objetivo: e.objetivos, Pizarra: e.pizarras, Diario: e.diario, Prioridad: e.prioridades?.items,
-    Bloque: e.bloquesT, Constante: e.constantes, Consistencia: e.consistencias, Reflexión: e.reflexiones,
+    Bloque: e.bloquesT, Constante: e.constantes, Consistencia: e.consistencias, 'Categoría de consistencia': e.consCategorias, Reflexión: e.reflexiones,
     Materia: e.estudio?.materias, Ruta: e.estudio?.rutas, Práctica: e.practicas, Estado: e.estado,
     Ánimo: e.animo, Misión: e.misiones, Predicción: e.predicciones, Gratitud: e.buenas, Aplicación: e.apps,
     Norma: e.espiritu?.normas
@@ -36810,7 +37038,7 @@ function nocheArrancar() {
     const n = nocheActual();
     if (!n?.cerrado || nochePermiso?.dia === n.dia) return;
     const etiq = (b.getAttribute('aria-label') || b.textContent || '').trim();
-    if (b.id !== 'noche-accion' && !/^(?:\+\s*|(?:crear|añadir|agregar|nuev[oa])\s+(?:(?:una?|otra?)\s+)?)(?:tarea|hábito|rutina|prioridad|meta|bloque|evento|iniciativa)(?:$|\s)/i.test(etiq)) return;
+    if (b.id !== 'noche-accion' && !/^(?:\+\s*|(?:crear|añadir|agregar|nuev[oa])\s+(?:(?:una?|otra?)\s+)?)(?:tarea|hábito|rutina|prioridad|meta|bloque|evento|iniciativa|categoría)(?:$|\s)/i.test(etiq)) return;
     ev.preventDefault(); ev.stopImmediatePropagation();
     nocheAbrirPermiso(() => { if (b.isConnected && b.id !== 'noche-accion') b.click(); });
   }, true);
